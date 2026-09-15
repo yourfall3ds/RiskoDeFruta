@@ -1,0 +1,18 @@
+{
+  "source": "art/blender/Orchard_Tree_LODs.blend",
+  "tier": "near",
+  "orthographicSize": 5.429190845489503,
+  "boundsMin": [
+    -2.377937078475952,
+    -2.409637451171875,
+    0.0004498519410844892
+  ],
+  "boundsMax": [
+    2.377436399459839,
+    2.4092090129852295,
+    5.027478218078613
+  ],
+  "texture": "public\\textures\\orchard-canopy-far.png",
+  "pixels": 512,
+  "bytes": 369157
+}

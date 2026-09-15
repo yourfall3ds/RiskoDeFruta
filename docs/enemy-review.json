@@ -1,0 +1,89 @@
+[
+  {
+    "species": "carrot",
+    "actions": [
+      "Death",
+      "Hit",
+      "Run",
+      "Walk"
+    ],
+    "meshes": [
+      {
+        "vertices": 12326,
+        "polygons": 16951,
+        "dimensions": [
+          0.834341287612915,
+          0.7123793363571167,
+          1.771701455116272
+        ]
+      },
+      {
+        "vertices": 42,
+        "polygons": 80,
+        "dimensions": [
+          1.9021157026290894,
+          1.9999998807907104,
+          2.0
+        ]
+      }
+    ]
+  },
+  {
+    "species": "corn",
+    "actions": [
+      "Death",
+      "Hit",
+      "Run",
+      "Walk"
+    ],
+    "meshes": [
+      {
+        "vertices": 16372,
+        "polygons": 17150,
+        "dimensions": [
+          0.9565423130989075,
+          0.5370470881462097,
+          1.7352241277694702
+        ]
+      },
+      {
+        "vertices": 42,
+        "polygons": 80,
+        "dimensions": [
+          1.9021157026290894,
+          1.9999998807907104,
+          2.0
+        ]
+      }
+    ]
+  },
+  {
+    "species": "eggplant",
+    "actions": [
+      "Death",
+      "Hit",
+      "Run",
+      "Walk"
+    ],
+    "meshes": [
+      {
+        "vertices": 8467,
+        "polygons": 10972,
+        "dimensions": [
+          1.1506832838058472,
+          0.710050642490387,
+          1.7365055084228516
+        ]
+      },
+      {
+        "vertices": 42,
+        "polygons": 80,
+        "dimensions": [
+          1.9021157026290894,
+          1.9999998807907104,
+          2.0
+        ]
+      }
+    ]
+  }
+]

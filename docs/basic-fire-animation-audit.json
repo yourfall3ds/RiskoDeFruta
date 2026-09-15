@@ -1,0 +1,12 @@
+[
+  {
+    "name": "Fire_R",
+    "frames": 61,
+    "duration": 0.21
+  },
+  {
+    "name": "Fire_L",
+    "frames": 61,
+    "duration": 0.21
+  }
+]

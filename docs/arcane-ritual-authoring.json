@@ -1,0 +1,16 @@
+{
+  "fps": 60,
+  "frames": [
+    0,
+    120
+  ],
+  "prepare_end_frame": 60,
+  "roots": [
+    "GroundSigilRoot",
+    "RightAuraRoot",
+    "LeftAuraRoot"
+  ],
+  "layers": 13,
+  "triangles": 3756,
+  "source": "art/blender/Arcane_Skill_Ritual.blend"
+}

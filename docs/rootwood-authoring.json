@@ -1,0 +1,222 @@
+{
+  "islands": [
+    [
+      "Bosque da Colheita",
+      940,
+      360,
+      30,
+      110,
+      90
+    ],
+    [
+      "Ruinas do Engenho",
+      1150,
+      420,
+      38,
+      110,
+      110
+    ],
+    [
+      "Terracos das Sementes",
+      1030,
+      630,
+      24,
+      120,
+      100
+    ]
+  ],
+  "paths": [
+    [
+      [
+        840,
+        350
+      ],
+      [
+        885,
+        355
+      ],
+      [
+        940,
+        360
+      ],
+      [
+        985,
+        365
+      ],
+      [
+        1025,
+        360
+      ]
+    ],
+    [
+      [
+        940,
+        360
+      ],
+      [
+        945,
+        400
+      ],
+      [
+        955,
+        440
+      ]
+    ],
+    [
+      [
+        1055,
+        400
+      ],
+      [
+        1100,
+        410
+      ],
+      [
+        1150,
+        420
+      ],
+      [
+        1190,
+        440
+      ]
+    ],
+    [
+      [
+        1150,
+        420
+      ],
+      [
+        1140,
+        465
+      ],
+      [
+        1120,
+        510
+      ]
+    ],
+    [
+      [
+        990,
+        550
+      ],
+      [
+        1010,
+        590
+      ],
+      [
+        1030,
+        630
+      ],
+      [
+        1030,
+        695
+      ]
+    ],
+    [
+      [
+        1080,
+        550
+      ],
+      [
+        1050,
+        600
+      ],
+      [
+        1030,
+        630
+      ]
+    ]
+  ],
+  "bridges": [
+    {
+      "a": {
+        "x": 797,
+        "y": 26.424747373224786,
+        "z": 342
+      },
+      "b": {
+        "x": 840,
+        "y": 30.11505537772548,
+        "z": 350
+      },
+      "width": 8
+    },
+    {
+      "a": {
+        "x": 1025,
+        "y": 31.168787228570597,
+        "z": 360
+      },
+      "b": {
+        "x": 1040.0,
+        "y": 38.217103879495504,
+        "z": 380.0
+      },
+      "width": 8
+    },
+    {
+      "a": {
+        "x": 1040.0,
+        "y": 38.217103879495504,
+        "z": 380.0
+      },
+      "b": {
+        "x": 1055,
+        "y": 38.217103879495504,
+        "z": 400
+      },
+      "width": 8
+    },
+    {
+      "a": {
+        "x": 1120,
+        "y": 38.47191543374252,
+        "z": 510
+      },
+      "b": {
+        "x": 1104.0,
+        "y": 38.47191543374252,
+        "z": 526.0
+      },
+      "width": 8
+    },
+    {
+      "a": {
+        "x": 1104.0,
+        "y": 38.47191543374252,
+        "z": 526.0
+      },
+      "b": {
+        "x": 1080,
+        "y": 24.137966438643545,
+        "z": 550
+      },
+      "width": 8
+    },
+    {
+      "a": {
+        "x": 955,
+        "y": 30.272528922946506,
+        "z": 440
+      },
+      "b": {
+        "x": 990,
+        "y": 24.2139291475339,
+        "z": 550
+      },
+      "width": 8
+    }
+  ],
+  "collisionTriangles": 162791,
+  "renderObjects": 1185,
+  "status": "integrated: runtime region, nine chests, three contracts, 42 physical traversals and 44 global navigation routes passed; browser gameplay inspected",
+  "landingSource": "art/blender/Rootwood_Region_Landings.blend",
+  "treeSource": "art/blender/Rootwood_Region_Trees.blend",
+  "treePlacements": 300,
+  "sharedTreeGeometries": 6,
+  "modelBytes": 68244828,
+  "trailSource": "art/blender/Rootwood_Region_Trails.blend",
+  "connectedWorldAreaM2": 222945.84386181,
+  "worldMultiplier": 26.488698018454826,
+  "pavilionSource": "art/blender/Rootwood_Region_Pavilions.blend"
+}

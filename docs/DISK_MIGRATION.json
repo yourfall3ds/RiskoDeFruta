@@ -1,0 +1,17 @@
+{
+  "source": "C:\\Users\\lucas\\OneDrive\\Documents\\Riskodefruta2",
+  "destination": "D:\\Riskodefruta2",
+  "verifiedSHA256": 13378,
+  "total": 13378,
+  "mismatches": [],
+  "timestamp": "2026-09-06T23:18:28.1105656-03:00",
+  "sourcePreserved": true,
+  "validation": {
+    "productionBuild": "passed",
+    "typecheck": "passed",
+    "server": "http://127.0.0.1:5173",
+    "testsPassed": 74,
+    "serverRoot": "D:\\Riskodefruta2",
+    "testFilesPassed": 15
+  }
+}

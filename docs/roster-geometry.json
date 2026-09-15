@@ -1,0 +1,42 @@
+[
+  {
+    "kind": "broccoli",
+    "triangles": 17000,
+    "bytes": 2149216
+  },
+  {
+    "kind": "lettuce",
+    "triangles": 9839,
+    "bytes": 1688712
+  },
+  {
+    "kind": "banana",
+    "triangles": 19999,
+    "bytes": 1430912
+  },
+  {
+    "kind": "corn",
+    "triangles": 10000,
+    "bytes": 1956300
+  },
+  {
+    "kind": "carrot",
+    "triangles": 10000,
+    "bytes": 1787208
+  },
+  {
+    "kind": "tomato",
+    "triangles": 10000,
+    "bytes": 2298020
+  },
+  {
+    "kind": "watermelon",
+    "triangles": 10000,
+    "bytes": 2126936
+  },
+  {
+    "kind": "boss",
+    "triangles": 49999,
+    "bytes": 6896676
+  }
+]

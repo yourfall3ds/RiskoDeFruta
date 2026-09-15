@@ -1,0 +1,107 @@
+{
+  "actions": [
+    {
+      "name": "Death",
+      "frames": [
+        0.8000000715255737,
+        79.19999694824219
+      ]
+    },
+    {
+      "name": "Dodge",
+      "frames": [
+        0.8000000715255737,
+        40.0
+      ]
+    },
+    {
+      "name": "Draw",
+      "frames": [
+        0.8000000715255737,
+        176.0
+      ]
+    },
+    {
+      "name": "Hit",
+      "frames": [
+        0.8000000715255737,
+        40.0
+      ]
+    },
+    {
+      "name": "Idle",
+      "frames": [
+        0.8000000715255737,
+        56.79999542236328
+      ]
+    },
+    {
+      "name": "Jump",
+      "frames": [
+        0.8000000715255737,
+        46.39999771118164
+      ]
+    },
+    {
+      "name": "Run",
+      "frames": [
+        0.8000000715255737,
+        16.0
+      ]
+    },
+    {
+      "name": "Walk",
+      "frames": [
+        0.8000000715255737,
+        25.60000228881836
+      ]
+    }
+  ],
+  "bones": [
+    "Hips",
+    "LeftUpLeg",
+    "LeftLeg",
+    "LeftFoot",
+    "LeftToeBase",
+    "RightUpLeg",
+    "RightLeg",
+    "RightFoot",
+    "RightToeBase",
+    "Spine02",
+    "Spine01",
+    "Spine",
+    "LeftShoulder",
+    "LeftArm",
+    "LeftForeArm",
+    "LeftHand",
+    "RightShoulder",
+    "RightArm",
+    "RightForeArm",
+    "RightHand",
+    "neck",
+    "Head",
+    "head_end",
+    "headfront"
+  ],
+  "meshes": [
+    {
+      "name": "char1",
+      "vertices": 16811,
+      "polygons": 10379
+    },
+    {
+      "name": "Icosphere",
+      "vertices": 42,
+      "polygons": 80
+    }
+  ],
+  "images": [
+    {
+      "name": "texture_0",
+      "size": [
+        2048,
+        2048
+      ]
+    }
+  ]
+}

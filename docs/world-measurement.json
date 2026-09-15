@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "method": "Projected XZ area of ground navmesh polygons with a complete path from the player spawn; excludes disconnected roofs and decorative islands.",
+  "source": "public/models/farm-navmesh.bin",
+  "sha256": "6dda83c97b605e33ae51c9cc55b45d7452335c5fd8b59f00d5af96e3157d7679",
+  "spawn": {
+    "x": 2,
+    "y": 0,
+    "z": -16
+  },
+  "connectedAreaM2": 222945.84386181,
+  "totalNavmeshAreaM2": 224138.06194215323,
+  "connectedPolygons": 10372,
+  "totalPolygons": 10720,
+  "targetMultiplier": 25,
+  "targetConnectedAreaM2": 210416.00809001856,
+  "baselineAreaM2": 8416.640323600743,
+  "achievedMultiplier": 26.488698018454826,
+  "targetProgress": 1.059547920738193
+}

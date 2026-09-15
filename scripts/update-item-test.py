@@ -1,0 +1,3 @@
+from pathlib import Path
+p=Path('tests/run-progression.test.ts');s=p.read_text();start=s.index("  it('applies all twelve");end=s.index("  it('charges once",start);s=s[:start]+'''  it('preserves existing item balance and diminishing critical returns',()=>{const run=new RunProgression(new EventBus());expect(ITEMS).toHaveLength(90);run.addItem('belt');expect(run.stats.armor).toBe(20);run.addItem('pruner');run.addItem('pruner');expect(run.stats.damage).toBeCloseTo(1.3);for(let i=0;i<100;i++)run.addItem('goggles');expect(run.stats.crit).toBeLessThan(1);expect(run.stats.crit).toBeGreaterThan(.8);});
+'''+s[end:];p.write_text(s)

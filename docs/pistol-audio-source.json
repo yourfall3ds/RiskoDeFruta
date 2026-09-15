@@ -1,0 +1,13 @@
+{
+  "author": "Tabasco",
+  "source": "https://opengameart.org/content/gunshot-sounds",
+  "license": "CC0",
+  "recording": "sounds/cz.wav",
+  "edits": "Four individual CZ-52 shots; mono, high-pass 100 Hz, shorter ambience, peak -0.9 dBFS, tail fade",
+  "startSeconds": [
+    0.28,
+    2.82,
+    4.07,
+    5.54
+  ]
+}

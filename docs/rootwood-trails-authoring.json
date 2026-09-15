@@ -1,0 +1,8 @@
+{
+  "trails": 6,
+  "triangles": 25352,
+  "vertices": 14088,
+  "clearedNonCollidingFerns": 21,
+  "collisionChanged": false,
+  "source": "art/blender/Rootwood_Region_Trails.blend"
+}

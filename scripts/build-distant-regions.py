@@ -1,0 +1,30 @@
+"""Build distant visual proxies from the actual authored regions, never collision geometry."""
+import bpy,json
+from pathlib import Path
+ROOT=Path(__file__).resolve().parent.parent
+report={}
+for region,source in [('farm-city','Agricultural_City.blend'),('solar-frontier','Solar_Frontier.blend')]:
+ bpy.ops.wm.open_mainfile(filepath=str(ROOT/'art/blender'/source))
+ selected=list(bpy.context.selected_objects)
+ meshes=[o for o in selected if o.type=='MESH' and not any(word in o.name.lower() for word in ['fern','grass','orchardlod_','island_tree','coast'])]
+ bpy.ops.object.select_all(action='DESELECT')
+ seen=set()
+ for o in meshes:
+  o.hide_set(False);o.hide_render=False
+  if o.data not in seen:
+   seen.add(o.data)
+   if len(o.data.polygons)>4000:
+    bpy.context.view_layer.objects.active=o;o.select_set(True);m=o.modifiers.new('Distant region budget','DECIMATE');m.ratio=4000/len(o.data.polygons);bpy.ops.object.modifier_apply(modifier=m.name);o.select_set(False)
+ # Only images referenced by exported materials are emitted by glTF.
+ for image in bpy.data.images:
+  if image.size[0]>512 or image.size[1]>512:
+   ratio=512/max(image.size);image.scale(max(1,round(image.size[0]*ratio)),max(1,round(image.size[1]*ratio)));image.pack()
+ for o in meshes:o.select_set(True)
+ bpy.context.view_layer.objects.active=meshes[0];bpy.ops.object.join();meshes=[bpy.context.object]
+ path=ROOT/f'public/models/{region}-distant.glb'
+ bpy.ops.export_scene.gltf(filepath=str(path),export_format='GLB',use_selection=True,export_animations=False)
+ triangles=0
+ for o in meshes:o.data.calc_loop_triangles();triangles+=len(o.data.loop_triangles)
+ report[region]={'meshes':len(meshes),'triangles':triangles,'bytes':path.stat().st_size,'maxTextureEdge':512}
+ print('DISTANT REGION READY',region,report[region],flush=True)
+(ROOT/'docs/distant-region-budget.json').write_text(json.dumps(report,indent=2),encoding='utf-8')

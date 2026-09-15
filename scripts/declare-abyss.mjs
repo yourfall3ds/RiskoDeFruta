@@ -1,0 +1,1 @@
+import {readFileSync,writeFileSync} from 'node:fs';let p='src/game/PlayerScene.ts',s=readFileSync(p,'utf8');s=s.replace('private readonly audio=new WeaponAudio();','private abyss:AbyssPresentation|undefined;private readonly audio=new WeaponAudio();');writeFileSync(p,s);

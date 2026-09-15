@@ -1,0 +1,2 @@
+from pathlib import Path
+p=Path('src/game/PlayerScene.ts');s=p.read_text(encoding='utf-8');s=s.replace("+' · distância '+hit?.distance;", "+' · distância '+hit?.distance+' · jogador '+this.visual.meshes.map(m=>m.name+':vis='+m.visibility+',enabled='+m.isEnabled()+',visible='+m.isVisible+',scale='+m.scaling.toString()+',center='+m.getBoundingInfo().boundingBox.centerWorld.toString()).join('|');");p.write_text(s,encoding='utf-8')

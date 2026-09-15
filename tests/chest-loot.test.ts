@@ -1,0 +1,19 @@
+import {describe,it,expect} from 'vitest';
+import {NullEngine} from '@babylonjs/core/Engines/nullEngine';
+import {Scene} from '@babylonjs/core/scene';
+import {RunInteractables} from '../src/run/RunInteractables';
+import {RunProgression} from '../src/run/RunProgression';
+import {CollisionWorld} from '../src/physics/CollisionWorld';
+import {PlayerMotor} from '../src/player/PlayerMotor';
+import {EventBus} from '../src/core/EventBus';
+import {RunRNG} from '../src/core/RunRNG';
+import type {GameEvents} from '../src/core/contracts';
+import type {StandardMaterial} from '@babylonjs/core/Materials/standardMaterial';
+function fixture(){const engine=new NullEngine(),scene=new Scene(engine),events=new EventBus<GameEvents>(),world=new CollisionWorld();world.surfaces.push({id:'test-floor',x:0,z:0,width:100,depth:100,height:0});const player=new PlayerMotor(world,events,{x:3,y:0,z:1}),run=new RunProgression(events);run.credits=100;const chest=new RunInteractables(scene,player,run,events,new RunRNG('chest').stream('interactable'),world);chest.update(0,false);return {engine,scene,events,world,player,run,chest,close(){chest.dispose();scene.dispose();engine.dispose();}};}
+describe('chest reward lifecycle',()=>{
+ it('charges once, ejects after the lid starts opening and only awards on a landed pickup',()=>{const f=fixture();try{let picked=0;f.events.on('ItemPicked',()=>picked++);expect(f.chest.nearest?.kind).toBe('shop');expect(f.chest.buy(2)).toBe(true);expect(f.run.credits).toBe(55);expect(f.run.inventory.size).toBe(0);expect(f.chest.buy()).toBe(false);f.chest.update(.2,false);expect(f.chest.drops.active).toHaveLength(0);f.chest.update(.13,false);expect(f.chest.drops.active).toHaveLength(1);expect(f.chest.buy()).toBe(false);expect(picked).toBe(0);for(let i=0;i<60;i++)f.chest.update(1/60,false);const drop=f.chest.drops.active[0]!;expect(drop.landed).toBe(true);expect(drop.landing.y).toBeCloseTo(.43);const mat=drop.root.getChildMeshes()[0]!.material as StandardMaterial;expect(mat.diffuseTexture?.hasAlpha).toBe(true);const angle=drop.root.rotation.y;f.chest.update(.2,false);expect(drop.root.rotation.y).not.toBe(angle);Object.assign(f.player.position,drop.landing);f.player.position.y=0;expect(f.chest.buy()).toBe(true);expect(picked).toBe(1);expect(f.run.inventory.get(drop.item.id)).toBe(1);expect(f.run.credits).toBe(55);expect(f.chest.buy()).toBe(false);expect(picked).toBe(1);}finally{f.close();}});
+ it('does not let an option number select or reroll a reward, and reset removes abandoned drops',()=>{const a=fixture(),b=fixture();try{a.chest.buy(0);b.chest.buy(2);expect(a.chest.entries[1]!.loot!.id).toBe(b.chest.entries[1]!.loot!.id);for(let i=0;i<90;i++)a.chest.update(1/60,false);expect(a.chest.drops.active).toHaveLength(1);a.chest.reset();expect(a.chest.drops.active).toHaveLength(0);expect(a.chest.entries.every(e=>!e.used&&!e.loot)).toBe(true);expect(a.run.inventory.size).toBe(0);}finally{a.close();b.close();}});
+ it('does not charge insufficient funds or a stale out-of-range prompt',()=>{const f=fixture();try{f.run.credits=44;expect(f.chest.buy()).toBe(false);expect(f.run.credits).toBe(44);expect(f.chest.entries[1]!.loot).toBeUndefined();f.run.credits=100;f.player.position.x=50;expect(f.chest.buy()).toBe(false);expect(f.run.credits).toBe(100);}finally{f.close();}});
+ it('lands on raised terrain and rejects an obstructed direction',()=>{const f=fixture();try{f.world.surfaces.push({id:'upper',x:5,z:1,width:10,depth:10,height:5});f.world.boxes.push({id:'wall',min:{x:3,y:5,z:0},max:{x:4,y:7,z:2}});const item=f.run.randomItem(new RunRNG('item').stream('loot'));const d=f.chest.drops.eject(item,{x:5,y:5,z:1},{x:3,y:5,z:1});expect(d.landing.y).toBeCloseTo(5.43);expect(d.landing.x>=3&&d.landing.x<=4&&d.landing.z>=0&&d.landing.z<=2).toBe(false);}finally{f.close();}});
+});
+

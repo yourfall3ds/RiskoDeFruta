@@ -1,0 +1,11 @@
+import {readFileSync,writeFileSync} from 'node:fs';const edit=(p,a,b)=>{let s=readFileSync(p,'utf8');if(!s.includes(a))throw Error(p+' missing '+a.slice(0,30));writeFileSync(p,s.replace(a,b));};
+edit('src/run/RunInteractables.ts',"import { TransformNode }", "import type {AnimationGroup} from '@babylonjs/core/Animations/animationGroup';\nimport {Quaternion,Vector3} from '@babylonjs/core/Maths/math.vector';\nimport { TransformNode }");
+edit('src/run/RunInteractables.ts','root?:TransformNode}', 'root?:TransformNode;openClips?:AnimationGroup[];opening?:number}');
+edit('src/run/RunInteractables.ts',"'/models/supply-crate.glb'", "'/models/interactive-chest.glb'");
+edit('src/run/RunInteractables.ts','const root=new TransformNode(entry.id,scene);','const root=new TransformNode(entry.id,scene);entry.openClips=[];entry.opening=0;');
+edit('src/run/RunInteractables.ts','for(const child of instance.rootNodes)', 'for(const clip of instance.animationGroups){clip.stop();entry.openClips.push(clip);}for(const child of instance.rootNodes)');
+edit('src/run/RunInteractables.ts','update(dt:number,riftReady:boolean):void {this.time+=dt;', 'private lid(entry:Interactable,progress:number):void{for(const clip of entry.openClips??[])for(const track of clip.targetedAnimations){const value=track.animation.evaluate(clip.from+(clip.to-clip.from)*progress);if(value instanceof Quaternion)track.target.rotationQuaternion=value.clone();else if(value instanceof Vector3)track.target.position.copyFrom(value);}}\n  update(dt:number,riftReady:boolean):void {for(const e of this.entries)if(e.used&&(e.opening??0)<1){e.opening=Math.min(1,(e.opening??0)+dt/ .8);this.lid(e,e.opening);}this.time+=dt;');
+edit('src/run/RunInteractables.ts','e.used=false;e.cost=', 'e.used=false;e.opening=0;this.lid(e,0);e.cost=');
+edit('src/run/RunInteractables.ts','entry.used=true;entry.root?.scaling.set(.94,.9,.94);','entry.used=true;entry.opening=0;');
+let p='public/models/farm-collision.json',g=JSON.parse(readFileSync(p,'utf8'));g.boxes=g.boxes.filter(b=>!b.id.startsWith('interactive-chest'));for(const [i,x,z,y,shop] of [[0,-5,-13,0,false],[1,5,1,0,true],[3,7,29,5,false],[4,-45,3,0,false],[5,44,10,2,true]])g.boxes.push({id:'interactive-chest-'+i,min:{x:x-.53,y,z:z-(shop?1.56:.43)},max:{x:x+.53,y:y+.68,z:z+(shop?1.56:.43)}});writeFileSync(p,JSON.stringify(g));
+

@@ -1,0 +1,10 @@
+{
+  "status": "candidate-only",
+  "preservedGeometryMaterialsRig": true,
+  "preservedExistingClips": 26,
+  "clips": [
+    "ArrivalDive",
+    "ArrivalRecovery"
+  ],
+  "finiteKeys": true
+}

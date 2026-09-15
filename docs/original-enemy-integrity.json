@@ -1,0 +1,110 @@
+[
+  {
+    "species": "eggplant",
+    "source": "assets/Meshy_AI_enemy_eggplant_rigged_biped/Meshy_AI_enemy_eggplant_rigged_biped/Meshy_AI_enemy_eggplant_rigged_biped_Character_output.glb",
+    "output": "original-eggplant.glb",
+    "originalBinarySHA256": "314d88b9f9bbba81720c49ddb9bbe07755ecd43a23ba70c9da85244750e7fe9c",
+    "originalBinaryBytes": 34349088,
+    "geometryUnchanged": true,
+    "materialsUnchanged": true,
+    "embeddedTexturesUnchanged": true,
+    "animations": [
+      "Walk",
+      "Run",
+      "Hit",
+      "Death",
+      "Idle",
+      "Spawn",
+      "Cast",
+      "Attack"
+    ]
+  },
+  {
+    "species": "corn",
+    "source": "assets/Meshy_AI_enemy_corn_rigged_biped/Meshy_AI_enemy_corn_rigged_biped/Meshy_AI_enemy_corn_rigged_biped_Character_output.glb",
+    "output": "original-corn.glb",
+    "originalBinarySHA256": "787cb1f7f0b0a12dd070eaf79a079457fc63fdd9b5b6329bc5837559da134b7b",
+    "originalBinaryBytes": 30755356,
+    "geometryUnchanged": true,
+    "materialsUnchanged": true,
+    "embeddedTexturesUnchanged": true,
+    "animations": [
+      "Walk",
+      "Run",
+      "Hit",
+      "Death",
+      "Idle",
+      "Spawn",
+      "Cast",
+      "Attack"
+    ]
+  },
+  {
+    "species": "carrot",
+    "source": "assets/Meshy_AI_enemy_carrot_rigged_biped/Meshy_AI_enemy_carrot_rigged_biped/Meshy_AI_enemy_carrot_rigged_biped_Character_output.glb",
+    "output": "original-carrot.glb",
+    "originalBinarySHA256": "18532c1ee920cd2a6049b03ee2f761536e8f4129d04154e7ed2d2329036cff9a",
+    "originalBinaryBytes": 32028248,
+    "geometryUnchanged": true,
+    "materialsUnchanged": true,
+    "embeddedTexturesUnchanged": true,
+    "animations": [
+      "Walk",
+      "Run",
+      "Hit",
+      "Death",
+      "Idle",
+      "Spawn",
+      "Cast",
+      "Attack"
+    ]
+  },
+  {
+    "species": "tomato",
+    "source": "assets/Tomatevoador-Meshy_AI_Character_output.glb",
+    "output": "original-tomato.glb",
+    "originalBinarySHA256": "1f3a4c005f3f4f1e6f4186638d1ac7300c416d5a1782f7b00dde6c5bc9278482",
+    "originalBinaryBytes": 55553780,
+    "geometryUnchanged": true,
+    "materialsUnchanged": true,
+    "embeddedTexturesUnchanged": true,
+    "animations": [
+      "Spawn",
+      "Idle",
+      "Walk",
+      "Run",
+      "Fly",
+      "Cast",
+      "Attack",
+      "Spit",
+      "Bite",
+      "Roll",
+      "Hit",
+      "Death"
+    ]
+  },
+  {
+    "species": "watermelon",
+    "source": "assets/melancia-Meshy_AI_Character_output (1).glb",
+    "output": "original-watermelon.glb",
+    "originalBinarySHA256": "b48e6fa55d16dc7ad538cb4803eaacd2780028ee1bea11e7bb2d1493d0f00948",
+    "originalBinaryBytes": 52438676,
+    "geometryUnchanged": true,
+    "materialsUnchanged": true,
+    "embeddedTexturesUnchanged": true,
+    "animations": [
+      "Spawn",
+      "Idle",
+      "Walk",
+      "Run",
+      "Fly",
+      "Cast",
+      "Attack",
+      "Spit",
+      "Bite",
+      "Roll",
+      "Hit",
+      "Death"
+    ]
+  }
+]

@@ -1,0 +1,8 @@
+{
+  "trails": 11,
+  "triangles": 23772,
+  "vertices": 13462,
+  "clearedNonCollidingFerns": 28,
+  "collisionChanged": false,
+  "source": "art/blender/Highland_Farms_Trails.blend"
+}

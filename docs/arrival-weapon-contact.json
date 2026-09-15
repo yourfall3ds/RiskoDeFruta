@@ -1,0 +1,1451 @@
+{
+  "includesWeapons": true,
+  "samples": [
+    {
+      "progress": 0,
+      "minimumY": 0.10104152583111536,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.004166666666666667,
+      "minimumY": 0.10104152583111536,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.008333333333333333,
+      "minimumY": 0.10104152583111536,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.0125,
+      "minimumY": 0.10104152583111536,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.016666666666666666,
+      "minimumY": 0.10104152583111536,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.020833333333333332,
+      "minimumY": 0.102604744819078,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.025,
+      "minimumY": 0.10417171064156083,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.029166666666666667,
+      "minimumY": 0.11337713760611545,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.03333333333333333,
+      "minimumY": 0.1226618556024538,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.0375,
+      "minimumY": 0.13986685430828982,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.041666666666666664,
+      "minimumY": 0.1566838555093525,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.04583333333333333,
+      "minimumY": 0.18100528139044336,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.05,
+      "minimumY": 0.19972354579298457,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.05416666666666667,
+      "minimumY": 0.20450867260393513,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.058333333333333334,
+      "minimumY": 0.20957205742325957,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.0625,
+      "minimumY": 0.22861391198410042,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.06666666666666667,
+      "minimumY": 0.24753808411163192,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.07083333333333333,
+      "minimumY": 0.28329959871797006,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.075,
+      "minimumY": 0.31699514408759955,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.07916666666666666,
+      "minimumY": 0.31695913449074276,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.08333333333333333,
+      "minimumY": 0.30843443207829935,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.0875,
+      "minimumY": 0.3016015813013734,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.09166666666666666,
+      "minimumY": 0.2936560609767663,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.09583333333333334,
+      "minimumY": 0.2879582778959506,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.1,
+      "minimumY": 0.28222536734957154,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.10416666666666667,
+      "minimumY": 0.278566237927928,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.10833333333333334,
+      "minimumY": 0.27448647347710076,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.1125,
+      "minimumY": 0.27251939369865597,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.11666666666666667,
+      "minimumY": 0.2706283662177953,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.12083333333333333,
+      "minimumY": 0.27047125328471955,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.125,
+      "minimumY": 0.27031487902374285,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.12916666666666668,
+      "minimumY": 0.27034250962060413,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.13333333333333333,
+      "minimumY": 0.27037013599066256,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.1375,
+      "minimumY": 0.27041353008286534,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.14166666666666666,
+      "minimumY": 0.27045702268551397,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.14583333333333334,
+      "minimumY": 0.27052052662212056,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.15,
+      "minimumY": 0.2705840617154068,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.15416666666666667,
+      "minimumY": 0.27067267227503494,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.15833333333333333,
+      "minimumY": 0.27076129072090577,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.1625,
+      "minimumY": 0.2709166913634228,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.16666666666666666,
+      "minimumY": 0.2710720389806147,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.17083333333333334,
+      "minimumY": 0.27137244095774776,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.175,
+      "minimumY": 0.27167260933802595,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.17916666666666667,
+      "minimumY": 0.27202243192167563,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.18333333333333332,
+      "minimumY": 0.2723102013868497,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.1875,
+      "minimumY": 0.27154475109282095,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.19166666666666668,
+      "minimumY": 0.2705878151375365,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.19583333333333333,
+      "minimumY": 0.2683075288647127,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.2,
+      "minimumY": 0.26583476475042533,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.20416666666666666,
+      "minimumY": 0.2618344770806329,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.20833333333333334,
+      "minimumY": 0.25763628001410777,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.2125,
+      "minimumY": 0.2515344825459466,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.21666666666666667,
+      "minimumY": 0.24522796984421952,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.22083333333333333,
+      "minimumY": 0.236565894639971,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.225,
+      "minimumY": 0.22700689623129577,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.22916666666666666,
+      "minimumY": 0.2135998336760181,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.23333333333333334,
+      "minimumY": 0.20017525634302735,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.2375,
+      "minimumY": 0.1823214300710424,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.24166666666666667,
+      "minimumY": 0.16479900648878615,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.24583333333333332,
+      "minimumY": 0.14321317745085244,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.25,
+      "minimumY": 0.12249120438443224,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.25416666666666665,
+      "minimumY": 0.09909332633953707,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.25833333333333336,
+      "minimumY": 0.0772539982664711,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.2625,
+      "minimumY": 0.05338871048519461,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.26666666666666666,
+      "minimumY": 0.031723044713626636,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.2708333333333333,
+      "minimumY": 0.0274318773055352,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.275,
+      "minimumY": 0.025399384469503752,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.2791666666666667,
+      "minimumY": 0.025119755265258045,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.2833333333333333,
+      "minimumY": 0.026490454143386508,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.2875,
+      "minimumY": 0.02660879364811404,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.2916666666666667,
+      "minimumY": 0.0276326420785641,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.29583333333333334,
+      "minimumY": 0.02804266447497114,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.3,
+      "minimumY": 0.028800162686008296,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.30416666666666664,
+      "minimumY": 0.029359374103689703,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.30833333333333335,
+      "minimumY": 0.029967651183569158,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.3125,
+      "minimumY": 0.030575688847291047,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.31666666666666665,
+      "minimumY": 0.031109979787908956,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.32083333333333336,
+      "minimumY": 0.03171350864755343,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.325,
+      "minimumY": 0.03220118379278511,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.32916666666666666,
+      "minimumY": 0.03277413929177317,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.3333333333333333,
+      "minimumY": 0.033216310354693496,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.3375,
+      "minimumY": 0.03374264390145634,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.3416666666666667,
+      "minimumY": 0.03412960907987761,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.3458333333333333,
+      "minimumY": 0.03459671268177368,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.35,
+      "minimumY": 0.03491580913468849,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.3541666666666667,
+      "minimumY": 0.03531077462711674,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.35833333333333334,
+      "minimumY": 0.03554962134973198,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.3625,
+      "minimumY": 0.0358586649464529,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.36666666666666664,
+      "minimumY": 0.036005167454210604,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.37083333333333335,
+      "minimumY": 0.036212807974526875,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.375,
+      "minimumY": 0.036257217507388056,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.37916666666666665,
+      "minimumY": 0.03635607567903412,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.38333333333333336,
+      "minimumY": 0.03630029064833348,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.3875,
+      "minimumY": 0.036370166483935304,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.39166666666666666,
+      "minimumY": 0.036300362880310605,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.3958333333333333,
+      "minimumY": 0.036360895222818046,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.4,
+      "minimumY": 0.03630032472250634,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.4041666666666667,
+      "minimumY": 0.03634984722883701,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.4083333333333333,
+      "minimumY": 0.0363003232955887,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.4125,
+      "minimumY": 0.036336556074314436,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.4166666666666667,
+      "minimumY": 0.036300483157600164,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.42083333333333334,
+      "minimumY": 0.03632093060190905,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.425,
+      "minimumY": 0.03630062356287024,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.42916666666666664,
+      "minimumY": 0.03630187194162823,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.43333333333333335,
+      "minimumY": 0.03630066122438942,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.4375,
+      "minimumY": 0.03627856734228349,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.44166666666666665,
+      "minimumY": 0.036300702652780806,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.44583333333333336,
+      "minimumY": 0.03625056514591703,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.45,
+      "minimumY": 0.036300754260870316,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.45416666666666666,
+      "minimumY": 0.03621682537453087,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.4583333333333333,
+      "minimumY": 0.03630092236301037,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.4625,
+      "minimumY": 0.03617796891131586,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.4666666666666667,
+      "minimumY": 0.03630085142927432,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.4708333333333333,
+      "minimumY": 0.036134492069275895,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.475,
+      "minimumY": 0.036301006116012474,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.4791666666666667,
+      "minimumY": 0.0360879467204408,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.48333333333333334,
+      "minimumY": 0.0360920892735183,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.4875,
+      "minimumY": 0.03517091748879231,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.49166666666666664,
+      "minimumY": 0.03609202417525477,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.49583333333333335,
+      "minimumY": 0.03528878174903988,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.5,
+      "minimumY": 0.036092116536816696,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.5041666666666667,
+      "minimumY": 0.035295148518707437,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.5083333333333333,
+      "minimumY": 0.0360922126715198,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.5125,
+      "minimumY": 0.03580834623811943,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.5166666666666667,
+      "minimumY": 0.057068998019093584,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.5208333333333334,
+      "minimumY": 0.06931611730093248,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.525,
+      "minimumY": 0.0830809659221042,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.5291666666666667,
+      "minimumY": 0.07109873939487535,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.5333333333333333,
+      "minimumY": 0.05964353460068465,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.5375,
+      "minimumY": 0.04397397272524217,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.5416666666666666,
+      "minimumY": 0.036093312746206196,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.5458333333333333,
+      "minimumY": 0.034176361736186905,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.55,
+      "minimumY": 0.03630184672787479,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.5541666666666667,
+      "minimumY": 0.037293171709815054,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.5583333333333333,
+      "minimumY": 0.047521645216842934,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.5625,
+      "minimumY": 0.06456431754859203,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.5666666666666667,
+      "minimumY": 0.08118888109824632,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.5708333333333333,
+      "minimumY": 0.09597342273408117,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.575,
+      "minimumY": 0.1101881299109188,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.5791666666666667,
+      "minimumY": 0.12222586884799605,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.5833333333333334,
+      "minimumY": 0.1335636726733964,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.5875,
+      "minimumY": 0.14308154500618966,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.5916666666666667,
+      "minimumY": 0.1517868107215834,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.5958333333333333,
+      "minimumY": 0.15894490121648244,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.6,
+      "minimumY": 0.16519070018188856,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.6041666666666666,
+      "minimumY": 0.17028823896747314,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.6083333333333333,
+      "minimumY": 0.1743859999588481,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.6125,
+      "minimumY": 0.18396990896588916,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.6166666666666667,
+      "minimumY": 0.19248393446597273,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.6208333333333333,
+      "minimumY": 0.19879716243644074,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.625,
+      "minimumY": 0.20398638100080452,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.6291666666666667,
+      "minimumY": 0.2058207149133343,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.6333333333333333,
+      "minimumY": 0.20648688080029856,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.6375,
+      "minimumY": 0.20450545030580775,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.6416666666666667,
+      "minimumY": 0.20132158974053277,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.6458333333333334,
+      "minimumY": 0.20599138441714937,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.65,
+      "minimumY": 0.20944082002122733,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.6541666666666667,
+      "minimumY": 0.21735558052175724,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.6583333333333333,
+      "minimumY": 0.2240517028645011,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.6625,
+      "minimumY": 0.23557295950470386,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.6666666666666666,
+      "minimumY": 0.24589376917785594,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.6708333333333333,
+      "minimumY": 0.26181758932019916,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.675,
+      "minimumY": 0.2765742202270743,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.6791666666666667,
+      "minimumY": 0.29595958166232067,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.6833333333333333,
+      "minimumY": 0.3142246312521657,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.6875,
+      "minimumY": 0.33230126018041983,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.6916666666666667,
+      "minimumY": 0.34883897088166116,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.6958333333333333,
+      "minimumY": 0.3618061407249551,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.7,
+      "minimumY": 0.3737802951089355,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.7041666666666667,
+      "minimumY": 0.37824543898496843,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.7083333333333334,
+      "minimumY": 0.38184094702165033,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.7125,
+      "minimumY": 0.3872986918603367,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.7166666666666667,
+      "minimumY": 0.39203562340323156,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.7208333333333333,
+      "minimumY": 0.39050086474108026,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.725,
+      "minimumY": 0.38851688630630654,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.7291666666666666,
+      "minimumY": 0.3934459936958319,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.7333333333333333,
+      "minimumY": 0.39824274872735543,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.7375,
+      "minimumY": 0.40490252322445897,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.7416666666666667,
+      "minimumY": 0.398311646974781,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.7458333333333333,
+      "minimumY": 0.3927011479539371,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.75,
+      "minimumY": 0.38772927270343255,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.7541666666666667,
+      "minimumY": 0.38579674427904814,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.7583333333333333,
+      "minimumY": 0.38455523721895435,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.7625,
+      "minimumY": 0.38705874752306313,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.7666666666666667,
+      "minimumY": 0.3905398498527025,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.7708333333333334,
+      "minimumY": 0.39500983091720077,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.775,
+      "minimumY": 0.3938060313083585,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.7791666666666667,
+      "minimumY": 0.3944556416983243,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.7833333333333333,
+      "minimumY": 0.39827189024292226,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.7875,
+      "minimumY": 0.4049244681302718,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.7916666666666666,
+      "minimumY": 0.41186338661611194,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.7958333333333333,
+      "minimumY": 0.4216070860756888,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.8,
+      "minimumY": 0.4314134070657761,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.8041666666666667,
+      "minimumY": 0.44326684260171734,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.8083333333333333,
+      "minimumY": 0.454980951042185,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.8125,
+      "minimumY": 0.46851678581379114,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.8166666666666667,
+      "minimumY": 0.48183702422141605,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.8208333333333333,
+      "minimumY": 0.4963123586275927,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.825,
+      "minimumY": 0.510568765776736,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.8291666666666667,
+      "minimumY": 0.5235104928113491,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.8333333333333334,
+      "minimumY": 0.5362535375804401,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.8375,
+      "minimumY": 0.5473454530159789,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.8416666666666667,
+      "minimumY": 0.5582549221406397,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.8458333333333333,
+      "minimumY": 0.5674855811195607,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.85,
+      "minimumY": 0.5765474600763874,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.8541666666666666,
+      "minimumY": 0.5840332744208936,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.8583333333333333,
+      "minimumY": 0.591535675390692,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.8625,
+      "minimumY": 0.5975986106737591,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.8666666666666667,
+      "minimumY": 0.6036791978686387,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.8708333333333333,
+      "minimumY": 0.608442004170851,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.875,
+      "minimumY": 0.6132169117325097,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.8791666666666667,
+      "minimumY": 0.6169451092545559,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.8833333333333333,
+      "minimumY": 0.6206735910478184,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.8875,
+      "minimumY": 0.6234957691368694,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.8916666666666667,
+      "minimumY": 0.6263326040438026,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.8958333333333334,
+      "minimumY": 0.6283762589963322,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.9,
+      "minimumY": 0.6304319419609596,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.9041666666666667,
+      "minimumY": 0.6318139087353716,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.9083333333333333,
+      "minimumY": 0.6332064353142559,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.9125,
+      "minimumY": 0.6340470914707486,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.9166666666666666,
+      "minimumY": 0.6348960220828348,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.9208333333333333,
+      "minimumY": 0.635313342257133,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.925,
+      "minimumY": 0.6357373452119002,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.9291666666666667,
+      "minimumY": 0.6358453249633709,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.9333333333333333,
+      "minimumY": 0.6359574805044204,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.9375,
+      "minimumY": 0.6358605161955856,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.9416666666666667,
+      "minimumY": 0.6357664776402291,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.9458333333333333,
+      "minimumY": 0.6355590252071168,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.95,
+      "minimumY": 0.6353537365113405,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.9541666666666667,
+      "minimumY": 0.6351165536830438,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.9583333333333334,
+      "minimumY": 0.634880372358662,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.9625,
+      "minimumY": 0.634678874595567,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.9666666666666667,
+      "minimumY": 0.6344769249851616,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.9708333333333333,
+      "minimumY": 0.634357111073327,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.975,
+      "minimumY": 0.6342372053023987,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.9791666666666666,
+      "minimumY": 0.634216418928648,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.9833333333333333,
+      "minimumY": 0.6341957214425324,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.9875,
+      "minimumY": 0.6341957214425324,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.9916666666666667,
+      "minimumY": 0.6341957214425324,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.9958333333333333,
+      "minimumY": 0.6341957214425324,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 1,
+      "minimumY": 0.6341957214425324,
+      "vertices": 95654,
+      "verticesBelowGround": 0
+    }
+  ]
+}

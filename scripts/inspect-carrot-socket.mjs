@@ -1,0 +1,1 @@
+import {readGlb} from './glb-tools.mjs';const g=readGlb('public/models/original-carrot.glb');console.log(g.json.nodes.filter(n=>/RightHand|RightArm|RightForeArm/.test(n.name)).map(n=>({name:n.name,translation:n.translation,rotation:n.rotation,children:n.children?.map(i=>g.json.nodes[i].name)})));

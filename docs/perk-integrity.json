@@ -1,0 +1,452 @@
+[
+  {
+    "file": "00_pruner.png",
+    "sha256": "49952e86d68eaca5704812e6198e53adb22e04dbf863c69b8fc8c870d1450cc4",
+    "rgba": true
+  },
+  {
+    "file": "01_goggles.png",
+    "sha256": "d801a03de3b52097b78c3be5df621d7556548bcdf6d2dee6ee7b18ceee10e200",
+    "rgba": true
+  },
+  {
+    "file": "02_syringe.png",
+    "sha256": "c16e6b90aad14c4d9e9f91a16f2a5065235148936cab2718f5f00fc3bdf64039",
+    "rgba": true
+  },
+  {
+    "file": "03_boot.png",
+    "sha256": "118029aca6f2e4f72f9c3d0420f2897138da9fbc14b6ef92056cd8bee4f970bb",
+    "rgba": true
+  },
+  {
+    "file": "04_feather.png",
+    "sha256": "0d0046e31c2e824874a5d1d3ec19694e64df79a4980a6a771a6fca41730bc2e2",
+    "rgba": true
+  },
+  {
+    "file": "05_clover-coin.png",
+    "sha256": "50520efd03ae6f7ccf3135182e3ee63af99303aa47bcc8b1450a3ecc8e2fe319",
+    "rgba": true
+  },
+  {
+    "file": "06_skull-ring.png",
+    "sha256": "866d5e03374b249c39d29cabb0f8065c00fab66f22613f1a832e61504dc91345",
+    "rgba": true
+  },
+  {
+    "file": "07_magnet.png",
+    "sha256": "2f3779c20b75e22c56bd2fa657c63d505b30096b597cbc14e5015964df432b32",
+    "rgba": true
+  },
+  {
+    "file": "08_fire-potion.png",
+    "sha256": "9381a3c0cdb131670859b31a981ec8fa73c6b1c54cf3ea45d1fc8cb3de1a5b31",
+    "rgba": true
+  },
+  {
+    "file": "09_pocket-watch.png",
+    "sha256": "edb15cf2edd67d208bdbf12782a3bde2a76c443f6e80cbe7ff9319c1785cddf4",
+    "rgba": true
+  },
+  {
+    "file": "10_bandage.png",
+    "sha256": "077b415ae0647f6b391d68e1445c9881249fbf775d3569b49d1c03fd40a0bcb6",
+    "rgba": true
+  },
+  {
+    "file": "11_grenade.png",
+    "sha256": "b59027df2e9c2b68cf563f65d3a03e08861d4d8ba356e9d374a440e35a2df9f9",
+    "rgba": true
+  },
+  {
+    "file": "12_battery.png",
+    "sha256": "b357e2e4178e733e315267a6c8019f4f9f142e1ab1953d9e6e9c8ada4ed5ed53",
+    "rgba": true
+  },
+  {
+    "file": "13_compass.png",
+    "sha256": "0eb49c9ba725c623d6598f9d57414df0008f2bba5460056c59ec54ec56b40b5e",
+    "rgba": true
+  },
+  {
+    "file": "14_mushroom-charm.png",
+    "sha256": "ea80ed4a68cd5ab1e3f1ee0bf2aa8101229c523d2f2f3e1fa04fe819c2bc2320",
+    "rgba": true
+  },
+  {
+    "file": "15_gold-key.png",
+    "sha256": "e31ab1ebbe74e6f944def1d19412dabf4d8fbb16cfbbf602bbc0f080bc970081",
+    "rgba": true
+  },
+  {
+    "file": "16_mutation-crystal.png",
+    "sha256": "99f57422ed85d714f4243253b898a89b96e42a119d642307bba62b8262060eb4",
+    "rgba": true
+  },
+  {
+    "file": "17_bone-claws.png",
+    "sha256": "140839b77fa509c6c6fd2bee1eaeb0bdbedc2b9afc0c3c216605cf9c5e12468e",
+    "rgba": true
+  },
+  {
+    "file": "18_fang-necklace.png",
+    "sha256": "fea5a5c5d399009c95b6e8ffaae382a474e176806b45be6d072291efdab54485",
+    "rgba": true
+  },
+  {
+    "file": "19_winged-brooch.png",
+    "sha256": "820b7bc9677148a7de596715dcd163e22230fbc230b0cf80a8e6f49f326045c5",
+    "rgba": true
+  },
+  {
+    "file": "20_grappling-hook.png",
+    "sha256": "2fb1ef45bd3d9d28b895fca7c7e6cf83ef383fe899933b019448f74885875f50",
+    "rgba": true
+  },
+  {
+    "file": "21_gauntlet.png",
+    "sha256": "32d8d2a6d12549df2c2971c515d5c79cda1da049e432c1f752ed967790219441",
+    "rgba": true
+  },
+  {
+    "file": "22_eye-amulet.png",
+    "sha256": "0b185083b7b3fa07835a7a6b4c602edb21dbc6b98ac3e28113394621f63b8009",
+    "rgba": true
+  },
+  {
+    "file": "23_anchor.png",
+    "sha256": "1b52f1b8ba28cc7479ecc537508ea0e8387a6d3ff31d68eeae1f59e6789f210d",
+    "rgba": true
+  },
+  {
+    "file": "24_bell.png",
+    "sha256": "8db40e9b5053829ff7b042e55acac4fa6f925c1e2bf927281127dbe0070fa75b",
+    "rgba": true
+  },
+  {
+    "file": "25_belt.png",
+    "sha256": "38f784b85c8ef6e238c3dcff6d796d7085f927289828ba95b8db903288d212a2",
+    "rgba": true
+  },
+  {
+    "file": "26_green-elixir.png",
+    "sha256": "1b2cbdc29651e37940eede7b51ca9931a737485793d1eda492e8d3b907fefebe",
+    "rgba": true
+  },
+  {
+    "file": "27_carved-horn.png",
+    "sha256": "44ac641f975ba6964b832c511cc0eb78844399220b9bb5213024fcc9e8922e26",
+    "rgba": true
+  },
+  {
+    "file": "28_bomb.png",
+    "sha256": "34b3c98a18c27431ebd01a7e711c9b5de2f3d51d861b7ddb53d0b072de3c3182",
+    "rgba": true
+  },
+  {
+    "file": "29_rocket-drone.png",
+    "sha256": "cd2c3a7589f4c88d6b4b36ff5497e59f50e7de7444ad61b77ef9e6c25854b322",
+    "rgba": true
+  },
+  {
+    "file": "30_broken-crown.png",
+    "sha256": "668b5e3fce20c3cd13f78582f26243cac974707fc8a9daab0c21b98402784720",
+    "rgba": true
+  },
+  {
+    "file": "31_rabbit-foot.png",
+    "sha256": "462181630afe08e72db660195e42c2d8e3158c261182b930f38072a51ef5c702",
+    "rgba": true
+  },
+  {
+    "file": "32_dice.png",
+    "sha256": "64ad436043dc71b8956be0cd29558183345e61415cc85312e0de112dc01fbc9c",
+    "rgba": true
+  },
+  {
+    "file": "33_gas-mask.png",
+    "sha256": "4f1accaab9fdf01ccfc183c7fee103fe32db86406286ee7aa1a037a8721561db",
+    "rgba": true
+  },
+  {
+    "file": "34_moon-idol.png",
+    "sha256": "80bc08943bf5498a5ea25be1392fb573a4772610b6a9581b17ff88345eda5c3d",
+    "rgba": true
+  },
+  {
+    "file": "35_chain-hook.png",
+    "sha256": "6ac80fe91aac473f7b5c826faee84ecffa22bd42ed7c26f80692a8d70183755b",
+    "rgba": true
+  },
+  {
+    "file": "36_oni-mask.png",
+    "sha256": "7ec4d59b4d5820308beb795b9c553cfb45a856f2d868fad9a5a67e35de102078",
+    "rgba": true
+  },
+  {
+    "file": "37_hourglass.png",
+    "sha256": "8c419743fa96a780cfb0860224933f7d174f173403e64194b2d96f5000b2477f",
+    "rgba": true
+  },
+  {
+    "file": "38_rocket-fist.png",
+    "sha256": "094dc5c100756bfff22d0a42904ecc52a11d18e179800eb2b91551b3c0ac1414",
+    "rgba": true
+  },
+  {
+    "file": "39_winged-shield.png",
+    "sha256": "bd70c15c8a1aedac6aba3df187ecc1bc9c8d3601de5deaed34c27d1ee2ef4a6d",
+    "rgba": true
+  },
+  {
+    "file": "40_blood-vial.png",
+    "sha256": "334a8844aecc45c457f70c2ab184cfc5788dff883196bb61cb9060e8eaa97cdc",
+    "rgba": true
+  },
+  {
+    "file": "41_tarot-card.png",
+    "sha256": "20eaa19b21892c525acd9e0158a66b9f15decbd3de152689057b141a4d56cb39",
+    "rgba": true
+  },
+  {
+    "file": "42_shock-coil.png",
+    "sha256": "71417a693e3e952f63f4215bda4530cc4ddeda8348ef9b9a8a805b33ea47bad7",
+    "rgba": true
+  },
+  {
+    "file": "43_lantern.png",
+    "sha256": "66dda163670e6e5288f2be5dce1e40ed08dc76f65558673f3ea13d5adea9b14b",
+    "rgba": true
+  },
+  {
+    "file": "44_wolf-fang.png",
+    "sha256": "9559061d46f9513ba4869dad643b13db9802deb7f32c80d1d57c983ae45b9dc3",
+    "rgba": true
+  },
+  {
+    "file": "45_music-box.png",
+    "sha256": "ffb10a1e18fe86871a47e3213c46ad02e0f6aa153a828834cdfb5d6e48406a2c",
+    "rgba": true
+  },
+  {
+    "file": "46_turbine.png",
+    "sha256": "909fbf550f0481825a5dcbf8f1e3012349431ca3fc7fcb575ad102c03f265fc1",
+    "rgba": true
+  },
+  {
+    "file": "47_thorn-crown.png",
+    "sha256": "60e96d55e22305834eeda24b03769c5b419460b8f79078960087c4e8ffd6de53",
+    "rgba": true
+  },
+  {
+    "file": "48_heart-gem.png",
+    "sha256": "df603eafe150615a13b0d85b81b7257043b236dd318ce39f0cf7b104d3d66adb",
+    "rgba": true
+  },
+  {
+    "file": "49_detonator.png",
+    "sha256": "bf73265883b8374f5f4e20ecbb566aca534b2571f7843a264ef3fde5a6869d6f",
+    "rgba": true
+  },
+  {
+    "file": "50_knot-charm.png",
+    "sha256": "6c6948ff59b50072bbd4a40c4e9e25a1a197153aa0e33e8fb2ef17e4a93cf29a",
+    "rgba": true
+  },
+  {
+    "file": "51_spider-brooch.png",
+    "sha256": "86fb0ccd8ab8b73329670f0c817421c5fd82f36e279307de1dd19c2a7a611d9f",
+    "rgba": true
+  },
+  {
+    "file": "52_puzzle-cube.png",
+    "sha256": "34dc3bd2c8e3b4d905875f3ee3c0f3ac59e537e74977a7ba7c6aabc80045a3f6",
+    "rgba": true
+  },
+  {
+    "file": "53_raven-totem.png",
+    "sha256": "4fc4c807f9c3d0f445691081c4b08ad0d28faa759c5f87d5eed3391a3ec5b02e",
+    "rgba": true
+  },
+  {
+    "file": "54_porcelain-mask.png",
+    "sha256": "68ceccde1d7f6a7ee50b2b014facad00b7ffb9ac87f2fbe1207627436e2e2a6d",
+    "rgba": true
+  },
+  {
+    "file": "55_quiver.png",
+    "sha256": "43bd0a3cb2f85450fce34469d0444bf8d0f9cd0c5405df9d32aa79d36ecea7b4",
+    "rgba": true
+  },
+  {
+    "file": "56_star-scroll.png",
+    "sha256": "33ff9d4d94ee4d7a19f31566eaa2a2377d65695eb2896affca27c18d996422ae",
+    "rgba": true
+  },
+  {
+    "file": "57_sapphire-locket.png",
+    "sha256": "90ab395dd36bf134cc58bfd9c9f51d07133313a133817e992c63ef114243e894",
+    "rgba": true
+  },
+  {
+    "file": "58_flame-glaive.png",
+    "sha256": "50870c9518d45d593b1c08fe8edfa9f82e018558c11b752dc1f49ba5d391cbcf",
+    "rgba": true
+  },
+  {
+    "file": "59_coffin-pendant.png",
+    "sha256": "86b1089a404144bbc5df1eb6decc8aac799d2efca3477b10adba9012b91cf3b2",
+    "rgba": true
+  },
+  {
+    "file": "60_phoenix-quill.png",
+    "sha256": "f37dce5a358b9db7acf02bbf69578eac947c9270c4a171eea20bd8e8ab6ce6b4",
+    "rgba": true
+  },
+  {
+    "file": "61_dragon-eye-ouroboros.png",
+    "sha256": "884fdb66b9996bd72f435f1d09509434bce66af18fc213229d5b85636230e846",
+    "rgba": true
+  },
+  {
+    "file": "62_skull-chalice.png",
+    "sha256": "9f289b36806c253677259efecdabb6c40183622e9092380dbc3e1b49aa18f2e8",
+    "rgba": true
+  },
+  {
+    "file": "63_star-crown.png",
+    "sha256": "cec830d6caba4a087f394980a779a98fb1ddd2650f58d3a733a00bfe7202cc5a",
+    "rgba": true
+  },
+  {
+    "file": "64_crystal-shard.png",
+    "sha256": "850808cce8be93013e38940dd4d17e5e17337e8adfa32a7eb0fddb6231ddbb32",
+    "rgba": true
+  },
+  {
+    "file": "65_cosmic-orb.png",
+    "sha256": "1b3f334ed5b20b7b528e699cb5b3f2457dd5ce4ad430f3477bfbcd14cb688f7a",
+    "rgba": true
+  },
+  {
+    "file": "66_winged-cross.png",
+    "sha256": "8faa46219e17cc6a4670e73f2fe99c10a4ff321373580311def07d77e5f53d5f",
+    "rgba": true
+  },
+  {
+    "file": "67_magma-geode.png",
+    "sha256": "7f680c86ea79dc4a5969b2792929c3b05bc01c356722139f02a29b43a04d305b",
+    "rgba": true
+  },
+  {
+    "file": "68_crowned-skull.png",
+    "sha256": "10dda4bbf2599d0f6ba0e160fee590537d451405900f68a5f154212e74449ab9",
+    "rgba": true
+  },
+  {
+    "file": "69_sun-medallion.png",
+    "sha256": "58b9884da501ce10900366e24e827d70d95c84c6cb0f725dbd0c9b7d08ec7bf0",
+    "rgba": true
+  },
+  {
+    "file": "70_moon-scimitar.png",
+    "sha256": "5b9f122b165b7c8ec79b2fc1e1e944711331dd09e6bb60b2c4774196d07eae27",
+    "rgba": true
+  },
+  {
+    "file": "71_storm-flask.png",
+    "sha256": "26f9896a3673e6dc8a61abcf119525ec8f9596481e5a5ff2d4fc1777e73466bf",
+    "rgba": true
+  },
+  {
+    "file": "72_pierced-heart.png",
+    "sha256": "cb61d6b1b599bd948bbecdc3a63a2a26209237d2a1f95df10d1b9a2f437749f4",
+    "rgba": true
+  },
+  {
+    "file": "73_void-prism.png",
+    "sha256": "58bab87c90b0510ea9c0c9a270069ba70508176579e838003aa220bd43062644",
+    "rgba": true
+  },
+  {
+    "file": "74_arcane-core.png",
+    "sha256": "9336e4424d01ccdddbfb6607cd3e8cfff796ba37e1758cf0927d09ba489154fa",
+    "rgba": true
+  },
+  {
+    "file": "75_soul-lantern.png",
+    "sha256": "2856cf0eb4f3feac2031edb6d885270c6dbedf9858b63b3e920c7c2d6da7d1c6",
+    "rgba": true
+  },
+  {
+    "file": "76_serpent-ring.png",
+    "sha256": "5aa9f367f937cec27d409cb130b426e66630cbd10fb520c9eadbc5defbe44ae0",
+    "rgba": true
+  },
+  {
+    "file": "77_lion-signet.png",
+    "sha256": "5aa9434b2112a0c65c2d1e2bd0850ed81e8b7dbe42d43ab18ff2d08c5b23fd80",
+    "rgba": true
+  },
+  {
+    "file": "78_astral-compass.png",
+    "sha256": "af9d8767af7cf05c2f899e6768c56d481bbfed5e84a6f4c2284aed916e594ae3",
+    "rgba": true
+  },
+  {
+    "file": "79_crystal-lotus.png",
+    "sha256": "db3acaf2a14afc8022679d115e34fc66a0b8851d3aaf7bfa4eefbb43db4b27cb",
+    "rgba": true
+  },
+  {
+    "file": "80_spirit-bell.png",
+    "sha256": "f4445da4a38ad5aaa0e4303697bba266fc0d073cc897063acca8a372af222d39",
+    "rgba": true
+  },
+  {
+    "file": "81_soul-jar.png",
+    "sha256": "245e21e7c40b7708afae5044c4a37d5d36d6e73d7a526678e5dc5da649df0344",
+    "rgba": true
+  },
+  {
+    "file": "82_golden-gauntlet.png",
+    "sha256": "ee8065af56557ae9d5e63f2115bf96cc717dde4439e7d57ed5623ef152755409",
+    "rgba": true
+  },
+  {
+    "file": "83_thunder-key.png",
+    "sha256": "9b859a3d8f3e9a0991ad8864d9c79d399c84f24ef73544711fffd709145026bf",
+    "rgba": true
+  },
+  {
+    "file": "84_winged-tome.png",
+    "sha256": "269de6106ae85022a62bf2762e99ad854aa50bbcdac4a684fd3b08c79f96e5c2",
+    "rgba": true
+  },
+  {
+    "file": "85_flame-crest.png",
+    "sha256": "f7f47264b02f575af71eb1cfdc3fc9e345ba8cda62833e9a5ea4c4a97f9399aa",
+    "rgba": true
+  },
+  {
+    "file": "86_storm-totem.png",
+    "sha256": "621f86a02f5a2bed30a91f855efac9c6659c058d8437957c144463cdc695ef94",
+    "rgba": true
+  },
+  {
+    "file": "87_cosmic-clock.png",
+    "sha256": "a2eb61f317c2d71ac703fb38d907b0a60d5c6668325effc24d2563bacd71bb59",
+    "rgba": true
+  },
+  {
+    "file": "88_feathered-mask.png",
+    "sha256": "6d4e44d1d8a5260d77a036553bd4b6e291d6a36179535dda758a42a8951aa0b1",
+    "rgba": true
+  },
+  {
+    "file": "89_gem-clover.png",
+    "sha256": "fbc7c129714367fa14ec3d6fb27ff938c27e2e23de8b6ccb76f36c296189642c",
+    "rgba": true
+  }
+]

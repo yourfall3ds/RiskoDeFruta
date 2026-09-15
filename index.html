@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#111a25" />
+    <title>Mutant Farm — Ilhas suspensas</title>
+  </head>
+  <body>
+    <div id="boot-menu" style="position:fixed;inset:0;z-index:9999;overflow:hidden;background:#071320;color:#e9f5ec;font:16px system-ui">
+      <video class="loading-film" autoplay muted loop playsinline preload="auto" poster="/ui/loading-poster-v2.jpg" style="position:absolute;width:100%;height:100%;object-fit:cover" aria-label="Personagem mergulhando pelo céu em loop"><source src="/ui/cosmic-descent-v2.mp4" type="video/mp4"></video>
+      <div style="position:absolute;left:5%;top:8%;text-shadow:0 2px 12px #000"><small style="letter-spacing:.3em">PLANETA HORTA-7</small><h1 style="font-size:clamp(30px,4vw,58px);margin:.2em 0">EXTERMINADOR<br>AGRÍCOLA</h1></div>
+      <p role="status" style="position:absolute;bottom:8%;width:100%;text-align:center;letter-spacing:.2em">CALIBRANDO A QUEDA…</p>
+    </div>
+    <canvas id="game" tabindex="0" aria-label="Jogo Mutant Farm — ilhas suspensas"></canvas>
+    <main id="status" role="status">Inicializando o motor…</main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

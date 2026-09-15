@@ -1,0 +1,14 @@
+{
+  "v2": {
+    "width": 1774,
+    "height": 887,
+    "edgeMeanAbsoluteDifference": 41.355505449079295,
+    "upperHalfEdgeDifference": 13.075244544770504
+  },
+  "v3": {
+    "width": 1774,
+    "height": 887,
+    "edgeMeanAbsoluteDifference": 6.148064637354378,
+    "upperHalfEdgeDifference": 4.747930775018811
+  }
+}

@@ -1,0 +1,43 @@
+import {describe,it,expect,vi} from 'vitest';
+import {RegionResidency,type RegionResource} from '../src/world/streaming/RegionResidency';
+import {DetailVisibility} from '../src/world/DetailVisibility';
+function deferred<T>(){let resolve!:(value:T)=>void,reject!:(reason:unknown)=>void;const promise=new Promise<T>((yes,no)=>{resolve=yes;reject=no;});return{promise,resolve,reject};}
+const resource=()=>({activate:vi.fn(),dispose:vi.fn()});
+const turn=async()=>{for(let i=0;i<12;i++)await Promise.resolve();};
+describe('region residency',()=>{
+ it('reserves budget before loading and never exceeds concurrent requests',async()=>{const jobs=new Map<string,ReturnType<typeof deferred<RegionResource>>>(),load=vi.fn(async(r:{id:string})=>{const task=deferred<RegionResource>();jobs.set(r.id,task);return task.promise;}),pool=new RegionResidency(3,2,load);pool.request([{id:'a',cost:1},{id:'b',cost:1},{id:'c',cost:1},{id:'d',cost:1}]);await turn();expect(load).toHaveBeenCalledTimes(2);expect(pool.reservedCost).toBe(2);jobs.get('a')!.resolve(resource());await turn();expect(load).toHaveBeenCalledTimes(3);expect(pool.reservedCost).toBe(3);jobs.get('b')!.resolve(resource());jobs.get('c')!.resolve(resource());await pool.settled();expect(pool.readyIds.sort()).toEqual(['a','b','c']);pool.dispose();});
+ it('disposes an obsolete async result without ever activating it or oversubscribing memory',async()=>{const a=deferred<RegionResource>(),b=resource(),load=vi.fn(async(r:{id:string})=>r.id==='a'?a.promise:b),pool=new RegionResidency(1,1,load);pool.request([{id:'a',cost:1}]);await turn();pool.request([{id:'b',cost:1}]);expect(pool.reservedCost).toBe(1);expect(load).toHaveBeenCalledTimes(1);const stale=resource();a.resolve(stale);await pool.settled();expect(stale.activate).not.toHaveBeenCalled();expect(stale.dispose).toHaveBeenCalledOnce();expect(b.activate).toHaveBeenCalledOnce();expect(pool.readyIds).toEqual(['b']);pool.dispose();expect(b.dispose).toHaveBeenCalledOnce();});
+ it('cleans up pending loads after shutdown and does not resurrect a scene',async()=>{const job=deferred<RegionResource>(),pool=new RegionResidency(1,1,async()=>job.promise);pool.request([{id:'a',cost:1}]);await turn();pool.dispose();pool.dispose();const r=resource();job.resolve(r);await pool.settled();expect(r.activate).not.toHaveBeenCalled();expect(r.dispose).toHaveBeenCalledOnce();expect(pool.reservedCost).toBe(0);});
+ it('requires explicit retry after failure rather than looping requests',async()=>{let fails=true;const r=resource(),load=vi.fn(async()=>{if(fails)throw Error('offline');return r;}),pool=new RegionResidency(1,1,load);pool.request([{id:'a',cost:1}]);await pool.settled();pool.request([{id:'a',cost:1}]);await turn();expect(load).toHaveBeenCalledOnce();expect(pool.errors[0]?.message).toContain('offline');fails=false;pool.retry('a');await pool.settled();expect(pool.readyIds).toEqual(['a']);pool.dispose();});
+ it('cleans up an activation failure and validates requests atomically',async()=>{const r=resource();r.activate.mockImplementation(()=>{throw Error('GPU allocation');});const pool=new RegionResidency(1,1,async()=>r);pool.request([{id:'a',cost:1}]);await pool.settled();expect(r.dispose).toHaveBeenCalledOnce();expect(pool.reservedCost).toBe(0);expect(()=>pool.request([{id:'bad',cost:NaN}])).toThrow();expect(()=>pool.request([{id:'a',cost:1},{id:'a',cost:1}])).toThrow();pool.dispose();});
+});
+it('detail visibility uses hysteresis, restores on return and never hides architecture',()=>{const setVisible=vi.fn(),detail={center:{x:0,y:0,z:0},radius:60,visible:true,setVisible},visibility=new DetailVisibility([detail],10);visibility.update(.3,{x:69,y:0,z:0});expect(setVisible).not.toHaveBeenCalled();visibility.update(.3,{x:71,y:0,z:0});expect(setVisible).toHaveBeenLastCalledWith(false);visibility.update(.3,{x:65,y:0,z:0});expect(setVisible).toHaveBeenCalledTimes(1);visibility.update(.3,{x:59,y:0,z:0});expect(setVisible).toHaveBeenLastCalledWith(true);visibility.update(.3,{x:100,y:0,z:0});visibility.restore();expect(setVisible).toHaveBeenLastCalledWith(true);});
+it('retained terrain survives budget pressure until every actor releases it',async()=>{
+ const a=resource(),b=resource(),pool=new RegionResidency(1,1,async r=>r.id==='a'?a:b);pool.request([{id:'a',cost:1}]);await pool.settled();
+ const player=pool.retain('a'),corpse=pool.retain('a');pool.request([{id:'b',cost:1}]);await pool.settled();expect(pool.readyIds).toEqual(['a']);expect(pool.retainedIds).toEqual(['a']);expect(a.dispose).not.toHaveBeenCalled();expect(b.activate).not.toHaveBeenCalled();
+ player();player();expect(a.dispose).not.toHaveBeenCalled();corpse();await pool.settled();expect(a.dispose).toHaveBeenCalledOnce();expect(b.activate).toHaveBeenCalledOnce();expect(pool.reservedCost).toBe(1);pool.dispose();
+});
+it('retention cannot expose incomplete regions and releases safely after shutdown',async()=>{
+ const job=deferred<RegionResource>(),pool=new RegionResidency(1,1,async()=>job.promise);expect(()=>pool.retain('missing')).toThrow();pool.request([{id:'a',cost:1}]);expect(()=>pool.retain('a')).toThrow();const r=resource();job.resolve(r);await pool.settled();const release=pool.retain('a');pool.dispose();release();release();expect(r.dispose).toHaveBeenCalledOnce();expect(pool.reservedCost).toBe(0);expect(pool.retainedIds).toEqual([]);
+});
+it('a retained region keeps its original allocation when the next request changes its cost',async()=>{
+ const loaded:ReturnType<typeof resource>[]=[];const pool=new RegionResidency(2,1,async()=>{const r=resource();loaded.push(r);return r;});pool.request([{id:'a',cost:1}]);await pool.settled();const release=pool.retain('a');pool.request([{id:'a',cost:2}]);await pool.settled();expect(pool.reservedCost).toBe(1);expect(loaded).toHaveLength(1);release();await pool.settled();expect(pool.reservedCost).toBe(2);expect(loaded).toHaveLength(2);expect(loaded[0]!.dispose).toHaveBeenCalledOnce();pool.dispose();
+});
+it('automatically recovers with capped backoff without exceeding its loading budget',async()=>{
+ let fail=true;const r=resource(),load=vi.fn(async()=>{if(fail)throw Error('connection lost');return r;});
+ const pool=new RegionResidency(1,1,load,{baseDelay:2,maxDelay:5});pool.request([{id:'a',cost:1}]);await pool.settled();expect(pool.errors[0]).toMatchObject({attempts:1,retryIn:2});
+ pool.update(1.9);await turn();expect(load).toHaveBeenCalledTimes(1);pool.update(.1);await pool.settled();expect(load).toHaveBeenCalledTimes(2);expect(pool.errors[0]).toMatchObject({attempts:2,retryIn:4});
+ pool.update(4);await pool.settled();expect(pool.errors[0]).toMatchObject({attempts:3,retryIn:5});expect(pool.reservedCost).toBe(0);
+ fail=false;pool.update(5);await pool.settled();expect(pool.readyIds).toEqual(['a']);expect(pool.errors).toEqual([]);expect(pool.reservedCost).toBe(1);expect(r.activate).toHaveBeenCalledOnce();pool.dispose();
+});
+it('does not retry unwanted regions or restart work after shutdown',async()=>{
+ const load=vi.fn(async()=>{throw Error('offline');}),pool=new RegionResidency(1,1,load,{baseDelay:1,maxDelay:3});pool.request([{id:'a',cost:1}]);await pool.settled();pool.request([]);pool.update(100);await turn();expect(load).toHaveBeenCalledOnce();
+ pool.request([{id:'a',cost:1}]);pool.update(.1);await pool.settled();expect(load).toHaveBeenCalledTimes(2);pool.dispose();pool.update(100);pool.retry('a');await turn();expect(load).toHaveBeenCalledTimes(2);expect(pool.errors).toEqual([]);
+});
+it('cancels a real loader signal and does not classify aborts as retryable failures',async()=>{
+ let signal:AbortSignal|undefined;const load=vi.fn(async(_r:{id:string},s:AbortSignal)=>{signal=s;return new Promise<RegionResource>((_resolve,reject)=>s.addEventListener('abort',()=>reject(new DOMException('cancelled','AbortError')),{once:true}));});
+ const pool=new RegionResidency(1,1,load,{baseDelay:1,maxDelay:3});pool.request([{id:'a',cost:1}]);await turn();pool.request([]);await pool.settled();expect(signal?.aborted).toBe(true);expect(pool.errors).toEqual([]);pool.update(10);expect(load).toHaveBeenCalledOnce();expect(pool.reservedCost).toBe(0);pool.dispose();
+});
+it('resets failure backoff after a successful residency cycle',async()=>{
+ let fail=true;const pool=new RegionResidency(1,1,async()=>{if(fail)throw Error('offline');return resource();},{baseDelay:2,maxDelay:30});pool.request([{id:'a',cost:1}]);await pool.settled();pool.update(2);await pool.settled();fail=false;pool.update(4);await pool.settled();pool.request([]);fail=true;pool.request([{id:'a',cost:1}]);await pool.settled();expect(pool.errors[0]).toMatchObject({attempts:1,retryIn:2});pool.dispose();
+});

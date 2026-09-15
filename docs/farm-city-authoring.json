@@ -1,0 +1,32 @@
+{
+  "islands": [
+    [
+      "Distrito das Sementes",
+      100,
+      8,
+      2,
+      30,
+      26
+    ],
+    [
+      "Fazenda Solar",
+      105,
+      72,
+      12,
+      28,
+      23
+    ],
+    [
+      "Mercado da Colheita",
+      160,
+      45,
+      7,
+      25,
+      23
+    ]
+  ],
+  "bridges": 4,
+  "barnScale": 1.65,
+  "collisionTriangles": 57359,
+  "renderObjects": 236
+}

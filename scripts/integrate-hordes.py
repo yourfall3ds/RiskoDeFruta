@@ -1,0 +1,23 @@
+from pathlib import Path
+p=Path('src/run/MonsterDirector.ts');s=p.read_text();s=s.replace('  constructor(private readonly rng:RandomStream,readonly stage=1,readonly cap=50){}', '''  wave=1;completedWaves=0;rewardsPending=0;intermission=5;spawned=0;private bossDefeated=false;
+  constructor(private readonly rng:RandomStream,readonly stage=1,readonly cap=50,readonly hordeMode=false){}
+  get waveQuota():number{return 7+this.wave*3;}
+  get healthMultiplier():number{return this.hordeMode?Math.pow(1.16,this.wave-1):1;}
+  get damageMultiplier():number{return this.hordeMode?1+.12*(this.wave-1):1;}
+  private updateHorde(dt:number,population:number,spawn:(kind:EnemyKind)=>boolean,budget:number):void{
+    this.time+=dt;this.state=this.wave%5===0?4:Math.min(3,Math.floor((this.wave-1)/2)) as HordeState;
+    if(this.intermission>0){this.intermission=Math.max(0,this.intermission-dt);return;}
+    const ceiling=Math.min(this.cap,budget),bossWave=this.wave%5===0;
+    if(this.spawned>=this.waveQuota&&population===0&&(!bossWave||this.bossDefeated)){
+      this.completedWaves++;this.rewardsPending++;this.wave++;this.intermission=8;this.spawned=0;this.bossRequested=false;this.bossDefeated=false;this.due=.8;return;
+    }
+    this.due-=dt;if(this.due>0||population>=ceiling)return;
+    if(bossWave&&!this.bossRequested){if(spawn('boss')){this.bossRequested=true;this.due=1.5;}return;}
+    if(this.spawned>=this.waveQuota)return;
+    const pool:EnemyKind[]=this.wave<2?['eggplant','corn']:this.wave<3?['eggplant','corn','carrot']:['eggplant','corn','carrot','tomato','watermelon'];
+    if(spawn(this.rng.pick(pool))){this.spawned++;this.due=Math.max(.45,1.5-this.wave*.055);}else this.due=.35;
+  }''');s=s.replace('if(this.stopped)return;this.time+=dt;', 'if(this.stopped)return;if(this.hordeMode){this.updateHorde(dt,population,spawn,budget);return;}this.time+=dt;');s=s.replace('this.stopped=true;this.state=5;', 'if(this.hordeMode){this.bossDefeated=true;return;}this.stopped=true;this.state=5;');p.write_text(s)
+p=Path('src/game/EnemySwarm.ts');s=p.read_text().replace('private readonly rng:RunRNG){','private readonly rng:RunRNG,readonly hordeMode=false){');s=s.replace("progression.stage);this.effects", "progression.stage,50,hordeMode);this.effects");s=s.replace("this.progression.stage);}","this.progression.stage,50,this.hordeMode);}");s=s.replace('definition.hp*affix.health*(1+(this.progression.stage-1)*.35)', 'definition.hp*affix.health*(1+(this.progression.stage-1)*.35)*this.director.healthMultiplier');s=s.replace('damage*multiplier*(1+.15*(this.progression.stage-1))','damage*multiplier*(1+.15*(this.progression.stage-1))*this.director.damageMultiplier');s=s.replace('this.bossDeadTime=0;', 'this.bossDeadTime=this.hordeMode?-1:0;');p.write_text(s)
+p=Path('src/game/PlayerScene.ts');s=p.read_text().replace('this.player,this.progression,rng);','this.player,this.progression,rng,new URL(location.href).searchParams.get("mode")!=="expedition");');s=s.replace('this.enemies.fixedUpdate(dt);this.interactables!', '''this.enemies.fixedUpdate(dt);while(this.enemies.director.rewardsPending>0){this.enemies.director.rewardsPending--;const item=this.progression.randomItem(this.rewardRng);this.progression.addItem(item.id);this.interactables!.message='ONDA CONCLUÍDA · '+item.name+' recebido';this.interactables!.messageTime=7;}this.interactables!''');s=s.replace('  private charging=false;', "  private readonly rewardRng=new RunRNG(this.seed).stream('wave-rewards');\n  private charging=false;");p.write_text(s)
+p=Path('src/ui/CombatHUD.ts');s=p.read_text().replace('    ', '    ');s=s.replace("this.html('.run-mission',swarm.bossDeadTime", "this.html('.run-mission',swarm.director.hordeMode?(swarm.director.intermission>0?'PRÓXIMA HORDA EM '+Math.ceil(swarm.director.intermission)+' s':swarm.director.wave%5===0?'ELIMINE O CHEFE E SUA HORDA':'SOBREVIVA À HORDA '+swarm.director.wave):swarm.bossDeadTime");s=s.replace('${Math.floor(swarm.director.time/36)+1}', '${swarm.director.hordeMode?swarm.director.wave:Math.floor(swarm.director.time/36)+1}');s=s.replace("${swarm.director.time%36>27?'REAGRUPE-SE':'HORDA ATIVA'}", "${swarm.director.hordeMode?(swarm.director.intermission>0?'ITEM RECEBIDO · PREPARE-SE':Math.max(0,swarm.director.waveQuota-swarm.director.spawned)+' por nascer'):(swarm.director.time%36>27?'REAGRUPE-SE':'HORDA ATIVA')}");p.write_text(s)
+p=Path('src/ui/PlayerHUD.ts');s=p.read_text().replace('Extermine as pragas, recolha melhorias e prepare sua combinação de itens. Derrote a Praga Alfa para abrir a fenda até o próximo estágio.','Sobreviva a hordas cada vez mais fortes. Cada onda vencida concede um item aleatório que acumula poder. A cada cinco ondas, enfrente uma Praga Alfa.');p.write_text(s)

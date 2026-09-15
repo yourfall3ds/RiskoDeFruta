@@ -1,0 +1,20 @@
+{
+  "farm-city": {
+    "meshes": 1,
+    "triangles": 65580,
+    "bytes": 5073944,
+    "maxTextureEdge": 512
+  },
+  "solar-frontier": {
+    "meshes": 1,
+    "triangles": 55340,
+    "bytes": 4372592,
+    "maxTextureEdge": 512
+  },
+  "highland-farms": {
+    "meshes": 1,
+    "triangles": 49572,
+    "bytes": 4007292,
+    "maxTextureEdge": 512
+  }
+}

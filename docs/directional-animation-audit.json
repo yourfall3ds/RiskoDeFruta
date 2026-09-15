@@ -1,0 +1,74 @@
+[
+  {
+    "name": "WalkBackward",
+    "seconds": 1.1,
+    "frames": 61,
+    "maxFootError": 0.018636681354381967
+  },
+  {
+    "name": "StrafeLeft",
+    "seconds": 1.1,
+    "frames": 61,
+    "maxFootError": 0.03820191994777033
+  },
+  {
+    "name": "StrafeRight",
+    "seconds": 1.1,
+    "frames": 61,
+    "maxFootError": 0.03700654922019354
+  },
+  {
+    "name": "RunBackward",
+    "seconds": 0.72,
+    "frames": 61,
+    "maxFootError": 0.060980125555119925
+  },
+  {
+    "name": "RunStrafeLeft",
+    "seconds": 0.72,
+    "frames": 61,
+    "maxFootError": 0.09141224411076658
+  },
+  {
+    "name": "RunStrafeRight",
+    "seconds": 0.72,
+    "frames": 61,
+    "maxFootError": 0.09061793891484715
+  },
+  {
+    "name": "FanCast",
+    "seconds": 1.05,
+    "frames": 61,
+    "maxFootError": 0.000022581875905474175
+  },
+  {
+    "name": "MortalCast",
+    "seconds": 1.05,
+    "frames": 61,
+    "maxFootError": 0.000022581875905474175
+  },
+  {
+    "name": "PrepareFan",
+    "seconds": 1.2,
+    "frames": 61,
+    "maxFootError": 0.000022624942434988294
+  },
+  {
+    "name": "PrepareMortal",
+    "seconds": 1.2,
+    "frames": 61,
+    "maxFootError": 0.00002349383113791919
+  },
+  {
+    "name": "PrepareStorm",
+    "seconds": 1.2,
+    "frames": 61,
+    "maxFootError": 0.000022624942434988294
+  },
+  {
+    "name": "ReloadCast",
+    "seconds": 2.15,
+    "frames": 61,
+    "maxFootError": 0.000020244673945167747
+  }
+]

@@ -1,0 +1,11 @@
+{
+  "width": 1280,
+  "height": 720,
+  "fps": 30.0,
+  "decodedFrames": 120,
+  "durationSeconds": 4.0,
+  "bytes": 481240,
+  "source": "art/blender/Headfirst_Loading_Review.blend",
+  "runtimeMapRequired": false,
+  "review": "Frames 1, 60 and 120 reviewed offline. Browser playback and orbital transition remain pending."
+}

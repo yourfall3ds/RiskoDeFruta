@@ -1,0 +1,15 @@
+{
+  "highland-farms.glb": {
+    "trailPrimitives": 1,
+    "opaqueMaterialsWithoutVertexAlpha": true,
+    "texturesAndNormal": true,
+    "bytes": 51693864
+  },
+  "highland-farms-distant.glb": {
+    "trailPrimitives": 1,
+    "opaqueMaterialsWithoutVertexAlpha": true,
+    "texturesAndNormal": true,
+    "bytes": 6291744
+  },
+  "collisionSHA256": "d7f9cbdb08c38dc6e56cb217a068eb3c8ff90b43e70edf9a8250ca0aae3820b1"
+}

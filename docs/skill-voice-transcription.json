@@ -1,0 +1,122 @@
+{
+  "furia-magronica-skill3.mp3": [
+    {
+      "start": 0.0,
+      "end": 3.32,
+      "text": " Fúria magrônica!",
+      "words": [
+        {
+          "word": " Fúria",
+          "start": 0.0,
+          "end": 2.06,
+          "probability": 0.10139708585726719
+        },
+        {
+          "word": " magrônica!",
+          "start": 2.06,
+          "end": 3.32,
+          "probability": 0.45920110144652426
+        }
+      ]
+    },
+    {
+      "start": 3.32,
+      "end": 3.64,
+      "text": " Aaaaah!",
+      "words": [
+        {
+          "word": " Aaaaah!",
+          "start": 3.32,
+          "end": 3.64,
+          "probability": 0.32373278463880223
+        }
+      ]
+    }
+  ],
+  "rajada-mortal-skill2.mp3": [
+    {
+      "start": 0.0,
+      "end": 2.76,
+      "text": " Ah! Achaada mortal!",
+      "words": [
+        {
+          "word": " Ah!",
+          "start": 0.0,
+          "end": 0.5,
+          "probability": 0.029298672452569008
+        },
+        {
+          "word": " Achaada",
+          "start": 1.22,
+          "end": 2.02,
+          "probability": 0.30284646650155383
+        },
+        {
+          "word": " mortal!",
+          "start": 2.02,
+          "end": 2.76,
+          "probability": 0.0018623562064021826
+        }
+      ]
+    },
+    {
+      "start": 2.76,
+      "end": 3.5,
+      "text": " Aaaaau!",
+      "words": [
+        {
+          "word": " Aaaaau!",
+          "start": 2.76,
+          "end": 3.5,
+          "probability": 0.3332890843351682
+        }
+      ]
+    }
+  ],
+  "segura-minha-chibata-skill1.mp3": [
+    {
+      "start": 0.0,
+      "end": 3.38,
+      "text": " Ah! Segura minha chibata!",
+      "words": [
+        {
+          "word": " Ah!",
+          "start": 0.0,
+          "end": 0.62,
+          "probability": 0.11188147217035294
+        },
+        {
+          "word": " Segura",
+          "start": 1.22,
+          "end": 2.06,
+          "probability": 0.7155434489250183
+        },
+        {
+          "word": " minha",
+          "start": 2.06,
+          "end": 2.52,
+          "probability": 0.19067497551441193
+        },
+        {
+          "word": " chibata!",
+          "start": 2.52,
+          "end": 3.38,
+          "probability": 0.36736020306125283
+        }
+      ]
+    },
+    {
+      "start": 3.38,
+      "end": 3.66,
+      "text": " Ah!",
+      "words": [
+        {
+          "word": " Ah!",
+          "start": 3.38,
+          "end": 3.66,
+          "probability": 0.06861451268196106
+        }
+      ]
+    }
+  ]
+}

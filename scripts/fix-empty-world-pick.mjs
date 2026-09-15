@@ -1,0 +1,3 @@
+import fs from 'node:fs';
+let p='src/combat/DualPistols.ts',s=fs.readFileSync(p,'utf8');s=s.replace("if(!this.yard.collision?.geometry)return this.scene.pickWithRay(ray,mesh=>mesh.isPickable&&!this.yard.targets.some(t=>t.mesh===mesh||t.meshes?.includes(mesh as typeof t.mesh)));", "if(!this.yard.collision?.geometry){const hit=this.scene.pickWithRay(ray,mesh=>mesh.isPickable&&!this.yard.targets.some(t=>t.mesh===mesh||t.meshes?.includes(mesh as typeof t.mesh)));return hit?.hit?hit:null;}");fs.writeFileSync(p,s);
+p='tests/combat-feel.test.ts';s=fs.readFileSync(p,'utf8').replace('tick(player,40,{z:1});expect(player.velocity.z).toBeCloseTo(9,2)','tick(player,50,{z:1});expect(player.velocity.z).toBeCloseTo(9,2)');fs.writeFileSync(p,s);

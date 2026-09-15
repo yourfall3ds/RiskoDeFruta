@@ -1,0 +1,7 @@
+import {readFileSync,writeFileSync} from 'node:fs';
+const edit=(p,a,b)=>{let s=readFileSync(p,'utf8');if(!s.includes(a))throw Error(p+' missing '+a.slice(0,35));writeFileSync(p,s.replace(a,b));};
+edit('scripts/build-solid-geology.py','rings=[(0,1)','rings=[(.035,1)');edit('scripts/build-solid-geology.py','game.extend([(x,h,z),(x,h-depth,z)])','game.extend([(x,h-.035,z),(x,h-depth,z)])');
+edit('src/world/FarmWorld.ts',"const imported=await ImportMeshAsync('/models/farm-world.glb',this.scene);", "const imported=await ImportMeshAsync('/models/farm-world.glb',this.scene);\n      const geology=await ImportMeshAsync('/models/solid-island-geology.glb',this.scene);imported.meshes.push(...geology.meshes);");
+edit('src/world/FarmWorld.ts','this.collision.boxes.push(...geometry.boxes);this.collision.setGeometry', `const solidResponse=await fetch('/models/solid-island-collision.json');if(!solidResponse.ok)throw Error('Falha no volume das ilhas');const solid=await solidResponse.json() as typeof geometry;const offset=geometry.positions.length/3;for(const value of solid.positions)geometry.positions.push(value);for(const index of solid.indices)geometry.indices.push(index+offset);geometry.boxes.push(...solid.boxes);
+      this.collision.boxes.push(...geometry.boxes);this.collision.setGeometry`);
+edit('scripts/bake-navigation.mjs',"const nav=await TacticalNavigation.create", "const solid=JSON.parse(fs.readFileSync('public/models/solid-island-collision.json'));geometry.boxes.push(...solid.boxes);\nconst nav=await TacticalNavigation.create");

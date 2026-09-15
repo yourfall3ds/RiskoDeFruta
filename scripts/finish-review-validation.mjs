@@ -1,0 +1,10 @@
+import {readFileSync,writeFileSync} from 'node:fs';const edit=(p,a,b)=>{let s=readFileSync(p,'utf8');if(!s.includes(a))throw Error(p+' missing '+a.slice(0,30));writeFileSync(p,s.replace(a,b));};
+edit('tests/island-ferry.test.ts',"from '../src/core/contracts'","from '../src/input/GameInput'");
+edit('tests/mp.test.ts','hands:[],fire:vi.fn(),release:vi.fn()','hands:[],fire:vi.fn(),release:vi.fn(),stormAim:vi.fn()');
+edit('tests/mp.test.ts','run.weapons.releaseSkill(1);expect(run.targets.map', 'run.weapons.releaseSkill(1);for(let i=0;i<8;i++)run.weapons.fixedUpdate(1/60,false);expect(run.targets.map');
+edit('src/physics/CollisionWorld.ts','this.rays=new StaticRayIndex(positions,indices);','this.rays=undefined;');
+edit('src/physics/CollisionWorld.ts','  nearbyBoxes(', '  prepareRaycasts():void{if(this.geometry&&!this.rays)this.rays=new StaticRayIndex(this.geometry.positions,this.geometry.indices);}\n  nearbyBoxes(');
+edit('src/world/FarmWorld.ts','this.collision.setGeometry(geometry.positions,geometry.indices);','this.collision.setGeometry(geometry.positions,geometry.indices);this.collision.prepareRaycasts();');
+edit('src/ui/CombatHUD.ts','a.root.position.add(new Vector3(0,1.95*a.scale+a.visual.position.y*a.scale,0))', 'new Vector3(a.root.position.x,a.body.getBoundingInfo().boundingBox.maximumWorld.y+.22,a.root.position.z)');
+edit('src/world/Waterfalls.ts','vec3 flow=texture2D(waterfall,vec2(vUV.x,fract(vUV.y+time*.23))).rgb;',`float phase=fract(time*.38);vec2 offset=vec2(.008*sin(vUV.y*24.+time*3.),phase);vec3 flowA=texture2D(waterfall,vec2(vUV.x+offset.x,fract(vUV.y+offset.y))).rgb,flowB=texture2D(waterfall,vec2(vUV.x-offset.x,fract(vUV.y+offset.y+.5))).rgb;vec3 flow=mix(flowA,flowB,abs(phase*2.-1.));float streak=sin(vUV.y*92.+time*29.+sin(vUV.x*37.)*2.);flow*=.84+.16*streak;flow+=pow(max(0.,streak),10.)*.16;`);
+edit('src/world/Waterfalls.ts','mix(mask.rgb,flow,.36)','mix(mask.rgb,flow,.84)');

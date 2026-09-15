@@ -1,0 +1,38 @@
+{
+  "method": "Manual A/B/A using visible F1 diagnostics in one paused post-defeat scene; single samples, not gameplay benchmark",
+  "gpu": "GTX 1650 / WebGL2",
+  "seed": "skinning-comparison",
+  "tick": 6328,
+  "drawCalls": 167,
+  "activeMeshes": 726,
+  "triangles": 1593521,
+  "entities": 11,
+  "samples": [
+    {
+      "mode": "GPU",
+      "fps": 58,
+      "presentationMs": 15.16,
+      "babylonMs": 11.18,
+      "gpuMs": 11.1
+    },
+    {
+      "mode": "CPU",
+      "fps": 40,
+      "presentationMs": 23.38,
+      "babylonMs": 17.72,
+      "gpuMs": 10.97
+    },
+    {
+      "mode": "GPU",
+      "fps": 54,
+      "presentationMs": 16.02,
+      "babylonMs": 12.77,
+      "gpuMs": 11.4
+    }
+  ],
+  "limits": [
+    "Paused post-defeat scene with ten frozen enemies",
+    "No 60 FPS gameplay guarantee",
+    "Need measurements of active horde and skill combinations"
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "near": {
+    "branches": 13999,
+    "trunk": 3999,
+    "leaves": 80000
+  },
+  "medium": {
+    "branches": 5273,
+    "trunk": 1400,
+    "leaves": 22000
+  },
+  "dimensions": [
+    4.755149841308594,
+    4.817679405212402,
+    5.027446746826172
+  ],
+  "renderCoverage": {
+    "original": {
+      "opaquePixels": 156510,
+      "alphaCoverage": 151867.05490196077
+    },
+    "near": {
+      "opaquePixels": 142520,
+      "alphaCoverage": 138025.19607843139
+    },
+    "medium": {
+      "opaquePixels": 107866,
+      "alphaCoverage": 104395.4862745098
+    }
+  },
+  "placements": 12,
+  "uniqueGeometries": 6,
+  "runtimeNearEnterMeters": 50,
+  "runtimeNearLeaveMeters": 60,
+  "runtimeCullEnterMeters": 190,
+  "runtimeCullLeaveMeters": 180
+}

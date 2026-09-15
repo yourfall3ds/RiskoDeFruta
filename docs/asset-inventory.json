@@ -1,0 +1,178 @@
+[
+  {
+    "file": "assets/ChatGPT Image 6 de set. de 2026, 13_25_16 (1).png",
+    "bytes": 3170851,
+    "width": 1672,
+    "height": 941
+  },
+  {
+    "file": "assets/ChatGPT Image 6 de set. de 2026, 13_25_16 (2).png",
+    "bytes": 2817778,
+    "width": 1672,
+    "height": 941
+  },
+  {
+    "file": "assets/ChatGPT Image 6 de set. de 2026, 13_25_16 (3).png",
+    "bytes": 2700670,
+    "width": 1672,
+    "height": 941
+  },
+  {
+    "file": "assets/ChatGPT Image 6 de set. de 2026, 13_25_16 (4).png",
+    "bytes": 3008342,
+    "width": 1672,
+    "height": 941
+  },
+  {
+    "file": "assets/Meshy_AI_Character_output.glb",
+    "bytes": 55570096,
+    "meshes": 1,
+    "materials": 1,
+    "skins": 1,
+    "animations": [],
+    "triangles": 10366,
+    "extensions": []
+  },
+  {
+    "file": "assets/Meshy_AI_enemy_carrot_rigged_biped.zip",
+    "bytes": 190598977,
+    "entries": [
+      {
+        "name": "Meshy_AI_enemy_carrot_rigged_biped/Meshy_AI_enemy_carrot_rigged_biped_Animation_Hit_Reaction_withSkin.glb",
+        "bytes": 32072808
+      },
+      {
+        "name": "Meshy_AI_enemy_carrot_rigged_biped/Meshy_AI_enemy_carrot_rigged_biped_Animation_Knock_Down_1_withSkin.glb",
+        "bytes": 32089292
+      },
+      {
+        "name": "Meshy_AI_enemy_carrot_rigged_biped/Meshy_AI_enemy_carrot_rigged_biped_Animation_Right_Hand_Sword_Slash_withSkin.glb",
+        "bytes": 32071212
+      },
+      {
+        "name": "Meshy_AI_enemy_carrot_rigged_biped/Meshy_AI_enemy_carrot_rigged_biped_Animation_Running_withSkin.glb",
+        "bytes": 32060452
+      },
+      {
+        "name": "Meshy_AI_enemy_carrot_rigged_biped/Meshy_AI_enemy_carrot_rigged_biped_Animation_Walking_withSkin.glb",
+        "bytes": 32065060
+      },
+      {
+        "name": "Meshy_AI_enemy_carrot_rigged_biped/Meshy_AI_enemy_carrot_rigged_biped_Character_output.glb",
+        "bytes": 32052328
+      }
+    ]
+  },
+  {
+    "file": "assets/Meshy_AI_enemy_corn_rigged_biped.zip",
+    "bytes": 182166046,
+    "entries": [
+      {
+        "name": "Meshy_AI_enemy_corn_rigged_biped/Meshy_AI_enemy_corn_rigged_biped_Animation_Hit_Reaction_withSkin.glb",
+        "bytes": 30799236
+      },
+      {
+        "name": "Meshy_AI_enemy_corn_rigged_biped/Meshy_AI_enemy_corn_rigged_biped_Animation_Knock_Down_1_withSkin.glb",
+        "bytes": 30816504
+      },
+      {
+        "name": "Meshy_AI_enemy_corn_rigged_biped/Meshy_AI_enemy_corn_rigged_biped_Animation_Right_Hand_Sword_Slash_withSkin.glb",
+        "bytes": 30797720
+      },
+      {
+        "name": "Meshy_AI_enemy_corn_rigged_biped/Meshy_AI_enemy_corn_rigged_biped_Animation_Running_withSkin.glb",
+        "bytes": 30787672
+      },
+      {
+        "name": "Meshy_AI_enemy_corn_rigged_biped/Meshy_AI_enemy_corn_rigged_biped_Animation_Walking_withSkin.glb",
+        "bytes": 30792276
+      },
+      {
+        "name": "Meshy_AI_enemy_corn_rigged_biped/Meshy_AI_enemy_corn_rigged_biped_Character_output.glb",
+        "bytes": 30779536
+      }
+    ]
+  },
+  {
+    "file": "assets/Meshy_AI_enemy_eggplant_rigged_biped.zip",
+    "bytes": 205084803,
+    "entries": [
+      {
+        "name": "Meshy_AI_enemy_eggplant_rigged_biped/Meshy_AI_enemy_eggplant_rigged_biped_Animation_Hit_Reaction_withSkin.glb",
+        "bytes": 34393564
+      },
+      {
+        "name": "Meshy_AI_enemy_eggplant_rigged_biped/Meshy_AI_enemy_eggplant_rigged_biped_Animation_Knock_Down_1_withSkin.glb",
+        "bytes": 34413152
+      },
+      {
+        "name": "Meshy_AI_enemy_eggplant_rigged_biped/Meshy_AI_enemy_eggplant_rigged_biped_Animation_Right_Hand_Sword_Slash_withSkin.glb",
+        "bytes": 34391968
+      },
+      {
+        "name": "Meshy_AI_enemy_eggplant_rigged_biped/Meshy_AI_enemy_eggplant_rigged_biped_Animation_Running_withSkin.glb",
+        "bytes": 34381212
+      },
+      {
+        "name": "Meshy_AI_enemy_eggplant_rigged_biped/Meshy_AI_enemy_eggplant_rigged_biped_Animation_Walking_withSkin.glb",
+        "bytes": 34385832
+      },
+      {
+        "name": "Meshy_AI_enemy_eggplant_rigged_biped/Meshy_AI_enemy_eggplant_rigged_biped_Character_output.glb",
+        "bytes": 34373088
+      }
+    ]
+  },
+  {
+    "file": "assets/Meshy_AI_gunslinger_v2_rigged_biped.zip",
+    "bytes": 235932425,
+    "entries": [
+      {
+        "name": "Meshy_AI_gunslinger_v2_rigged_biped/Meshy_AI_gunslinger_v2_rigged_biped_Animation_Cowboy_Quick_Draw_Shooting_withSkin.glb",
+        "bytes": 26769948
+      },
+      {
+        "name": "Meshy_AI_gunslinger_v2_rigged_biped/Meshy_AI_gunslinger_v2_rigged_biped_Animation_Hit_Reaction_withSkin.glb",
+        "bytes": 26699268
+      },
+      {
+        "name": "Meshy_AI_gunslinger_v2_rigged_biped/Meshy_AI_gunslinger_v2_rigged_biped_Animation_Idle_02_withSkin.glb",
+        "bytes": 26705464
+      },
+      {
+        "name": "Meshy_AI_gunslinger_v2_rigged_biped/Meshy_AI_gunslinger_v2_rigged_biped_Animation_Knock_Down_1_withSkin.glb",
+        "bytes": 26715756
+      },
+      {
+        "name": "Meshy_AI_gunslinger_v2_rigged_biped/Meshy_AI_gunslinger_v2_rigged_biped_Animation_Regular_Jump_withSkin.glb",
+        "bytes": 26702476
+      },
+      {
+        "name": "Meshy_AI_gunslinger_v2_rigged_biped/Meshy_AI_gunslinger_v2_rigged_biped_Animation_Roll_Dodge_3_withSkin.glb",
+        "bytes": 26706380
+      },
+      {
+        "name": "Meshy_AI_gunslinger_v2_rigged_biped/Meshy_AI_gunslinger_v2_rigged_biped_Animation_Running_withSkin.glb",
+        "bytes": 26686940
+      },
+      {
+        "name": "Meshy_AI_gunslinger_v2_rigged_biped/Meshy_AI_gunslinger_v2_rigged_biped_Animation_Walking_withSkin.glb",
+        "bytes": 26691548
+      },
+      {
+        "name": "Meshy_AI_gunslinger_v2_rigged_biped/Meshy_AI_gunslinger_v2_rigged_biped_Character_output.glb",
+        "bytes": 26678792
+      }
+    ]
+  },
+  {
+    "file": "assets/melancia-Meshy_AI_Character_output (1).glb",
+    "bytes": 52447420,
+    "meshes": 1,
+    "materials": 1,
+    "skins": 1,
+    "animations": [],
+    "triangles": 10192,
+    "extensions": []
+  }
+]

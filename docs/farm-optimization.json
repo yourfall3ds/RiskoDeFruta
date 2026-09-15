@@ -1,0 +1,26 @@
+[
+  {
+    "mesh": "Plane",
+    "before": 1291146,
+    "after": 18000,
+    "instances": 165
+  },
+  {
+    "mesh": "Plane.006",
+    "before": 6232,
+    "after": 4999,
+    "instances": 121
+  },
+  {
+    "mesh": "Plane.037",
+    "before": 24730,
+    "after": 5000,
+    "instances": 78
+  },
+  {
+    "mesh": "island_trees_01_blockout_cleaned",
+    "before": 1599403,
+    "after": 55000,
+    "instances": 12
+  }
+]

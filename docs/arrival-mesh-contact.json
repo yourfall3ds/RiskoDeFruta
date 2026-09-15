@@ -1,0 +1,71 @@
+{
+  "includesWeapons": false,
+  "samples": [
+    {
+      "progress": 0,
+      "minimumY": 0.005000085569918156,
+      "vertices": 16816,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.1,
+      "minimumY": 0.0049996278062565125,
+      "vertices": 16816,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.2,
+      "minimumY": 0.004999832707681673,
+      "vertices": 16816,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.3,
+      "minimumY": 0.028828231221524447,
+      "vertices": 16816,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.4,
+      "minimumY": 0.035762945421438985,
+      "vertices": 16816,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.5,
+      "minimumY": 0.03268604240803652,
+      "vertices": 16816,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.6,
+      "minimumY": 0.014820978880275781,
+      "vertices": 16816,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.7,
+      "minimumY": 0.004996966836634087,
+      "vertices": 16816,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.8,
+      "minimumY": 0.019509528433229728,
+      "vertices": 16816,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 0.9,
+      "minimumY": 0.013404210506285485,
+      "vertices": 16816,
+      "verticesBelowGround": 0
+    },
+    {
+      "progress": 1,
+      "minimumY": 0.01198375198281365,
+      "vertices": 16816,
+      "verticesBelowGround": 0
+    }
+  ]
+}

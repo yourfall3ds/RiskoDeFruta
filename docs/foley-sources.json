@@ -1,0 +1,50 @@
+[
+  {
+    "author": "Kenney",
+    "license": "CC0",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "use": "Grass, wood, concrete footsteps, impacts and bells"
+  },
+  {
+    "author": "pauliuw",
+    "license": "CC0",
+    "url": "https://opengameart.org/content/monster-or-beast-sounds",
+    "use": "Monster voice recordings"
+  },
+  {
+    "author": "qubodup",
+    "license": "CC0",
+    "url": "https://opengameart.org/content/swish-bamboo-stick-weapon-swhoshes",
+    "use": "Recorded bamboo air swishes for dodge and skill motion"
+  },
+  {
+    "author": "ezwa / qubodup",
+    "license": "CC0",
+    "url": "https://opengameart.org/content/6-short-water-splashes",
+    "use": "Water footsteps and splashes"
+  },
+  {
+    "author": "Tabasco",
+    "license": "CC0",
+    "url": "https://opengameart.org/content/gunshot-sounds",
+    "use": "Recorded CZ pistol shots"
+  },
+  {
+    "author": "GryffDavid",
+    "license": "CC0",
+    "url": "https://freesound.org/people/GryffDavid/sounds/318964/",
+    "use": "Six trimmed and level-normalized recordings of spent shell casings bouncing on tile; downloaded public HQ preview."
+  },
+  {
+    "author": "zer0_sol",
+    "license": "CC0",
+    "url": "https://opengameart.org/content/handgun-reload-sound-effect",
+    "use": "Recorded handgun magazine and slide reload."
+  },
+  {
+    "author": "HaelDB",
+    "license": "CC0",
+    "url": "https://opengameart.org/content/male-gruntyelling-sounds",
+    "use": "Original recorded human scream, yelling sounds/1yell11.wav, copied without synthesis as player-death-scream.wav. 2 seconds, playback 0.95, delay 0.08; fits 2.8 second fatal reaction."
+  }
+]

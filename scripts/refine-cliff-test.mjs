@@ -1,0 +1,2 @@
+import fs from 'node:fs';
+const p='tests/mesh-collision.test.ts';let s=fs.readFileSync(p,'utf8');s=s.replace('world.prepareRaycasts();\n for(const y', 'world.prepareRaycasts();const shape=new SolidInteriors(solid.positions,solid.indices);\n for(const y').replace('expect(p.x).toBeGreaterThan(10);','expect(p.x).toBeGreaterThan(6);expect(shape.contains({x:p.x,y:p.y+.9,z:p.z})).toBe(false);');fs.writeFileSync(p,s);

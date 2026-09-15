@@ -1,0 +1,232 @@
+[
+  {
+    "name": "Campos Altos: acesso e travessia",
+    "width": 4.5,
+    "points": [
+      [
+        410,
+        280
+      ],
+      [
+        450,
+        280
+      ],
+      [
+        490,
+        280
+      ],
+      [
+        520,
+        290
+      ],
+      [
+        550,
+        297
+      ],
+      [
+        586,
+        297
+      ]
+    ]
+  },
+  {
+    "name": "Campos Altos: vale",
+    "width": 4.5,
+    "points": [
+      [
+        520,
+        290
+      ],
+      [
+        525,
+        325
+      ],
+      [
+        530,
+        345
+      ],
+      [
+        539,
+        363
+      ]
+    ]
+  },
+  {
+    "name": "Campos Altos: suprimentos oeste",
+    "width": 4.5,
+    "points": [
+      [
+        450,
+        280
+      ],
+      [
+        465,
+        265
+      ],
+      [
+        465,
+        250
+      ]
+    ]
+  },
+  {
+    "name": "Campos Altos: suprimentos leste",
+    "width": 4.5,
+    "points": [
+      [
+        550,
+        297
+      ],
+      [
+        548,
+        270
+      ]
+    ]
+  },
+  {
+    "name": "Moinhos: travessia",
+    "width": 4.5,
+    "points": [
+      [
+        636,
+        306
+      ],
+      [
+        660,
+        300
+      ],
+      [
+        700,
+        300
+      ],
+      [
+        735,
+        320
+      ],
+      [
+        782,
+        325
+      ]
+    ]
+  },
+  {
+    "name": "Moinhos: vale",
+    "width": 4.5,
+    "points": [
+      [
+        700,
+        300
+      ],
+      [
+        700,
+        340
+      ],
+      [
+        700,
+        365
+      ],
+      [
+        689,
+        393
+      ]
+    ]
+  },
+  {
+    "name": "Moinhos: praça",
+    "width": 4.5,
+    "points": [
+      [
+        735,
+        320
+      ],
+      [
+        732,
+        330
+      ],
+      [
+        720,
+        330
+      ]
+    ]
+  },
+  {
+    "name": "Vale: acesso e praça",
+    "width": 4.5,
+    "points": [
+      [
+        573,
+        434
+      ],
+      [
+        585,
+        455
+      ],
+      [
+        610,
+        480
+      ],
+      [
+        610,
+        515
+      ],
+      [
+        610,
+        550
+      ],
+      [
+        610,
+        580
+      ]
+    ]
+  },
+  {
+    "name": "Vale: acesso leste",
+    "width": 4.5,
+    "points": [
+      [
+        658,
+        440
+      ],
+      [
+        640,
+        465
+      ],
+      [
+        610,
+        480
+      ]
+    ]
+  },
+  {
+    "name": "Campos Altos: entrada do celeiro",
+    "width": 4.5,
+    "points": [
+      [
+        490,
+        280
+      ],
+      [
+        493,
+        290
+      ],
+      [
+        493,
+        300
+      ]
+    ]
+  },
+  {
+    "name": "Moinhos: suprimentos da entrada",
+    "width": 4.5,
+    "points": [
+      [
+        660,
+        300
+      ],
+      [
+        650,
+        310
+      ]
+    ]
+  }
+]

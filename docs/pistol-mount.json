@@ -1,0 +1,12 @@
+{
+  "source": "user-supplied GLB",
+  "lengthMeters": 0.418,
+  "gripOrigin": "center of grip, behind trigger",
+  "muzzle": [
+    0,
+    0.154,
+    0.341
+  ],
+  "triangles": 40000,
+  "textureResolution": 2048
+}

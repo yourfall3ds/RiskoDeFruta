@@ -1,0 +1,27 @@
+[
+  {
+    "file": "Farm_World_Polished.blend",
+    "meshes": 867,
+    "actions": [],
+    "opens": true
+  },
+  {
+    "file": "Gunslinger_Final.blend",
+    "meshes": 2,
+    "actions": [
+      "Aim",
+      "Backflip",
+      "Charge",
+      "Dodge",
+      "Fire_L",
+      "Fire_R",
+      "Idle",
+      "JumpFall",
+      "JumpRise",
+      "Release",
+      "Run",
+      "Walk"
+    ],
+    "opens": true
+  }
+]

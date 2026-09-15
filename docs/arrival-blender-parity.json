@@ -1,0 +1,97 @@
+{
+  "fps": 60,
+  "rotationX": "positive",
+  "samples": [
+    {
+      "progress": 0,
+      "joint": "Head",
+      "errorMeters": 5.149666467059071e-07
+    },
+    {
+      "progress": 0,
+      "joint": "LeftHand",
+      "errorMeters": 6.092388546692763e-06
+    },
+    {
+      "progress": 0,
+      "joint": "RightHand",
+      "errorMeters": 7.936725516645842e-06
+    },
+    {
+      "progress": 0.2,
+      "joint": "Head",
+      "errorMeters": 5.968288273115883e-07
+    },
+    {
+      "progress": 0.2,
+      "joint": "LeftHand",
+      "errorMeters": 5.717795160317204e-06
+    },
+    {
+      "progress": 0.2,
+      "joint": "RightHand",
+      "errorMeters": 7.794493181336353e-06
+    },
+    {
+      "progress": 0.4,
+      "joint": "Head",
+      "errorMeters": 8.977582492929733e-07
+    },
+    {
+      "progress": 0.4,
+      "joint": "LeftHand",
+      "errorMeters": 4.826596292452331e-06
+    },
+    {
+      "progress": 0.4,
+      "joint": "RightHand",
+      "errorMeters": 4.791598078850963e-06
+    },
+    {
+      "progress": 0.6,
+      "joint": "Head",
+      "errorMeters": 3.2099983482808054e-07
+    },
+    {
+      "progress": 0.6,
+      "joint": "LeftHand",
+      "errorMeters": 4.184494408549033e-06
+    },
+    {
+      "progress": 0.6,
+      "joint": "RightHand",
+      "errorMeters": 3.5357224582656637e-06
+    },
+    {
+      "progress": 0.8,
+      "joint": "Head",
+      "errorMeters": 9.313225746154785e-09
+    },
+    {
+      "progress": 0.8,
+      "joint": "LeftHand",
+      "errorMeters": 2.798097260784163e-06
+    },
+    {
+      "progress": 0.8,
+      "joint": "RightHand",
+      "errorMeters": 3.989951126856699e-06
+    },
+    {
+      "progress": 1,
+      "joint": "Head",
+      "errorMeters": 3.6334950786080734e-07
+    },
+    {
+      "progress": 1,
+      "joint": "LeftHand",
+      "errorMeters": 2.3995758828932655e-06
+    },
+    {
+      "progress": 1,
+      "joint": "RightHand",
+      "errorMeters": 3.6989787869940076e-06
+    }
+  ],
+  "maximumErrorMeters": 7.936725516645842e-06
+}

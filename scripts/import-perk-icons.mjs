@@ -1,0 +1,5 @@
+import {readdirSync,copyFileSync,mkdirSync,writeFileSync,readFileSync} from 'node:fs';
+import {createHash} from 'node:crypto';
+const files=readdirSync('assets/perks').filter(f=>f.endsWith('.png')).sort();if(files.length!==90)throw Error('Expected 90 perk icons');mkdirSync('public/perks',{recursive:true});
+const checks=[];for(const file of files){const b=readFileSync('assets/perks/'+file);if(b.readUInt8(25)!==6)throw Error('RGBA expected: '+file);copyFileSync('assets/perks/'+file,'public/perks/'+file);checks.push({file,sha256:createHash('sha256').update(b).digest('hex'),rgba:true});}
+writeFileSync('src/ui/PerkIcons.ts','export const PERK_ICONS='+JSON.stringify(files)+' as const;\nexport const perkIcon=(index:number)=>`background-image:url("/perks/${PERK_ICONS[index]??PERK_ICONS[0]}");background-size:contain;background-position:center;background-repeat:no-repeat`;\n');writeFileSync('docs/perk-integrity.json',JSON.stringify(checks,null,2));console.log('90 RGBA originals copied without modification');

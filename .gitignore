@@ -1,0 +1,18 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+coverage/
+*.log
+.DS_Store
+artifacts/
+# Fontes pesadas ficam só localmente; o jogo carrega de public/
+assets/
+art/
+*.blend1
+
+.temp/
+.npm-cache/
+.pip-cache/
+.tools/
