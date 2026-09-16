@@ -1,115 +1,133 @@
 {
- "fps": 60,
- "source": "public/models/gunslinger.glb",
- "blend": "art/blender/Gunslinger_Combo.blend",
- "preservedActions": [
-  "Aim",
-  "ArrivalDive",
-  "ArrivalRecovery",
-  "Backflip",
-  "Charge",
-  "Dodge",
-  "FanCast",
-  "FinalDeath",
-  "Fire_L",
-  "Fire_R",
-  "Idle",
-  "Jump",
-  "JumpFall",
-  "JumpRise",
-  "MortalCast",
-  "PrepareFan",
-  "PrepareMortal",
-  "PrepareStorm",
-  "Release",
-  "ReloadCast",
-  "Run",
-  "RunBackward",
-  "RunStrafeLeft",
-  "RunStrafeRight",
-  "StrafeLeft",
-  "StrafeRight",
-  "Walk",
-  "WalkBackward"
- ],
- "clips": [
-  {
-   "id": "right-cross",
-   "clip": "ComboRightCross",
-   "windup": 0.28,
-   "active": 0.13,
-   "recover": 0.33,
-   "frames": 45,
-   "contactFrame": 18,
-   "note": "rear straight; hips lead, rear heel pivots onto the ball, lead hand never drops below the chin",
-   "plantErrorMillimetres": 0.012,
-   "plantErrorFrame": 9,
-   "replayErrorDegrees": 0.06853
-  },
-  {
-   "id": "left-hook",
-   "clip": "ComboLeftHook",
-   "windup": 0.26,
-   "active": 0.13,
-   "recover": 0.31,
-   "frames": 43,
-   "contactFrame": 17,
-   "note": "lead hook; the turn comes from the hips and the lead ball, the elbow stays under 90 degrees",
-   "plantErrorMillimetres": 0.016,
-   "plantErrorFrame": 11,
-   "replayErrorDegrees": 0.05595
-  },
-  {
-   "id": "right-kick",
-   "clip": "ComboRightKick",
-   "windup": 0.3,
-   "active": 0.15,
-   "recover": 0.37,
-   "frames": 50,
-   "contactFrame": 19,
-   "note": "rear push kick; the support foot stays planted and the torso pays for the leg with a lean back",
-   "plantErrorMillimetres": 0.012,
-   "plantErrorFrame": 5,
-   "replayErrorDegrees": 0.08847
-  },
-  {
-   "id": "uppercut",
-   "clip": "ComboUppercut",
-   "windup": 0.3,
-   "active": 0.15,
-   "recover": 0.37,
-   "frames": 50,
-   "contactFrame": 19,
-   "note": "right uppercut; the dip and the leg extension carry the fist, the elbow never passes the shoulder",
-   "plantErrorMillimetres": 15.729,
-   "plantErrorFrame": 19,
-   "replayErrorDegrees": 0.05595
-  },
-  {
-   "id": "left-kick",
-   "clip": "ComboLeftKick",
-   "windup": 0.32,
-   "active": 0.15,
-   "recover": 0.38,
-   "frames": 52,
-   "contactFrame": 20,
-   "note": "lead round kick; support foot turns out before the hips rotate, so the knee never takes the twist",
-   "plantErrorMillimetres": 0.018,
-   "plantErrorFrame": 6,
-   "replayErrorDegrees": 0.40734
-  },
-  {
-   "id": "spin-kick",
-   "clip": "ComboSpinKick",
-   "windup": 0.34,
-   "active": 0.25,
-   "recover": 0.5,
-   "frames": 66,
-   "contactFrame": 21,
-   "note": "spinning back kick; one full revolution around the planted lead ball, head leads the turn",
-   "plantErrorMillimetres": 0.019,
-   "plantErrorFrame": 32,
-   "replayErrorDegrees": 0.26541
-  }
- ]
+  "fps": 60,
+  "source": "C:/Users/darck/transformice/assets/animations",
+  "blend": "art/blender/Gunslinger_Recorded_Combos.blend",
+  "preservedActions": [
+    "Aim",
+    "ArrivalDive",
+    "ArrivalRecovery",
+    "Backflip",
+    "Charge",
+    "Dodge",
+    "FanCast",
+    "FinalDeath",
+    "Fire_L",
+    "Fire_R",
+    "Idle",
+    "Jump",
+    "JumpFall",
+    "JumpRise",
+    "MortalCast",
+    "PrepareFan",
+    "PrepareMortal",
+    "PrepareStorm",
+    "Release",
+    "ReloadCast",
+    "Run",
+    "RunBackward",
+    "RunStrafeLeft",
+    "RunStrafeRight",
+    "StrafeLeft",
+    "StrafeRight",
+    "Walk",
+    "WalkBackward"
+  ],
+  "clips": [
+    {
+      "id": "right-cross",
+      "clip": "ComboRightCross",
+      "windup": 0.28,
+      "active": 0.13,
+      "recover": 0.33,
+      "frames": 45,
+      "contactFrame": 18,
+      "note": "Recorded source motion, one strike, shared guard and evaluated boot support; baked in Blender.",
+      "sourceMotion": "SourcePunch",
+      "sourceFrames": [
+        43,
+        53,
+        85
+      ]
+    },
+    {
+      "id": "left-hook",
+      "clip": "ComboLeftHook",
+      "windup": 0.26,
+      "active": 0.13,
+      "recover": 0.31,
+      "frames": 43,
+      "contactFrame": 17,
+      "note": "Recorded source motion, one strike, shared guard and evaluated boot support; baked in Blender.",
+      "sourceMotion": "SourceHook",
+      "sourceFrames": [
+        0,
+        20,
+        40
+      ]
+    },
+    {
+      "id": "right-kick",
+      "clip": "ComboRightKick",
+      "windup": 0.3,
+      "active": 0.15,
+      "recover": 0.37,
+      "frames": 50,
+      "contactFrame": 19,
+      "note": "Recorded source motion, one strike, shared guard and evaluated boot support; baked in Blender.",
+      "sourceMotion": "SourceSpartan",
+      "sourceFrames": [
+        0,
+        36,
+        88
+      ]
+    },
+    {
+      "id": "uppercut",
+      "clip": "ComboUppercut",
+      "windup": 0.3,
+      "active": 0.15,
+      "recover": 0.37,
+      "frames": 50,
+      "contactFrame": 19,
+      "note": "Recorded source motion, one strike, shared guard and evaluated boot support; baked in Blender.",
+      "sourceMotion": "SourceUppercut",
+      "sourceFrames": [
+        0,
+        24,
+        84
+      ]
+    },
+    {
+      "id": "left-kick",
+      "clip": "ComboLeftKick",
+      "windup": 0.32,
+      "active": 0.15,
+      "recover": 0.38,
+      "frames": 52,
+      "contactFrame": 20,
+      "note": "Recorded source motion, one strike, shared guard and evaluated boot support; baked in Blender.",
+      "sourceMotion": "SourceHighKick",
+      "sourceFrames": [
+        0,
+        34,
+        80
+      ]
+    },
+    {
+      "id": "spin-kick",
+      "clip": "ComboSpinKick",
+      "windup": 0.34,
+      "active": 0.25,
+      "recover": 0.5,
+      "frames": 66,
+      "contactFrame": 21,
+      "note": "Recorded source motion, one strike, shared guard and evaluated boot support; baked in Blender.",
+      "sourceMotion": "SourceRoundhouse",
+      "sourceFrames": [
+        32,
+        92,
+        155
+      ]
+    }
+  ]
 }

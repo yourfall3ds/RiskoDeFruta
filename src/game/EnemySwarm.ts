@@ -22,7 +22,7 @@ import type { PlayerMotor } from '../player/PlayerMotor';
 import type { TrainingTarget } from '../world/TrainingYard';
 import { FarmNavigation } from '../ai/FarmNavigation';
 import { AIScheduler } from '../ai/AIScheduler';
-import { ENEMIES,MonsterDirector,type DirectorMode,type EnemyKind } from '../run/MonsterDirector';
+import { ENEMIES,MonsterDirector,bossHealth,type DirectorMode,type EnemyKind } from '../run/MonsterDirector';
 import type { RunProgression } from '../run/RunProgression';
 import { CombatPresentation } from '../vfx/CombatPresentation';
 import { ENEMY_BEHAVIORS,type TelegraphPlan } from '../enemies/EnemyBehaviors';
@@ -153,6 +153,14 @@ export class EnemySwarm {
     this.effects.burst(at,'soil',3);this.audio?.enemy('spawn','boss',distance(at,this.player.position));
     return true;
   }
+  /**
+   * Vida do corpo que vai nascer. A Praga Alfa usa `bossHealth`, que escala por estágio E por nível
+   * em vez do valor fixo de catálogo; o resto mantém exatamente a fórmula anterior.
+   */
+  private healthFor(kind:EnemyKind,variant:EnemyVariant):number {
+    if(kind==='boss')return bossHealth(this.progression.stage,this.progression.level)*this.director.healthMultiplier;
+    return ENEMIES[kind].hp*ENEMY_AFFIXES[variant].health*(1+(this.progression.stage-1)*.35)*this.director.healthMultiplier;
+  }
   spawn(kind:EnemyKind,position?:Vec3,variant:EnemyVariant=kind==='boss'?'normal':chooseVariant(this.rng.stream('elite').next(),this.director.time)):boolean {
     if(kind==='boss'&&this.boss&&!this.boss.health.dead)return true;
     if(!this.ready||(this.count>=this.populationCap&&kind!=='boss'))return false;const at=position??this.spawnPosition();if(!at)return false;
@@ -161,12 +169,12 @@ export class EnemySwarm {
     if(!actor){const container=this.containers.get(definition.model);if(!container)return false;const instance=container.instantiateModelsToScene(n=>`enemy-${this.nextId}-${n}`,false,{doNotInstantiate:true});const root=new TransformNode(`enemy-${this.nextId}`,this.scene),visual=new TransformNode(`enemy-visual-${this.nextId}`,this.scene);visual.parent=root;for(const node of instance.rootNodes)node.parent=visual;
       const meshes=visual.getChildMeshes();const body=meshes.filter(x=>x.getTotalVertices()>0).sort((a,b)=>b.getTotalVertices()-a.getTotalVertices())[0] as Mesh|undefined;if(!body){root.dispose();return false;}
       for(const mesh of meshes){mesh.isPickable=mesh.getTotalVertices()>0;mesh.receiveShadows=true;}body.isPickable=true;
-      const id=this.nextId++,health=new Health(id,definition.hp*(1+(this.progression.stage-1)*.35),this.events);const target:TrainingTarget={id,mesh:body,hits:0};const clips=new Map<string,AnimationGroup>();for(const clip of instance.animationGroups){clip.stop();for(const name of ['Spawn','Walk','Run','Idle','Hit','Death','Attack','Cast','Fly','Spit','Bite','Roll'])if(clip.name.endsWith(name))clips.set(name,clip);}
+      const id=this.nextId++,health=new Health(id,this.healthFor(kind,variant),this.events);const target:TrainingTarget={id,mesh:body,hits:0};const clips=new Map<string,AnimationGroup>();for(const clip of instance.animationGroups){clip.stop();for(const name of ['Spawn','Walk','Run','Idle','Hit','Death','Attack','Cast','Fly','Spit','Bite','Roll'])if(clip.name.endsWith(name))clips.set(name,clip);}
       target.meshes=meshes.filter(mesh=>mesh.getTotalVertices()>0) as Mesh[];
       actor={id,kind,variant,scale:definition.scale,push:Vector3.Zero(),root,visual,body,health,target,clips,machine:new AnimationStateMachine(clips),skeleton:instance.skeletons[0],ragdoll:undefined,healthTrail:health.maximum,gait:0,lastPosePosition:Vector3.FromArray([at.x,at.y,at.z]),palette:new PosePalette(instance.skeletons),state:'spawn',time:0,attack:0,locked:{...at},direction:{x:0,z:0},burn:0,burnClock:0,anim:0,hit:0,stagger:0,staggerCooldown:0,deathVelocity:Vector3.Zero(),active:true,cooldown:0};const captured=actor;target.onHit=context=>this.hit(captured,context);if(kind==='carrot'){const nodes=visual.getChildTransformNodes(),hand=nodes.find(n=>n.name.endsWith('RightHand')),arm=nodes.find(n=>n.name.endsWith('RightArm'));if(hand&&arm){const socket=new TransformNode('carrot-right-palm-muzzle',this.scene);socket.parent=hand;socket.position.set(0,6,0);socket.rotationQuaternion=Quaternion.FromUnitVectorsToRef(Vector3.Forward(),Vector3.Up(),Quaternion.Identity());actor.laserSocket=socket;actor.laserArm=arm;}}this.actors.push(actor);this.byId.set(actor.id,actor);this.world.targets.push(target);
     }
     this.ragdolls.release(actor.ragdoll);actor.ragdoll=undefined;actor.machine.reset();actor.gait=0;actor.lastPosePosition.set(at.x,at.y,at.z);
-    actor.variant=variant;actor.scale=definition.scale*affix.scale;actor.push.setAll(0);actor.active=true;actor.health=new Health(actor.id,definition.hp*affix.health*(1+(this.progression.stage-1)*.35)*this.director.healthMultiplier,this.events);actor.healthTrail=actor.health.maximum;actor.state='spawn';actor.time=0;actor.burn=0;actor.hit=0;actor.stagger=0;actor.staggerCooldown=0;actor.cooldown=1;actor.direction={x:0,z:0};actor.attack=0;actor.root.position.set(at.x,at.y,at.z);actor.root.rotation.set(0,Math.atan2(this.player.position.x-at.x,this.player.position.z-at.z),0);actor.root.scaling.setAll(actor.scale);actor.visual.rotationQuaternion=null;actor.visual.rotation.set(0,0,0);actor.visual.position.set(0,-1,0);actor.body.isPickable=true;actor.root.setEnabled(true);
+    actor.variant=variant;actor.scale=definition.scale*affix.scale;actor.push.setAll(0);actor.active=true;actor.health=new Health(actor.id,this.healthFor(kind,variant),this.events);actor.healthTrail=actor.health.maximum;actor.state='spawn';actor.time=0;actor.burn=0;actor.hit=0;actor.stagger=0;actor.staggerCooldown=0;actor.cooldown=1;actor.direction={x:0,z:0};actor.attack=0;actor.root.position.set(at.x,at.y,at.z);actor.root.rotation.set(0,Math.atan2(this.player.position.x-at.x,this.player.position.z-at.z),0);actor.root.scaling.setAll(actor.scale);actor.visual.rotationQuaternion=null;actor.visual.rotation.set(0,0,0);actor.visual.position.set(0,-1,0);actor.body.isPickable=true;actor.root.setEnabled(true);
     for(const mesh of actor.target.meshes??[actor.body]){
       mesh.isPickable=true;mesh.setEnabled(true);
       if(mesh.material instanceof PBRMaterial){const baseName=mesh.material.name.split('::elite::')[0]!,baseKey=definition.model+':'+baseName;if(!this.eliteMaterials.has(baseKey))this.eliteMaterials.set(baseKey,mesh.material);const original=this.eliteMaterials.get(baseKey)!;original.maxSimultaneousLights=2;

@@ -27,7 +27,7 @@ it('scores the expedition by real milestones instead of horde counters',()=>{
 
 it('rewards reaching the Alpha Blight and crossing the rift',()=>{
  const progression=run();
- const beaten=attemptScore(attemptSummary(progression,1,0,{mode:'expedition',completed:4,total:4,phase:'rift',bossDefeated:true}));
+ const beaten=attemptScore(attemptSummary(progression,1,0,{mode:'expedition',completed:4,total:4,phase:'extract',bossDefeated:true}));
  const stalled=attemptScore(attemptSummary(progression,1,0,{mode:'expedition',completed:4,total:4,phase:'boss',bossDefeated:false}));
  expect(beaten.boss).toBe(SCORE_BOSS);
  expect(beaten.total-stalled.total).toBe(SCORE_BOSS);

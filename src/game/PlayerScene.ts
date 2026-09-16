@@ -1,4 +1,6 @@
 import {reloadMovement} from '../player/ReloadMovement';
+import {meleeMovement} from '../combat/MeleeMovement';
+import {extractionPresentation} from '../stages/ExtractionPresentation';
 import {DeathFlight} from '../player/DeathFlight';
 import {DeathTimeline} from '../player/DeathTimeline';
 import {attemptSummary} from '../run/AttemptSummary';
@@ -67,9 +69,15 @@ import { FootingPresentation } from '../world/FootingPresentation';
 
 import { RunHUD } from '../ui/RunHUD';
 
-import { ExpeditionObjectives,planExpedition,chooseChalice,TOTEM_RADIUS } from '../run/ExpeditionObjectives';
+import { ExpeditionObjectives,findTotemSite,FINAL_CHALICE_JUICE,TOTEM_RADIUS,type TotemSite } from '../run/ExpeditionObjectives';
 
-import { EXPEDITION_ANCHORS } from '../run/ExpeditionAnchors';
+import { StageJourney,type JourneyCue } from '../stages/StageJourney';
+
+import { biomeForStage,nextBiomeForStage } from '../stages/StageRoute';
+
+import { planStage,type StagePlan } from '../stages/StagePlan';
+
+import { findSpawnPoint } from '../stages/StageSpawn';
 
 import { HarvestResonance } from '../run/HarvestResonance';
 
@@ -81,7 +89,7 @@ import { SlowMotion } from '../camera/SlowMotion';
 
 import { UnarmedCombat,meleeReaches } from '../combat/UnarmedCombat';
 
-import { ENEMIES } from '../run/MonsterDirector';
+import { ENEMIES,finalHordePressure } from '../run/MonsterDirector';
 
 import { ENEMY_AFFIXES } from '../enemies/EnemyAffixes';
 
@@ -90,6 +98,9 @@ import { WeatherCycle } from '../world/WeatherCycle';
 import { WeatherPresentation } from '../world/WeatherPresentation';
 
 
+
+/** Plano de um estágio: o par de ilhas validado mais o sítio já montado do cálice. */
+interface StageSetup {plan:StagePlan;site:TotemSite}
 
 export class PlayerScene implements SceneModule {
   private readonly death=new DeathTimeline();
@@ -142,9 +153,21 @@ export class PlayerScene implements SceneModule {
   readonly resonance=new HarvestResonance();
   private expeditionSites:ExpeditionSites|undefined;
   private readonly directorMode:DirectorMode;
-  private expeditionPlanned=false;
   private bossRequestClock=0;
   private readonly collision:CollisionWorld;
+
+  /**
+   * Conclusão do estágio: recolher o suco no cálice, embarcar, viajar e chegar a OUTRO bioma já
+   * existente. Substitui a fenda fixa do celeiro, que reaparecia sempre no mesmo mapa.
+   */
+  readonly journey=new StageJourney();
+  /** Plano em vigor: ilha de partida, ilha do cálice e o sítio do cálice já validado. */
+  private stageSetup:StageSetup|undefined;
+  /** Plano do próximo estágio, validado durante a viagem e aplicado na chegada. */
+  private pendingSetup:StageSetup|undefined;
+  /** Planos já validados por estágio; reiniciar a tentativa reaproveita o do estágio 1. */
+  private readonly stagePlans=new Map<number,StageSetup>();
+  private planReady=false;private planning=false;private planError='';private planVersion=0;private planRetry=0;
 
   /** Apresentação apenas: nunca aplicada ao passo fixo, ao diretor nem ao servidor. */
   readonly slowMotion=new SlowMotion();
@@ -303,9 +326,10 @@ export class PlayerScene implements SceneModule {
 
   fixedUpdate(dt: number): void {
 
-    // Enquanto a entrada ou uma revisão seguram o controle, o passo fixo inteiro fica parado:
-    // nada de motor, diretor, colisão ou envio de intenção para a rede.
-    if(this.intro.holdsControl||this.meleeReview.active||this.poseReview||this.paused || !this.started || !this.visual.ready || !this.weapons.ready || !this.skillAura.ready || (this.yard instanceof FarmWorld&&!this.yard.ready)||(this.enemies instanceof EnemySwarm&&(!this.enemies.ready||!this.enemies.navigationReady))||this.interactables&&!this.interactables.ready)return;
+    // Enquanto a entrada, a conclusão do estágio ou uma revisão seguram o controle, o passo fixo
+    // inteiro fica parado: nada de motor, diretor, colisão ou envio de intenção para a rede.
+    // É assim que a transição congela o que é perigoso — sem nenhuma invulnerabilidade de QA.
+    if(this.intro.holdsControl||this.journey.holdsControl||this.meleeReview.active||this.poseReview||this.paused || !this.started || !this.visual.ready || !this.weapons.ready || !this.skillAura.ready || (this.yard instanceof FarmWorld&&!this.yard.ready)||(this.enemies instanceof EnemySwarm&&(!this.enemies.ready||!this.enemies.navigationReady))||this.interactables&&!this.interactables.ready)return;
 
     if(this.skillPending||this.cinematic.preparing)return;
 
@@ -320,7 +344,7 @@ export class PlayerScene implements SceneModule {
     if(input.reload&&this.unarmed.armed)this.weapons.requestReload();
     // Online: reconcilia com o último seq confirmado antes de prever o passo seguinte; depois envia a intenção deste passo.
     this.net?.reconcile(this.player,dt);
-    const stepInput=reloadMovement(input,this.weapons.magazine.reloading);
+    const stepInput=meleeMovement(reloadMovement(input,this.weapons.magazine.reloading),this.unarmed,this.player.grounded);
     this.player.fixedUpdate(dt,stepInput,this.input.yaw);
     this.net?.afterStep(stepInput,this.input.yaw,this.input.pitch,this.player);
 
@@ -336,7 +360,9 @@ export class PlayerScene implements SceneModule {
 
     if(input.stance&&this.unarmed.toggle()){this.mp.cancel();this.weapons.cancelSkills();this.weapons.holstered=!this.unarmed.armed;this.audio.dodge();}
     this.unarmed.rateMultiplier=stats.attackSpeed;
-    const canAct=this.player.dodgeRemaining===0&&this.player.hp>0&&!input.charging;
+    const evading=this.player.dodgeRemaining>0||this.player.dashRemaining>0||this.player.backflipProgress>=0;
+    if(evading&&this.unarmed.busy)this.unarmed.reset();
+    const canAct=!evading&&this.player.hp>0&&!input.charging;
     if(!this.unarmed.armed&&input.fire&&canAct)this.unarmed.strike();
     const meleeWasActive=this.unarmed.active;
     this.unarmed.update(dt);
@@ -357,10 +383,13 @@ export class PlayerScene implements SceneModule {
         if(!this.interactables!.deliverWaveReward(this.rewardRng,[{position:this.objectives.nextRewardPosition,source:'kill' as const},{position:totem,source:'objective' as const}]))break;
         this.objectives.takeReward();
       }
-      const riftReady=expedition?this.objectives.phase==='rift':this.enemies.bossDeadTime>=5;
+      // A fenda fixa do celeiro só continua existindo nos modos legados (`?mode=horde`/`classic`).
+      // Na expedição o estágio termina no PRÓPRIO cálice, onde quer que ele tenha caído.
+      const riftReady=expedition?false:this.enemies.bossDeadTime>=5;
       this.interactables!.update(dt,riftReady);
       if(input.interact!==undefined){
-        if(riftReady&&this.interactables!.atRift)this.advanceStage();
+        if(riftReady&&this.interactables!.atRift)this.advanceLegacyStage();
+        else if(expedition&&this.beginStageJourney()){/* viagem iniciada no cálice cheio */}
         else if(expedition&&this.objectives.activate(this.player.position))this.audio.charge(1);
         else this.interactables!.buy(input.interact);
       }
@@ -400,7 +429,7 @@ export class PlayerScene implements SceneModule {
 
     this.slowMotion.update(dt);
     const slow=this.slowMotion.scale;
-    const worldDt=this.intro.holdsControl||this.meleeReview.active||this.cinematic.preparing||this.skillPending?0:animDt*slow;
+    const worldDt=this.intro.holdsControl||this.journey.holdsControl||this.meleeReview.active||this.cinematic.preparing||this.skillPending?0:animDt*slow;
 
     if(this.enemies instanceof EnemySwarm&&animDt>0)this.enemies.updateBudget(animDt,this.scene.getEngine().getDeltaTime());
 
@@ -411,12 +440,25 @@ export class PlayerScene implements SceneModule {
     // depois segue o mesmo `animDt` da apresentação, então pausar congela tudo junto.
     if(!this.hasArrived&&!this.started&&this.death.state==='idle'&&this.visual.ready&&this.weapons.ready)this.intro.beginStandby();
     this.intro.update(this.death.active?0:this.intro.standby?(this.paused?0:dt):animDt,cue=>this.introCue(cue));
+    // ---- Conclusão do estágio: suco, embarque, viagem e chegada -------------------------------
+    // Roda no relógio de apresentação: pausar congela a transição inteira junto com o resto.
+    const journeyDt=this.paused?0:dt;
+    this.updateJourney(journeyDt);
+    // Falha de plano no arranque (ou ao reiniciar): tenta de novo sozinho, sem travar o carregamento.
+    if(this.planRetry>0&&!this.planning){this.planRetry-=dt;if(this.planRetry<=0)this.ensureStagePlan();}
+    // Uma falha de rota espera sozinha, mas o `E` antecipa a nova tentativa. O passo fixo está
+    // retido aqui, então consumir a entrada também evita um `E` acumulado disparar ao voltar.
+    if(this.journey.failed&&this.input.read().interact!==undefined)this.journey.retryNow();
+    const boarding=this.journey.phase==='board'||this.journey.phase==='travel';
+    const extraction=this.dropship?.ready?extractionPresentation(this.journey.phase,this.journey.clock,this.player.position,this.player.yaw):undefined;
+
     const landing=this.player.position,introPose=this.intro.pose(landing,this.player.yaw);
     if(this.dropship){
       if(this.intro.visible)this.dropship.place(this.intro.deckEdge(landing,this.player.yaw),this.player.yaw);
-      this.dropship.update(this.paused?0:dt,this.intro.deckVisible);
+      else if(extraction)this.dropship.place(extraction.edge,extraction.shipYaw);
+      this.dropship.update(this.paused?0:dt,this.intro.deckVisible||boarding);
     }
-    this.hud.liveFlightMenu(this.intro.standby,this.intro.holdsControl&&this.started);
+    this.hud.liveFlightMenu(this.intro.standby,(this.intro.holdsControl||this.journey.holdsControl)&&this.started);
     this.hud.arrivalReveal(this.intro.holdsControl&&this.started&&!this.paused,this.intro.reveal);
     this.hud.skipIntro(this.intro.holdsControl&&this.started&&!this.paused);
     const flight=this.intro.flight;
@@ -425,7 +467,10 @@ export class PlayerScene implements SceneModule {
       height:flight.height,recovery:flight.recovery,dive:flight.dive,
       time:introPose.flutterTime,flutter:introPose.flutter,position:introPose.position,
       stride:introPose.stride,
-    }:undefined;
+    }:extraction?{height:0,recovery:0,position:extraction.body,
+      stride:{clip:extraction.clip,progress:extraction.progress,yaw:this.player.yaw,pitch:0,roll:0}}:undefined;
+    if(extraction&&this.dropship&&(this.journey.phase==='travel'||this.journey.clock>=1.85))
+      extraction.body.y+=this.dropship.root.position.y-extraction.edge.y;
     this.visual.update(this.player,alpha,this.death.active?deathDt:this.intro.standby?dt:animDt*slow,!this.player.sprinting||this.charging,this.charging,this.input.pitch,this.mp.seconds/2.6);
     this.net?.render(animDt);
 
@@ -443,10 +488,15 @@ export class PlayerScene implements SceneModule {
 
     if(this.death.active)this.camera.skillClose(this.deathFlight.position,this.player.yaw,1,this.death.progress);
     if(this.cinematic.preparing)this.camera.skillClose(this.visual.position,this.castYaw,this.cinematic.tier,this.cinematic.progress);
+    if(extraction){
+      this.camera.camera.position.copyFromFloats(extraction.camera.x,extraction.camera.y,extraction.camera.z);
+      this.camera.camera.setTarget(new Vector3(extraction.target.x,extraction.target.y,extraction.target.z));
+    }
     if(this.meleeReview.active){
       // Corpo inteiro no quadro: pés e punho ao mesmo tempo, sem a aproximação das cinemáticas.
       const review=meleeReviewShot(this.visual.position,this.input.yaw);
-      this.camera.camera.position.copyFrom(Vector3.Lerp(this.camera.camera.position,new Vector3(review.position.x,review.position.y,review.position.z),Math.min(1,dt*7)));
+      // The regular camera is reset above on every frame; blending from it never reaches this shot.
+      this.camera.camera.position.copyFromFloats(review.position.x,review.position.y,review.position.z);
       this.camera.camera.setTarget(new Vector3(review.target.x,review.target.y,review.target.z));
     }
 
@@ -458,7 +508,8 @@ export class PlayerScene implements SceneModule {
 
 
     this.enemies.update(worldDt);this.footing.update(worldDt);this.abyss?.update(worldDt);
-    this.expeditionSites?.update(animDt,this.objectives.totems,this.objectives.activeIndex);
+    this.expeditionSites?.update(animDt,this.objectives.totems,this.objectives.activeIndex,
+      this.objectives.collected?(this.journey.phase==='harvest'?this.journey.clock/1.8:1):0);
     // Clima: relógio real + crédito por abates; a chuva viaja com a câmera.
     this.weather.paused=this.paused||!this.started;
     this.weather.update(animDt,this.enemies instanceof EnemySwarm?this.enemies.kills:0);
@@ -475,14 +526,20 @@ export class PlayerScene implements SceneModule {
     if(this.enemies instanceof EnemySwarm){
       this.runHUD!.setVisible(this.started&&this.player.hp>0);
       // Distâncias e alcance de interação usam o corpo do jogador; a câmera só orienta a seta.
-      this.runHUD!.update(this.progression,this.enemies,this.interactables!,this.camera.camera,{objectives:this.objectives,resonance:this.resonance,mp:this.mp,player:this.player.position,weather:this.weather});
-      if(this.objectives.planned){
+      this.runHUD!.update(this.progression,this.enemies,this.interactables!,this.camera.camera,{objectives:this.objectives,resonance:this.resonance,mp:this.mp,player:this.player.position,weather:this.weather,journey:this.journey});
+      if(this.journey.active){
+        this.hud.setObjective(`${this.journey.label} · ${this.journey.detail}`);
+      } else if(this.objectives.planned){
         const pending=this.objectives.nearestPending(this.player.position);
-        this.hud.setObjective(this.objectives.phase==='rift'?'Fenda aberta · atravesse no celeiro'
+        const target=this.objectives.totems[0];
+        this.hud.setObjective(this.objectives.phase==='extract'
+            ?(this.objectives.collectable(this.player.position)?'[E] Recolher o suco e embarcar'
+              :`Volte ao cálice e embarque · ${target?Math.round(Math.hypot(target.site.position.x-this.player.position.x,target.site.position.z-this.player.position.z)):0} m`)
           :this.objectives.phase==='boss'?'Horda final · encha o cálice e derrote o chefe'
           :this.objectives.discovered&&pending?`Cálice encontrado · ${Math.round(pending.distance)} m`
-          :'Explore as ilhas · encontre o cálice');
+          :'Explore as ilhas · saqueie baús e encontre o cálice');
       }
+      this.hud.stageJourney(this.journey);
     }
 
   }
@@ -552,25 +609,157 @@ export class PlayerScene implements SceneModule {
   }
 
   /**
-   * Escolhe um cálice em piso largo, contínuo e com rota a partir da partida.
-   * Se o relevo disponível não sustentar o raio pedido, tenta raios menores antes de desistir;
-   * sem nenhum sítio válido a expedição fica sem plano e o próximo `checkReady` tenta de novo.
+   * Valida um par (ilha de partida, ilha do cálice) do bioma do estágio.
+   *
+   * A partida precisa de piso de TOPO com espaço acima e apoio em volta; o cálice precisa de arena
+   * larga e contínua; e tem de existir rota de navegação real entre os dois pontos, separados pelo
+   * mínimo do bioma. Sem par válido devolve `undefined` — não existe aproximação de emergência.
+   *
+   * Síncrono de propósito: a região do bioma já tem de estar residente quando isto roda.
    */
-  private planExpeditionRoute():void {
-    if(this.expeditionPlanned||this.directorMode!=='expedition')return;
-    if(!(this.enemies instanceof EnemySwarm)||!this.enemies.navigationReady)return;
-    if(this.yard instanceof FarmWorld&&!this.yard.ready)return;
-    const swarm=this.enemies,origin:Vec3={x:this.spawn.x,y:this.spawn.y,z:this.spawn.z};
-    const reachable=(p:Vec3)=>swarm.tactical?swarm.tactical.reachable(p,origin):true;
-    let sites=planExpedition(this.collision,EXPEDITION_ANCHORS,origin,reachable,EXPEDITION_ANCHORS.length,TOTEM_RADIUS);
-    for(const radius of [8.5,6.5]){if(sites.some(s=>s.id!=='initial-field'))break;sites=planExpedition(this.collision,EXPEDITION_ANCHORS,origin,reachable,EXPEDITION_ANCHORS.length,radius);}
-    const choice=chooseChalice(sites,origin,new RunRNG(this.seed+':chalice:'+this.progression.stage).stream('scene'));
-    if(!choice)return;
-    this.expeditionPlanned=true;
-    this.objectives.setSites([choice]);
+  private buildStageSetup(stage:number):StageSetup|undefined {
+    if(!(this.enemies instanceof EnemySwarm)||!this.enemies.navigationReady)return undefined;
+    if(this.yard instanceof FarmWorld&&!this.yard.ready)return undefined;
+    const swarm=this.enemies,world=this.collision,biome=biomeForStage(stage);
+    // Os tiles distantes são podados durante o jogo; uma rota entre ilhas os atravessa inteira.
+    swarm.tactical?.restoreNavigation();
+    const radii=new Map<string,number>();
+    const plan=planStage(biome,new RunRNG(`${this.seed}:stage:${stage}`).stream('scene'),{
+      spawnPoint:island=>findSpawnPoint(world,island),
+      chalicePoint:island=>{
+        for(const radius of [TOTEM_RADIUS,8.5,6.5]){
+          const at=findTotemSite(world,{id:island.id,name:island.name,x:island.x,y:island.y,z:island.z},radius,()=>true);
+          if(at){radii.set(island.id,radius);return at;}
+        }
+        return undefined;
+      },
+      route:(spawn,chalice)=>swarm.tactical?swarm.tactical.reachable(chalice,spawn):true,
+    });
+    if(!plan)return undefined;
+    const site:TotemSite={id:plan.chaliceIsland.id,name:plan.chaliceIsland.name,index:0,
+      position:plan.chalice,radius:radii.get(plan.chaliceIsland.id)??TOTEM_RADIUS,juiceTarget:FINAL_CHALICE_JUICE};
+    const setup={plan,site};
+    this.stagePlans.set(stage,setup);
+    return setup;
+  }
+
+  /**
+   * Carrega a região do bioma do estágio e valida o plano.
+   *
+   * É o mesmo caminho no arranque e durante a viagem. Uma falha (região que não carrega, nenhum par
+   * de ilhas válido) NÃO avança nada: a viagem fica em espera, anuncia o motivo e tenta de novo;
+   * inventário, nível e XP ficam intactos porque nada foi consumido.
+   */
+  private async loadStageDestination(stage:number):Promise<void> {
+    if(this.directorMode!=='expedition'||this.disposed)return;
+    const version=++this.planVersion;this.planning=true;this.planRetry=0;
+    try{
+      const biome=biomeForStage(stage);
+      if(this.yard instanceof FarmWorld&&biome.region){
+        const loaded=await this.yard.prepareVisit(biome.region);
+        if(this.disposed||version!==this.planVersion)return;
+        if(!loaded)throw Error(`A região ${biome.name} não carregou`);
+      }
+      const setup=this.buildStageSetup(stage);
+      if(this.disposed||version!==this.planVersion)return;
+      if(!setup)throw Error(`Sem par de ilhas válido em ${biome.name}`);
+      this.planError='';this.pendingSetup=setup;
+      if(this.journey.active)this.journey.routeReady();
+      else this.applyStageSetup(setup,false);
+    }catch(error){
+      if(this.disposed||version!==this.planVersion)return;
+      this.planError=error instanceof Error?error.message:'Falha ao preparar o estágio';
+      if(this.journey.active)this.journey.routeFailed(this.planError);
+      else this.planRetry=2;
+    }finally{
+      if(!this.disposed&&version===this.planVersion){this.planning=false;this.checkReady();}
+    }
+  }
+
+  /**
+   * Aplica o plano: cálice, partida, mira e — na chegada — o avanço de estágio e a entrada pela nave.
+   *
+   * `arrival` separa os dois usos. No arranque (e ao reiniciar) só posiciona; na chegada de uma
+   * viagem também avança o estágio UMA vez (`consumeAdvance`), reinicia a horda e reencena a queda.
+   * Inventário, nível e XP nunca são tocados aqui — `RunProgression.advanceStage` só converte os
+   * créditos restantes em XP, que é a regra já existente e anunciada na interface.
+   */
+  private applyStageSetup(setup:StageSetup,arrival:boolean):void {
+    if(this.disposed)return;
+    const {plan,site}=setup;
+    if(arrival){
+      if(this.journey.consumeAdvance())this.progression.advanceStage();
+      if(this.enemies instanceof EnemySwarm)this.enemies.nextStage();
+      this.interactables?.reset();this.resonance.reset();this.bossRequestClock=0;
+    }
+    this.objectives.reset();this.objectives.setSites([site]);
     this.expeditionSites?.dispose();
     this.expeditionSites=new ExpeditionSites(this.scene,this.collision);
     void this.expeditionSites.load(this.objectives.totems);
+    this.stageSetup=setup;this.pendingSetup=undefined;this.planReady=true;this.planError='';
+    this.spawn.set(plan.spawn.x,plan.spawn.y,plan.spawn.z);
+    // Fora da chegada, um plano que resolve tarde nunca teleporta um jogo já em curso.
+    if(arrival||!this.started){
+      this.player.maxHP=this.progression.stats.maxHP;
+      // `arriveAt` (e não `resetAt`) reescreve TAMBÉM a origem de recuperação do motor: depois de
+      // viajar, cair de uma ilha do bosque não pode devolver o corpo ao campo inicial do estágio 1.
+      this.player.arriveAt(this.spawn);
+      this.mp.cancel();this.cancelCinematic();this.weapons.cancelSkills();this.input.clear();
+      // De frente para o destino: a bússola do HUD e o corpo apontam para o mesmo lado.
+      this.input.yaw=Math.atan2(plan.chalice.x-plan.spawn.x,plan.chalice.z-plan.spawn.z);
+      this.input.pitch=.02;this.player.yaw=this.input.yaw;
+      this.camera.update(this.player.position,this.input.yaw,this.input.pitch,1);
+    }
+    if(!arrival)return;
+    this.events.emit('StageStarted',{stageId:String(this.progression.stage),seed:this.seed});
+    // A chegada é a MESMA entrada pela nave do início da expedição: deck, corrida, salto e mergulho.
+    this.intro.reset();this.intro.beginStandby();this.hasArrived=true;
+    this.intro.start(Boolean(this.dropship?.ready));
+    this.started=true;this.audio.setActive(true);
+  }
+
+  /**
+   * `E` no cálice cheio: recolhe o suco e larga a conclusão do estágio.
+   * Devolve `false` quando não há nada a recolher ou quando uma viagem já está em curso.
+   */
+  private beginStageJourney():boolean {
+    if(this.directorMode!=='expedition'||this.journey.active)return false;
+    if(!this.objectives.collect(this.player.position))return false;
+    const destination=nextBiomeForStage(this.progression.stage);
+    if(!this.journey.begin(this.progression.stage,destination.name)){this.objectives.collected=false;return false;}
+    // Congela o que é perigoso: o diretor para e o passo fixo inteiro fica retido por `holdsControl`.
+    if(this.enemies instanceof EnemySwarm)this.enemies.director.stopped=true;
+    this.mp.cancel();this.cancelCinematic();this.weapons.cancelSkills();
+    this.unarmed.reset();this.visual.meleePose=undefined;
+    this.player.sprinting=false;this.player.velocity.x=0;this.player.velocity.z=0;
+    this.journeyCue('collect');
+    return true;
+  }
+
+  /** Sons da transição — só gravações já licenciadas, nada novo. */
+  private journeyCue(cue:JourneyCue):void {
+    if(cue==='collect'){this.audio.charge(2);this.camera.impulse(.03);return;}
+    if(cue==='board'){this.audio.charge(1);return;}
+    if(cue==='launch'){this.audio.arrivalWind(.45);return;}
+    if(cue==='arrive')this.audio.charge(3);
+  }
+
+  /**
+   * Conduz a viagem por quadro: relógio, pedido de carregamento e aplicação do plano na chegada.
+   * A nave fica visível durante o embarque e a viagem, e a chegada devolve o controle à entrada.
+   */
+  private updateJourney(dt:number):void {
+    if(!this.journey.active&&this.journey.phase!=='done')return;
+    this.journey.update(dt,cue=>this.journeyCue(cue));
+    if(this.journey.takeLoadRequest())void this.loadStageDestination(this.progression.stage+1);
+    if(this.journey.takeArrival()){
+      const setup=this.pendingSetup;
+      // `routeReady` só é chamado com plano em mãos; sem ele a viagem volta a esperar.
+      if(setup)this.applyStageSetup(setup,true);
+      else{this.journey.returnToTravel('Plano do destino perdido');return;}
+    }
+    if(this.journey.phase==='arrival'&&this.intro.consumed)this.journey.arrived();
+    if(this.journey.phase==='done')this.journey.reset();
   }
   /** Marcos, pressão do diretor, chefe do último evento e sua recuperação. */
   private updateExpedition(dt:number,swarm:EnemySwarm):void {
@@ -579,7 +768,10 @@ export class PlayerScene implements SceneModule {
     this.resonance.update(dt);
     objectives.update(dt,this.player.position,this.player.hp>0);
     // Exploração mantém a abertura suave; o evento eleva a reposição e o teto de hostis.
+    // O acréscimo da horda final cresce com o NÍVEL do exterminador em vez do `+12` fixo de antes,
+    // então ativar o cálice cedo traz uma horda proporcionalmente menor — sem portão de nível.
     swarm.director.pressure=objectives.phase==='boss'?1:0;
+    swarm.director.pressureCap=finalHordePressure(this.progression.level);
     if(objectives.phase==='boss'&&!objectives.bossDefeated){
       this.bossRequestClock=Math.max(0,this.bossRequestClock-dt);
       if(!objectives.bossSpawned){
@@ -590,7 +782,8 @@ export class PlayerScene implements SceneModule {
       }
       if(objectives.bossSpawned&&swarm.boss?.health.dead)objectives.onBossKilled(swarm.boss.root.position);
     }
-    if(objectives.phase==='rift'&&!swarm.director.stopped){swarm.director.stopped=true;this.events.emit('StageCompleted',{stageId:String(this.progression.stage)});}
+    // Cálice cheio e chefe morto: a horda para e o estágio fica pronto para ser concluído no cálice.
+    if(objectives.phase==='extract'&&!swarm.director.stopped){swarm.director.stopped=true;this.events.emit('StageCompleted',{stageId:String(this.progression.stage)});}
   }
   /**
    * Resolve a etapa ativa do combo: alcance, cone e linha de visão reais.
@@ -618,11 +811,14 @@ export class PlayerScene implements SceneModule {
       this.camera.impulse(heavy?.03:.014);this.audio.skillImpact('unarmed_'+step.id);
     }
   }
-  private advanceStage():void {
-    if(!(this.enemies instanceof EnemySwarm))return;
+  /**
+   * Avanço dos modos legados (`?mode=horde` e `?mode=classic`), que continuam com a fenda do celeiro
+   * e com o campo inicial fixo. A expedição não passa por aqui: ela usa a `StageJourney`.
+   */
+  private advanceLegacyStage():void {
+    if(!(this.enemies instanceof EnemySwarm)||this.directorMode==='expedition')return;
     this.progression.advanceStage();this.enemies.nextStage();this.interactables!.reset();
     this.objectives.reset();this.resonance.reset();
-    this.expeditionPlanned=false;this.planExpeditionRoute();
     this.player.maxHP=this.progression.stats.maxHP;this.player.resetAt(this.spawn);
     this.mp.cancel();this.cancelCinematic();this.weapons.cancelSkills();
     this.events.emit('StageStarted',{stageId:String(this.progression.stage),seed:this.seed});
@@ -645,8 +841,17 @@ export class PlayerScene implements SceneModule {
     this.death.reset();this.deathSummary=undefined;this.started=false;
     this.cancelCinematic();this.progression.reset();this.weapons.resetAttempt();this.visual.resetAttempt();this.mp.cancel();this.mp.current=this.mp.maximum;this.mp.releases=0;this.mp.speedMultiplier=1;
     if(this.enemies instanceof EnemySwarm)this.enemies.nextStage();this.interactables?.reset();this.objectives.reset();this.resonance.reset();this.slowMotion.reset();this.weather.reset();this.unarmed.resetAttempt();this.weapons.holstered=false;this.bossRequestClock=0;
+    // A viagem volta ao zero e o estágio 1 é replanejado: nada de herdar a partida do estágio onde
+    // a tentativa terminou. O plano é determinístico pela semente, então a ilha inicial é a mesma.
+    this.journey.reset();this.pendingSetup=undefined;
+    if(this.stagePlanRequired){
+      const cached=this.stagePlans.get(1);
+      this.planReady=false;this.planError='';this.stageSetup=undefined;
+      if(cached)this.spawn.set(cached.plan.spawn.x,cached.plan.spawn.y,cached.plan.spawn.z);
+      void this.loadStageDestination(1);
+    }
     this.player.maxHP=this.progression.stats.maxHP;this.player.moveMultiplier=1;this.player.jumpMultiplier=1;this.player.extraJumps=0;this.player.rechargeMultiplier=1;this.player.armor=0;this.player.regeneration=1;this.player.debugInvincible=false;
-    this.player.resetAt(this.spawn);this.player.jumps=0;this.player.dodges=0;this.player.respawns=0;this.player.solidRecoveries=0;this.player.wallJumps=0;
+    this.player.arriveAt(this.spawn);this.player.jumps=0;this.player.dodges=0;this.player.respawns=0;this.player.solidRecoveries=0;this.player.wallJumps=0;
     // A entrada volta ao zero: nada de corpo suspenso, câmera presa ou deck sobrando em cena.
     this.reloadRunReview=0;this.intro.reset();this.endMeleeReview();this.dropship?.update(0,false);this.hasArrived=false;this.paused=false;this.input.clear();this.input.yaw=-.13;this.input.pitch=.02;this.camera.update(this.player.position,this.input.yaw,this.input.pitch,1);
   }
@@ -655,11 +860,44 @@ export class PlayerScene implements SceneModule {
   get isPaused():boolean {return this.paused;}
   setPaused(paused: boolean): void {this.paused=paused;this.input.clear();this.mp.cancel();this.audio.setActive(!paused&&(this.started||this.death.active));}
 
-  private checkReady():void {this.planExpeditionRoute();
+  /**
+   * Linha de diagnóstico do plano em vigor: bioma, ilha de partida, ilha do cálice e a distância
+   * realmente medida entre os dois pontos. É por aqui que o QA confere "ilhas diferentes, longe".
+   */
+  get stagePlanDescription():string {
+    if(this.directorMode!=='expedition')return 'Rota de estágio: modo legado (campo fixo)';
+    const setup=this.stageSetup;
+    if(!setup)return `Rota de estágio: ${this.planError||(this.planning?'planejando…':'sem plano')}`;
+    const {plan}=setup;
+    return `Rota de estágio: ${plan.biome.name} · partida ${plan.spawnIsland.name} · cálice ${plan.chaliceIsland.name}`
+      +` · ${Math.round(plan.distance)} m (mínimo ${plan.biome.separation}) · viagem ${this.journey.phase}`;
+  }
+
+  /** O plano do estágio é exigência de arranque: sem ele o objetivo ficaria indefinido. */
+  private get stagePlanRequired():boolean {return this.directorMode==='expedition';}
+  private get stagePlanSettled():boolean {return !this.stagePlanRequired||this.planReady;}
+  /**
+   * Pede o plano do estágio corrente quando as dependências ficam prontas.
+   * Idempotente: um pedido em curso ou um plano válido não disparam outro.
+   */
+  private ensureStagePlan():void {
+    if(!this.stagePlanRequired||this.planReady||this.planning||this.planRetry>0||this.journey.active||this.disposed)return;
+    if(!(this.enemies instanceof EnemySwarm)||!this.enemies.navigationReady)return;
+    if(this.yard instanceof FarmWorld&&!this.yard.ready)return;
+    void this.loadStageDestination(this.progression.stage);
+  }
+
+  private checkReady():void {this.ensureStagePlan();
     // A nave entra na lista: o menu vivo mostra o corpo em pé no deck, então o deck precisa existir
     // antes do Jogar. Uma falha de carga NÃO trava o boot — a entrada cai no mergulho original.
     const deckReady=!this.dropship||this.dropship.ready||Boolean(this.dropship.error);
-    const stages=[this.visual?.ready,this.weapons?.ready,this.skillAura?.ready,!(this.yard instanceof FarmWorld)||this.yard.ready,(!(this.enemies instanceof EnemySwarm)||this.enemies.ready),!(this.enemies instanceof EnemySwarm)||this.enemies.navigationReady,!this.interactables||this.interactables.ready,deckReady];this.hud?.loading(stages.filter(Boolean).length,8,stages.every(Boolean)?'PREPARANDO LUZ E MATERIAIS':'CARREGANDO FAZENDAS E ROTAS');for(const material of this.scene.materials){const lit=material as typeof material & {maxSimultaneousLights?:number};if(lit.maxSimultaneousLights!==undefined&&lit.maxSimultaneousLights>4){lit.unfreeze();lit.maxSimultaneousLights=4;}}if(this.visual?.ready&&this.weapons?.ready&&this.skillAura?.ready&&(!(this.yard instanceof FarmWorld)||this.yard.ready)&&(!(this.enemies instanceof EnemySwarm)||(this.enemies.ready&&this.enemies.navigationReady))&&(!this.interactables||this.interactables.ready)&&deckReady){if(this.warming)return;this.warming=true;this.scene.executeWhenReady(()=>{if(!this.disposed)this.hud.ready();});}}
+    // O plano da expedição é o nono estágio de carga: o Jogar só libera com partida e cálice válidos.
+    const planned=this.stagePlanSettled;
+    const stages=[this.visual?.ready,this.weapons?.ready,this.skillAura?.ready,!(this.yard instanceof FarmWorld)||this.yard.ready,(!(this.enemies instanceof EnemySwarm)||this.enemies.ready),!(this.enemies instanceof EnemySwarm)||this.enemies.navigationReady,!this.interactables||this.interactables.ready,deckReady,planned];
+    const label=this.planError?`FALHA NA ROTA · ${this.planError} · tentando de novo`
+      :!planned?'SORTEANDO ILHA DE PARTIDA E CÁLICE'
+      :stages.every(Boolean)?'PREPARANDO LUZ E MATERIAIS':'CARREGANDO FAZENDAS E ROTAS';
+    this.hud?.loading(stages.filter(Boolean).length,stages.length,label);for(const material of this.scene.materials){const lit=material as typeof material & {maxSimultaneousLights?:number};if(lit.maxSimultaneousLights!==undefined&&lit.maxSimultaneousLights>4){lit.unfreeze();lit.maxSimultaneousLights=4;}}if(this.visual?.ready&&this.weapons?.ready&&this.skillAura?.ready&&(!(this.yard instanceof FarmWorld)||this.yard.ready)&&(!(this.enemies instanceof EnemySwarm)||(this.enemies.ready&&this.enemies.navigationReady))&&(!this.interactables||this.interactables.ready)&&deckReady&&planned){if(this.warming)return;this.warming=true;this.scene.executeWhenReady(()=>{if(!this.disposed)this.hud.ready();});}}
 
   configure(name: string,value: number): void {
     if(name.startsWith('weather-')){
@@ -729,11 +967,16 @@ export class PlayerScene implements SceneModule {
       if(this.enemies instanceof EnemySwarm){this.enemies.nextStage();this.enemies.director.stopped=true;}
       this.player.resetAt({x:28,y:1,z:8});this.input.yaw=Math.PI/2;this.input.pitch=.02;
     }
-    if(name==='review-chalice'&&this.objectives.totems[0]){
+    if((name==='review-chalice'||name==='complete-chalice')&&this.objectives.totems[0]){
       const at=this.objectives.totems[0].site.position;
       this.intro.abort();this.endMeleeReview();this.cancelCinematic();
       if(this.enemies instanceof EnemySwarm){this.enemies.nextStage();this.enemies.director.stopped=true;}
       this.player.resetAt({x:at.x,y:at.y+.2,z:at.z-2.5});this.input.yaw=0;this.input.pitch=.05;
+      if(name==='complete-chalice'){
+        this.objectives.activate(this.player.position);
+        for(let i=0;i<30;i++)this.objectives.harvest({sequence:1_000_000+i,kind:'watermelon',position:at},this.player.position,true);
+        this.objectives.onBossKilled(at);
+      }
     }
 
     if(name==='barn')this.player.resetAt({x:0,y:5,z:30.8});
@@ -781,12 +1024,16 @@ export class PlayerScene implements SceneModule {
 
       player:`${this.net?.debugLine()??''}${this.yard instanceof FarmWorld?this.yard.regionStatus:''}${this.cameraAudit}`
       +`\nEntrada ${this.intro.phase}${this.intro.skipped?' (pulada)':''} · deck ${this.dropship?this.dropship.error||(this.dropship.ready?'pronto':'carregando'):'treino'} · controle ${this.intro.holdsControl?'RETIDO':'livre'}`
+      +`\n${this.stagePlanDescription}`
       +(this.meleeReview.active?`\nRevisão corpo a corpo · ${this.meleeReview.label} · voltas ${this.meleeReview.loops} · armas ${this.weapons.holstered?'guardadas':'EM MÃOS'}`:'')
       +`\nPosição${this.player.position.x.toFixed(1)}, ${this.player.position.y.toFixed(1)}, ${this.player.position.z.toFixed(1)}\nVelocidade ${Math.hypot(this.player.velocity.x,this.player.velocity.z).toFixed(2)} m/s · ${this.player.sprinting?'CORRENDO':'NORMAL'}\nMira ${this.input.yaw.toFixed(3)} / ${this.input.pitch.toFixed(3)}\nGrounded ${this.player.grounded} · Saltos ${this.player.jumps}\nEsquivas ${this.player.dodges} · Retornos ${this.player.respawns}\n${this.enemies instanceof EnemySwarm?this.enemies.tactical?.residencyDescription??'':''}\nNavmesh ${this.enemies instanceof EnemySwarm?this.enemies.tactical?.count??0:0} agentes · Ragdolls ${this.enemies instanceof EnemySwarm?this.enemies.ragdollCount:0} · Marcas ${this.weapons.effects.decalCount}\nDisparos ${this.weapons.cadence.shots} · Acertos ${this.weapons.hits}\nImpacto ${this.weapons.lastImpact}\nModelo ${this.visual.ready?'pronto':'carregando'} · ${this.visual.skinning}\nInvulnerabilidade QA ${this.player.debugInvincible?'ATIVA':'desligada'}\nDirector ${this.enemies instanceof EnemySwarm?this.enemies.director.state:'treino'} · Estágio ${this.progression.stage}`};
 
   }
 
-  dispose(): void {if(this.disposed)return;this.disposed=true;this.weatherView?.dispose();this.weatherView=undefined;this.dropship?.dispose();this.dropship=undefined;this.expeditionSites?.dispose();this.expeditionSites=undefined;this.net?.dispose();this.cancelCinematic();this.cutIn.dispose();this.skillAura.dispose();this.elements.dispose();if(this.yard instanceof FarmWorld)this.yard.dispose();this.input.dispose();this.enemies.dispose();this.runHUD?.dispose();this.interactables?.dispose();this.events.clear();this.weapons.dispose();this.footing.dispose();this.abyss?.dispose();this.visual.dispose();this.audio.dispose();this.hud.dispose();this.instrumentation.dispose();this.scene.dispose();}
+  dispose(): void {if(this.disposed)return;this.disposed=true;
+    // Invalida qualquer carregamento de destino em voo: o `.then` tardio vê a versão mudada e sai.
+    this.planVersion++;this.planning=false;this.journey.reset();this.pendingSetup=undefined;this.stagePlans.clear();
+    this.weatherView?.dispose();this.weatherView=undefined;this.dropship?.dispose();this.dropship=undefined;this.expeditionSites?.dispose();this.expeditionSites=undefined;this.net?.dispose();this.cancelCinematic();this.cutIn.dispose();this.skillAura.dispose();this.elements.dispose();if(this.yard instanceof FarmWorld)this.yard.dispose();this.input.dispose();this.enemies.dispose();this.runHUD?.dispose();this.interactables?.dispose();this.events.clear();this.weapons.dispose();this.footing.dispose();this.abyss?.dispose();this.visual.dispose();this.audio.dispose();this.hud.dispose();this.instrumentation.dispose();this.scene.dispose();}
 
 }
 

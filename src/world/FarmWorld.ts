@@ -31,6 +31,7 @@ import { sculptRegion,isSculptedRegion,type SculptedRegion,type OutcropShape } f
 import { TerrainPresentation } from './terrain/TerrainPresentation';
 import {applyInitialRockFix,type InitialRockFix} from './terrain/InitialRocks';
 import { FoliageWind,hasFoliageWind } from './materials/FoliageMaterials';
+import { BarnInteriors } from './BarnInteriors';
 
 /**
  * Geometria da rocha escaneada usada pelos afloramentos, buscada uma única vez por sessão.
@@ -78,12 +79,18 @@ export class FarmWorld {
   private disposed=false;private details:DetailVisibility|undefined;
   get hiddenDetails():number{return (this.details?.hidden??0)+this.regions.readyIds.reduce((n,id)=>n+(this.regions.get(id)?.hidden??0),0);}
   private waterfalls:Waterfalls|undefined;private alien:AlienWorld|undefined;
+  /**
+   * Dressing of the five walk-in barns. Separate asset, separate culling; the collision of the same
+   * props already arrives with the region JSONs above, so this only ever adds what is DRAWN.
+   */
+  readonly barns:BarnInteriors;
   /** Relevo esculpido do campo inicial: mesmos triângulos na colisão e na malha desenhada. */
   private relief:SculptedRegion|undefined;private terrain:TerrainPresentation|undefined;private wind:FoliageWind|undefined;
   /** Altura do relevo esculpido do campo, ou undefined fora dele. Exposto para QA e diagnóstico. */
   sculptedHeightAt(x:number,z:number):number|undefined{return this.relief?.terrain?.heightAt(x,z);}
   constructor(private readonly scene:Scene,readonly collision:CollisionWorld,private readonly shadows:ShadowGenerator,private readonly spatialStreaming=true){
     this.distant=new DistantRegions(scene);
+    this.barns=new BarnInteriors(scene);
     this.passages=new RegionPassages(scene,collision);this.passages.update(0,[]);
     this.regions=new RegionResidency(spatialStreaming?3:FARM_REGIONS.length,1,async (request,signal)=>{
       if(!FARM_REGIONS.some(region=>region.id===request.id))throw Error('Unknown world region: '+request.id);
@@ -161,7 +168,11 @@ export class FarmWorld {
       // tempo do vento nunca chegaria à GPU — a vegetação travaria numa pose torta.
       const staticMaterials=new Set(imported.meshes.map(mesh=>mesh.material).filter(material=>!hasFoliageWind(material)));
       this.scene.onAfterRenderObservable.addOnce(()=>{for(const material of staticMaterials)material?.freeze();});
-      this.waterfalls=new Waterfalls(this.scene);this.alien=new AlienWorld(this.scene,this.collision);await this.alien.load();this.ready=true;
+      this.waterfalls=new Waterfalls(this.scene);this.alien=new AlienWorld(this.scene,this.collision);await this.alien.load();
+      // Depois do congelamento de materiais: a lanterna de cada celeiro entra numa lista de luz
+      // própria, e congelar antes deixaria o interior preto.
+      await this.barns.load();if(this.disposed)return;
+      this.ready=true;
     }catch(error){if(!this.disposed)this.error=error instanceof Error?error.message:'Falha no cenário';}
   }
   private requestNearby(position:Vec3):void {
@@ -172,7 +183,10 @@ export class FarmWorld {
     this.regions.retry(id);this.requestedVisits.add(id);this.regions.request([{id,cost:1},...this.regions.readyIds.filter(ready=>ready!==id).map(id=>({id,cost:1}))]);
     try{await this.regions.settled();return !this.disposed&&this.regions.readyIds.includes(id);}finally{this.requestedVisits.delete(id);}
   }
-  get regionStatus():string{return 'Prontas: '+this.regions.readyIds.join(', ')+' · Retidas: '+this.regions.retainedIds.join(', ')+' · Carregando: '+this.regions.loadingCount+this.regions.errors.map(e=>' · '+e.id+': falha '+e.attempts+' / nova tentativa '+Math.ceil(e.retryIn??0)+'s').join('');}
+  get regionStatus():string{return 'Prontas: '+this.regions.readyIds.join(', ')+' · Retidas: '+this.regions.retainedIds.join(', ')+' · Carregando: '+this.regions.loadingCount+this.regions.errors.map(e=>' · '+e.id+': falha '+e.attempts+' / nova tentativa '+Math.ceil(e.retryIn??0)+'s').join('')
+    // Interior de celeiro que não carregou degrada para "celeiro vazio", não para mundo quebrado —
+    // então a falha precisa aparecer em algum lugar, ou some sem ninguém ver.
+    +(this.barns.error?' · celeiros: '+this.barns.error:'');}
   /**
    * Resumo do relevo esculpido residente, para o QA localizar no jogo o que foi gerado.
    * Formato: `campo 1540 tri · highland-farms 16228 tri, 46 afloramentos, 36859 tri de pedra antiga removidos`.
@@ -205,7 +219,7 @@ export class FarmWorld {
     for(const [id,release] of this.heldRegions)if(!occupied.has(id)){release();this.heldRegions.delete(id);}
     if(this.ready){this.requestNearby(player.position);this.regions.update(dt);this.passages.update(dt,this.regions.readyIds,this.regions.errors);}
   }
-  update(dt:number):void {this.wind?.update(dt);const camera=this.scene.activeCamera;if(camera){this.distant.updateView(dt,camera.globalPosition);this.details?.update(dt,camera.globalPosition);this.baseCasters?.update(dt,camera.globalPosition);for(const id of this.regions.readyIds)this.regions.get(id)?.update(dt,camera.globalPosition);}this.waterfalls?.update(dt);this.alien?.update(dt);}
-  dispose():void {this.disposed=true;this.terrain?.dispose();this.terrain=undefined;this.wind?.dispose();this.wind=undefined;this.baseCasters?.dispose();this.details?.restore();this.passages.dispose();this.distant.dispose();this.regions.dispose();for(const release of this.heldRegions.values())release();this.heldRegions.clear();this.alien?.dispose();}
+  update(dt:number):void {this.wind?.update(dt);const camera=this.scene.activeCamera;if(camera){this.distant.updateView(dt,camera.globalPosition);this.details?.update(dt,camera.globalPosition);this.baseCasters?.update(dt,camera.globalPosition);this.barns.update(dt,camera.globalPosition);for(const id of this.regions.readyIds)this.regions.get(id)?.update(dt,camera.globalPosition);}this.waterfalls?.update(dt);this.alien?.update(dt);}
+  dispose():void {this.disposed=true;this.terrain?.dispose();this.terrain=undefined;this.wind?.dispose();this.wind=undefined;this.barns.dispose();this.baseCasters?.dispose();this.details?.restore();this.passages.dispose();this.distant.dispose();this.regions.dispose();for(const release of this.heldRegions.values())release();this.heldRegions.clear();this.alien?.dispose();}
 }
 

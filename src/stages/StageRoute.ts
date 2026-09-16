@@ -1,0 +1,106 @@
+/**
+ * Rota da expedição entre os biomas que EXISTEM no projeto.
+ *
+ * Cada estágio acontece num bioma autoral já construído — campo inicial + cidade agrícola, fronteira
+ * solar, campos altos e bosque das raízes. Não existe "planeta novo": a viagem leva a uma região
+ * diferente do MESMO mundo, transmitida por `FarmWorld.prepareVisit`.
+ *
+ * As ilhas abaixo são as mesmas dos JSONs de autoria (`docs/farm-city-authoring.json`,
+ * `docs/highland-authoring.json`, `docs/rootwood-authoring.json` e `scripts/build-solar-frontier.py`,
+ * que lista `Pomar dos Ventos`, `Porto dos Grãos` e `Distrito das Estufas`) e do volume sólido do
+ * campo inicial (`docs/solid-geology.json`: `Main`, `Barn plateau`, `West outpost`, `East outpost`).
+ * Cada entrada é um corpo suspenso distinto — é isso que dá sentido a "nascer numa ilha e procurar o
+ * cálice em outra".
+ *
+ * Módulo puro: nenhuma dependência de Babylon, de cena ou de rede.
+ */
+
+/** Uma ilha autoral. Duas âncoras com o mesmo `id` seriam a MESMA ilha; aqui cada id é único. */
+export interface StageIsland {
+  id:string;
+  name:string;
+  x:number;y:number;z:number;
+  /** Extensão autoral em XZ, em metros, vinda do JSON de autoria da região. */
+  width:number;depth:number;
+}
+
+export interface StageBiome {
+  id:string;
+  name:string;
+  /**
+   * Região transmitida (`FARM_REGIONS`) que precisa estar residente para o bioma existir.
+   * `undefined` só apareceria num bioma inteiramente na base sempre residente.
+   */
+  region:string|undefined;
+  islands:readonly StageIsland[];
+  /**
+   * Separação mínima, em metros, entre a ilha de partida e a ilha do cálice.
+   *
+   * O pedido é "pelo menos 100 m, mais em regiões grandes": campos altos e bosque das raízes têm
+   * ilhas de 90–120 m de lado e centenas de metros entre elas, então 150 m ali ainda deixa TODOS os
+   * pares autorais válidos e evita um destino que pareceria vizinho no mapa.
+   */
+  separation:number;
+}
+
+/** Mínimo absoluto exigido em qualquer bioma. */
+export const MIN_ISLAND_SEPARATION=100;
+/** Mínimo usado nas regiões grandes (campos altos, bosque das raízes). */
+export const WIDE_ISLAND_SEPARATION=150;
+
+/** Campo inicial + cidade agrícola: as ilhas onde a primeira expedição pode começar. */
+const HOME_ISLANDS:readonly StageIsland[]=[
+  {id:'initial-field',name:'Campo inicial',x:0,y:0,z:0,width:46,depth:46},
+  {id:'barn-plateau',name:'Platô do celeiro',x:0,y:5,z:29,width:30,depth:26},
+  {id:'west-outpost',name:'Posto oeste',x:-42,y:0,z:4,width:26,depth:24},
+  {id:'east-outpost',name:'Lavoura leste',x:42,y:2,z:10,width:26,depth:24},
+  {id:'seeds',name:'Distrito das Sementes',x:100,y:2,z:8,width:30,depth:26},
+  {id:'solar',name:'Fazenda Solar',x:105,y:12,z:72,width:28,depth:23},
+  {id:'harvest',name:'Mercado da Colheita',x:160,y:7,z:45,width:25,depth:23},
+];
+
+const FRONTIER_ISLANDS:readonly StageIsland[]=[
+  {id:'orchard',name:'Pomar dos Ventos',x:248,y:9,z:45,width:48,depth:43},
+  {id:'port',name:'Porto dos Grãos',x:285,y:15,z:147,width:48,depth:45},
+  {id:'glasshouse',name:'Distrito das Estufas',x:285,y:15,z:280,width:74,depth:72},
+];
+
+const HIGHLAND_ISLANDS:readonly StageIsland[]=[
+  {id:'highland',name:'Campos Altos',x:500,y:23,z:280,width:100,depth:98},
+  {id:'windmill',name:'Moinhos do Leste',x:720,y:31,z:320,width:95,depth:85},
+  {id:'valley',name:'Vale das Sementes',x:610,y:25,z:520,width:110,depth:95},
+];
+
+const ROOTWOOD_ISLANDS:readonly StageIsland[]=[
+  {id:'root-grove',name:'Bosque da Colheita',x:940,y:35,z:360,width:110,depth:90},
+  {id:'root-mill',name:'Ruínas do Engenho',x:1150,y:43,z:420,width:110,depth:110},
+  {id:'root-seed',name:'Terraços das Sementes',x:1030,y:29,z:630,width:120,depth:100},
+];
+
+/**
+ * Ordem de rotação dos destinos: cidade agrícola → fronteira solar → campos altos → bosque das
+ * raízes e então de volta ao começo. O estágio 1 acontece no bioma de chegada (campo inicial +
+ * cidade), exatamente onde a entrada pela nave já deposita o jogador hoje.
+ */
+export const STAGE_BIOMES:readonly StageBiome[]=[
+  {id:'farm-city',name:'Cidade agrícola',region:'farm-city',islands:HOME_ISLANDS,separation:MIN_ISLAND_SEPARATION},
+  {id:'solar-frontier',name:'Fronteira solar',region:'solar-frontier',islands:FRONTIER_ISLANDS,separation:MIN_ISLAND_SEPARATION},
+  {id:'highland-farms',name:'Campos altos',region:'highland-farms',islands:HIGHLAND_ISLANDS,separation:WIDE_ISLAND_SEPARATION},
+  {id:'rootwood',name:'Bosque das raízes',region:'rootwood',islands:ROOTWOOD_ISLANDS,separation:WIDE_ISLAND_SEPARATION},
+];
+
+/** Bioma do estágio pedido. Estágios acima de quatro giram pela mesma ordem. */
+export function biomeForStage(stage:number):StageBiome {
+  const index=Number.isFinite(stage)?Math.max(0,Math.floor(stage)-1)%STAGE_BIOMES.length:0;
+  return STAGE_BIOMES[index]!;
+}
+
+/** Bioma do próximo estágio — o destino anunciado quando o suco é recolhido. */
+export function nextBiomeForStage(stage:number):StageBiome {
+  return biomeForStage((Number.isFinite(stage)?Math.floor(stage):1)+1);
+}
+
+/** Bioma pelo id, para diagnóstico e para os saltos de QA. */
+export function biomeById(id:string):StageBiome|undefined {
+  return STAGE_BIOMES.find(biome=>biome.id===id);
+}

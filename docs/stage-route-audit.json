@@ -1,0 +1,795 @@
+[
+  {
+    "biome": "farm-city",
+    "points": [
+      {
+        "id": "initial-field",
+        "spawn": {
+          "x": 0,
+          "y": 0.5738258913161494,
+          "z": 0
+        },
+        "chalice": {
+          "x": 0,
+          "y": 0.5738258913161494,
+          "z": 0
+        }
+      },
+      {
+        "id": "barn-plateau",
+        "spawn": {
+          "x": 5.196152422706632,
+          "y": 5,
+          "z": 26
+        }
+      },
+      {
+        "id": "west-outpost",
+        "spawn": {
+          "x": -42,
+          "y": 0,
+          "z": 4
+        }
+      },
+      {
+        "id": "east-outpost",
+        "spawn": {
+          "x": 42,
+          "y": 2,
+          "z": 10
+        }
+      },
+      {
+        "id": "seeds",
+        "spawn": {
+          "x": 106,
+          "y": 2.015000104904175,
+          "z": 8
+        },
+        "chalice": {
+          "x": 100,
+          "y": 2.015000104904175,
+          "z": -6
+        }
+      },
+      {
+        "id": "solar",
+        "spawn": {
+          "x": 108,
+          "y": 12.015000343322754,
+          "z": 66.80384757729337
+        },
+        "chalice": {
+          "x": 112,
+          "y": 12.015000343322756,
+          "z": 59.875644347017854
+        }
+      },
+      {
+        "id": "harvest",
+        "spawn": {
+          "x": 163,
+          "y": 7.014999866485595,
+          "z": 39.80384757729337
+        },
+        "chalice": {
+          "x": 167,
+          "y": 7.014999866485596,
+          "z": 32.875644347017854
+        }
+      }
+    ],
+    "plans": [
+      {
+        "seed": "mutant-farm-m0",
+        "spawn": "barn-plateau",
+        "chalice": "seeds",
+        "distance": 100.05883027228867,
+        "position": {
+          "x": 5.196152422706632,
+          "y": 5,
+          "z": 26
+        }
+      },
+      {
+        "seed": "route-0",
+        "spawn": "barn-plateau",
+        "chalice": "harvest",
+        "distance": 161.94986747757054,
+        "position": {
+          "x": 5.196152422706632,
+          "y": 5,
+          "z": 26
+        }
+      },
+      {
+        "seed": "route-1",
+        "spawn": "barn-plateau",
+        "chalice": "solar",
+        "distance": 112.04740575863129,
+        "position": {
+          "x": 5.196152422706632,
+          "y": 5,
+          "z": 26
+        }
+      },
+      {
+        "seed": "route-2",
+        "spawn": "west-outpost",
+        "chalice": "solar",
+        "distance": 163.8233427543048,
+        "position": {
+          "x": -42,
+          "y": 0,
+          "z": 4
+        }
+      },
+      {
+        "seed": "route-3",
+        "spawn": "west-outpost",
+        "chalice": "solar",
+        "distance": 163.8233427543048,
+        "position": {
+          "x": -42,
+          "y": 0,
+          "z": 4
+        }
+      },
+      {
+        "seed": "route-4",
+        "spawn": "barn-plateau",
+        "chalice": "seeds",
+        "distance": 100.05883027228867,
+        "position": {
+          "x": 5.196152422706632,
+          "y": 5,
+          "z": 26
+        }
+      },
+      {
+        "seed": "route-5",
+        "spawn": "initial-field",
+        "chalice": "seeds",
+        "distance": 100.17983829094554,
+        "position": {
+          "x": 0,
+          "y": 0.5738258913161494,
+          "z": 0
+        }
+      },
+      {
+        "seed": "route-6",
+        "spawn": "initial-field",
+        "chalice": "seeds",
+        "distance": 100.17983829094554,
+        "position": {
+          "x": 0,
+          "y": 0.5738258913161494,
+          "z": 0
+        }
+      },
+      {
+        "seed": "route-7",
+        "spawn": "east-outpost",
+        "chalice": "harvest",
+        "distance": 127.07594227189995,
+        "position": {
+          "x": 42,
+          "y": 2,
+          "z": 10
+        }
+      },
+      {
+        "seed": "route-8",
+        "spawn": "seeds",
+        "chalice": "initial-field",
+        "distance": 106.3014581273465,
+        "position": {
+          "x": 106,
+          "y": 2.015000104904175,
+          "z": 8
+        }
+      },
+      {
+        "seed": "route-9",
+        "spawn": "harvest",
+        "chalice": "initial-field",
+        "distance": 167.789589313391,
+        "position": {
+          "x": 163,
+          "y": 7.014999866485595,
+          "z": 39.80384757729337
+        }
+      },
+      {
+        "seed": "route-10",
+        "spawn": "initial-field",
+        "chalice": "harvest",
+        "distance": 170.20519378453648,
+        "position": {
+          "x": 0,
+          "y": 0.5738258913161494,
+          "z": 0
+        }
+      },
+      {
+        "seed": "route-11",
+        "spawn": "west-outpost",
+        "chalice": "seeds",
+        "distance": 142.35167719419394,
+        "position": {
+          "x": -42,
+          "y": 0,
+          "z": 4
+        }
+      }
+    ]
+  },
+  {
+    "biome": "solar-frontier",
+    "points": [
+      {
+        "id": "orchard",
+        "spawn": {
+          "x": 248,
+          "y": 9,
+          "z": 45
+        },
+        "chalice": {
+          "x": 248,
+          "y": 9,
+          "z": 45
+        }
+      },
+      {
+        "id": "port",
+        "spawn": {
+          "x": 285,
+          "y": 15,
+          "z": 147
+        },
+        "chalice": {
+          "x": 285,
+          "y": 15,
+          "z": 147
+        }
+      },
+      {
+        "id": "glasshouse",
+        "spawn": {
+          "x": 285,
+          "y": 15,
+          "z": 280
+        },
+        "chalice": {
+          "x": 285,
+          "y": 15,
+          "z": 280
+        }
+      }
+    ],
+    "plans": [
+      {
+        "seed": "mutant-farm-m0",
+        "spawn": "port",
+        "chalice": "orchard",
+        "distance": 108.50345616615168,
+        "position": {
+          "x": 285,
+          "y": 15,
+          "z": 147
+        }
+      },
+      {
+        "seed": "route-0",
+        "spawn": "glasshouse",
+        "chalice": "orchard",
+        "distance": 237.89493479265172,
+        "position": {
+          "x": 285,
+          "y": 15,
+          "z": 280
+        }
+      },
+      {
+        "seed": "route-1",
+        "spawn": "orchard",
+        "chalice": "port",
+        "distance": 108.50345616615168,
+        "position": {
+          "x": 248,
+          "y": 9,
+          "z": 45
+        }
+      },
+      {
+        "seed": "route-2",
+        "spawn": "orchard",
+        "chalice": "glasshouse",
+        "distance": 237.89493479265172,
+        "position": {
+          "x": 248,
+          "y": 9,
+          "z": 45
+        }
+      },
+      {
+        "seed": "route-3",
+        "spawn": "port",
+        "chalice": "glasshouse",
+        "distance": 133,
+        "position": {
+          "x": 285,
+          "y": 15,
+          "z": 147
+        }
+      },
+      {
+        "seed": "route-4",
+        "spawn": "glasshouse",
+        "chalice": "orchard",
+        "distance": 237.89493479265172,
+        "position": {
+          "x": 285,
+          "y": 15,
+          "z": 280
+        }
+      },
+      {
+        "seed": "route-5",
+        "spawn": "glasshouse",
+        "chalice": "orchard",
+        "distance": 237.89493479265172,
+        "position": {
+          "x": 285,
+          "y": 15,
+          "z": 280
+        }
+      },
+      {
+        "seed": "route-6",
+        "spawn": "glasshouse",
+        "chalice": "orchard",
+        "distance": 237.89493479265172,
+        "position": {
+          "x": 285,
+          "y": 15,
+          "z": 280
+        }
+      },
+      {
+        "seed": "route-7",
+        "spawn": "port",
+        "chalice": "orchard",
+        "distance": 108.50345616615168,
+        "position": {
+          "x": 285,
+          "y": 15,
+          "z": 147
+        }
+      },
+      {
+        "seed": "route-8",
+        "spawn": "glasshouse",
+        "chalice": "port",
+        "distance": 133,
+        "position": {
+          "x": 285,
+          "y": 15,
+          "z": 280
+        }
+      },
+      {
+        "seed": "route-9",
+        "spawn": "orchard",
+        "chalice": "glasshouse",
+        "distance": 237.89493479265172,
+        "position": {
+          "x": 248,
+          "y": 9,
+          "z": 45
+        }
+      },
+      {
+        "seed": "route-10",
+        "spawn": "port",
+        "chalice": "orchard",
+        "distance": 108.50345616615168,
+        "position": {
+          "x": 285,
+          "y": 15,
+          "z": 147
+        }
+      },
+      {
+        "seed": "route-11",
+        "spawn": "orchard",
+        "chalice": "port",
+        "distance": 108.50345616615168,
+        "position": {
+          "x": 248,
+          "y": 9,
+          "z": 45
+        }
+      }
+    ]
+  },
+  {
+    "biome": "highland-farms",
+    "points": [
+      {
+        "id": "highland",
+        "spawn": {
+          "x": 500,
+          "y": 23.68475022147677,
+          "z": 280
+        },
+        "chalice": {
+          "x": 500,
+          "y": 23.68475022147677,
+          "z": 280
+        }
+      },
+      {
+        "id": "windmill",
+        "spawn": {
+          "x": 720,
+          "y": 31.273640884210863,
+          "z": 320
+        },
+        "chalice": {
+          "x": 720,
+          "y": 31.273640884210863,
+          "z": 320
+        }
+      },
+      {
+        "id": "valley",
+        "spawn": {
+          "x": 610,
+          "y": 25,
+          "z": 520
+        },
+        "chalice": {
+          "x": 610,
+          "y": 25,
+          "z": 520
+        }
+      }
+    ],
+    "plans": [
+      {
+        "seed": "mutant-farm-m0",
+        "spawn": "valley",
+        "chalice": "windmill",
+        "distance": 228.25424421026653,
+        "position": {
+          "x": 610,
+          "y": 25,
+          "z": 520
+        }
+      },
+      {
+        "seed": "route-0",
+        "spawn": "valley",
+        "chalice": "windmill",
+        "distance": 228.25424421026653,
+        "position": {
+          "x": 610,
+          "y": 25,
+          "z": 520
+        }
+      },
+      {
+        "seed": "route-1",
+        "spawn": "valley",
+        "chalice": "highland",
+        "distance": 264.0075756488817,
+        "position": {
+          "x": 610,
+          "y": 25,
+          "z": 520
+        }
+      },
+      {
+        "seed": "route-2",
+        "spawn": "highland",
+        "chalice": "windmill",
+        "distance": 223.60679774997894,
+        "position": {
+          "x": 500,
+          "y": 23.68475022147677,
+          "z": 280
+        }
+      },
+      {
+        "seed": "route-3",
+        "spawn": "highland",
+        "chalice": "valley",
+        "distance": 264.0075756488817,
+        "position": {
+          "x": 500,
+          "y": 23.68475022147677,
+          "z": 280
+        }
+      },
+      {
+        "seed": "route-4",
+        "spawn": "valley",
+        "chalice": "highland",
+        "distance": 264.0075756488817,
+        "position": {
+          "x": 610,
+          "y": 25,
+          "z": 520
+        }
+      },
+      {
+        "seed": "route-5",
+        "spawn": "windmill",
+        "chalice": "highland",
+        "distance": 223.60679774997894,
+        "position": {
+          "x": 720,
+          "y": 31.273640884210863,
+          "z": 320
+        }
+      },
+      {
+        "seed": "route-6",
+        "spawn": "highland",
+        "chalice": "valley",
+        "distance": 264.0075756488817,
+        "position": {
+          "x": 500,
+          "y": 23.68475022147677,
+          "z": 280
+        }
+      },
+      {
+        "seed": "route-7",
+        "spawn": "windmill",
+        "chalice": "valley",
+        "distance": 228.25424421026653,
+        "position": {
+          "x": 720,
+          "y": 31.273640884210863,
+          "z": 320
+        }
+      },
+      {
+        "seed": "route-8",
+        "spawn": "valley",
+        "chalice": "highland",
+        "distance": 264.0075756488817,
+        "position": {
+          "x": 610,
+          "y": 25,
+          "z": 520
+        }
+      },
+      {
+        "seed": "route-9",
+        "spawn": "valley",
+        "chalice": "windmill",
+        "distance": 228.25424421026653,
+        "position": {
+          "x": 610,
+          "y": 25,
+          "z": 520
+        }
+      },
+      {
+        "seed": "route-10",
+        "spawn": "valley",
+        "chalice": "windmill",
+        "distance": 228.25424421026653,
+        "position": {
+          "x": 610,
+          "y": 25,
+          "z": 520
+        }
+      },
+      {
+        "seed": "route-11",
+        "spawn": "highland",
+        "chalice": "valley",
+        "distance": 264.0075756488817,
+        "position": {
+          "x": 500,
+          "y": 23.68475022147677,
+          "z": 280
+        }
+      }
+    ]
+  },
+  {
+    "biome": "rootwood",
+    "points": [
+      {
+        "id": "root-grove",
+        "spawn": {
+          "x": 940,
+          "y": 35,
+          "z": 360
+        },
+        "chalice": {
+          "x": 940,
+          "y": 35,
+          "z": 360
+        }
+      },
+      {
+        "id": "root-mill",
+        "spawn": {
+          "x": 1150,
+          "y": 43,
+          "z": 420
+        },
+        "chalice": {
+          "x": 1150,
+          "y": 43,
+          "z": 420
+        }
+      },
+      {
+        "id": "root-seed",
+        "spawn": {
+          "x": 1030,
+          "y": 29,
+          "z": 630
+        },
+        "chalice": {
+          "x": 1030,
+          "y": 29,
+          "z": 630
+        }
+      }
+    ],
+    "plans": [
+      {
+        "seed": "mutant-farm-m0",
+        "spawn": "root-mill",
+        "chalice": "root-seed",
+        "distance": 241.86773244895647,
+        "position": {
+          "x": 1150,
+          "y": 43,
+          "z": 420
+        }
+      },
+      {
+        "seed": "route-0",
+        "spawn": "root-mill",
+        "chalice": "root-seed",
+        "distance": 241.86773244895647,
+        "position": {
+          "x": 1150,
+          "y": 43,
+          "z": 420
+        }
+      },
+      {
+        "seed": "route-1",
+        "spawn": "root-seed",
+        "chalice": "root-mill",
+        "distance": 241.86773244895647,
+        "position": {
+          "x": 1030,
+          "y": 29,
+          "z": 630
+        }
+      },
+      {
+        "seed": "route-2",
+        "spawn": "root-mill",
+        "chalice": "root-grove",
+        "distance": 218.40329667841556,
+        "position": {
+          "x": 1150,
+          "y": 43,
+          "z": 420
+        }
+      },
+      {
+        "seed": "route-3",
+        "spawn": "root-seed",
+        "chalice": "root-mill",
+        "distance": 241.86773244895647,
+        "position": {
+          "x": 1030,
+          "y": 29,
+          "z": 630
+        }
+      },
+      {
+        "seed": "route-4",
+        "spawn": "root-grove",
+        "chalice": "root-mill",
+        "distance": 218.40329667841556,
+        "position": {
+          "x": 940,
+          "y": 35,
+          "z": 360
+        }
+      },
+      {
+        "seed": "route-5",
+        "spawn": "root-grove",
+        "chalice": "root-seed",
+        "distance": 284.60498941515414,
+        "position": {
+          "x": 940,
+          "y": 35,
+          "z": 360
+        }
+      },
+      {
+        "seed": "route-6",
+        "spawn": "root-mill",
+        "chalice": "root-grove",
+        "distance": 218.40329667841556,
+        "position": {
+          "x": 1150,
+          "y": 43,
+          "z": 420
+        }
+      },
+      {
+        "seed": "route-7",
+        "spawn": "root-grove",
+        "chalice": "root-mill",
+        "distance": 218.40329667841556,
+        "position": {
+          "x": 940,
+          "y": 35,
+          "z": 360
+        }
+      },
+      {
+        "seed": "route-8",
+        "spawn": "root-seed",
+        "chalice": "root-grove",
+        "distance": 284.60498941515414,
+        "position": {
+          "x": 1030,
+          "y": 29,
+          "z": 630
+        }
+      },
+      {
+        "seed": "route-9",
+        "spawn": "root-mill",
+        "chalice": "root-seed",
+        "distance": 241.86773244895647,
+        "position": {
+          "x": 1150,
+          "y": 43,
+          "z": 420
+        }
+      },
+      {
+        "seed": "route-10",
+        "spawn": "root-mill",
+        "chalice": "root-seed",
+        "distance": 241.86773244895647,
+        "position": {
+          "x": 1150,
+          "y": 43,
+          "z": 420
+        }
+      },
+      {
+        "seed": "route-11",
+        "spawn": "root-mill",
+        "chalice": "root-seed",
+        "distance": 241.86773244895647,
+        "position": {
+          "x": 1150,
+          "y": 43,
+          "z": 420
+        }
+      }
+    ]
+  }
+]

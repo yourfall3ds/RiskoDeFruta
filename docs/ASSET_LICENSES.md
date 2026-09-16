@@ -76,6 +76,21 @@ próprio asset.
 Existe para o **servidor autoritativo**, que não carrega GLB: cliente e servidor precisam gerar a
 MESMA colisão de afloramento, e um JSON pequeno lido pelos dois lados é o que garante isso.
 
+## Interiores dos celeiros
+
+`public/models/barn-interiors.glb` é composto por `scripts/build-barn-interiors.py` a partir do
+**Fantasy Props MegaKit (Standard/free)** de **Quaternius**, https://quaternius.com — licença
+**CC0 1.0 Universal**, https://creativecommons.org/publicdomain/zero/1.0/. A licença original
+acompanha a cópia local em `art/source/fantasy-props/License_Standard.txt`.
+
+Os arquivos vieram do acervo local do projeto Transformice do usuário, que é apenas **lido**: o
+script espelha para `art/source/fantasy-props/` somente os props que usa (49 glTF) e os quatro
+atlas `T_Trim_*`, reduzidos a 1K e reexportados em JPEG dentro do GLB. Nenhum modelo original foi
+alterado e nenhum serviço de geração foi usado.
+
+As cascas dos celeiros continuam sendo geometria autoral deste projeto, já embarcada em
+`farm-world.glb`, `farm-city.glb` e `highland-farms.glb`; este asset só ocupa o vazio dentro delas.
+
 ## Atlas de chuva
 
 `public/textures/weather/rain-streaks.png`, `rain-splash.png` e `rain-haze.png` são **gerados

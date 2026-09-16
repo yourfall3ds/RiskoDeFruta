@@ -1,0 +1,1679 @@
+{
+ "source": "scripts/build-barn-interiors.py",
+ "kit": "Quaternius Fantasy Props MegaKit (CC0)",
+ "aisleHalfWidth": 1.9,
+ "barns": [
+  {
+   "id": "campo",
+   "name": "Celeiro do Campo",
+   "region": "base",
+   "collision": "farm-collision",
+   "mesh": "barn-interior-campo",
+   "centre": {
+    "x": 0.0,
+    "y": 5.0,
+    "z": 35.0
+   },
+   "interior": {
+    "minX": -7.35,
+    "maxX": 7.35,
+    "minZ": 29.13,
+    "maxZ": 40.87,
+    "ceiling": 13.1
+   },
+   "door": {
+    "minX": -3.45,
+    "maxX": 3.45,
+    "z": 29.13
+   },
+   "palette": {
+    "furniture": "#d8c39a",
+    "metal": "#b9c0c4",
+    "props": "#e4d9b4",
+    "cloth": "#7fb8e6",
+    "sack": "#c9b489",
+    "lantern": "#ffd08a"
+   },
+   "lantern": {
+    "x": 0.0,
+    "y": 8.4,
+    "z": 35.0,
+    "color": "#ffd08a"
+   },
+   "props": 32,
+   "triangles": 38890,
+   "chests": [
+    {
+     "id": "barn-campo-loft",
+     "x": 0.0,
+     "z": 38.6,
+     "kind": "supply"
+    }
+   ],
+   "colliders": [
+    {
+     "id": "barn-interior-campo-barrel-0",
+     "min": {
+      "x": -5.914,
+      "y": 5.0,
+      "z": 31.486
+     },
+     "max": {
+      "x": -5.286,
+      "y": 5.898,
+      "z": 32.114
+     }
+    },
+    {
+     "id": "barn-interior-campo-barrel-1",
+     "min": {
+      "x": -5.914,
+      "y": 5.0,
+      "z": 32.386
+     },
+     "max": {
+      "x": -5.286,
+      "y": 5.898,
+      "z": 33.014
+     }
+    },
+    {
+     "id": "barn-interior-campo-barrel_apples-2",
+     "min": {
+      "x": -6.003,
+      "y": 5.0,
+      "z": 33.197
+     },
+     "max": {
+      "x": -5.197,
+      "y": 5.898,
+      "z": 34.003
+     }
+    },
+    {
+     "id": "barn-interior-campo-crate_wooden-3",
+     "min": {
+      "x": -5.956,
+      "y": 5.0,
+      "z": 35.121
+     },
+     "max": {
+      "x": -5.044,
+      "y": 5.931,
+      "z": 36.079
+     }
+    },
+    {
+     "id": "barn-interior-campo-crate_wooden-4",
+     "min": {
+      "x": -5.932,
+      "y": 5.0,
+      "z": 35.142
+     },
+     "max": {
+      "x": -5.068,
+      "y": 6.862,
+      "z": 36.058
+     }
+    },
+    {
+     "id": "barn-interior-campo-crate_wooden-5",
+     "min": {
+      "x": -5.916,
+      "y": 5.0,
+      "z": 36.469
+     },
+     "max": {
+      "x": -4.884,
+      "y": 5.931,
+      "z": 37.531
+     }
+    },
+    {
+     "id": "barn-interior-campo-farmcrate_carrot-6",
+     "min": {
+      "x": -6.147,
+      "y": 5.0,
+      "z": 39.312
+     },
+     "max": {
+      "x": -5.453,
+      "y": 5.45,
+      "z": 39.888
+     }
+    },
+    {
+     "id": "barn-interior-campo-workbench-7",
+     "min": {
+      "x": 5.139,
+      "y": 5.0,
+      "z": 31.491
+     },
+     "max": {
+      "x": 6.061,
+      "y": 5.895,
+      "z": 33.309
+     }
+    },
+    {
+     "id": "barn-interior-campo-bucket_wooden_1-8",
+     "min": {
+      "x": 3.905,
+      "y": 5.0,
+      "z": 33.527
+     },
+     "max": {
+      "x": 4.295,
+      "y": 5.45,
+      "z": 33.873
+     }
+    },
+    {
+     "id": "barn-interior-campo-bucket_metal-9",
+     "min": {
+      "x": 4.203,
+      "y": 5.0,
+      "z": 34.105
+     },
+     "max": {
+      "x": 4.797,
+      "y": 5.45,
+      "z": 34.695
+     }
+    },
+    {
+     "id": "barn-interior-campo-farmcrate_empty-10",
+     "min": {
+      "x": 5.561,
+      "y": 5.0,
+      "z": 36.851
+     },
+     "max": {
+      "x": 6.039,
+      "y": 5.45,
+      "z": 37.549
+     }
+    },
+    {
+     "id": "barn-interior-campo-farmcrate_carrot-11",
+     "min": {
+      "x": 5.517,
+      "y": 5.0,
+      "z": 38.057
+     },
+     "max": {
+      "x": 6.083,
+      "y": 5.45,
+      "z": 38.743
+     }
+    },
+    {
+     "id": "barn-interior-campo-cage_small-12",
+     "min": {
+      "x": 4.867,
+      "y": 5.0,
+      "z": 39.062
+     },
+     "max": {
+      "x": 5.933,
+      "y": 5.808,
+      "z": 40.138
+     }
+    },
+    {
+     "id": "barn-interior-campo-table_large-13",
+     "min": {
+      "x": -4.682,
+      "y": 5.0,
+      "z": 39.207
+     },
+     "max": {
+      "x": -2.118,
+      "y": 5.813,
+      "z": 40.193
+     }
+    },
+    {
+     "id": "barn-interior-campo-bag-14",
+     "min": {
+      "x": 2.239,
+      "y": 5.0,
+      "z": 39.669
+     },
+     "max": {
+      "x": 2.961,
+      "y": 5.799,
+      "z": 40.331
+     }
+    },
+    {
+     "id": "barn-interior-campo-crate_wooden-15",
+     "min": {
+      "x": -4.087,
+      "y": 5.0,
+      "z": 30.294
+     },
+     "max": {
+      "x": -3.113,
+      "y": 5.931,
+      "z": 31.306
+     }
+    },
+    {
+     "id": "barn-interior-campo-barrel-16",
+     "min": {
+      "x": 3.086,
+      "y": 5.0,
+      "z": 30.286
+     },
+     "max": {
+      "x": 3.714,
+      "y": 5.898,
+      "z": 30.914
+     }
+    },
+    {
+     "id": "barn-interior-campo-barrel-17",
+     "min": {
+      "x": 3.671,
+      "y": 5.0,
+      "z": 30.671
+     },
+     "max": {
+      "x": 4.529,
+      "y": 5.898,
+      "z": 31.529
+     }
+    },
+    {
+     "id": "barn-interior-campo-bucket_wooden_1-18",
+     "min": {
+      "x": -3.395,
+      "y": 5.0,
+      "z": 32.027
+     },
+     "max": {
+      "x": -3.005,
+      "y": 5.45,
+      "z": 32.373
+     }
+    },
+    {
+     "id": "barn-interior-campo-stool-19",
+     "min": {
+      "x": 2.786,
+      "y": 5.0,
+      "z": 35.986
+     },
+     "max": {
+      "x": 3.214,
+      "y": 5.589,
+      "z": 36.414
+     }
+    },
+    {
+     "id": "barn-interior-campo-bag-20",
+     "min": {
+      "x": -3.771,
+      "y": 5.0,
+      "z": 35.653
+     },
+     "max": {
+      "x": -3.029,
+      "y": 5.799,
+      "z": 36.347
+     }
+    }
+   ]
+  },
+  {
+   "id": "sementes",
+   "name": "Dep\u00f3sito de Sementes",
+   "region": "farm-city",
+   "collision": "farm-city-collision",
+   "mesh": "barn-interior-sementes",
+   "centre": {
+    "x": 100.0,
+    "y": 2.015,
+    "z": 15.0
+   },
+   "interior": {
+    "minX": 91.91,
+    "maxX": 108.09,
+    "minZ": 6.93,
+    "maxZ": 23.07,
+    "ceiling": 11.9
+   },
+   "door": {
+    "minX": 96.2,
+    "maxX": 103.8,
+    "z": 6.93
+   },
+   "palette": {
+    "furniture": "#b59b63",
+    "metal": "#c2b88a",
+    "props": "#d8dfae",
+    "cloth": "#4f9d63",
+    "sack": "#b8a76a",
+    "lantern": "#ffe3a0"
+   },
+   "lantern": {
+    "x": 100.0,
+    "y": 5.415,
+    "z": 15.0,
+    "color": "#ffe3a0"
+   },
+   "props": 38,
+   "triangles": 50005,
+   "chests": [
+    {
+     "id": "barn-sementes-aisle",
+     "x": 100.0,
+     "z": 20.4,
+     "kind": "supply"
+    },
+    {
+     "id": "barn-sementes-stall",
+     "x": 96.6,
+     "z": 9.2,
+     "kind": "shop"
+    }
+   ],
+   "colliders": [
+    {
+     "id": "barn-interior-sementes-shelf_arch-0",
+     "min": {
+      "x": 92.26,
+      "y": 2.015,
+      "z": 11.44
+     },
+     "max": {
+      "x": 92.54,
+      "y": 3.604,
+      "z": 12.56
+     }
+    },
+    {
+     "id": "barn-interior-sementes-cabinet-1",
+     "min": {
+      "x": 92.239,
+      "y": 2.015,
+      "z": 14.787
+     },
+     "max": {
+      "x": 92.561,
+      "y": 3.012,
+      "z": 16.013
+     }
+    },
+    {
+     "id": "barn-interior-sementes-bookcase_2-2",
+     "min": {
+      "x": 92.207,
+      "y": 2.015,
+      "z": 16.942
+     },
+     "max": {
+      "x": 92.593,
+      "y": 4.56,
+      "z": 18.258
+     }
+    },
+    {
+     "id": "barn-interior-sementes-barrel-3",
+     "min": {
+      "x": 93.886,
+      "y": 2.015,
+      "z": 19.686
+     },
+     "max": {
+      "x": 94.514,
+      "y": 2.913,
+      "z": 20.314
+     }
+    },
+    {
+     "id": "barn-interior-sementes-barrel-4",
+     "min": {
+      "x": 94.583,
+      "y": 2.015,
+      "z": 20.183
+     },
+     "max": {
+      "x": 95.417,
+      "y": 2.913,
+      "z": 21.017
+     }
+    },
+    {
+     "id": "barn-interior-sementes-barrel_apples-5",
+     "min": {
+      "x": 93.415,
+      "y": 2.015,
+      "z": 20.615
+     },
+     "max": {
+      "x": 94.185,
+      "y": 2.913,
+      "z": 21.385
+     }
+    },
+    {
+     "id": "barn-interior-sementes-farmcrate_carrot-6",
+     "min": {
+      "x": 106.944,
+      "y": 2.015,
+      "z": 9.478
+     },
+     "max": {
+      "x": 107.456,
+      "y": 2.465,
+      "z": 10.122
+     }
+    },
+    {
+     "id": "barn-interior-sementes-farmcrate_empty-7",
+     "min": {
+      "x": 106.986,
+      "y": 2.015,
+      "z": 10.764
+     },
+     "max": {
+      "x": 107.414,
+      "y": 2.465,
+      "z": 11.436
+     }
+    },
+    {
+     "id": "barn-interior-sementes-farmcrate_carrot-8",
+     "min": {
+      "x": 106.917,
+      "y": 2.015,
+      "z": 12.057
+     },
+     "max": {
+      "x": 107.483,
+      "y": 2.465,
+      "z": 12.743
+     }
+    },
+    {
+     "id": "barn-interior-sementes-crate_wooden-9",
+     "min": {
+      "x": 106.344,
+      "y": 2.015,
+      "z": 13.721
+     },
+     "max": {
+      "x": 107.256,
+      "y": 2.946,
+      "z": 14.679
+     }
+    },
+    {
+     "id": "barn-interior-sementes-crate_wooden-10",
+     "min": {
+      "x": 106.368,
+      "y": 2.015,
+      "z": 15.142
+     },
+     "max": {
+      "x": 107.232,
+      "y": 2.946,
+      "z": 16.058
+     }
+    },
+    {
+     "id": "barn-interior-sementes-workbench-11",
+     "min": {
+      "x": 103.291,
+      "y": 2.015,
+      "z": 21.139
+     },
+     "max": {
+      "x": 105.109,
+      "y": 2.91,
+      "z": 22.061
+     }
+    },
+    {
+     "id": "barn-interior-sementes-vase_2-12",
+     "min": {
+      "x": 105.587,
+      "y": 2.015,
+      "z": 21.087
+     },
+     "max": {
+      "x": 106.213,
+      "y": 2.531,
+      "z": 21.713
+     }
+    },
+    {
+     "id": "barn-interior-sementes-bag-13",
+     "min": {
+      "x": 97.252,
+      "y": 2.015,
+      "z": 21.287
+     },
+     "max": {
+      "x": 97.948,
+      "y": 2.814,
+      "z": 21.913
+     }
+    },
+    {
+     "id": "barn-interior-sementes-bag-14",
+     "min": {
+      "x": 98.122,
+      "y": 2.015,
+      "z": 21.64
+     },
+     "max": {
+      "x": 98.878,
+      "y": 2.814,
+      "z": 22.36
+     }
+    },
+    {
+     "id": "barn-interior-sementes-stall_empty-15",
+     "min": {
+      "x": 93.822,
+      "y": 2.015,
+      "z": 8.071
+     },
+     "max": {
+      "x": 95.378,
+      "y": 4.642,
+      "z": 9.929
+     }
+    },
+    {
+     "id": "barn-interior-sementes-stool-16",
+     "min": {
+      "x": 97.186,
+      "y": 2.015,
+      "z": 10.786
+     },
+     "max": {
+      "x": 97.614,
+      "y": 2.604,
+      "z": 11.214
+     }
+    },
+    {
+     "id": "barn-interior-sementes-crate_wooden-17",
+     "min": {
+      "x": 95.704,
+      "y": 2.015,
+      "z": 16.886
+     },
+     "max": {
+      "x": 96.696,
+      "y": 2.946,
+      "z": 17.914
+     }
+    },
+    {
+     "id": "barn-interior-sementes-crate_wooden-18",
+     "min": {
+      "x": 95.733,
+      "y": 2.015,
+      "z": 18.112
+     },
+     "max": {
+      "x": 96.667,
+      "y": 2.946,
+      "z": 19.088
+     }
+    },
+    {
+     "id": "barn-interior-sementes-barrel-19",
+     "min": {
+      "x": 103.286,
+      "y": 2.015,
+      "z": 17.286
+     },
+     "max": {
+      "x": 103.914,
+      "y": 2.913,
+      "z": 17.914
+     }
+    },
+    {
+     "id": "barn-interior-sementes-barrel-20",
+     "min": {
+      "x": 103.857,
+      "y": 2.015,
+      "z": 17.757
+     },
+     "max": {
+      "x": 104.743,
+      "y": 2.913,
+      "z": 18.643
+     }
+    },
+    {
+     "id": "barn-interior-sementes-barrel_apples-21",
+     "min": {
+      "x": 103.497,
+      "y": 2.015,
+      "z": 18.597
+     },
+     "max": {
+      "x": 104.303,
+      "y": 2.913,
+      "z": 19.403
+     }
+    },
+    {
+     "id": "barn-interior-sementes-farmcrate_carrot-22",
+     "min": {
+      "x": 96.032,
+      "y": 2.015,
+      "z": 13.083
+     },
+     "max": {
+      "x": 96.768,
+      "y": 2.465,
+      "z": 13.717
+     }
+    },
+    {
+     "id": "barn-interior-sementes-bag-23",
+     "min": {
+      "x": 103.067,
+      "y": 2.015,
+      "z": 12.508
+     },
+     "max": {
+      "x": 103.733,
+      "y": 2.814,
+      "z": 13.092
+     }
+    }
+   ]
+  },
+  {
+   "id": "solar",
+   "name": "Oficina Solar",
+   "region": "farm-city",
+   "collision": "farm-city-collision",
+   "mesh": "barn-interior-solar",
+   "centre": {
+    "x": 105.0,
+    "y": 12.015,
+    "z": 79.0
+   },
+   "interior": {
+    "minX": 96.91,
+    "maxX": 113.09,
+    "minZ": 70.93,
+    "maxZ": 87.07,
+    "ceiling": 21.9
+   },
+   "door": {
+    "minX": 101.2,
+    "maxX": 108.8,
+    "z": 70.93
+   },
+   "palette": {
+    "furniture": "#8f9aa8",
+    "metal": "#9fb6c9",
+    "props": "#cfd6dd",
+    "cloth": "#e07a32",
+    "sack": "#9aa0a6",
+    "lantern": "#ff9a4d"
+   },
+   "lantern": {
+    "x": 105.0,
+    "y": 15.415,
+    "z": 79.0,
+    "color": "#ff9a4d"
+   },
+   "props": 33,
+   "triangles": 38144,
+   "chests": [
+    {
+     "id": "barn-solar-forge",
+     "x": 105.0,
+     "z": 83.9,
+     "kind": "supply"
+    },
+    {
+     "id": "barn-solar-bench",
+     "x": 108.2,
+     "z": 72.8,
+     "kind": "shop"
+    }
+   ],
+   "colliders": [
+    {
+     "id": "barn-interior-solar-anvil_log-0",
+     "min": {
+      "x": 99.245,
+      "y": 12.015,
+      "z": 73.857
+     },
+     "max": {
+      "x": 100.355,
+      "y": 13.088,
+      "z": 74.943
+     }
+    },
+    {
+     "id": "barn-interior-solar-whetstone-1",
+     "min": {
+      "x": 101.179,
+      "y": 12.015,
+      "z": 74.243
+     },
+     "max": {
+      "x": 102.421,
+      "y": 13.185,
+      "z": 75.357
+     }
+    },
+    {
+     "id": "barn-interior-solar-weaponstand-2",
+     "min": {
+      "x": 97.758,
+      "y": 12.015,
+      "z": 76.176
+     },
+     "max": {
+      "x": 98.642,
+      "y": 13.124,
+      "z": 77.424
+     }
+    },
+    {
+     "id": "barn-interior-solar-dummy-3",
+     "min": {
+      "x": 98.368,
+      "y": 12.015,
+      "z": 84.028
+     },
+     "max": {
+      "x": 99.232,
+      "y": 13.877,
+      "z": 84.772
+     }
+    },
+    {
+     "id": "barn-interior-solar-cauldron-4",
+     "min": {
+      "x": 98.955,
+      "y": 12.015,
+      "z": 79.775
+     },
+     "max": {
+      "x": 99.845,
+      "y": 12.831,
+      "z": 80.625
+     }
+    },
+    {
+     "id": "barn-interior-solar-workbench-5",
+     "min": {
+      "x": 111.339,
+      "y": 12.015,
+      "z": 73.691
+     },
+     "max": {
+      "x": 112.261,
+      "y": 12.91,
+      "z": 75.509
+     }
+    },
+    {
+     "id": "barn-interior-solar-workbench-6",
+     "min": {
+      "x": 111.339,
+      "y": 12.015,
+      "z": 76.291
+     },
+     "max": {
+      "x": 112.261,
+      "y": 12.91,
+      "z": 78.109
+     }
+    },
+    {
+     "id": "barn-interior-solar-crate_metal-7",
+     "min": {
+      "x": 111.429,
+      "y": 12.015,
+      "z": 79.128
+     },
+     "max": {
+      "x": 112.371,
+      "y": 12.883,
+      "z": 80.072
+     }
+    },
+    {
+     "id": "barn-interior-solar-crate_metal-8",
+     "min": {
+      "x": 111.449,
+      "y": 12.015,
+      "z": 80.249
+     },
+     "max": {
+      "x": 112.351,
+      "y": 12.883,
+      "z": 81.151
+     }
+    },
+    {
+     "id": "barn-interior-solar-bucket_metal-9",
+     "min": {
+      "x": 109.682,
+      "y": 12.015,
+      "z": 81.698
+     },
+     "max": {
+      "x": 110.118,
+      "y": 12.465,
+      "z": 82.102
+     }
+    },
+    {
+     "id": "barn-interior-solar-table_large-10",
+     "min": {
+      "x": 105.718,
+      "y": 12.015,
+      "z": 85.207
+     },
+     "max": {
+      "x": 108.282,
+      "y": 12.828,
+      "z": 86.193
+     }
+    },
+    {
+     "id": "barn-interior-solar-bench-11",
+     "min": {
+      "x": 101.35,
+      "y": 12.015,
+      "z": 85.36
+     },
+     "max": {
+      "x": 103.85,
+      "y": 12.548,
+      "z": 85.84
+     }
+    },
+    {
+     "id": "barn-interior-solar-stool-12",
+     "min": {
+      "x": 100.786,
+      "y": 12.015,
+      "z": 83.186
+     },
+     "max": {
+      "x": 101.214,
+      "y": 12.604,
+      "z": 83.614
+     }
+    },
+    {
+     "id": "barn-interior-solar-crate_wooden-13",
+     "min": {
+      "x": 97.723,
+      "y": 12.015,
+      "z": 72.303
+     },
+     "max": {
+      "x": 98.677,
+      "y": 12.946,
+      "z": 73.297
+     }
+    },
+    {
+     "id": "barn-interior-solar-bag-14",
+     "min": {
+      "x": 110.239,
+      "y": 12.015,
+      "z": 72.269
+     },
+     "max": {
+      "x": 110.961,
+      "y": 12.814,
+      "z": 72.931
+     }
+    },
+    {
+     "id": "barn-interior-solar-crate_metal-15",
+     "min": {
+      "x": 100.901,
+      "y": 12.015,
+      "z": 81.101
+     },
+     "max": {
+      "x": 101.899,
+      "y": 12.883,
+      "z": 82.099
+     }
+    },
+    {
+     "id": "barn-interior-solar-crate_metal-16",
+     "min": {
+      "x": 100.939,
+      "y": 12.015,
+      "z": 82.238
+     },
+     "max": {
+      "x": 101.861,
+      "y": 12.883,
+      "z": 83.162
+     }
+    },
+    {
+     "id": "barn-interior-solar-barrel-17",
+     "min": {
+      "x": 108.286,
+      "y": 12.015,
+      "z": 81.686
+     },
+     "max": {
+      "x": 108.914,
+      "y": 12.913,
+      "z": 82.314
+     }
+    },
+    {
+     "id": "barn-interior-solar-bucket_metal-18",
+     "min": {
+      "x": 108.982,
+      "y": 12.015,
+      "z": 82.598
+     },
+     "max": {
+      "x": 109.418,
+      "y": 12.465,
+      "z": 83.002
+     }
+    },
+    {
+     "id": "barn-interior-solar-crate_wooden-19",
+     "min": {
+      "x": 108.113,
+      "y": 12.015,
+      "z": 75.094
+     },
+     "max": {
+      "x": 109.087,
+      "y": 12.946,
+      "z": 76.106
+     }
+    },
+    {
+     "id": "barn-interior-solar-bag-20",
+     "min": {
+      "x": 101.052,
+      "y": 12.015,
+      "z": 77.287
+     },
+     "max": {
+      "x": 101.748,
+      "y": 12.814,
+      "z": 77.913
+     }
+    },
+    {
+     "id": "barn-interior-solar-stool-21",
+     "min": {
+      "x": 101.586,
+      "y": 12.015,
+      "z": 80.786
+     },
+     "max": {
+      "x": 102.014,
+      "y": 12.604,
+      "z": 81.214
+     }
+    }
+   ]
+  },
+  {
+   "id": "colheita",
+   "name": "Adega da Colheita",
+   "region": "farm-city",
+   "collision": "farm-city-collision",
+   "mesh": "barn-interior-colheita",
+   "centre": {
+    "x": 160.0,
+    "y": 7.015,
+    "z": 52.0
+   },
+   "interior": {
+    "minX": 151.91,
+    "maxX": 168.09,
+    "minZ": 43.93,
+    "maxZ": 60.07,
+    "ceiling": 16.9
+   },
+   "door": {
+    "minX": 156.2,
+    "maxX": 163.8,
+    "z": 43.93
+   },
+   "palette": {
+    "furniture": "#8f5340",
+    "metal": "#c9a24a",
+    "props": "#e0b878",
+    "cloth": "#7d2740",
+    "sack": "#a8886a",
+    "lantern": "#ffc06a"
+   },
+   "lantern": {
+    "x": 160.0,
+    "y": 10.415,
+    "z": 52.0,
+    "color": "#ffc06a"
+   },
+   "props": 35,
+   "triangles": 38008,
+   "chests": [
+    {
+     "id": "barn-colheita-cellar",
+     "x": 160.0,
+     "z": 57.6,
+     "kind": "supply"
+    },
+    {
+     "id": "barn-colheita-rack",
+     "x": 156.6,
+     "z": 45.6,
+     "kind": "shop"
+    }
+   ],
+   "colliders": [
+    {
+     "id": "barn-interior-colheita-barrel_holder-0",
+     "min": {
+      "x": 152.666,
+      "y": 7.015,
+      "z": 46.79
+     },
+     "max": {
+      "x": 153.334,
+      "y": 8.272,
+      "z": 48.01
+     }
+    },
+    {
+     "id": "barn-interior-colheita-barrel_holder-1",
+     "min": {
+      "x": 152.666,
+      "y": 7.015,
+      "z": 48.59
+     },
+     "max": {
+      "x": 153.334,
+      "y": 8.272,
+      "z": 49.81
+     }
+    },
+    {
+     "id": "barn-interior-colheita-barrel_holder-2",
+     "min": {
+      "x": 152.666,
+      "y": 7.015,
+      "z": 50.39
+     },
+     "max": {
+      "x": 153.334,
+      "y": 8.272,
+      "z": 51.61
+     }
+    },
+    {
+     "id": "barn-interior-colheita-barrel-3",
+     "min": {
+      "x": 153.486,
+      "y": 7.015,
+      "z": 52.886
+     },
+     "max": {
+      "x": 154.114,
+      "y": 7.913,
+      "z": 53.514
+     }
+    },
+    {
+     "id": "barn-interior-colheita-barrel_apples-4",
+     "min": {
+      "x": 153.571,
+      "y": 7.015,
+      "z": 53.771
+     },
+     "max": {
+      "x": 154.429,
+      "y": 7.913,
+      "z": 54.629
+     }
+    },
+    {
+     "id": "barn-interior-colheita-barrel-5",
+     "min": {
+      "x": 153.015,
+      "y": 7.015,
+      "z": 54.815
+     },
+     "max": {
+      "x": 153.785,
+      "y": 7.913,
+      "z": 55.585
+     }
+    },
+    {
+     "id": "barn-interior-colheita-table_large-6",
+     "min": {
+      "x": 164.107,
+      "y": 7.015,
+      "z": 51.718
+     },
+     "max": {
+      "x": 165.093,
+      "y": 7.828,
+      "z": 54.282
+     }
+    },
+    {
+     "id": "barn-interior-colheita-bench-7",
+     "min": {
+      "x": 162.96,
+      "y": 7.015,
+      "z": 51.75
+     },
+     "max": {
+      "x": 163.44,
+      "y": 7.548,
+      "z": 54.25
+     }
+    },
+    {
+     "id": "barn-interior-colheita-bench-8",
+     "min": {
+      "x": 165.76,
+      "y": 7.015,
+      "z": 51.75
+     },
+     "max": {
+      "x": 166.24,
+      "y": 7.548,
+      "z": 54.25
+     }
+    },
+    {
+     "id": "barn-interior-colheita-stool-9",
+     "min": {
+      "x": 166.686,
+      "y": 7.015,
+      "z": 50.386
+     },
+     "max": {
+      "x": 167.114,
+      "y": 7.604,
+      "z": 50.814
+     }
+    },
+    {
+     "id": "barn-interior-colheita-stool-10",
+     "min": {
+      "x": 162.786,
+      "y": 7.015,
+      "z": 54.786
+     },
+     "max": {
+      "x": 163.214,
+      "y": 7.604,
+      "z": 55.214
+     }
+    },
+    {
+     "id": "barn-interior-colheita-stall_cart_empty-11",
+     "min": {
+      "x": 164.285,
+      "y": 7.015,
+      "z": 44.959
+     },
+     "max": {
+      "x": 166.115,
+      "y": 9.654,
+      "z": 47.841
+     }
+    },
+    {
+     "id": "barn-interior-colheita-cauldron-12",
+     "min": {
+      "x": 156.555,
+      "y": 7.015,
+      "z": 58.175
+     },
+     "max": {
+      "x": 157.445,
+      "y": 7.831,
+      "z": 59.025
+     }
+    },
+    {
+     "id": "barn-interior-colheita-cabinet-13",
+     "min": {
+      "x": 161.787,
+      "y": 7.015,
+      "z": 58.739
+     },
+     "max": {
+      "x": 163.013,
+      "y": 8.012,
+      "z": 59.061
+     }
+    },
+    {
+     "id": "barn-interior-colheita-vase_2-14",
+     "min": {
+      "x": 160.287,
+      "y": 7.015,
+      "z": 58.587
+     },
+     "max": {
+      "x": 160.913,
+      "y": 7.531,
+      "z": 59.213
+     }
+    },
+    {
+     "id": "barn-interior-colheita-barrel_holder-15",
+     "min": {
+      "x": 155.59,
+      "y": 7.015,
+      "z": 47.666
+     },
+     "max": {
+      "x": 156.81,
+      "y": 8.272,
+      "z": 48.334
+     }
+    },
+    {
+     "id": "barn-interior-colheita-barrel-16",
+     "min": {
+      "x": 156.086,
+      "y": 7.015,
+      "z": 55.086
+     },
+     "max": {
+      "x": 156.714,
+      "y": 7.913,
+      "z": 55.714
+     }
+    },
+    {
+     "id": "barn-interior-colheita-barrel_apples-17",
+     "min": {
+      "x": 155.183,
+      "y": 7.015,
+      "z": 55.583
+     },
+     "max": {
+      "x": 156.017,
+      "y": 7.913,
+      "z": 56.417
+     }
+    },
+    {
+     "id": "barn-interior-colheita-crate_wooden-18",
+     "min": {
+      "x": 162.928,
+      "y": 7.015,
+      "z": 56.107
+     },
+     "max": {
+      "x": 163.872,
+      "y": 7.946,
+      "z": 57.093
+     }
+    },
+    {
+     "id": "barn-interior-colheita-stool-19",
+     "min": {
+      "x": 156.786,
+      "y": 7.015,
+      "z": 52.186
+     },
+     "max": {
+      "x": 157.214,
+      "y": 7.604,
+      "z": 52.614
+     }
+    }
+   ]
+  },
+  {
+   "id": "altos",
+   "name": "Celeiro dos Campos Altos",
+   "region": "highland-farms",
+   "collision": "highland-farms-collision",
+   "mesh": "barn-interior-altos",
+   "centre": {
+    "x": 493.0,
+    "y": 23.057,
+    "z": 308.0
+   },
+   "interior": {
+    "minX": 484.92,
+    "maxX": 501.08,
+    "minZ": 299.93,
+    "maxZ": 316.07,
+    "ceiling": 32.96
+   },
+   "door": {
+    "minX": 489.21,
+    "maxX": 496.79,
+    "z": 299.93
+   },
+   "palette": {
+    "furniture": "#9a8f7a",
+    "metal": "#a7a29a",
+    "props": "#d5c9a8",
+    "cloth": "#d9a326",
+    "sack": "#bfae86",
+    "lantern": "#ffdca0"
+   },
+   "lantern": {
+    "x": 493.0,
+    "y": 26.457,
+    "z": 308.0,
+    "color": "#ffdca0"
+   },
+   "props": 36,
+   "triangles": 44964,
+   "chests": [
+    {
+     "id": "barn-altos-loft",
+     "x": 493.0,
+     "z": 313.4,
+     "kind": "supply"
+    }
+   ],
+   "colliders": [
+    {
+     "id": "barn-interior-altos-crate_wooden-0",
+     "min": {
+      "x": 485.756,
+      "y": 23.057,
+      "z": 302.732
+     },
+     "max": {
+      "x": 486.644,
+      "y": 23.988,
+      "z": 303.668
+     }
+    },
+    {
+     "id": "barn-interior-altos-crate_wooden-1",
+     "min": {
+      "x": 485.733,
+      "y": 23.057,
+      "z": 304.012
+     },
+     "max": {
+      "x": 486.667,
+      "y": 23.988,
+      "z": 304.988
+     }
+    },
+    {
+     "id": "barn-interior-altos-cage_small-2",
+     "min": {
+      "x": 485.662,
+      "y": 23.057,
+      "z": 305.667
+     },
+     "max": {
+      "x": 486.738,
+      "y": 23.865,
+      "z": 306.733
+     }
+    },
+    {
+     "id": "barn-interior-altos-barrel-3",
+     "min": {
+      "x": 486.286,
+      "y": 23.057,
+      "z": 308.886
+     },
+     "max": {
+      "x": 486.914,
+      "y": 23.955,
+      "z": 309.514
+     }
+    },
+    {
+     "id": "barn-interior-altos-barrel-4",
+     "min": {
+      "x": 486.997,
+      "y": 23.057,
+      "z": 309.397
+     },
+     "max": {
+      "x": 487.803,
+      "y": 23.955,
+      "z": 310.203
+     }
+    },
+    {
+     "id": "barn-interior-altos-barrel_apples-5",
+     "min": {
+      "x": 485.983,
+      "y": 23.057,
+      "z": 310.183
+     },
+     "max": {
+      "x": 486.817,
+      "y": 23.955,
+      "z": 311.017
+     }
+    },
+    {
+     "id": "barn-interior-altos-nightstand_shelf-6",
+     "min": {
+      "x": 485.223,
+      "y": 23.057,
+      "z": 313.088
+     },
+     "max": {
+      "x": 485.577,
+      "y": 24.273,
+      "z": 313.712
+     }
+    },
+    {
+     "id": "barn-interior-altos-bucket_wooden_1-7",
+     "min": {
+      "x": 487.805,
+      "y": 23.057,
+      "z": 313.627
+     },
+     "max": {
+      "x": 488.195,
+      "y": 23.507,
+      "z": 313.973
+     }
+    },
+    {
+     "id": "barn-interior-altos-farmcrate_empty-8",
+     "min": {
+      "x": 499.986,
+      "y": 23.057,
+      "z": 308.264
+     },
+     "max": {
+      "x": 500.414,
+      "y": 23.507,
+      "z": 308.936
+     }
+    },
+    {
+     "id": "barn-interior-altos-farmcrate_carrot-9",
+     "min": {
+      "x": 499.917,
+      "y": 23.057,
+      "z": 309.557
+     },
+     "max": {
+      "x": 500.483,
+      "y": 23.507,
+      "z": 310.243
+     }
+    },
+    {
+     "id": "barn-interior-altos-bag-10",
+     "min": {
+      "x": 498.439,
+      "y": 23.057,
+      "z": 311.869
+     },
+     "max": {
+      "x": 499.161,
+      "y": 23.856,
+      "z": 312.531
+     }
+    },
+    {
+     "id": "barn-interior-altos-bag-11",
+     "min": {
+      "x": 499.029,
+      "y": 23.057,
+      "z": 312.853
+     },
+     "max": {
+      "x": 499.771,
+      "y": 23.856,
+      "z": 313.547
+     }
+    },
+    {
+     "id": "barn-interior-altos-table_large-12",
+     "min": {
+      "x": 489.118,
+      "y": 23.057,
+      "z": 314.407
+     },
+     "max": {
+      "x": 491.682,
+      "y": 23.87,
+      "z": 315.393
+     }
+    },
+    {
+     "id": "barn-interior-altos-stool-13",
+     "min": {
+      "x": 490.186,
+      "y": 23.057,
+      "z": 311.786
+     },
+     "max": {
+      "x": 490.614,
+      "y": 23.646,
+      "z": 312.214
+     }
+    },
+    {
+     "id": "barn-interior-altos-crate_wooden-14",
+     "min": {
+      "x": 488.695,
+      "y": 23.057,
+      "z": 306.479
+     },
+     "max": {
+      "x": 489.705,
+      "y": 23.988,
+      "z": 307.521
+     }
+    },
+    {
+     "id": "barn-interior-altos-crate_wooden-15",
+     "min": {
+      "x": 488.756,
+      "y": 23.057,
+      "z": 307.732
+     },
+     "max": {
+      "x": 489.644,
+      "y": 23.988,
+      "z": 308.668
+     }
+    },
+    {
+     "id": "barn-interior-altos-barrel-16",
+     "min": {
+      "x": 496.286,
+      "y": 23.057,
+      "z": 309.886
+     },
+     "max": {
+      "x": 496.914,
+      "y": 23.955,
+      "z": 310.514
+     }
+    },
+    {
+     "id": "barn-interior-altos-barrel-17",
+     "min": {
+      "x": 496.863,
+      "y": 23.057,
+      "z": 310.363
+     },
+     "max": {
+      "x": 497.737,
+      "y": 23.955,
+      "z": 311.237
+     }
+    },
+    {
+     "id": "barn-interior-altos-cage_small-18",
+     "min": {
+      "x": 488.862,
+      "y": 23.057,
+      "z": 310.067
+     },
+     "max": {
+      "x": 489.938,
+      "y": 23.865,
+      "z": 311.133
+     }
+    },
+    {
+     "id": "barn-interior-altos-bag-19",
+     "min": {
+      "x": 496.044,
+      "y": 23.057,
+      "z": 302.276
+     },
+     "max": {
+      "x": 496.756,
+      "y": 23.856,
+      "z": 302.924
+     }
+    },
+    {
+     "id": "barn-interior-altos-bucket_metal-20",
+     "min": {
+      "x": 489.582,
+      "y": 23.057,
+      "z": 302.198
+     },
+     "max": {
+      "x": 490.018,
+      "y": 23.507,
+      "z": 302.602
+     }
+    }
+   ]
+  }
+ ]
+}

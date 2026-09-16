@@ -108,6 +108,14 @@ export class TacticalNavigation {
     }
     this.residency.prune(points,protectedTiles);
   }
+  /**
+   * Devolve TODOS os tiles à malha antes de validar uma rota longa.
+   *
+   * `updateResidency` poda tudo a mais de 155 m do jogador e dos agentes. Uma rota entre duas ilhas
+   * a 250 m atravessa exatamente os tiles podados, e `reachable` responderia "sem rota" por um
+   * motivo de streaming, não de mapa. A poda volta a acontecer no `step` seguinte.
+   */
+  restoreNavigation():void {this.residency?.restoreAll();}
   get navigationResidency(){return this.residency?.stats;}
   get residencyDescription():string {const s=this.residency?.stats;return s?`Tiles ${s.resident}/${s.total} · Detour ${(s.residentBytes/1024).toFixed(0)} KiB · cache ${(s.cachedBytes/1024).toFixed(0)} KiB`:'Tiles sem streaming';}
   step(dt:number,player:Vec3):void {this.updateResidency(dt,player);const p=this.closest(player);if(p){if(!this.playerAgent)this.playerAgent=this.crowd.addAgent(p,{radius:.32,height:1.8,maxSpeed:0,separationWeight:0});else this.playerAgent.teleport(p);}this.crowd.update(dt);}

@@ -25,6 +25,28 @@ export class PlayerHUD {
   /** Texto de objetivo publicado pela cena; vazio devolve o rótulo padrão do modo. */
   private objective='';
   setObjective(text:string):void {this.objective=text;}
+  /** Cartão da transição de estágio. Criado no construtor, vive fora de `#player-hud`. */
+  private readonly journeyCard!:HTMLElement;
+  private journeyKey='';
+  /**
+   * Publica a conclusão do estágio: etapa, destino, detalhe (incluindo erro de carregamento com a
+   * contagem da nova tentativa) e a barra de andamento. Só escreve no DOM quando o texto muda.
+   */
+  stageJourney(journey:{active:boolean;label:string;detail:string;destination:string;progress:number;failed:boolean}):void {
+    const card=this.journeyCard;
+    if(!card)return;
+    if(!journey.active){if(!card.hidden){card.hidden=true;this.journeyKey='';}return;}
+    card.hidden=false;
+    const percent=`${Math.round(Math.max(0,Math.min(1,journey.progress))*1000)/10}%`;
+    const key=`${journey.label}|${journey.destination}|${journey.detail}|${percent}|${journey.failed}`;
+    if(key===this.journeyKey)return;
+    this.journeyKey=key;
+    card.classList.toggle('journey-failed',journey.failed);
+    card.querySelector('.stage-journey-step')!.textContent=journey.label;
+    card.querySelector('.stage-journey-destination')!.textContent=journey.destination;
+    card.querySelector('.stage-journey-detail')!.textContent=journey.detail;
+    (card.querySelector('.stage-journey-track i') as HTMLElement).style.width=percent;
+  }
   constructor(private readonly start: () => void,private readonly farm=false,settings?:{volume:(value:number)=>void;quality:(balanced:boolean)=>void},private readonly mode:'expedition'|'horde'|'classic'='expedition') {
     this.element.id='player-hud';
     this.element.innerHTML=`<div class="field-brand"><span class="eyebrow">AGRO / EXTERMINATION DIVISION</span><strong>GUNSLINGER <span>01</span></strong></div>
@@ -36,6 +58,14 @@ export class PlayerHUD {
       <div class="field-diagnostic" role="status">Carregando personagem…</div>
       <div class="play-gate loading"><div class="gate-card"><span class="eyebrow">MUTANT FARM / CAMPO DE TESTES</span><h1>Pronto para<br>o campo.</h1><p>Explore a pista. Teste as duas pistolas, salte os obstáculos e atravesse os vãos com a esquiva.</p><div class="controls"><span><kbd>W A S D</kbd> Mover</span><span><kbd>MOUSE</kbd> Mirar</span><span><kbd>ESPAÇO</kbd> Saltar</span><span><kbd>SHIFT</kbd> Esquivar</span><span><kbd>CLIQUE</kbd> Disparar</span><span><kbd>R</kbd> Recarregar</span><span><kbd>ESC</kbd> Soltar cursor</span></div><button class="start-play" disabled>Preparando equipamento…</button><small>F1 abre as opções de diagnóstico.</small></div></div>`;
     this.element.insertAdjacentHTML('beforeend','<div class="player-damage-screen" aria-hidden="true"><div class="damage-direction"><i></i></div></div><div class="player-damage-number" role="status"></div>');
+    // Cartão da conclusão do estágio: suco recolhido → embarque → viagem → chegada.
+    // Fica em `document.body` e não no HUD porque o HUD inteiro some sob `body.arrival-in-progress`,
+    // que é exatamente quando a chegada precisa continuar legível.
+    this.journeyCard=document.createElement('section');
+    this.journeyCard.className='stage-journey';this.journeyCard.hidden=true;
+    this.journeyCard.setAttribute('role','status');this.journeyCard.setAttribute('aria-live','polite');
+    this.journeyCard.innerHTML='<small class="stage-journey-step"></small><b class="stage-journey-destination"></b><span class="stage-journey-detail"></span><div class="stage-journey-track"><i></i></div>';
+    document.body.append(this.journeyCard);
     document.body.append(this.element);const film=document.querySelector<HTMLVideoElement>('#boot-menu .loading-film')??document.createElement('video');if(!film.src&&!film.querySelector('source')){film.src='/ui/cosmic-descent-v2.mp4';film.poster='/ui/loading-poster-v2.jpg';film.autoplay=true;film.muted=true;film.loop=true;film.playsInline=true;film.className='loading-film';}this.element.querySelector('.play-gate')!.prepend(film);this.element.querySelector('.play-gate')!.insertAdjacentHTML('beforeend','<div class=loading-progress role=status><span class=loading-stage>CALIBRANDO A QUEDA</span><div class=loading-track><i></i></div><b>0%</b><small>Montando fazendas, rotas e ameaças…</small></div>');document.getElementById('boot-menu')?.remove();document.body.classList.add('game-menu-open');
     this.gate=this.element.querySelector('.play-gate')!;this.hp=this.element.querySelector('.hp-value')!;
     this.charges=this.element.querySelector('.dodge-charges')!;this.crosshair=this.element.querySelector('.crosshair')!;
@@ -66,7 +96,7 @@ export class PlayerHUD {
       this.element.querySelector('h1')!.innerHTML='A colheita<br>se revoltou.';
       // Texto do modo realmente ativo. O antigo prometia item no centro e chefe a cada cinco ondas.
       this.element.querySelector('.gate-card p')!.textContent=mode==='expedition'
-        ?'Explore as ilhas, abra baús e encontre o cálice. Ative-o quando estiver preparado para a horda final com a Praga Alfa. Encha o cálice com o suco das frutas e derrote o chefe para abrir a fenda. Não é necessário eliminar todos os inimigos.'
+        ?'Explore as ilhas, abra baús e encontre o cálice. Ative-o quando estiver preparado para a horda final com a Praga Alfa. Encha o cálice e derrote o chefe; depois recolha o suco com E para embarcar rumo ao próximo bioma mantendo seus itens.'
         :mode==='horde'
         ?'Sobreviva a hordas cada vez mais fortes. Ao vencer cada onda, recolha o item que cai no campo para acumular poder. A cada cinco ondas, enfrente uma Praga Alfa.'
         :'Contenha a infestação até a Praga Alfa aparecer, derrote-a e atravesse a fenda para avançar de estágio.';
@@ -107,7 +137,7 @@ export class PlayerHUD {
     this.element.querySelector('h1')!.textContent='A última colheita.';
     const objectives=summary.objectives,expedition=objectives.mode==='expedition';
     const reached=expedition
-      ?objectives.phase==='rift'?'fenda aberta'
+      ?objectives.phase==='extract'?'cálice cheio · pronto para embarcar'
         :objectives.bossDefeated?'chefe derrotado · cálice incompleto'
         :objectives.phase==='boss'?'na horda final'
         :'em busca do cálice'
@@ -170,12 +200,17 @@ export class PlayerHUD {
     this.charges.textContent='◆ '.repeat(player.charges)+'◇ '.repeat(2-player.charges);
     this.crosshair.classList.toggle('hit',pistols.hitTime>0);
     const distance=Math.hypot(player.position.x,player.position.z-29);
-    this.element.querySelector('.field-objective b')!.textContent=this.objective||(this.farm?(distance<5?'Celeiro alcançado':`Chegue ao celeiro · ${Math.round(distance)} m`):`${enemies.count} espécimes · ${enemies.kills} abatidos`);
+    // Sem objetivo publicado: na expedição o destino é o cálice sorteado, nunca o celeiro fixo.
+    const fallback=this.farm
+      ?this.mode==='expedition'?'Explore as ilhas · encontre o cálice'
+        :distance<5?'Celeiro alcançado':`Chegue ao celeiro · ${Math.round(distance)} m`
+      :`${enemies.count} espécimes · ${enemies.kills} abatidos`;
+    this.element.querySelector('.field-objective b')!.textContent=this.objective||fallback;
     this.element.querySelector('.field-objective')!.setAttribute('title',`${enemies.status}${this.farm?'':' · Espécimes de treino voltam após 8 segundos.'}`);
     this.element.querySelectorAll('.mp-meter i').forEach((segment,index)=>segment.classList.toggle('charged',mp.tier>index));
     this.element.querySelector('.mp-meter small')!.textContent=pistols.stormRemaining>0?'TEMPESTADE DA COLHEITA':mp.held&&mp.current<25?'MP INSUFICIENTE':mp.held?['CARREGANDO','LEQUE RICOCHETEANTE','BARRAGEM COM MORTAL','TEMPESTADE DA COLHEITA'][mp.tier]!:'SEGURE BOTÃO DIREITO';
     if(error){this.diagnostic.textContent=`Falha ao carregar personagem: ${error}`;this.button.textContent='Recarregue a página para tentar novamente';}
     else if(pistols.cadence.shots+pistols.skillShots>0)this.diagnostic.textContent=`${pistols.hits} acertos · ${pistols.cadence.shots+pistols.skillShots} disparos · ${mp.releases} habilidades`;
   }
-  dispose(): void {window.removeEventListener('keydown',this.gateKey);this.onSkipIntro=undefined;this.skipButton.remove();document.body.classList.remove('game-menu-open','arrival-in-progress');this.element.remove();}
+  dispose(): void {window.removeEventListener('keydown',this.gateKey);this.onSkipIntro=undefined;this.skipButton.remove();this.journeyCard?.remove();document.body.classList.remove('game-menu-open','arrival-in-progress');this.element.remove();}
 }

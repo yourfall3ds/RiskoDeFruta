@@ -10,6 +10,7 @@ import type {MeleePhase} from '../combat/UnarmedCombat';
 import type { AnimationGroup } from '@babylonjs/core/Animations/animationGroup';
 import type { Scene } from '@babylonjs/core/scene';
 import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
+import type { MorphTarget } from '@babylonjs/core/Morph/morphTarget';
 import type { PlayerMotor } from '../player/PlayerMotor';
 import { PLAYER_TUNING as tuning } from '../player/PlayerTuning';
 import { AnimationStateMachine } from './AnimationStateMachine';
@@ -51,6 +52,7 @@ export class CharacterVisual {
   private hitReaction=0;
   reactToHit():void {this.hitReaction=.32;}
   private readonly bones=new Map<string,TransformNode>();
+  private readonly fists:MorphTarget[]=[];
   private fanCastTime=0;private preparation:{tier:1|2|3;progress:number}|undefined;
   prepareSkill(tier:1|2|3,progress:number):void {this.preparation={tier,progress};}
   endPreparation():void {this.preparation=undefined;}
@@ -82,7 +84,10 @@ export class CharacterVisual {
     try {
       const imported=await ImportMeshAsync('/models/gunslinger.glb',this.scene);
       if(this.disposed){for(const m of imported.meshes)m.dispose();return;}
-      for(const mesh of imported.meshes){if(!mesh.parent)mesh.parent=this.root;mesh.isPickable=false;mesh.receiveShadows=true;mesh.alwaysSelectAsActiveMesh=true;this.meshes.push(mesh);}
+      for(const mesh of imported.meshes){if(!mesh.parent)mesh.parent=this.root;mesh.isPickable=false;mesh.receiveShadows=true;mesh.alwaysSelectAsActiveMesh=true;this.meshes.push(mesh);
+        const manager=mesh.morphTargetManager;
+        if(manager)for(let i=0;i<manager.numTargets;i++){const target=manager.getTarget(i);if(target.name==='CombatFists')this.fists.push(target);}
+      }
       this.setSkinning('auto');
       for(const clip of imported.animationGroups){clip.stop();this.clips.set(clip.name,clip);}
       for(const node of imported.transformNodes)this.bones.set(node.name,node);
@@ -134,6 +139,9 @@ export class CharacterVisual {
     }
   }
   update(player: PlayerMotor,alpha: number,dt: number,aiming: boolean,charging=false,pitch=0,chargeProgress=0): void {
+    // The rig has no finger bones: the authored glove shape closes the fingers only in melee.
+    const fistWeight=this.unarmedStance||this.meleePose?1:0;
+    for(const fist of this.fists)fist.influence+=(fistWeight-fist.influence)*(dt>0?1-Math.exp(-dt*22):1);
     this.airborneSeconds=player.grounded?0:this.airborneSeconds+dt;
     this.hitReaction=Math.max(0,this.hitReaction-dt);
     Vector3.LerpToRef(new Vector3(player.previous.x,player.previous.y,player.previous.z),new Vector3(player.position.x,player.position.y,player.position.z),alpha,this.position);

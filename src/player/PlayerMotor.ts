@@ -52,6 +52,8 @@ export class PlayerMotor {
   /** Collision-constrained repositioning; locomotion and camera remain controllable. */
   barrageRetreat(): void {this.dashRemaining=0;this.retreatRemaining=.6;this.retreatYaw=this.yaw;if(this.grounded){this.velocity.y=8.4;this.grounded=false;this.coyote=0;}}
   get backflipProgress():number {return this.retreatRemaining>0?1-this.retreatRemaining/.6:-1;}
+  /** A new biome becomes the fallback island if a later checkpoint loses valid support. */
+  arriveAt(spawn:Vec3):void {Object.assign(this.initialSpawn,spawn);this.resetAt(spawn);}
   resetAt(spawn:Vec3):void {this.sliding=false;this.slideSeconds=0;this.dashRemaining=0;this.dashCooldown=0;this.dashAirUsed=0;this.slides=0;this.tapClock.clear();this.lastAxis={x:0,z:0};this.bumpRemaining=0;this.sprinting=false;this.regenerationDelay=0;this.push.x=0;this.push.z=0;this.wallKick=0;this.lastWall=undefined;this.wallSliding=false;this.position.x=spawn.x;this.position.y=spawn.y;this.position.z=spawn.z;Object.assign(this.previous,this.position);Object.assign(this.safe,this.position);this.velocity.x=0;this.velocity.y=0;this.velocity.z=0;this.hp=this.maxHP;this.grounded=true;this.charges=t.dodgeCharges;this.recharge=0;this.dodgeRemaining=0;this.retreatRemaining=0;this.airDodged=false;this.airJumpsUsed=0;this.jumpBuffer=0;this.coyote=t.coyoteSeconds;this.invulnerable=1;}
   constructor(private readonly world: CollisionWorld,private readonly events: EventBus<GameEvents>,spawn: Vec3) {
     this.initialSpawn={...spawn};

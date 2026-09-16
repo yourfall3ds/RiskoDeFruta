@@ -12,6 +12,13 @@ function island(){
  return world;
 }
 describe('safe island recovery',()=>{
+ it('uses the new biome after travel when a checkpoint has lost its floor',()=>{
+  const world=island();world.surfaces.push({id:'next-biome',x:300,z:200,width:30,depth:30,height:18,ellipse:true});
+  const player=new PlayerMotor(world,new EventBus(),{x:0,y:5,z:0});player.arriveAt({x:300,y:18,z:200});
+  Object.assign(player.safe,{x:2000,y:-10,z:2000});Object.assign(player.position,{x:2000,y:-80,z:2000});player.grounded=false;
+  player.fixedUpdate(1/60,EMPTY_INPUT,0);
+  expect(player.position).toEqual({x:300,y:18,z:200});expect(player.respawns).toBe(1);
+ });
  it('lifts a poisoned checkpoint out of rubble to the island top and clears residual movement',()=>{
   const world=island(),player=new PlayerMotor(world,new EventBus(),{x:0,y:5,z:0});
   Object.assign(player.safe,{x:2,y:-5,z:2});Object.assign(player.position,{x:40,y:-30,z:0});

@@ -39,7 +39,26 @@ const REST = {
         Left: at('LeftUpLeg').subtract(at('LeftLeg')).length() + at('LeftLeg').subtract(at('LeftFoot')).length()},
   toeY: {Right: at('RightToeBase').y, Left: at('LeftToeBase').y},
 };
-const GROUND = Math.min(REST.toeY.Right, REST.toeY.Left);
+// A toe JOINT sits inside the boot and rises as the foot rolls. It is not the sole.
+// Audit the actual deformed boot vertices against the world floor instead.
+const GROUND = 0;
+const boots=model.meshes.filter(m=>m.skeleton&&m.getVerticesData('matricesIndices')).map(mesh=>{
+ const indices=mesh.getVerticesData('matricesIndices'),weights=mesh.getVerticesData('matricesWeights');
+ const vertices={Right:[],Left:[]};
+ for(let i=0;i<indices.length/4;i++)for(const side of ['Right','Left']){
+  let weight=0;for(let k=0;k<4;k++){const bone=mesh.skeleton.bones.find(b=>b.getIndex()===indices[i*4+k]);if(bone&&[side+'Foot',side+'ToeBase'].includes(bone.name))weight+=weights[i*4+k];}
+  if(weight>.5)vertices[side].push(i);
+ }
+ return {mesh,vertices};
+});
+function soleHeights(){
+ const result={Right:Infinity,Left:Infinity};
+ for(const {mesh,vertices} of boots){
+  mesh.skeleton.prepare(true);const positions=mesh.getPositionData(true,false),world=mesh.computeWorldMatrix(true);
+  for(const side of ['Right','Left'])for(const i of vertices[side])result[side]=Math.min(result[side],Vector3.TransformCoordinates(Vector3.FromArray(positions,i*3),world).y);
+ }
+ return result;
+}
 
 function sample(clip, frame) {
   for (const track of clip.targetedAnimations) {
@@ -94,6 +113,7 @@ for (const spec of manifest.clips) {
       fist: {Right: at('RightArm').subtract(at('RightHand')).length(), Left: at('LeftArm').subtract(at('LeftHand')).length()},
       ankleSpan: {Right: at('RightUpLeg').subtract(at('RightFoot')).length(), Left: at('LeftUpLeg').subtract(at('LeftFoot')).length()},
       toe: {Right: at('RightToeBase').clone(), Left: at('LeftToeBase').clone()},
+      sole:soleHeights(),
       hips: at('Hips').clone(),
       // Shoulders against pelvis is the real corkscrew measure; head against shoulders is the neck.
       torsoTwist: wrap(chestYaw() - pelvisYaw() - REST_TWIST.torso),
@@ -101,7 +121,7 @@ for (const spec of manifest.clips) {
       shoulderSpan: at('LeftArm').subtract(at('RightArm')).length(),
       effector: null,
     };
-    const striking = spec.id.startsWith('right') || spec.id === 'uppercut' || spec.id === 'spin-kick' ? 'Right' : 'Left';
+    const striking = spec.id.startsWith('right') || spec.id === 'spin-kick' ? 'Right' : 'Left';
     row.effector = at(striking + (spec.id.includes('kick') ? 'ToeBase' : 'Hand'));
     frames.push(row);
   }
@@ -124,7 +144,7 @@ for (const spec of manifest.clips) {
     torsoTwist: highest(f => Math.abs(f.torsoTwist)),
     neckTwist: highest(f => Math.abs(f.neckTwist)),
     shoulderSpanDrift: highest(f => Math.abs(f.shoulderSpan - frames[0].shoulderSpan)),
-    lowestToe: lowest(f => Math.min(f.toe.Right.y, f.toe.Left.y)),
+    lowestToe: lowest(f => Math.min(f.sole.Right, f.sole.Left)),
     pelvisShift: highest(f => f.hips.subtract(frames[0].hips).length()),
   };
 
@@ -133,11 +153,11 @@ for (const spec of manifest.clips) {
   const band = GROUND + .02;
   let airborneFrames = 0, worstSkate = 0, skateAt = 0;
   for (let i = 0; i < frames.length; i++) {
-    const planted = ['Right', 'Left'].filter(side => frames[i].toe[side].y <= band);
+    const planted = ['Right', 'Left'].filter(side => frames[i].sole[side] <= band);
     if (!planted.length) airborneFrames++;
     if (i === 0) continue;
     for (const side of planted) {
-      if (frames[i - 1].toe[side].y > band) continue;   // it only just landed
+      if (frames[i - 1].sole[side] > band) continue;   // it only just landed
       const slide = Math.hypot(frames[i].toe[side].x - frames[i - 1].toe[side].x,
                                frames[i].toe[side].z - frames[i - 1].toe[side].z);
       if (slide > worstSkate) {worstSkate = slide; skateAt = i + 1;}
@@ -212,7 +232,7 @@ const output = {
   ground: GROUND, restArm: REST.arm, restLeg: REST.leg, restTwistReference: REST_TWIST,
   limits: {elbow: '25..176 deg', knee: '20..176 deg', reach: '<=100% of the measured limb',
            torsoTwist: '<=55 deg off the pelvis', neckTwist: '<=65 deg off the shoulders',
-           groundContact: 'at least one toe down every frame, never more than 1.2 cm under',
+           groundContact: 'deformed boot sole within 2 cm of the floor each frame, never more than 1.2 cm under',
            skate: '<=1.2 cm per frame while planted', loop: '<=1.5 deg and <=0.5 cm back to frame 1'},
   clips: report, problems,
 };

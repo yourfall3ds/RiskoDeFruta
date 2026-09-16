@@ -95,6 +95,9 @@ function buildSupply():SupplyMarker {
 
 type SwarmActor=EnemySwarm['actors'][number];
 
+/** Só o que o HUD lê da viagem entre estágios; mantém o painel livre da máquina de estados. */
+export interface StageJourneyView {active:boolean;label:string;detail:string;destination:string;failed:boolean}
+
 /**
  * Texto do painel TAB, pelo MODO realmente ativo.
  *
@@ -103,7 +106,7 @@ type SwarmActor=EnemySwarm['actors'][number];
  */
 export function modeBrief(expedition:boolean,hordeMode:boolean):string {
  const base='Abata pragas para ganhar XP e créditos. Abra baús e combine melhorias. ';
- if(expedition)return base+'Explore as ilhas e encontre o cálice. Ative-o quando estiver preparado: isso inicia a horda final com a Praga Alfa. Elimine frutas próximas dentro da área para coletar suco. Encha o cálice e derrote o chefe para abrir a fenda. Sair preserva o suco coletado.';
+ if(expedition)return base+'Cada estágio começa numa ilha sorteada, longe do cálice: explore, abra baús e melhore o equipamento antes de ativá-lo. A ativação inicia a horda final com a Praga Alfa — quanto maior o seu nível, maior o reforço que ela traz. Elimine frutas próximas dentro da área para coletar suco. Com o cálice cheio e o chefe morto, volte ao cálice e use [E]: o suco é recolhido, a nave embarca você e a expedição continua em OUTRO bioma. Itens, nível e XP seguem com você; os créditos restantes viram XP no embarque.';
  if(hordeMode)return base+'Vença cada horda e recolha o item que cai no campo. A cada cinco ondas, enfrente uma Praga Alfa.';
  return base+'Contenha a infestação até a Praga Alfa aparecer, derrote-a e atravesse a fenda para avançar de estágio.';
 }
@@ -146,14 +149,15 @@ export class RunHUD {
   * `camera` orienta apenas a seta da bússola. Toda distância e todo alcance de interação usam
   * `player`, senão o marco “acende” pela posição da câmera, que fica metros atrás do corpo.
   */
- update(run:RunProgression,swarm:EnemySwarm,interact:RunInteractables,camera:Camera,expedition?:{objectives:ExpeditionObjectives;resonance:HarvestResonance;mp:MPCharge;player:{x:number;y:number;z:number};weather?:WeatherCycle}):void {
+ update(run:RunProgression,swarm:EnemySwarm,interact:RunInteractables,camera:Camera,expedition?:{objectives:ExpeditionObjectives;resonance:HarvestResonance;mp:MPCharge;player:{x:number;y:number;z:number};weather?:WeatherCycle;journey?:StageJourneyView}):void {
   if(run.time>=this.lastUpdate&&run.time-this.lastUpdate<UPDATE_PERIOD)return;this.lastUpdate=run.time;
   const key=[...run.inventory].join();if(key!==this.inventoryKey){this.inventoryKey=key;this.inventory.set([...run.inventory].slice(0,12).map(([id,count])=>{const item=ITEMS.find(x=>x.id===id)!;return `<div title="${item.name}: ${item.description}"><i class="item-icon" style='${perkIcon(item.icon)}'></i><b>×${count}</b></div>`;}).join('')+(run.inventory.size>12?'<small class=inventory-more>+'+(run.inventory.size-12)+' ITENS · TAB</small>':''));}
   const f=camera.getForwardRay().direction,heading=(Math.atan2(f.x,f.z)*180/Math.PI+360)%360,seconds=Math.floor(run.time);
   this.bearing.set(`${['N','NE','L','SE','S','SO','O','NO'][Math.round(heading/45)%8]} · ${Math.round(heading)}°`);
   this.clockPanel.set(`<b>◷ ${String(Math.floor(seconds/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}</b><span>ESTÁGIO ${run.stage} · ${['NORMAL','CRESCENTE','DIFÍCIL','CAÓTICA','PRAGA ALFA','FENDA'][swarm.director.state]}</span><strong>◈ ${run.credits} CRÉDITOS</strong><em class="run-weather">${expedition?.weather?.label??''}</em>`);
   this.renderExpedition(expedition,camera,heading);
-  this.mission.set(expedition?.objectives.planned?this.expeditionMission(expedition.objectives,expedition.player,heading):swarm.director.hordeMode?(swarm.director.intermission>0?'PRÓXIMA HORDA EM '+Math.ceil(swarm.director.intermission)+' s':swarm.director.wave%5===0?'ELIMINE O CHEFE E SUA HORDA':'SOBREVIVA À HORDA '+swarm.director.wave):swarm.bossDeadTime>=5?'ENTRE NA FENDA · CELEIRO':swarm.bossDeadTime>=0?'PRAGA ALFA DERROTADA':swarm.boss?'ELIMINE A PRAGA ALFA':['LOCALIZE A PRAGA ALFA','CONTENHA A INFESTAÇÃO','SOBREVIVA AO SURTO','RESISTA À COLHEITA FINAL','A PRAGA ALFA SE APROXIMA'][swarm.director.state]??'');
+  this.mission.set(expedition?.journey?.active?`${expedition.journey.label} · ${expedition.journey.destination}`
+   :expedition?.objectives.planned?this.expeditionMission(expedition.objectives,expedition.player,heading):swarm.director.hordeMode?(swarm.director.intermission>0?'PRÓXIMA HORDA EM '+Math.ceil(swarm.director.intermission)+' s':swarm.director.wave%5===0?'ELIMINE O CHEFE E SUA HORDA':'SOBREVIVA À HORDA '+swarm.director.wave):swarm.bossDeadTime>=5?'ENTRE NA FENDA · CELEIRO':swarm.bossDeadTime>=0?'PRAGA ALFA DERROTADA':swarm.boss?'ELIMINE A PRAGA ALFA':['LOCALIZE A PRAGA ALFA','CONTENHA A INFESTAÇÃO','SOBREVIVA AO SURTO','RESISTA À COLHEITA FINAL','A PRAGA ALFA SE APROXIMA'][swarm.director.state]??'');
   const contract=interact.districtContract,contractDirection=contract?COMPASS[Math.round(((Math.atan2(contract.target.x-camera.position.x,contract.target.z-camera.position.z)*180/Math.PI-heading+720)%360)/45)%8]:'';
   const reward=interact.waveRewardGuide;
   // A dica da recompensa é o último filho do contrato; concatenar aqui dá o mesmo DOM que o
@@ -165,9 +169,13 @@ export class RunHUD {
   shown(this.bossBox,Boolean(swarm.boss)&&swarm.bossHP>0);css(this.bossFill,'width',pct(swarm.bossHP/swarm.bossMaxHP*100));text(this.bossText,`${Math.ceil(swarm.bossHP)} / ${swarm.bossMaxHP}`);
   const entry=interact.nearest,loot=interact.nearestLoot;
   const totem=expedition?.objectives.interactable(expedition.player);
-  const riftOpen=expedition?.objectives.planned?expedition.objectives.phase==='rift':swarm.bossDeadTime>=5;
+  const boarding=expedition?.objectives.collectable(expedition.player);
+  // A fenda do celeiro só sobrevive nos modos legados; a expedição termina no próprio cálice.
+  const riftOpen=expedition?.objectives.planned?false:swarm.bossDeadTime>=5;
   shown(this.interactBox,Boolean(entry||loot||totem||(riftOpen&&interact.atRift)));
-  this.interact.set(riftOpen&&interact.atRift?'<b>[E] ATRAVESSAR A FENDA</b><span>Créditos restantes viram XP.</span>':totem?`<b>[E] ATIVAR CÁLICE · INICIAR HORDA FINAL</b><span>A Praga Alfa virá. Colete ${totem.site.juiceTarget} unidades de suco e derrote o chefe para abrir a fenda.</span>`:loot?`<b><i class="item-icon" style='${perkIcon(loot.item.icon)}'></i>${loot.item.name}</b><span>${loot.item.description}</span><span>[E] Recolher item</span>`:entry?`<b>${entry.name} · ◈ ${entry.cost}</b><span>[E] ${entry.kind==='altar'?'Oferecer créditos · 58% de chance':'Abrir · item aleatório'}</span>`:'');
+  this.interact.set(riftOpen&&interact.atRift?'<b>[E] ATRAVESSAR A FENDA</b><span>Créditos restantes viram XP.</span>'
+   :boarding?'<b>[E] RECOLHER O SUCO · EMBARCAR</b><span>A nave leva a expedição para outro bioma. Itens, nível e XP seguem com você; os créditos restantes viram XP.</span>'
+   :totem?`<b>[E] ATIVAR CÁLICE · INICIAR HORDA FINAL</b><span>A Praga Alfa virá. Colete ${totem.site.juiceTarget} unidades de suco e derrote o chefe. Explore e melhore o equipamento antes: o reforço da horda acompanha o seu nível.</span>`:loot?`<b><i class="item-icon" style='${perkIcon(loot.item.icon)}'></i>${loot.item.name}</b><span>${loot.item.description}</span><span>[E] Recolher item</span>`:entry?`<b>${entry.name} · ◈ ${entry.cost}</b><span>[E] ${entry.kind==='altar'?'Oferecer créditos · 58% de chance':'Abrir · item aleatório'}</span>`:'');
   this.toast.set(interact.messageTime>0?interact.message:'');
   this.renderStats(run,Boolean(expedition?.objectives.planned),swarm.director.hordeMode);
   const engine=camera.getEngine(),width=engine.getRenderWidth(),height=engine.getRenderHeight(),viewport=camera.viewport.toGlobal(width,height),transform=camera.getTransformationMatrix();
@@ -246,7 +254,11 @@ export class RunHUD {
   this.statsPanel.set(`<h2>EXTERMINADOR · NÍVEL ${run.level}</h2><p>${brief}</p><dl>${rows.map(([label,value])=>`<dt>${label}</dt><dd>${value}</dd>`).join('')}</dl><small>Dourado: defesa e ouro · Gigante: atributos ×3 · Luminoso: dano e ataque extra</small><div class=inventory-detail>${[...run.inventory].map(([id,count])=>{const item=ITEMS.find(i=>i.id===id)!;return `<div title="${item.description}"><i class=item-icon style='${perkIcon(item.icon)}'></i><span>${item.name}<small>×${count} · ${item.description}</small></span></div>`;}).join('')}</div>`);
  }
  private expeditionMission(objectives:ExpeditionObjectives,player:{x:number;y:number;z:number},heading:number):string {
-  if(objectives.phase==='rift')return 'ENTRE NA FENDA · CELEIRO';
+  if(objectives.phase==='extract'){
+   const chalice=objectives.totems[0];
+   if(objectives.collectable(player))return '[E] RECOLHER O SUCO · EMBARCAR';
+   return chalice?`VOLTE AO CÁLICE · ${bearingArrow(player,chalice.site.position,heading)} ${Math.round(Math.hypot(chalice.site.position.x-player.x,chalice.site.position.z-player.z))} m`:'VOLTE AO CÁLICE';
+  }
   const current=objectives.current;
   if(objectives.phase==='boss'){
    if(current?.state==='complete')return 'CÁLICE CHEIO · DERROTE A PRAGA ALFA';
@@ -262,7 +274,7 @@ export class RunHUD {
   return 'EXPLORE AS ILHAS · ENCONTRE O CÁLICE';
  }
  /** Busca, destino descoberto, carga da horda final e ressonância. */
- private renderExpedition(expedition:{objectives:ExpeditionObjectives;resonance:HarvestResonance;mp:MPCharge;player:{x:number;y:number;z:number};weather?:WeatherCycle}|undefined,camera:Camera,heading:number):void {
+ private renderExpedition(expedition:{objectives:ExpeditionObjectives;resonance:HarvestResonance;mp:MPCharge;player:{x:number;y:number;z:number};weather?:WeatherCycle;journey?:StageJourneyView}|undefined,camera:Camera,heading:number):void {
   const objectives=expedition?.objectives;
   shown(this.routeBox,Boolean(objectives?.planned));shown(this.meterBox,Boolean(objectives?.planned));
   if(!expedition||!objectives?.planned)return;
@@ -273,8 +285,15 @@ export class RunHUD {
    const label=totem.state==='complete'?'CHEIO':totem.state==='charging'?`${Math.floor(totem.charged)}/${totem.site.juiceTarget} SUCO · ${percent}%`:totem.charged>0?`PAUSADO ${percent}%`:`${totem.site.juiceTarget} SUCO`;
    return `<li class="totem-${totem.state}${pending?.totem===totem?' totem-target':''}"><b>${totem.site.index+1}</b><span>${totem.site.name}<small>${label}</small></span><em>${bearingArrow(eye,totem.site.position,heading)} ${Math.round(distance)} m</em><i style="width:${Math.min(100,percent)}%"></i></li>`;
   }).join(''):'';
-  const header=objectives.phase==='rift'?'FENDA ABERTA':objectives.phase==='boss'?'HORDA FINAL':objectives.discovered?'CÁLICE ENCONTRADO':'BUSCA DO CÁLICE';
-  const footer=objectives.messageTime>0?objectives.message:objectives.phase==='rift'?'Recolha a recompensa e atravesse a fenda no celeiro.':objectives.interactable(player)?'[E] Ativar inicia a horda final com chefe. Prepare seus itens antes.':objectives.current?.state==='complete'?'O cálice está cheio. Derrote a Praga Alfa para abrir a fenda.':objectives.current?`${objectives.bossDefeated?'Chefe derrotado. ':''}Elimine frutas próximas dentro da área para coletar suco.`:objectives.discovered?'Siga o feixe âmbar até o cálice. Ative quando estiver preparado.':'Procure o feixe âmbar em uma das ilhas. Abra baús e melhore seus equipamentos pelo caminho.';
+  const header=expedition.journey?.active?'CONCLUSÃO DO ESTÁGIO':objectives.phase==='extract'?'PRONTO PARA EMBARCAR':objectives.phase==='boss'?'HORDA FINAL':objectives.discovered?'CÁLICE ENCONTRADO':'BUSCA DO CÁLICE';
+  const footer=expedition.journey?.active?expedition.journey.detail
+   :objectives.messageTime>0?objectives.message
+   :objectives.phase==='extract'?(objectives.collectable(player)?'[E] recolhe o suco e chama a nave. A expedição continua em outro bioma.':'Recolha a recompensa e volte ao cálice para embarcar.')
+   :objectives.interactable(player)?'[E] Ativar inicia a horda final com chefe. Prepare seus itens antes.'
+   :objectives.current?.state==='complete'?'O cálice está cheio. Derrote a Praga Alfa para poder embarcar.'
+   :objectives.current?`${objectives.bossDefeated?'Chefe derrotado. ':''}Elimine frutas próximas dentro da área para coletar suco.`
+   :objectives.discovered?'Siga o feixe âmbar até o cálice. Ative quando estiver preparado.'
+   :'Procure o feixe âmbar em uma das ilhas. Abra baús e melhore seus equipamentos pelo caminho.';
   this.route.set(`<small>${header}</small><ul>${marks}</ul><span class="route-hint">${footer}</span>`);
   const resonance=expedition.resonance;
   const charges=expedition.mp.maxCharges

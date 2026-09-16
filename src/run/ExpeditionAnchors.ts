@@ -1,15 +1,15 @@
-import {DISTRICT_CONTRACTS} from './DistrictContracts';
+import {STAGE_BIOMES} from '../stages/StageRoute';
 import type {TotemAnchor} from './ExpeditionObjectives';
 
 /**
- * Âncoras candidatas dos marcos: campo inicial, pátio do celeiro e as praças de distrito já
- * existentes. `planExpedition` ordena por proximidade da partida e só aceita as que têm piso
- * largo, contínuo e com rota — por isso a lista pode ser maior que os quatro marcos usados.
+ * Âncoras candidatas do cálice, achatadas a partir das ilhas de `STAGE_BIOMES`.
+ *
+ * A lista deixou de ser autorada aqui: quem decide onde o cálice pode cair é a rota de estágios,
+ * que também decide onde o jogador nasce. Manter duas listas separadas foi exatamente o que permitia
+ * o cálice reaparecer no campo inicial enquanto a partida era fixa ali.
+ *
+ * Continua exportada para `planExpedition`, que é a seleção de MÚLTIPLOS marcos usada pelos testes
+ * e pelos modos legados. A expedição em si usa `planStage`, que valida o par (partida, cálice).
  */
-export const EXPEDITION_ANCHORS:readonly TotemAnchor[]=[
-  {id:'initial-field',name:'Campo inicial',x:0,y:0,z:0},
-  {id:'initial-west',name:'Posto oeste',x:-42,y:0,z:4},
-  {id:'initial-east',name:'Lavoura leste',x:42,y:2,z:10},
-  {id:'barn-yard',name:'Pátio do celeiro',x:0,y:5,z:29},
-  ...DISTRICT_CONTRACTS.map(district=>({id:district.id,name:district.name,x:district.x,y:district.y,z:district.z})),
-];
+export const EXPEDITION_ANCHORS:readonly TotemAnchor[]=STAGE_BIOMES.flatMap(biome=>
+  biome.islands.map(island=>({id:island.id,name:island.name,x:island.x,y:island.y,z:island.z})));

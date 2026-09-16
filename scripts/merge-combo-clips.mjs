@@ -35,7 +35,8 @@ const wanted = new Set(manifest.clips.map(clip => clip.clip));
 
 mkdirSync('art/processed', {recursive: true});
 if (!existsSync(BACKUP)) copyFileSync(TARGET, BACKUP);
-const target = readGlb(BACKUP), source = readGlb(SOURCE);
+// Read the CURRENT target so later imported fall/hit clips and asset fixes survive a rebake.
+const target = readGlb(TARGET), source = readGlb(SOURCE);
 
 const targetIndex = new Map(target.json.nodes.map((node, index) => [node.name, index]));
 const sourceName = source.json.nodes.map(node => node.name);
@@ -119,6 +120,7 @@ let flips = 0;
 for (const clip of manifest.clips) {
   const animation = source.json.animations.find(a => a.name === clip.clip);
   const built = {name: clip.clip, channels: [], samplers: []};
+  const firstTime=Math.min(...animation.samplers.map(s=>values(source,s.input)[0][0]));
   let duration = 0;
   for (const channel of animation.channels) {
     const name = sourceName[channel.target.node], path = channel.target.path;
@@ -126,7 +128,9 @@ for (const clip of manifest.clips) {
     if (path === 'scale') continue;                       // never let a scale track reach a bone
     if (path === 'translation' && name !== 'Hips') continue;
     const sampler = animation.samplers[channel.sampler];
-    const times = values(source, sampler.input);
+    // Blender frame 1 is t=1/60; Babylon normalizes groups from zero. Rebase to avoid an
+    // extra hold frame that shifts contacts and makes the planted-boot samples interpolate.
+    const times = values(source, sampler.input).map(([time])=>[time-firstTime]);
     const rows = values(source, sampler.output);
     duration = Math.max(duration, times.at(-1)[0]);
     if (path === 'rotation') {

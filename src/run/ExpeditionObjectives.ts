@@ -17,7 +17,11 @@ export interface TotemAnchor {id:string;name:string;x:number;y:number;z:number}
 export interface TotemSite {id:string;name:string;index:number;position:Vec3;radius:number;juiceTarget:number}
 export type TotemState='available'|'charging'|'paused'|'complete';
 export interface TotemProgress {site:TotemSite;charged:number;state:TotemState}
-export type ExpeditionPhase='totems'|'boss'|'rift';
+/**
+ * `extract` substitui a antiga fase `rift`: o cálice cheio com o chefe morto NÃO abre mais uma fenda
+ * fixa no celeiro. O jogador volta ao próprio cálice, recolhe o suco com `E` e embarca na nave.
+ */
+export type ExpeditionPhase='totems'|'boss'|'extract';
 
 /** Consultas mínimas de mundo; mantém a simulação testável sem Babylon. */
 export interface ExpeditionTerrain {
@@ -96,6 +100,8 @@ export class ExpeditionObjectives {
   discovered=false;
   activeIndex=-1;
   bossSpawned=false;bossDefeated=false;bossRecoveries=0;
+  /** O suco do cálice concluído já foi recolhido com `E`; impede um segundo embarque. */
+  collected=false;
   rewardsPending=0;
   message='';messageTime=0;
   private bossUnreachable=0;
@@ -126,11 +132,32 @@ export class ExpeditionObjectives {
     const totem=active&&active.state!=='complete'?active:pending.reduce((a,b)=>planar(a.site.position,player)<=planar(b.site.position,player)?a:b);
     return {totem,distance:planar(totem.site.position,player)};
   }
+  /** Junto ao poste: o mesmo alcance vale para ativar e, depois, para recolher o suco. */
+  private atHand(totem:TotemProgress,player:Vec3):boolean {
+    return planar(totem.site.position,player)<=TOTEM_ACTIVATION_RANGE&&Math.abs(player.y-totem.site.position.y)<=4;
+  }
   /** Marco ao alcance do `E`, para o HUD anunciar a ação antes de o jogador apertar. */
   interactable(player:Vec3):TotemProgress|undefined {
+    if(this.phase==='extract')return this.collectable(player);
     return this.phase==='totems'
-      ?this.totems.filter(t=>t.state!=='complete'&&t.state!=='charging'&&planar(t.site.position,player)<=TOTEM_ACTIVATION_RANGE&&Math.abs(player.y-t.site.position.y)<=4).sort((a,b)=>planar(a.site.position,player)-planar(b.site.position,player))[0]
+      ?this.totems.filter(t=>t.state!=='complete'&&t.state!=='charging'&&this.atHand(t,player)).sort((a,b)=>planar(a.site.position,player)-planar(b.site.position,player))[0]
       :undefined;
+  }
+  /** Cálice concluído ao alcance do `E`, pronto para o suco ser recolhido e a viagem começar. */
+  collectable(player:Vec3):TotemProgress|undefined {
+    if(this.phase!=='extract'||this.collected)return undefined;
+    return this.totems.filter(t=>t.state==='complete'&&this.atHand(t,player))[0];
+  }
+  /**
+   * `E` no cálice concluído: recolhe o suco uma única vez. Quem chama inicia daí a conclusão do
+   * estágio; um segundo `E` no mesmo cálice não devolve nada.
+   */
+  collect(player:Vec3):TotemProgress|undefined {
+    const totem=this.collectable(player);
+    if(!totem)return undefined;
+    this.collected=true;
+    this.say('SUCO RECOLHIDO · embarque para o próximo bioma',6);
+    return totem;
   }
   /** `E` inicia a horda final uma única vez, junto ao cálice. */
   activate(player:Vec3):TotemProgress|undefined {
@@ -150,7 +177,7 @@ export class ExpeditionObjectives {
     if(!this.discovered&&this.totems.some(t=>planar(t.site.position,player)<=CHALICE_DISCOVERY_RADIUS&&Math.abs(player.y-t.site.position.y)<16)){
       this.discovered=true;this.say('CÁLICE ENCONTRADO · prepare-se antes de ativar',5);
     }
-    if(this.phase==='rift')return;
+    if(this.phase==='extract')return;
     const totem=this.current;
     if(totem&&totem.state!=='complete'){
       if(alive&&this.inside(totem,player)){
@@ -191,15 +218,16 @@ export class ExpeditionObjectives {
   }
   private finishIfReady(position:Vec3|undefined):void {
     if(this.phase!=='boss'||!this.bossDefeated||!this.total||this.completed<this.total||!position)return;
-    this.phase='rift';this.activeIndex=-1;this.rewardsPending++;
+    // O cálice continua sendo o destino: nada de mandar o jogador atravessar o celeiro.
+    this.phase='extract';this.activeIndex=-1;this.rewardsPending++;this.collected=false;
     this.rewardPositions.push({...position});
-    this.say('COLHEITA CONCLUÍDA · recolha a recompensa e atravesse a fenda',8);
+    this.say('COLHEITA CONCLUÍDA · recolha a recompensa e volte ao cálice para embarcar',8);
   }
   takeReward():boolean {if(this.rewardsPending<=0)return false;this.rewardsPending--;this.rewardPositions.shift();return true;}
   private say(message:string,seconds:number):void {this.message=message;this.messageTime=seconds;}
   reset():void {
     for(const totem of this.totems){totem.charged=0;totem.state='available';}
-    this.activeIndex=-1;this.phase='totems';this.discovered=false;this.bossSpawned=false;this.bossDefeated=false;
+    this.activeIndex=-1;this.phase='totems';this.discovered=false;this.bossSpawned=false;this.bossDefeated=false;this.collected=false;
     this.bossUnreachable=0;this.bossRecoveries=0;this.rewardsPending=0;this.message='';this.messageTime=0;this.chargeMultiplier=1;
     this.lastHarvestSequence=-1;this.rewardPositions.length=0;
   }

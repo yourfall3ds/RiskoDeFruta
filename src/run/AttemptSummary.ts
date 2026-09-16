@@ -11,7 +11,7 @@ export interface AttemptObjectives {
   mode:'expedition'|'horde'|'classic';
   completed?:number;
   total?:number;
-  phase?:'totems'|'boss'|'rift';
+  phase?:'totems'|'boss'|'extract';
   bossDefeated?:boolean;
 }
 

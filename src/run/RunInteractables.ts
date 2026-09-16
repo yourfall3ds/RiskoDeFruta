@@ -2,7 +2,7 @@ import {waveRewardSite} from './WaveRewardSite';
 import {resolveRewardPlacement,type RewardSource} from './RewardAnchor';
 import type {Vec3} from '../core/contracts';
 import {DistrictContracts} from './DistrictContracts';
-import {CITY_CHESTS,cityChestColliders,FRONTIER_CHESTS,frontierChestColliders,HIGHLAND_CHESTS,highlandChestColliders,ROOTWOOD_CHESTS,rootwoodChestColliders} from '../world/ExplorationSites';
+import {BARN_CHESTS,barnChestColliders,CITY_CHESTS,cityChestColliders,FRONTIER_CHESTS,frontierChestColliders,HIGHLAND_CHESTS,highlandChestColliders,ROOTWOOD_CHESTS,rootwoodChestColliders} from '../world/ExplorationSites';
 import type {BoxCollider} from '../physics/CollisionWorld';
 import {LootDrops} from './LootDrops';
 import type {CollisionWorld} from '../physics/CollisionWorld';
@@ -44,8 +44,8 @@ export class RunInteractables {
   constructor(scene:Scene,private readonly player:PlayerMotor,private readonly run:RunProgression,private readonly events:EventBus<GameEvents>,private readonly rng:RandomStream,private readonly world:CollisionWorld){
     this.drops=new LootDrops(scene,world);
     for(const [index,x,z,y,kind] of [[0,-5,-13,0,'supply'],[1,5,1,0,'shop'],[2,-9,29,5,'altar'],[3,7,29,5,'supply'],[4,-45,3,0,'supply'],[5,44,10,2,'shop']] as const){this.entries.push({id:`${kind}-${index}`,name:kind==='supply'?'Caixa de suprimentos':kind==='shop'?'Baú reforçado':'Altar de risco',kind,x,z,y,cost:kind==='altar'?25:kind==='shop'?45:30,used:false});}
-    for(const site of [...CITY_CHESTS,...FRONTIER_CHESTS,...HIGHLAND_CHESTS,...ROOTWOOD_CHESTS])this.entries.push({...site,name:site.kind==='shop'?'Baú reforçado':'Caixa de suprimentos',cost:site.kind==='shop'?45:30,used:false});
-    this.extraColliders.push(...cityChestColliders(),...frontierChestColliders(),...highlandChestColliders(),...rootwoodChestColliders());world.movingBoxes.push(...this.extraColliders);
+    for(const site of [...CITY_CHESTS,...FRONTIER_CHESTS,...HIGHLAND_CHESTS,...ROOTWOOD_CHESTS,...BARN_CHESTS])this.entries.push({...site,name:site.kind==='shop'?'Baú reforçado':'Caixa de suprimentos',cost:site.kind==='shop'?45:30,used:false});
+    this.extraColliders.push(...cityChestColliders(),...frontierChestColliders(),...highlandChestColliders(),...rootwoodChestColliders(),...barnChestColliders());world.movingBoxes.push(...this.extraColliders);
     this.rift=new TransformNode('stage-wormhole',scene);this.rift.position.set(0,7.6,33);const material=new StandardMaterial('rift-energy',scene);material.emissiveColor=new Color3(.34,.07,1);material.disableLighting=true;
     for(let i=0;i<4;i++){const ring=CreateTorus('wormhole-ring',{diameter:4+i*.13,thickness:.065,tessellation:80},scene);ring.parent=this.rift;ring.rotation.x=Math.PI/2+i*.08;ring.material=material;ring.isPickable=false;}
     this.portal=new ShaderMaterial('wormhole-depth',scene,{vertexSource:'precision highp float;attribute vec3 position;attribute vec2 uv;uniform mat4 worldViewProjection;varying vec2 vUV;void main(){vUV=uv;gl_Position=worldViewProjection*vec4(position,1.0);}',fragmentSource:'precision highp float;varying vec2 vUV;uniform sampler2D cosmos;uniform float time;void main(){vec2 p=(vUV-.5)*2.;float r=length(p);float a=atan(p.y,p.x)+time*.15-r*5.;vec2 q=vec2(.36,.27)+vec2(cos(a),sin(a))*(.04+r*.1);vec3 c=texture2D(cosmos,q).rgb;float rim=pow(r,6.);c=c*vec3(.28,.18,.5)+vec3(.18,.015,.45)*rim;gl_FragColor=vec4(c,1.-smoothstep(.95,1.,r));}'},{attributes:['position','uv'],uniforms:['worldViewProjection','time'],samplers:['cosmos'],needAlphaBlending:true});this.portal.backFaceCulling=false;this.portal.setTexture('cosmos',new Texture('/environment/cosmic-sky-v3.png',scene));

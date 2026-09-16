@@ -5,11 +5,18 @@ from mathutils import Vector
 
 ROOT = Path(__file__).resolve().parent.parent
 motion='--motion' in sys.argv
-if motion:
+fists='--fists' in sys.argv
+if motion or fists:
     bpy.ops.wm.read_factory_settings(use_empty=True)
-    bpy.ops.import_scene.gltf(filepath=str(ROOT/'art/processed/gunslinger-motion-review.glb'))
+    bpy.context.scene.render.fps=60
+    bpy.ops.import_scene.gltf(filepath=str(ROOT/('art/processed/gunslinger-fists-review.glb' if fists else 'art/processed/gunslinger-motion-review.glb')))
+    if fists:
+        for obj in bpy.context.scene.objects:
+            if obj.type=='MESH' and obj.data.shape_keys and 'CombatFists' in obj.data.shape_keys.key_blocks:
+                obj.data.shape_keys.key_blocks['CombatFists'].value=1
 else:
-    bpy.ops.wm.open_mainfile(filepath=str(ROOT / 'art/blender/Gunslinger_Combo.blend'))
+    manifest = json.loads((ROOT / 'docs/combo-clip-manifest.json').read_text())
+    bpy.ops.wm.open_mainfile(filepath=str(ROOT / manifest['blend']))
 scene = bpy.context.scene
 rig = next(o for o in scene.objects if o.type == 'ARMATURE')
 rig.animation_data.use_nla = False
@@ -18,7 +25,7 @@ for track in rig.animation_data.nla_tracks:
 manifest = json.loads((ROOT / 'docs/combo-clip-manifest.json').read_text())
 if motion:
     manifest={'clips':[{'clip':a.name,'id':a.name,'contactFrame':a.frame_range[1]*.35,'frames':a.frame_range[1]} for a in bpy.data.actions if 'Recorded' in a.name]}
-out = ROOT / ('art/motion-review' if motion else 'art/combo-review')
+out = ROOT / ('art/fists-review' if fists else 'art/motion-review' if motion else 'art/combo-review')
 out.mkdir(parents=True, exist_ok=True)
 # Studio floor is only in the offline review, never exported as a game prop.
 bpy.ops.mesh.primitive_plane_add(size=200)

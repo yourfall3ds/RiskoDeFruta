@@ -135,7 +135,7 @@ describe('cálice por abates reais',()=>{
   });
 });
 
-describe('chefe e fenda',()=>{
+describe('chefe e embarque no cálice',()=>{
   const sites=planExpedition(world(),anchors,{x:0,y:0,z:-20},()=>true);
   function completed():ExpeditionObjectives {
     const o=new ExpeditionObjectives();o.setSites(sites);
@@ -149,12 +149,12 @@ describe('chefe e fenda',()=>{
     expect(o.rewardsPending).toBe(0);
     const bossPosition={x:6,y:0,z:4};
     o.bossSpawned=true;o.onBossKilled(bossPosition);
-    expect(o.phase).toBe('rift');
+    expect(o.phase).toBe('extract');
     expect(o.bossDefeated).toBe(true);
     expect(o.nextRewardPosition).toEqual(bossPosition);
     o.onBossKilled(bossPosition);expect(o.rewardsPending).toBe(1);
   });
-  it('ativação chama o chefe imediatamente; matá-lo cedo não abre a fenda',()=>{
+  it('ativação chama o chefe imediatamente; matá-lo cedo não libera o embarque',()=>{
     const o=new ExpeditionObjectives();o.setSites(sites);
     const at=sites[0]!.position;
     expect(o.phase).toBe('totems');
@@ -164,7 +164,7 @@ describe('chefe e fenda',()=>{
     collect(o,sites[0]!.juiceTarget-1,at);
     const last={x:at.x+5,y:at.y,z:at.z};
     o.harvest({sequence:++harvestSequence,kind:'carrot',position:last},at,true);
-    expect(o.phase).toBe('rift');expect(o.nextRewardPosition).toEqual(last);
+    expect(o.phase).toBe('extract');expect(o.nextRewardPosition).toEqual(last);
     expect(o.rewardsPending).toBe(1);
   });
   it('descobre o cálice ao se aproximar, sem iniciar o evento',()=>{

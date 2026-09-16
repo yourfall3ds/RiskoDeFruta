@@ -162,7 +162,7 @@ export class ExpeditionSites {
     return {root,energy,beam,core,boundary,light,beamMaterial,coreMaterial,boundaryMaterial};
   }
 
-  update(dt:number,totems:readonly TotemProgress[],activeIndex:number):void{
+  update(dt:number,totems:readonly TotemProgress[],activeIndex:number,harvestProgress=0):void{
     if(!this.ready)return;
     this.clock+=dt;
     for(let i=0;i<this.visuals.length;i++){
@@ -170,7 +170,7 @@ export class ExpeditionSites {
       if(!totem)continue;
       const state=totem.state,color=Color3.FromHexString(TOTEM_COLORS[state]);
       const charging=state==='charging',complete=state==='complete';
-      const progress=totem.charged/totem.site.juiceTarget;
+      const progress=totem.charged/totem.site.juiceTarget*(1-Math.max(0,Math.min(1,harvestProgress)));
       this.chalices[i]?.setFill(progress);
       this.chalices[i]?.update(dt);
       visual.beamMaterial.emissiveColor=color;visual.coreMaterial.emissiveColor=color;

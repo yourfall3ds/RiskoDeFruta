@@ -1,13 +1,56 @@
 import type { RandomStream } from '../core/RunRNG';
 export type EnemyKind='eggplant'|'corn'|'watermelon'|'tomato'|'carrot'|'boss';
+
+/** Vida base da Praga Alfa no estágio 1, nível 1. Ver `bossHealth`. */
+export const BOSS_BASE_HP=1500;
+/** Crescimento por estágio atravessado. */
+export const BOSS_STAGE_SCALING=.5;
+/** Crescimento por nível do exterminador. */
+export const BOSS_LEVEL_SCALING=.07;
+/** Reforços mínimos e máximos que a horda final soma ao teto ambiente. Ver `finalHordePressure`. */
+export const FINAL_HORDE_PRESSURE_MIN=3,FINAL_HORDE_PRESSURE_MAX=10;
+/**
+ * Teto de hostis vivos durante a exploração, depois da abertura suave.
+ *
+ * O teto antigo subia de 8 para 20 com o relógio, então explorar as ilhas em busca de baús —
+ * exatamente o que o cálice distante pede — virava uma penalidade crescente. A abertura de 3 e 5
+ * hostis continua igual, e a exploração para neste teto em vez de crescer sozinha.
+ */
+export const AMBIENT_EXPLORATION_CAP=8;
 export const ENEMIES:Record<EnemyKind,{name:string;model:string;hp:number;speed:number;range:number;cost:number;radius:number;scale:number}>={
   eggplant:{name:'Berinjela predadora',model:'original-eggplant',hp:75,speed:3.5,range:9,cost:3,radius:.8,scale:1.2},
   corn:{name:'Milho artilheiro',model:'original-corn',hp:100,speed:2.6,range:17,cost:6,radius:.8,scale:1.3},
   watermelon:{name:'Melancia esmagadora',model:'original-watermelon',hp:240,speed:2.6,range:10,cost:12,radius:1.45,scale:1.35},
   tomato:{name:'Tomate de praga voador',model:'original-tomato',hp:115,speed:3.3,range:15,cost:8,radius:1.1,scale:1.25},
   carrot:{name:'Cenoura de raízes',model:'original-carrot',hp:90,speed:3,range:13,cost:6,radius:.7,scale:1.25},
-  boss:{name:'PRAGA ALFA',model:'original-watermelon',hp:3600,speed:1.5,range:18,cost:0,radius:2.3,scale:2.5},
+  boss:{name:'PRAGA ALFA',model:'original-watermelon',hp:BOSS_BASE_HP,speed:1.5,range:18,cost:0,radius:2.3,scale:2.5},
 };
+
+/**
+ * Vida da Praga Alfa pelo progresso REAL da tentativa.
+ *
+ * Os 3600 fixos do catálogo antigo eram uma barreira de ~90 s de tiro contínuo para quem chegava ao
+ * primeiro cálice por volta do nível 6 — e a horda final não para durante a luta. A base cai para
+ * `BOSS_BASE_HP` e volta a subir com o estágio e com o nível do exterminador, então o chefe continua
+ * crescendo junto com o poder do jogador em vez de ser um muro no começo.
+ */
+export function bossHealth(stage:number,level:number):number {
+  const s=Number.isFinite(stage)?Math.max(1,Math.floor(stage)):1;
+  const l=Number.isFinite(level)?Math.max(1,Math.floor(level)):1;
+  return Math.round(BOSS_BASE_HP*(1+(s-1)*BOSS_STAGE_SCALING)*(1+(l-1)*BOSS_LEVEL_SCALING));
+}
+
+/**
+ * Reforços extras que a horda final acrescenta ao teto ambiente, pelo nível do exterminador.
+ *
+ * Antes era um `+12` fixo: no nível 5, com o chefe em campo, o teto saltava para vinte hostis vivos.
+ * Agora o acréscimo começa em três e sobe um a cada dois níveis, sem nenhum portão de nível mínimo
+ * para ativar o cálice — quem ativar cedo enfrenta uma horda proporcionalmente menor.
+ */
+export function finalHordePressure(level:number):number {
+  const l=Number.isFinite(level)?Math.max(1,Math.floor(level)):1;
+  return Math.max(FINAL_HORDE_PRESSURE_MIN,Math.min(FINAL_HORDE_PRESSURE_MAX,FINAL_HORDE_PRESSURE_MIN+Math.floor((l-1)/2)));
+}
 export type HordeState=0|1|2|3|4|5;
 const COMPOSITIONS:readonly (readonly EnemyKind[])[]=[['eggplant','corn'],['eggplant','carrot'],['watermelon','eggplant'],['tomato','corn'],['eggplant','eggplant']];
 export type DirectorMode='classic'|'horde'|'expedition';
@@ -19,6 +62,11 @@ export class MonsterDirector {
    * para acelerar a reposição sem ultrapassar o orçamento real de performance.
    */
   pressure=0;
+  /**
+   * Quantos reforços a pressão máxima pode somar ao teto ambiente. A cena escreve
+   * `finalHordePressure(nível)` aqui; o padrão é o mínimo, nunca o `+12` antigo.
+   */
+  pressureCap=FINAL_HORDE_PRESSURE_MIN;
   readonly mode:DirectorMode;
   constructor(private readonly rng:RandomStream,readonly stage=1,readonly cap=50,mode:DirectorMode|boolean='classic'){
     this.mode=mode===true?'horde':mode===false?'classic':mode;
@@ -40,8 +88,8 @@ export class MonsterDirector {
     this.due-=dt;
     // Gentle opening while exploring: at most 3 alive in the first 30s, then 5 until 60s.
     // Activating a chalice raises pressure explicitly; it does not instantly release a pack.
-    const ambientCap=this.time<30?3:this.time<60?5:this.time<120?8:Math.min(20,8+Math.floor((this.time-120)/45)*2);
-    const ceiling=Math.min(this.cap,budget,ambientCap+Math.round(pressure*12));
+    const ambientCap=this.time<30?3:this.time<60?5:AMBIENT_EXPLORATION_CAP;
+    const ceiling=Math.min(this.cap,budget,ambientCap+Math.round(pressure*Math.max(0,this.pressureCap)));
     if(this.due>0||population>=ceiling)return;
     this.due=this.rng.range(3.8,5.2)/(1+this.state*.2+pressure*.8);
     const pool:EnemyKind[]=this.time<20?['eggplant']:this.time<60?['eggplant','eggplant','corn','carrot']:['eggplant','eggplant','corn','carrot','tomato','watermelon'];

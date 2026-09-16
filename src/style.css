@@ -178,3 +178,21 @@ body.game-menu-open:has(.play-gate.defeated) #game{visibility:visible}
 @media(max-height:760px){.expedition-route{top:128px;padding:10px 12px}.expedition-route li{min-height:36px}.route-hint{font-size:9px;margin-top:7px}#run-hud:has(.expedition-route:not([hidden])) .district-contract{top:392px;padding:8px 12px}.district-contract>span{font-size:10px}.district-contract>small{font-size:8px}}
 @media(max-width:900px){.expedition-route{left:12px;width:218px}.expedition-route li{gap:5px;padding-inline:4px}.expedition-route li>span{font-size:10px}.expedition-route li>em{font-size:8px}.harvest-resonance{right:12px;width:185px;bottom:177px}#run-hud:has(.expedition-route:not([hidden])) .district-contract{left:auto;right:12px;top:128px;width:185px}.route-hint{max-width:190px}}
 @media(max-height:580px){.stats-hint{top:76px;font-size:8px;line-height:12px}.expedition-route{top:95px}.expedition-route li{min-height:32px}.expedition-route>small{margin-bottom:6px}.route-hint{display:none}.harvest-resonance{bottom:148px;padding:8px 10px}.harvest-resonance>span:not(.skill-charges){display:none}#run-hud:has(.expedition-route:not([hidden])) .district-contract{display:none}}
+
+/* ---- Conclusão do estágio: suco, embarque, viagem e chegada ---------------------------------- */
+/* Fica em `document.body` (fora de `#player-hud`) porque o HUD inteiro some sob
+   `body.arrival-in-progress`, que é exatamente quando a chegada precisa continuar legível. */
+.stage-journey{position:fixed;left:50%;top:22%;transform:translateX(-50%);z-index:118;width:min(460px,86vw);
+  padding:18px 22px;box-sizing:border-box;text-align:center;pointer-events:none;
+  background:linear-gradient(180deg,#07161ded,#07161dbb);border:1px solid #e4d6aa44;border-top:2px solid #dabb80;
+  font-family:inherit;color:#f3e8cd}
+.stage-journey[hidden]{display:none}
+.stage-journey .stage-journey-step{display:block;font-size:10px;letter-spacing:.24em;color:#ecd6a8;font-weight:650}
+.stage-journey .stage-journey-destination{display:block;margin:6px 0 4px;font-size:22px;font-weight:800;letter-spacing:.5px}
+.stage-journey .stage-journey-detail{display:block;font-size:11px;line-height:1.5;color:#c7d6e0}
+.stage-journey .stage-journey-track{margin-top:12px;height:3px;background:#ffffff1a;overflow:hidden}
+.stage-journey .stage-journey-track i{display:block;height:100%;width:0;background:linear-gradient(90deg,#dabb80,#ffe7ae);transition:width .2s linear}
+.stage-journey.journey-failed{border-top-color:#e2704f}
+.stage-journey.journey-failed .stage-journey-step{color:#ffb79c}
+.stage-journey.journey-failed .stage-journey-track i{background:#e2704f}
+@media(max-width:900px){.stage-journey{top:16%;padding:13px 15px}.stage-journey .stage-journey-destination{font-size:17px}}

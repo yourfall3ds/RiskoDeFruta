@@ -45,6 +45,8 @@ export class DebugOverlay {
     const studio=document.createElement('a');studio.className='debug-studio';studio.href='/audio-lab.html';studio.target='_blank';studio.rel='noopener';
     studio.textContent='Trocar sons dos inimigos ↗';studio.title='Ouvir e substituir cada som de inimigo. A partida aberta recebe as mudanças sem recarregar.';
     tools.append(studio);
+    const extraction=document.createElement('button');extraction.textContent='Concluir cálice e chefe (QA)';
+    extraction.onclick=()=>actions.configure('complete-chalice',1);tools.append(extraction);
     this.panel.append(tools);
     for(const [name,label,min,max,step,value] of [['distance','Distância da câmera',1.5,9,.05,2.25],['fov','Campo de visão',50,100,1,60],['shake','Intensidade de shake',0,1,.05,.35]] as const) {
       const row=document.createElement('label');row.className='debug-setting';row.textContent=label;

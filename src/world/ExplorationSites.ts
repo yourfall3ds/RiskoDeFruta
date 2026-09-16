@@ -2,6 +2,8 @@ import {ROOTWOOD_CHESTS} from './RootwoodSites';
 export {ROOTWOOD_CHESTS} from './RootwoodSites';
 import {HIGHLAND_CHESTS} from './HighlandSites';
 export {HIGHLAND_CHESTS} from './HighlandSites';
+import {BARN_CHESTS} from './BarnSites';
+export {BARN_CHESTS} from './BarnSites';
 import type {BoxCollider} from '../physics/CollisionWorld';
 export const CITY_CHESTS=[
  {id:'seeds-courtyard',x:97,y:2,z:-8,kind:'supply'},
@@ -36,3 +38,9 @@ export function frontierChestColliders():BoxCollider[]{return FRONTIER_CHESTS.ma
 export function highlandChestColliders():BoxCollider[]{return HIGHLAND_CHESTS.map(site=>({id:'highland-chest-'+site.id,min:{x:site.x-.53,y:site.y,z:site.z-.43},max:{x:site.x+.53,y:site.y+.68,z:site.z+.43}}));}
 
 export function rootwoodChestColliders():BoxCollider[]{return ROOTWOOD_CHESTS.map(site=>({id:'rootwood-chest-'+site.id,min:{x:site.x-.53,y:site.y,z:site.z-.43},max:{x:site.x+.53,y:site.y+.68,z:site.z+.43}}));}
+
+/**
+ * Loot inside the five walk-in barns, on the floor `scripts/place-barn-chests.mts` sampled from the
+ * shipped collision. These are the reward for going through a door the player used to walk past.
+ */
+export function barnChestColliders():BoxCollider[]{return BARN_CHESTS.map(site=>({id:'barn-chest-'+site.id,min:{x:site.x-.53,y:site.y,z:site.z-.43},max:{x:site.x+.53,y:site.y+.68,z:site.z+.43}}));}

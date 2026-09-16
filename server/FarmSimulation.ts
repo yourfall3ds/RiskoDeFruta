@@ -1,5 +1,5 @@
 import {reloadMovement} from '../src/player/ReloadMovement';
-import {rootwoodChestColliders} from '../src/world/ExplorationSites';
+import {rootwoodChestColliders,barnChestColliders} from '../src/world/ExplorationSites';
 import {cityChestColliders,frontierChestColliders,highlandChestColliders} from '../src/world/ExplorationSites';
 import { EventBus } from '../src/core/EventBus';
 import { FixedLoop } from '../src/core/FixedLoop';
@@ -109,6 +109,7 @@ export class FarmSimulation {
     this.rng = new RunRNG(seed);
     const merged = mergeCollision(data.mesh, data.solid, data.city, data.regions, data.boxes, data.outcrops, data.initialRocks);
     this.collision.boxes.push(...data.boxes, ...merged.mesh.boxes);
+    this.collision.movingBoxes.push(...barnChestColliders());
     if(data.city)this.collision.movingBoxes.push(...cityChestColliders());
     if(data.regions?.length)this.collision.movingBoxes.push(...frontierChestColliders());
     if(data.regions?.some(r=>r.id==='rootwood'))this.collision.movingBoxes.push(...rootwoodChestColliders());
