@@ -103,3 +103,21 @@ serviço de geração e sem licença de terceiros envolvida — a autoria é des
 
 O áudio de chuva continua sendo a gravação licenciada já registrada em
 [licenses/rain-ylmir.md](licenses/rain-ylmir.md); nada novo foi gravado.
+
+## Arquipélago esférico
+
+O planeta recompõe as ilhas já embarcadas em `farm-world.glb`, `farm-city.glb`,
+`solar-frontier.glb` e `solid-island-geology.glb`, mantendo as licenças dos materiais
+e modelos registradas acima. A curvatura é aplicada aos vértices desses assets no Blender.
+
+As pontes usam `Floor_WoodLight.gltf` e `Prop_WoodenFence_Single.gltf` do
+**Quaternius Medieval Village MegaKit Standard**, CC0 1.0. A cópia local dos dois módulos,
+suas dependências e a licença estão em `art/source/planet-bridge/`. Vieram do acervo
+Transformice do usuário, apenas lido. Fonte editável: `scripts/build-planet-archipelago.py`.
+
+O decodificador Draco em `public/vendor/draco/` veio do CDN oficial Babylon.js,
+nos mesmos endereços configurados pela versão instalada do motor. A licença do projeto
+Google Draco acompanha os arquivos em `public/vendor/draco/LICENSE`.
+# Natureza do planeta
+
+As pedras `Rock_Medium_1/2/3` e árvores `CommonTree_1/3` vêm do **Stylized Nature MegaKit — Standard**, de Quaternius, CC0. Cópia da licença: `licenses/planet-nature.txt`. Os modelos completos são posicionados com orientação radial; troncos e rochas usam colisão da malha, sem recortes de scan nas bordas.

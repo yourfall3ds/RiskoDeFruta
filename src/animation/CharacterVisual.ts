@@ -107,13 +107,26 @@ export class CharacterVisual {
    * Altura dos dois pés acima da raiz, depois de o clipe dominante ser amostrado.
    * É a medida que o `FootstepSync` usa para disparar o passo no contato real.
    * Devolve `undefined` enquanto o modelo não estiver pronto ou sem os ossos esperados.
+   *
+   * `up` é OPCIONAL e existe só para o planeta: quando a raiz do personagem está sob um pai
+   * rotacionado (gravidade radial), a diferença em `y` de MUNDO não é mais a altura do pé. Com
+   * `up` a medida é a projeção do deslocamento pé→raiz na vertical local, que é a mesma grandeza.
+   * Sem argumento o comportamento é byte a byte o de antes — o jogo plano não muda.
    */
-  footHeights():{right:number;left:number}|undefined {
+  footHeights(up?:{x:number;y:number;z:number}):{right:number;left:number}|undefined {
     const right=this.bones.get('RightToeBase')??this.bones.get('RightFoot');
     const left=this.bones.get('LeftToeBase')??this.bones.get('LeftFoot');
     if(!this.ready||!right||!left)return undefined;
     right.computeWorldMatrix(true);left.computeWorldMatrix(true);
-    return {right:right.getAbsolutePosition().y-this.root.position.y,left:left.getAbsolutePosition().y-this.root.position.y};
+    const origin=this.root.getAbsolutePosition();
+    if(!up)return {right:right.getAbsolutePosition().y-this.root.position.y,left:left.getAbsolutePosition().y-this.root.position.y};
+    const length=Math.hypot(up.x,up.y,up.z);
+    if(!(length>1e-9))return {right:right.getAbsolutePosition().y-origin.y,left:left.getAbsolutePosition().y-origin.y};
+    const along=(node:TransformNode):number=>{
+      const p=node.getAbsolutePosition();
+      return ((p.x-origin.x)*up.x+(p.y-origin.y)*up.y+(p.z-origin.z)*up.z)/length;
+    };
+    return {right:along(right),left:along(left)};
   }
   release(): void {this.releaseTime=0;}
   private sample(clip: AnimationGroup,progress: number,filter: (name: string) => boolean=()=>true,weight=this.blend): void {

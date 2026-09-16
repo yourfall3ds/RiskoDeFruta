@@ -16,3 +16,6 @@ art/
 .npm-cache/
 .pip-cache/
 .tools/
+# Uncompressed planet collision is an authoring intermediate; runtime ships the gzip asset.
+public/models/planet-archipelago.json
+__pycache__/

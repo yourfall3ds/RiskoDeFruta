@@ -6,6 +6,7 @@ import { SceneLifecycle } from '../engine/SceneLifecycle';
 import { DebugOverlay } from '../debug/DebugOverlay';
 import { FoundationScene } from './FoundationScene';
 import { PlayerScene } from './PlayerScene';
+import { PlanetScene } from './PlanetScene';
 
 /** Composition and lifecycle only. Gameplay belongs to dedicated systems. */
 export class Application {
@@ -13,7 +14,7 @@ export class Application {
   private readonly lifecycle = new SceneLifecycle();
   private readonly loop: FixedLoop;
   private readonly debug: DebugOverlay;
-  private foundation!: FoundationScene | PlayerScene;
+  private foundation!: FoundationScene | PlayerScene | PlanetScene;
   /** De onde veio a semente do arranque; decide se uma repetição pode sortear outra. */
   private readonly policy: SeedPolicy;
   private seed: string;
@@ -86,8 +87,12 @@ export class Application {
   }
   private restart(seed: string): void {
     this.lifecycle.replace(() => {
-      const scene = new URL(location.href).searchParams.get('mode')==='foundation'
-        ? new FoundationScene(this.session.engine,seed) : new PlayerScene(this.session.engine,seed);
+      // Roteamento ADITIVO: `?mode=planet` é a prévia de travessia esférica e não altera em nada o
+      // caminho de produção (`PlayerScene`) nem o de fundação. Ver `src/game/PlanetScene.ts`.
+      const mode = new URL(location.href).searchParams.get('mode');
+      const scene = mode==='planet' ? new PlanetScene(this.session.engine,seed)
+        : mode==='foundation' ? new FoundationScene(this.session.engine,seed)
+        : new PlayerScene(this.session.engine,seed);
       this.foundation = scene;
       return scene;
     });

@@ -1,0 +1,11 @@
+{
+  "props": 520,
+  "counts": {
+    "structure": 184,
+    "tree": 105,
+    "rock": 101,
+    "barrel": 98,
+    "crate": 32
+  },
+  "errors": []
+}

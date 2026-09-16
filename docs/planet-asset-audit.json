@@ -1,0 +1,1038 @@
+{
+  "radius": 180,
+  "triangles": 1750828,
+  "islands": [
+    {
+      "id": "north",
+      "valid": true,
+      "stable": true,
+      "jumpHeight": 2.2585464173944176,
+      "grounded": true,
+      "position": {
+        "x": 0,
+        "y": 179.5925741993924,
+        "z": -11.990610058467167
+      },
+      "up": {
+        "x": 0,
+        "y": 0.9977785997224737,
+        "z": -0.06661730958136718
+      }
+    },
+    {
+      "id": "east",
+      "valid": true,
+      "stable": true,
+      "jumpHeight": 2.2585171535516966,
+      "grounded": true,
+      "position": {
+        "x": 179.60888862399244,
+        "y": -11.991699301185564,
+        "z": 0
+      },
+      "up": {
+        "x": 0.9977785997224735,
+        "y": -0.0666173095813677,
+        "z": 0
+      }
+    },
+    {
+      "id": "front",
+      "valid": true,
+      "stable": true,
+      "jumpHeight": 2.25853357780385,
+      "grounded": true,
+      "position": {
+        "x": 0,
+        "y": 11.990427683307512,
+        "z": 179.589842626583
+      },
+      "up": {
+        "x": 0,
+        "y": 0.06661730958136752,
+        "z": 0.9977785997224735
+      }
+    },
+    {
+      "id": "south",
+      "valid": true,
+      "stable": true,
+      "jumpHeight": 2.2585455579393297,
+      "grounded": true,
+      "position": {
+        "x": 11.990563124757339,
+        "y": -179.59187123717942,
+        "z": 0
+      },
+      "up": {
+        "x": 0.06661730958136769,
+        "y": -0.9977785997224735,
+        "z": 0
+      }
+    },
+    {
+      "id": "west",
+      "valid": true,
+      "stable": true,
+      "jumpHeight": 2.258555451093439,
+      "grounded": true,
+      "position": {
+        "x": -179.64778247401057,
+        "y": 0,
+        "z": -11.493140170023157
+      },
+      "up": {
+        "x": -0.9979597986376387,
+        "y": 0,
+        "z": -0.06384544073873984
+      }
+    },
+    {
+      "id": "back",
+      "valid": true,
+      "stable": true,
+      "jumpHeight": 2.2585550035046533,
+      "grounded": true,
+      "position": {
+        "x": 11.493140141446654,
+        "y": 0,
+        "z": -179.64778202733496
+      },
+      "up": {
+        "x": 0.06384544073873984,
+        "y": 0,
+        "z": -0.9979597986376386
+      }
+    },
+    {
+      "id": "junction-0",
+      "valid": true,
+      "stable": true,
+      "jumpHeight": 2.258524808103344,
+      "grounded": true,
+      "position": {
+        "x": -108.60394304549928,
+        "y": -108.60394304549928,
+        "z": -93.91566463168182
+      },
+      "up": {
+        "x": -0.603264151704552,
+        "y": -0.603264151704552,
+        "z": -0.5216749241974107
+      }
+    },
+    {
+      "id": "junction-1",
+      "valid": true,
+      "stable": true,
+      "jumpHeight": 2.258517276983776,
+      "grounded": true,
+      "position": {
+        "x": -101.24767929977364,
+        "y": -109.023943400108,
+        "z": 101.29136009483977
+      },
+      "up": {
+        "x": -0.5625109586430068,
+        "y": -0.6057142577605014,
+        "z": 0.5627536400168108
+      }
+    },
+    {
+      "id": "junction-2",
+      "valid": true,
+      "stable": true,
+      "jumpHeight": 2.2585585125024785,
+      "grounded": true,
+      "position": {
+        "x": -101.41630353588087,
+        "y": 101.41630353588087,
+        "z": -108.76341127679162
+      },
+      "up": {
+        "x": -0.5634237965580428,
+        "y": 0.5634237965580428,
+        "z": -0.6042410536733187
+      }
+    },
+    {
+      "id": "junction-3",
+      "valid": true,
+      "stable": true,
+      "jumpHeight": 2.2585232616286364,
+      "grounded": true,
+      "position": {
+        "x": -102.92634344358885,
+        "y": 104.75796772264675,
+        "z": 104.0503311552782
+      },
+      "up": {
+        "x": -0.5718612464568109,
+        "y": 0.5820377951247103,
+        "z": 0.5781061492902736
+      }
+    },
+    {
+      "id": "junction-4",
+      "valid": true,
+      "stable": true,
+      "jumpHeight": 2.2585168665811772,
+      "grounded": true,
+      "position": {
+        "x": 108.5928314049015,
+        "y": -108.5928314049015,
+        "z": -93.90605579904992
+      },
+      "up": {
+        "x": 0.603264151704552,
+        "y": -0.603264151704552,
+        "z": -0.5216749241974107
+      }
+    },
+    {
+      "id": "junction-5",
+      "valid": true,
+      "stable": true,
+      "jumpHeight": 2.2585569440824296,
+      "grounded": true,
+      "position": {
+        "x": 103.93173536404156,
+        "y": -103.93173536404156,
+        "z": 103.93173536404156
+      },
+      "up": {
+        "x": 0.5773502691896258,
+        "y": -0.5773502691896258,
+        "z": 0.5773502691896258
+      }
+    },
+    {
+      "id": "junction-6",
+      "valid": true,
+      "stable": true,
+      "jumpHeight": 2.258554995162725,
+      "grounded": true,
+      "position": {
+        "x": 99.02763535924957,
+        "y": 99.02763535924957,
+        "z": -113.10379228103008
+      },
+      "up": {
+        "x": 0.5501075793895681,
+        "y": 0.5501075793895681,
+        "z": -0.6283019196185063
+      }
+    },
+    {
+      "id": "junction-7",
+      "valid": true,
+      "stable": true,
+      "jumpHeight": 2.258514208761621,
+      "grounded": true,
+      "position": {
+        "x": 103.92535696562375,
+        "y": 103.92535696562375,
+        "z": 103.92535696562375
+      },
+      "up": {
+        "x": 0.5773502691896258,
+        "y": 0.5773502691896258,
+        "z": 0.5773502691896258
+      }
+    },
+    {
+      "id": "crossing-0",
+      "valid": true,
+      "stable": true,
+      "jumpHeight": 2.258558333649269,
+      "grounded": true,
+      "position": {
+        "x": -64.41227120497422,
+        "y": -152.4184922132661,
+        "z": -70.84964612689417
+      },
+      "up": {
+        "x": -0.35784589698333064,
+        "y": -0.846769273037076,
+        "z": -0.39360908558169433
+      }
+    },
+    {
+      "id": "crossing-1",
+      "valid": true,
+      "stable": true,
+      "jumpHeight": 2.2585572914239096,
+      "grounded": true,
+      "position": {
+        "x": -159.69720928475388,
+        "y": -58.723124445609244,
+        "z": -58.723124445609244
+      },
+      "up": {
+        "x": -0.88720659033416,
+        "y": -0.32623953321726223,
+        "z": -0.32623953321726223
+      }
+    },
+    {
+      "id": "crossing-2",
+      "valid": true,
+      "stable": true,
+      "jumpHeight": 2.2585585323192414,
+      "grounded": true,
+      "position": {
+        "x": -54.051511191115424,
+        "y": -54.051511191115424,
+        "z": -162.96282278455377
+      },
+      "up": {
+        "x": -0.30028611149364237,
+        "y": -0.30028611149364237,
+        "z": -0.9053488291747305
+      }
+    },
+    {
+      "id": "crossing-3",
+      "valid": true,
+      "stable": true,
+      "jumpHeight": 2.2585575353542815,
+      "grounded": true,
+      "position": {
+        "x": -78.68797656434676,
+        "y": -78.68797656434676,
+        "z": 141.4793881106964
+      },
+      "up": {
+        "x": -0.43715534054558014,
+        "y": -0.43715534054558014,
+        "z": 0.7859964481248982
+      }
+    },
+    {
+      "id": "crossing-4",
+      "valid": true,
+      "stable": true,
+      "jumpHeight": 2.2585575232289687,
+      "grounded": true,
+      "position": {
+        "x": -69.15669511073071,
+        "y": -153.91360737046352,
+        "z": 62.67351919552071
+      },
+      "up": {
+        "x": -0.3842037608088979,
+        "y": -0.8550753719030831,
+        "z": 0.34818612629612816
+      }
+    },
+    {
+      "id": "crossing-5",
+      "valid": true,
+      "stable": true,
+      "jumpHeight": 2.258557526847413,
+      "grounded": true,
+      "position": {
+        "x": -159.19325023472416,
+        "y": -62.51097098294283,
+        "z": 56.12393626496497
+      },
+      "up": {
+        "x": -0.8844068278903515,
+        "y": -0.3472831258477011,
+        "z": 0.3117996043653298
+      }
+    },
+    {
+      "id": "crossing-6",
+      "valid": true,
+      "stable": true,
+      "jumpHeight": 2.2585583551077733,
+      "grounded": true,
+      "position": {
+        "x": -68.05526507200136,
+        "y": 149.03230762670069,
+        "z": -74.5511104142165
+      },
+      "up": {
+        "x": -0.37808471327491827,
+        "y": 0.8279570616340485,
+        "z": -0.4141727341075641
+      }
+    },
+    {
+      "id": "crossing-7",
+      "valid": true,
+      "stable": true,
+      "jumpHeight": 2.2585575184310946,
+      "grounded": true,
+      "position": {
+        "x": -154.40476504941407,
+        "y": 62.1385214611915,
+        "z": -68.54184440512218
+      },
+      "up": {
+        "x": -0.8578040946810038,
+        "y": 0.3452139455008081,
+        "z": -0.3807879554033567
+      }
+    },
+    {
+      "id": "crossing-8",
+      "valid": true,
+      "stable": true,
+      "jumpHeight": 2.2585575427947995,
+      "grounded": true,
+      "position": {
+        "x": -58.490778576264475,
+        "y": 58.490778576264475,
+        "z": -159.86768642153757
+      },
+      "up": {
+        "x": -0.3249486719889457,
+        "y": 0.3249486719889457,
+        "z": -0.8881535459284284
+      }
+    },
+    {
+      "id": "crossing-9",
+      "valid": true,
+      "stable": true,
+      "jumpHeight": 2.2585575260922868,
+      "grounded": true,
+      "position": {
+        "x": -69.99754820621736,
+        "y": 153.19252188523754,
+        "z": 63.5012080243974
+      },
+      "up": {
+        "x": -0.3888752141799581,
+        "y": 0.8510694486524638,
+        "z": 0.35278444036958745
+      }
+    },
+    {
+      "id": "crossing-10",
+      "valid": true,
+      "stable": true,
+      "jumpHeight": 2.2585575336002206,
+      "grounded": true,
+      "position": {
+        "x": -80.61822686443055,
+        "y": 80.61822686443055,
+        "z": 139.28896789274518
+      },
+      "up": {
+        "x": -0.4478789442597846,
+        "y": 0.4478789442597846,
+        "z": 0.773827437209021
+      }
+    },
+    {
+      "id": "crossing-11",
+      "valid": true,
+      "stable": true,
+      "jumpHeight": 2.2585575161343825,
+      "grounded": true,
+      "position": {
+        "x": -158.27377644540974,
+        "y": 63.736623003185755,
+        "z": 57.33286410119248
+      },
+      "up": {
+        "x": -0.8792987210101191,
+        "y": 0.35409233510982385,
+        "z": 0.3185158982632438
+      }
+    },
+    {
+      "id": "crossing-12",
+      "valid": true,
+      "stable": true,
+      "jumpHeight": 2.2585590945362783,
+      "grounded": true,
+      "position": {
+        "x": 158.18108676706206,
+        "y": -57.48791156262172,
+        "z": -63.82710782783103
+      },
+      "up": {
+        "x": 0.878783600012213,
+        "y": -0.31937720819037935,
+        "z": -0.3545949565886323
+      }
+    },
+    {
+      "id": "crossing-13",
+      "valid": true,
+      "stable": true,
+      "jumpHeight": 2.2585575287094177,
+      "grounded": true,
+      "position": {
+        "x": 63.117729062071255,
+        "y": -153.5609786595682,
+        "z": -69.53549232645248
+      },
+      "up": {
+        "x": 0.35065401472792074,
+        "y": -0.8531164614552615,
+        "z": -0.3863082514640926
+      }
+    },
+    {
+      "id": "crossing-14",
+      "valid": true,
+      "stable": true,
+      "jumpHeight": 2.25855908323581,
+      "grounded": true,
+      "position": {
+        "x": 54.05151119111543,
+        "y": -54.05151119111543,
+        "z": -162.96282278455377
+      },
+      "up": {
+        "x": 0.30028611149364237,
+        "y": -0.30028611149364237,
+        "z": -0.9053488291747305
+      }
+    },
+    {
+      "id": "crossing-15",
+      "valid": true,
+      "stable": true,
+      "jumpHeight": 2.258558353948891,
+      "grounded": true,
+      "position": {
+        "x": 160.74757016162275,
+        "y": -60.36337866328455,
+        "z": 54.0045905091786
+      },
+      "up": {
+        "x": 0.8930418553457353,
+        "y": -0.3353520281656282,
+        "z": 0.300025435264823
+      }
+    },
+    {
+      "id": "crossing-16",
+      "valid": true,
+      "stable": true,
+      "jumpHeight": 2.2585590641538382,
+      "grounded": true,
+      "position": {
+        "x": 75.59491820981314,
+        "y": -75.59491820981314,
+        "z": 144.81307746260129
+      },
+      "up": {
+        "x": 0.4199716983393894,
+        "y": -0.4199716983393894,
+        "z": 0.8045169638906676
+      }
+    },
+    {
+      "id": "crossing-17",
+      "valid": true,
+      "stable": true,
+      "jumpHeight": 2.258553759283224,
+      "grounded": true,
+      "position": {
+        "x": 65.43524481272348,
+        "y": -154.39062494975286,
+        "z": 65.43524481272348
+      },
+      "up": {
+        "x": 0.36352909521358684,
+        "y": -0.8577255935708004,
+        "z": 0.36352909521358684
+      }
+    },
+    {
+      "id": "crossing-18",
+      "valid": true,
+      "stable": true,
+      "jumpHeight": 2.25855502174239,
+      "grounded": true,
+      "position": {
+        "x": 64.95294515910156,
+        "y": 154.7974161275343,
+        "z": -64.95294515910156
+      },
+      "up": {
+        "x": 0.36084963847535256,
+        "y": 0.8599855096595609,
+        "z": -0.36084963847535256
+      }
+    },
+    {
+      "id": "crossing-19",
+      "valid": true,
+      "stable": true,
+      "jumpHeight": 2.2585583412963923,
+      "grounded": true,
+      "position": {
+        "x": 157.13279066979686,
+        "y": 58.82596955908391,
+        "z": -65.18288836448723
+      },
+      "up": {
+        "x": 0.8729597119574684,
+        "y": 0.3268108535654449,
+        "z": -0.3621270595950534
+      }
+    },
+    {
+      "id": "crossing-20",
+      "valid": true,
+      "stable": true,
+      "jumpHeight": 2.2585585198512814,
+      "grounded": true,
+      "position": {
+        "x": 55.009892301697874,
+        "y": 55.009892301697874,
+        "z": -162.3201520800455
+      },
+      "up": {
+        "x": 0.30561047376821693,
+        "y": 0.30561047376821693,
+        "z": -0.9017785075318283
+      }
+    },
+    {
+      "id": "crossing-21",
+      "valid": true,
+      "stable": true,
+      "jumpHeight": 2.258557526730258,
+      "grounded": true,
+      "position": {
+        "x": 65.44125933610411,
+        "y": 156.95497051581088,
+        "z": 59.01349749382179
+      },
+      "up": {
+        "x": 0.3635624728733891,
+        "y": 0.8719718689615179,
+        "z": 0.32785269261963257
+      }
+    },
+    {
+      "id": "crossing-22",
+      "valid": true,
+      "stable": true,
+      "jumpHeight": 2.25855753277945,
+      "grounded": true,
+      "position": {
+        "x": 161.07581500528096,
+        "y": 59.896852904235175,
+        "z": 53.54402841203287
+      },
+      "up": {
+        "x": 0.8948654435664205,
+        "y": 0.3327602212698645,
+        "z": 0.297466759573409
+      }
+    },
+    {
+      "id": "crossing-23",
+      "valid": true,
+      "stable": true,
+      "jumpHeight": 2.2585585305192835,
+      "grounded": true,
+      "position": {
+        "x": 76.72798971519804,
+        "y": 76.72798971519804,
+        "z": 143.61632597215936
+      },
+      "up": {
+        "x": 0.42626649179769005,
+        "y": 0.42626649179769005,
+        "z": 0.7978682572586653
+      }
+    }
+  ],
+  "bridges": [
+    {
+      "id": "south-crossing-0",
+      "missing": [],
+      "obstructed": [],
+      "advance": 8.46630849069467,
+      "grounded": true,
+      "valid": true
+    },
+    {
+      "id": "crossing-0-junction-0",
+      "missing": [],
+      "obstructed": [],
+      "advance": 8.466318368076509,
+      "grounded": true,
+      "valid": true
+    },
+    {
+      "id": "west-crossing-1",
+      "missing": [],
+      "obstructed": [],
+      "advance": 8.466306269278132,
+      "grounded": true,
+      "valid": true
+    },
+    {
+      "id": "crossing-1-junction-0",
+      "missing": [],
+      "obstructed": [],
+      "advance": 8.466322432598911,
+      "grounded": true,
+      "valid": true
+    },
+    {
+      "id": "back-crossing-2",
+      "missing": [],
+      "obstructed": [],
+      "advance": 8.46630310484273,
+      "grounded": true,
+      "valid": true
+    },
+    {
+      "id": "crossing-2-junction-0",
+      "missing": [],
+      "obstructed": [],
+      "advance": 8.678366211933938,
+      "grounded": true,
+      "valid": true
+    },
+    {
+      "id": "front-crossing-3",
+      "missing": [],
+      "obstructed": [],
+      "advance": 8.466315223692861,
+      "grounded": true,
+      "valid": true
+    },
+    {
+      "id": "crossing-3-junction-1",
+      "missing": [],
+      "obstructed": [],
+      "advance": 8.466308434053746,
+      "grounded": true,
+      "valid": true
+    },
+    {
+      "id": "south-crossing-4",
+      "missing": [],
+      "obstructed": [],
+      "advance": 8.466301843189134,
+      "grounded": true,
+      "valid": true
+    },
+    {
+      "id": "crossing-4-junction-1",
+      "missing": [],
+      "obstructed": [],
+      "advance": 8.466318893056297,
+      "grounded": true,
+      "valid": true
+    },
+    {
+      "id": "west-crossing-5",
+      "missing": [],
+      "obstructed": [],
+      "advance": 8.466313260655049,
+      "grounded": true,
+      "valid": true
+    },
+    {
+      "id": "crossing-5-junction-1",
+      "missing": [],
+      "obstructed": [],
+      "advance": 8.466313353734527,
+      "grounded": true,
+      "valid": true
+    },
+    {
+      "id": "north-crossing-6",
+      "missing": [],
+      "obstructed": [],
+      "advance": 8.466301087361716,
+      "grounded": true,
+      "valid": true
+    },
+    {
+      "id": "crossing-6-junction-2",
+      "missing": [],
+      "obstructed": [],
+      "advance": 8.466301457148894,
+      "grounded": true,
+      "valid": true
+    },
+    {
+      "id": "west-crossing-7",
+      "missing": [],
+      "obstructed": [],
+      "advance": 8.466311702230549,
+      "grounded": true,
+      "valid": true
+    },
+    {
+      "id": "crossing-7-junction-2",
+      "missing": [],
+      "obstructed": [],
+      "advance": 8.466311996067285,
+      "grounded": true,
+      "valid": true
+    },
+    {
+      "id": "back-crossing-8",
+      "missing": [],
+      "obstructed": [],
+      "advance": 8.4663116599784,
+      "grounded": true,
+      "valid": true
+    },
+    {
+      "id": "crossing-8-junction-2",
+      "missing": [],
+      "obstructed": [],
+      "advance": 8.466312333485796,
+      "grounded": true,
+      "valid": true
+    },
+    {
+      "id": "north-crossing-9",
+      "missing": [],
+      "obstructed": [],
+      "advance": 8.466302639519553,
+      "grounded": true,
+      "valid": true
+    },
+    {
+      "id": "crossing-9-junction-3",
+      "missing": [],
+      "obstructed": [],
+      "advance": 8.466302789412085,
+      "grounded": true,
+      "valid": true
+    },
+    {
+      "id": "front-crossing-10",
+      "missing": [],
+      "obstructed": [],
+      "advance": 8.466322931052295,
+      "grounded": true,
+      "valid": true
+    },
+    {
+      "id": "crossing-10-junction-3",
+      "missing": [],
+      "obstructed": [],
+      "advance": 8.466314324855862,
+      "grounded": true,
+      "valid": true
+    },
+    {
+      "id": "west-crossing-11",
+      "missing": [],
+      "obstructed": [],
+      "advance": 8.466311942388606,
+      "grounded": true,
+      "valid": true
+    },
+    {
+      "id": "crossing-11-junction-3",
+      "missing": [],
+      "obstructed": [],
+      "advance": 8.466311769815249,
+      "grounded": true,
+      "valid": true
+    },
+    {
+      "id": "east-crossing-12",
+      "missing": [],
+      "obstructed": [],
+      "advance": 8.466303352288831,
+      "grounded": true,
+      "valid": true
+    },
+    {
+      "id": "crossing-12-junction-4",
+      "missing": [],
+      "obstructed": [],
+      "advance": 8.466352616459712,
+      "grounded": true,
+      "valid": true
+    },
+    {
+      "id": "south-crossing-13",
+      "missing": [],
+      "obstructed": [],
+      "advance": 8.466316123416465,
+      "grounded": true,
+      "valid": true
+    },
+    {
+      "id": "crossing-13-junction-4",
+      "missing": [],
+      "obstructed": [],
+      "advance": 8.466309476256734,
+      "grounded": true,
+      "valid": true
+    },
+    {
+      "id": "back-crossing-14",
+      "missing": [],
+      "obstructed": [],
+      "advance": 8.46630310484273,
+      "grounded": true,
+      "valid": true
+    },
+    {
+      "id": "crossing-14-junction-4",
+      "missing": [],
+      "obstructed": [],
+      "advance": 8.466348062746567,
+      "grounded": true,
+      "valid": true
+    },
+    {
+      "id": "east-crossing-15",
+      "missing": [],
+      "obstructed": [],
+      "advance": 8.466306231249693,
+      "grounded": true,
+      "valid": true
+    },
+    {
+      "id": "crossing-15-junction-5",
+      "missing": [],
+      "obstructed": [],
+      "advance": 8.466338241297539,
+      "grounded": true,
+      "valid": true
+    },
+    {
+      "id": "front-crossing-16",
+      "missing": [],
+      "obstructed": [],
+      "advance": 8.466324201542289,
+      "grounded": true,
+      "valid": true
+    },
+    {
+      "id": "crossing-16-junction-5",
+      "missing": [],
+      "obstructed": [],
+      "advance": 8.466285235203491,
+      "grounded": true,
+      "valid": true
+    },
+    {
+      "id": "south-crossing-17",
+      "missing": [],
+      "obstructed": [],
+      "advance": 8.466308353833389,
+      "grounded": true,
+      "valid": true
+    },
+    {
+      "id": "crossing-17-junction-5",
+      "missing": [],
+      "obstructed": [],
+      "advance": 8.466328687419587,
+      "grounded": true,
+      "valid": true
+    },
+    {
+      "id": "north-crossing-18",
+      "missing": [],
+      "obstructed": [],
+      "advance": 8.466309395902758,
+      "grounded": true,
+      "valid": true
+    },
+    {
+      "id": "crossing-18-junction-6",
+      "missing": [],
+      "obstructed": [],
+      "advance": 8.466335326615908,
+      "grounded": true,
+      "valid": true
+    },
+    {
+      "id": "east-crossing-19",
+      "missing": [],
+      "obstructed": [],
+      "advance": 8.466306153201923,
+      "grounded": true,
+      "valid": true
+    },
+    {
+      "id": "crossing-19-junction-6",
+      "missing": [],
+      "obstructed": [],
+      "advance": 8.466347653935026,
+      "grounded": true,
+      "valid": true
+    },
+    {
+      "id": "back-crossing-20",
+      "missing": [],
+      "obstructed": [],
+      "advance": 8.466304043728233,
+      "grounded": true,
+      "valid": true
+    },
+    {
+      "id": "crossing-20-junction-6",
+      "missing": [],
+      "obstructed": [],
+      "advance": 8.466321709126202,
+      "grounded": true,
+      "valid": true
+    },
+    {
+      "id": "north-crossing-21",
+      "missing": [],
+      "obstructed": [],
+      "advance": 8.46630805977078,
+      "grounded": true,
+      "valid": true
+    },
+    {
+      "id": "crossing-21-junction-7",
+      "missing": [],
+      "obstructed": [],
+      "advance": 8.466316573677814,
+      "grounded": true,
+      "valid": true
+    },
+    {
+      "id": "east-crossing-22",
+      "missing": [],
+      "obstructed": [],
+      "advance": 8.466304205377142,
+      "grounded": true,
+      "valid": true
+    },
+    {
+      "id": "crossing-22-junction-7",
+      "missing": [],
+      "obstructed": [],
+      "advance": 8.466320471973425,
+      "grounded": true,
+      "valid": true
+    },
+    {
+      "id": "front-crossing-23",
+      "missing": [],
+      "obstructed": [],
+      "advance": 8.466319523734201,
+      "grounded": true,
+      "valid": true
+    },
+    {
+      "id": "crossing-23-junction-7",
+      "missing": [],
+      "obstructed": [],
+      "advance": 8.466319732655448,
+      "grounded": true,
+      "valid": true
+    }
+  ]
+}
