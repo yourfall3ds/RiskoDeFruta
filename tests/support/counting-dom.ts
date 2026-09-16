@@ -213,6 +213,7 @@ export class CountingDom {
  parsedElement(tag:string):FakeElement {this.metrics.elementsParsed++;return new FakeElement(tag,this);}
  getElementById(id:string):FakeElement|null {return this.body.querySelectorAll(`#${id}`)[0]??null;}
  querySelector(selector:string):FakeElement|null {return this.body.querySelector(selector);}
+ querySelectorAll(selector:string):FakeElement[] {return this.body.querySelectorAll(selector);}
  reset():void {Object.assign(this.metrics,zeroed());}
 }
 

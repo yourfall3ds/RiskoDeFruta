@@ -123,6 +123,24 @@ export class PlanetCamera {
   /** Frente da câmera projetada no plano tangente — é o `heading` que o motor consome. */
   get motorHeading(): Vec3 {return copy(this.heading);}
 
+  /**
+   * Distância de enquadramento pedida (o regulador do F1).
+   *
+   * Tem de entrar AQUI, e não ser aplicada depois como uma escala sobre a pose devolvida: o recuo
+   * por colisão é calculado em cima desta distância, e multiplicar o resultado já recuado joga a
+   * câmera de volta para dentro da parede. Quem quiser afastar a câmera afasta o alvo da varredura,
+   * não o resultado dela.
+   */
+  get preferredDistance(): number {return this.tuning.distance;}
+  set preferredDistance(metres: number) {
+    const wanted = Number.isFinite(metres) && metres > 0.15 ? metres : PLANET_CAMERA_TUNING.distance;
+    if (wanted === this.tuning.distance) return;
+    // A distância corrente acompanha a mudança na mesma proporção, senão o primeiro quadro depois
+    // do ajuste daria um salto (o núcleo só suaviza o AFASTAR, nunca o aproximar).
+    this.distance *= wanted / this.tuning.distance;
+    this.tuning.distance = wanted;
+  }
+
   /** Realinha sem suavização (troca de bioma, recuperação, cinemática). */
   snapTo(anchor: Vec3, heading?: Vec3): void {
     const up = this.frame.up(anchor);

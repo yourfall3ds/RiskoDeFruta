@@ -52,7 +52,7 @@ function buildWorld(region:string|undefined):CollisionWorld {
 /** Arena do cálice, com a mesma cascata de raios que a cena usa. */
 function chaliceAt(world:CollisionWorld,island:StageIsland):Vec3|undefined {
   for(const radius of [TOTEM_RADIUS,8.5,6.5]){
-    const at=findTotemSite(world,{id:island.id,name:island.name,x:island.x,y:island.y,z:island.z},radius,()=>true);
+    const at=findTotemSite(world.surface,{id:island.id,name:island.name,x:island.x,y:island.y,z:island.z},radius,()=>true);
     if(at)return at;
   }
   return undefined;
@@ -90,7 +90,7 @@ function realPlan(seed:string,stage:number):StagePlan|undefined {
   const biome=biomeForStage(stage),world=worldFor(biome.region);
   const rng=new RunRNG(`${seed}:stage:${stage}`).stream('scene');
   return planStage(biome,rng,{
-    spawnPoint:island=>findSpawnPoint(world,island),
+    spawnPoint:island=>findSpawnPoint(world.surface,island),
     chalicePoint:island=>chaliceAt(world,island),
     route:(spawn,chalice)=>routeLength(spawn,chalice),
   },{minRoute:minRouteFor(biome)});

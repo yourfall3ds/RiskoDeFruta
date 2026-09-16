@@ -1,3 +1,4 @@
+import {usePlanetWorld} from '../world/WorldSelection';
 import {reloadMovement} from '../player/ReloadMovement';
 import {meleeMovement} from '../combat/MeleeMovement';
 import {extractionPresentation} from '../stages/ExtractionPresentation';
@@ -25,7 +26,11 @@ import type { AbstractEngine } from '@babylonjs/core/Engines/abstractEngine';
 
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 
-import { RunRNG,type RandomStream } from '../core/RunRNG';
+import { Ray } from '@babylonjs/core/Culling/ray';
+
+import { destructionHit } from '../planet-game/PlanetDestruction';
+
+import { RunRNG, type RandomStream } from '../core/RunRNG';
 
 import { EventBus } from '../core/EventBus';
 
@@ -98,6 +103,55 @@ import { WeatherCycle } from '../world/WeatherCycle';
 
 import { WeatherPresentation } from '../world/WeatherPresentation';
 
+import type { GameWorld } from '../world/GameWorld';
+
+import { FarmGameWorld } from '../world/FarmGameWorld';
+
+import { PlanetWorld } from '../world/PlanetWorld';
+
+import { PlanetFrame } from '../planet/PlanetFrame';
+
+import type { GameCamera } from '../camera/GameCamera';
+
+import { RadialCamera } from '../camera/RadialCamera';
+
+import { RadialAvatar } from '../animation/RadialAvatar';
+
+import { RadialCombatSpace } from '../combat/RadialCombatSpace';
+
+import { PLAYER_TUNING } from '../player/PlayerTuning';
+
+import {pickIslands, RADIAL_ISLAND_POOL} from '../stages/IslandPool';
+import { PlayerRagdoll } from '../player/PlayerRagdoll';
+
+import { addRagdollTerrain } from '../physics/RagdollWorld';
+
+import { LoadAssetContainerAsync } from '@babylonjs/core/Loading/sceneLoader';
+
+import type { DamageContext } from '../core/contracts';
+
+import { traceBoot } from '../core/BootTrace';
+
+import { metricOf } from '../run/ExpeditionObjectives';
+
+import { siteBiomes, siteBiomeForStage, type StageBiome } from '../stages/StageRoute';
+
+import { TacticalNavigation } from '../ai/TacticalNavigation';
+
+/**
+ * Navmesh de ilha assada offline, quando existir.
+ *
+ * Ausente devolve `undefined`, e `createIslands` assa em tempo de execução — mais lento no
+ * carregamento, mesmo resultado em jogo. É o contrato de `IslandNavigationSource.baked`.
+ */
+async function bakedIslandNavmesh(id:string):Promise<Uint8Array|undefined> {
+  try{
+    const response=await fetch(`/models/island-navmesh/${id}.bin`);
+    if(!response.ok)return undefined;
+    return new Uint8Array(await response.arrayBuffer());
+  }catch{return undefined;}
+}
+
 
 
 /** Plano de um estágio: o par de ilhas validado mais o sítio já montado do cálice. */
@@ -120,9 +174,49 @@ export class PlayerScene implements SceneModule {
 
   readonly player: PlayerMotor;
 
-  readonly camera: ThirdPersonCamera;
+  readonly camera: GameCamera;
 
   readonly visual: CharacterVisual;
+
+  /**
+   * O mapa, atrás do contrato `GameWorld`.
+   *
+   * `yard` continua sendo o objeto concreto (fazenda, pátio de treino ou planeta) porque a cena
+   * ainda fala com ele em alguns lugares que são mesmo específicos de mapa — streaming de região,
+   * celeiros, terreno esculpido. Tudo o que é JOGO passa por aqui.
+   */
+  readonly world: GameWorld;
+
+  /**
+   * `true` quando o mapa é o planeta. Não muda nenhuma regra: só decide qual câmera e qual
+   * avatar são montados, porque esses dois são os únicos que precisam de um referencial.
+   */
+  private readonly radial: boolean;
+
+  /** Avatar radial. `undefined` no mundo plano, onde a visual recebe o motor direto. */
+  private readonly avatar: RadialAvatar | undefined;
+
+  /** Biomas derivados das ilhas do mapa (planeta). Vazio na fazenda, que tem os seus na autoria. */
+  private readonly worldBiomes: StageBiome[] = [];
+
+  /** Motivo escrito quando uma combinação de rota é recusada (hoje: co-op no planeta). */
+  private networkNotice='';
+
+  /** Degradação anunciada da navegação, quando as cartas de ilha não sobem. */
+  private navigationNotice='';
+
+  /** Os baús autorais já carregaram; só então a colocação do mapa pode substituí-los. */
+  private lootReady=false;
+
+  /** Quantas vezes o sorteio do estágio já foi tentado; varia o subconjunto de ilhas do planeta. */
+  private planAttempt=0;
+
+  /**
+   * Tiques já rastreados pelo `?qaBoot`. Limitado de propósito: o alvo é achar ONDE o primeiro
+   * quadro vivo morre, e um rastro ilimitado afogaria o servidor de QA (teto de 100 mensagens).
+   */
+  private tracedFixed=0;
+  private tracedRender=0;
 
   readonly weapons: DualPistols;private readonly skillAura:SkillAura;
 
@@ -138,7 +232,7 @@ export class PlayerScene implements SceneModule {
 
   private abyss:AbyssPresentation|undefined;private readonly audio=new WeaponAudio();private readonly footing:FootingPresentation;
 
-  private readonly yard: TrainingYard | FarmWorld;
+  private readonly yard: TrainingYard | FarmWorld | PlanetWorld;
 
   private readonly spawn=new Vector3(0,0,-10);
 
@@ -236,21 +330,71 @@ export class PlayerScene implements SceneModule {
 
     const rng=new RunRNG(seed);this.rewardRng=rng.stream('loot');
 
-    const collision=this.collision=new CollisionWorld();this.deathFlight=new DeathFlight(collision);
-
-    this.camera=new ThirdPersonCamera(this.scene,collision);
-
-    const shadows=trainingLighting(this.scene,this.camera.camera);
-
     const mode=new URL(location.href).searchParams.get('mode');
 
     const training=mode==='training';
+
+    // Shared original gameplay, with the selected map and gravity adapter.
+    this.radial=usePlanetWorld(location.href);
+
+    const planetWorld=this.radial?new PlanetWorld(this.scene,undefined,this.audio):undefined;
+    const collision=this.collision=planetWorld?planetWorld.collision:new CollisionWorld();
+    this.deathFlight=new DeathFlight(collision);
+
+    // A câmera radial nasce com o contrato nominal do planeta e adota o raio real quando o
+    // manifesto chega (`retarget`), durante o carregamento — antes de existir controle.
+    this.camera=this.radial
+      ?new RadialCamera(this.scene,new PlanetFrame(),this.spawn)
+      :new ThirdPersonCamera(this.scene,collision);
+
+    const shadows=trainingLighting(this.scene,this.camera.camera);
+    planetWorld?.useShadows(shadows);
 
     // Expedição com um cálice por estágio. Modos legados continuam disponíveis pela URL.
     // Os modos anteriores continuam acessíveis: `?mode=horde` e `?mode=classic` (antigo `legacy`).
     this.directorMode=mode==='horde'?'horde':(mode==='classic'||mode==='legacy')?'classic':'expedition';
 
-    this.yard=training?new TrainingYard(this.scene,shadows,rng):new FarmWorld(this.scene,collision,shadows,!new URLSearchParams(location.search).get('online'));
+    this.yard=training?new TrainingYard(this.scene,shadows,rng)
+      :planetWorld?planetWorld
+      :new FarmWorld(this.scene,collision,shadows,!new URLSearchParams(location.search).get('online'));
+
+    // O contrato de mundo: é o que a horda e as armas recebem, nos dois mapas.
+    this.world=planetWorld??new FarmGameWorld(this.yard as TrainingYard|FarmWorld,(from,to)=>this.routeLength(from,to));
+
+    traceBoot(this.radial?'cena:construtor radial':'cena:construtor plano');
+    const worldStarted=performance.now();
+    if(planetWorld)void planetWorld.load().then(async()=>{
+      stageTiming('mapa (manifesto + casca + colisão + destrutíveis)',worldStarted);
+      traceBoot('mapa:carregado');
+      if(this.disposed)return;
+      // O planeta só EXISTE aqui: `configurePlanet` já rodou dentro de `PlanetWorld.load`, então a
+      // partir desta linha `collision.surface.kind === 'sphere'`. Tudo o que tinha guardado o
+      // referencial plano precisa ser religado agora — é por isso que este bloco existe.
+      const frame=planetWorld.frame;
+      if(frame&&this.camera instanceof RadialCamera)this.camera.retarget(frame,planetWorld.collisionMesh,this.player.position);
+      const surface=this.world.surface;
+      this.weapons.destruction=planetWorld.destruction;
+      this.objectives.metric=metricOf(surface);
+      this.worldBiomes.push(...siteBiomes(planetWorld.sites,(a,b)=>surface.planarDistance(a,b)));
+      // A horda foi construída antes do manifesto chegar e nasceu com o espaço PLANO. Sem esta
+      // troca ela mediria distância por `hypot(dx,dz)` e apoiaria por `groundAt` numa esfera —
+      // ou seja, nenhuma praga encostaria no chão fora do polo.
+      if(this.enemies instanceof EnemySwarm){
+        this.enemies.configureSurface(surface);
+        // A navegação NÃO entra no caminho crítico do carregamento.
+        //
+        // Sem `.bin` assado, `createIslands` monta 38 navmeshes em tempo de execução, e isso é
+        // trabalho SÍNCRONO de muitos segundos na thread da interface — foi o que travou o
+        // navegador duro depois do recarregamento. A partida não depende dela para existir: sem
+        // cartas a horda persegue localmente e o motivo aparece no HUD. Quando as cartas ficam
+        // prontas elas entram sozinhas, sem reiniciar nada.
+        this.enemies.navigationReady=true;
+        traceBoot('horda:superfície radial ligada');
+        void this.prepareIslandNavigation(planetWorld);
+      }
+      if(this.disposed)return;
+      this.checkReady();
+    });
 
     if(this.yard instanceof FarmWorld)void this.yard.load().then(async()=>{if(this.disposed)return;if(this.enemies instanceof EnemySwarm)await this.enemies.prepareNavigation();if(!this.disposed)this.checkReady();});
 
@@ -260,9 +404,9 @@ export class PlayerScene implements SceneModule {
 
     this.player=new PlayerMotor(collision,this.events,this.spawn);
 
-    this.enemies=training?new EnemyReview(this.scene,this.yard,this.events,shadows):new EnemySwarm(this.scene,this.yard,this.events,shadows,this.player,this.progression,rng,this.directorMode);if(this.enemies instanceof EnemySwarm)this.enemies.audio=this.audio;void this.enemies.load().then(()=>{if(!this.disposed)this.checkReady();});
+    this.enemies=training?new EnemyReview(this.scene,this.world,this.events,shadows):new EnemySwarm(this.scene,this.world,this.events,shadows,this.player,this.progression,rng,this.directorMode);if(this.enemies instanceof EnemySwarm)this.enemies.audio=this.audio;void this.enemies.load().then(()=>{if(!this.disposed)this.checkReady();});
 
-    if(!training){this.runHUD=new RunHUD();this.interactables=new RunInteractables(this.scene,this.player,this.progression,this.events,rng.stream('interactable'),collision);void this.interactables.load(this.scene).then(()=>{if(!this.disposed)this.checkReady();});}
+    if(!training){this.runHUD=new RunHUD();this.interactables=new RunInteractables(this.scene,this.player,this.progression,this.events,rng.stream('interactable'),collision);void this.interactables.load(this.scene).then(()=>{if(this.disposed)return;this.lootReady=true;this.applyLootPlacement();this.checkReady();});}
 
     this.dropship=training?undefined:new DropshipDeck(this.scene);
     void this.dropship?.load().then(()=>{if(!this.disposed)this.checkReady();});
@@ -280,9 +424,32 @@ export class PlayerScene implements SceneModule {
     if(!training){this.input.yaw=-.13;this.player.yaw=this.input.yaw;}
 
     this.visual=new CharacterVisual(this.scene,()=>{this.checkReady();for(const mesh of this.visual.meshes)shadows.addShadowCaster(mesh);});
-    this.net=NetworkSession.fromLocation(this.scene,collision,shadows,this.events,seed);
+    // No planeta a visual ganha um PAI radial e passa a receber pose LOCAL; os clipes autorais
+    // (Idle/Walk/Run/Jump/Dodge/Land/combos) tocam exatamente como no mundo plano.
+    this.avatar=this.radial?new RadialAvatar(this.scene,this.visual,()=>this.world.surface):undefined;
+    this.playerRagdoll=new PlayerRagdoll({
+      scene:this.scene,
+      // O clone é carregado à parte: o rig VIVO nunca recebe física.
+      corpse:()=>LoadAssetContainerAsync('/models/gunslinger.glb',this.scene),
+      // Por PONTO e a cada quadro — num planeta a vertical do cadáver não é a do jogador.
+      down:point=>this.world.surface.down(point),
+      // A casca do planeta não tem corpo estático de Havok; o cadáver leva um recorte local.
+      ...(this.radial?{terrain:(centre:Vec3)=>this.localRagdollTerrain(centre)}:{}),
+    });
+    void this.playerRagdoll.prepare().then(()=>{if(!this.disposed)this.checkReady();});
+    // Co-op continua EXATAMENTE como está na fazenda. No planeta ele é recusado em voz alta em vez
+    // de aberto pela metade: `Reconciliation` e `RemotePlayers` reproduzem o passo do motor com
+    // gravidade em `−Y`, então um segundo jogador apareceria andando para o lado errado da casca e
+    // divergindo do servidor. Fingir compatibilidade aqui seria perder jogo em silêncio — quem
+    // pedir `?online=1&world=planet` recebe o motivo escrito e joga na fazenda.
+    this.net=this.radial?undefined:NetworkSession.fromLocation(this.scene,collision,shadows,this.events,seed);
+    if(this.radial&&new URLSearchParams(location.search).get('online'))
+      this.networkNotice='Co-op ainda não roda no planeta (a réplica de rede é do motor plano) · use a fazenda';
 
-    this.weapons=new DualPistols(this.scene,this.camera,this.visual,this.yard,rng.stream('run'),this.events,this.audio);
+    this.weapons=new DualPistols(this.scene,this.camera,this.visual,this.world,rng.stream('run'),this.events,this.audio,
+      // Sem isto o leque do ricochete, o arremesso do carregador e a guinada do MP II continuam
+      // girando em torno do `+Y` do MUNDO — certos no polo norte e errados em toda a outra casca.
+      this.radial?new RadialCombatSpace(()=>this.world.surface):undefined);
 
     this.elements=new ElementalEffects(this.scene,collision);this.skillAura=new SkillAura(this.scene,collision);void this.skillAura.load().then(()=>{if(!this.disposed)this.checkReady();});
     void this.weapons.load().then(()=>{if(!this.disposed)this.checkReady();});
@@ -290,6 +457,9 @@ export class PlayerScene implements SceneModule {
     this.abyss=new AbyssPresentation(this.scene,this.player);this.footing=new FootingPresentation(this.scene,this.player,collision,this.audio);
 
     // Passos vinculados ao contato real dos pés do clipe dominante.
+    // Ponte soa madeira, convés soa grama: sem este gancho o planeta inteiro soaria grama, porque
+    // a malha do manifesto não tem id de material.
+    if(this.yard instanceof PlanetWorld){const world=this.yard;this.footing.footingMaterial=p=>world.footingMaterialAt(p);}
     this.footing.footHeights=()=>this.visual.footHeights();
     this.footing.suppressSteps=()=>this.visual.meleePose!==undefined||this.visual.arrivalPose!==undefined||this.visual.deathProgress!==undefined;
 
@@ -314,7 +484,13 @@ export class PlayerScene implements SceneModule {
     this.events.on('ItemPicked',()=>{this.player.maxHP=this.progression.stats.maxHP;this.audio.charge(2);if(this.enemies instanceof EnemySwarm)this.enemies.effects.burst(this.player.position,'energy',1.5);});
 
     // O timbre do dano recebido segue a origem real do golpe, para o jogador identificar o que o acertou.
-    this.events.on('PlayerHit',context=>{this.hud.hit(context,this.input.yaw,this.player.hp,this.player.maxHP);this.camera.hurt(.18,context.forceDirection.x*Math.cos(this.input.yaw)-context.forceDirection.z*Math.sin(this.input.yaw));
+    this.events.on('PlayerHit',context=>{
+      // A seta de dano e o lado do tranco são RELATIVOS ao corpo. No mundo plano a conta é a de
+      // sempre (`fx·cos y − fz·sin y`); no planeta a mesma conta vira projeção na base tangente,
+      // porque `x`/`z` de mundo não dizem nada sobre "veio da minha direita" fora do polo.
+      const local=this.localForce(context.forceDirection);
+      this.hud.hit({...context,forceDirection:local.arrow},this.player.yaw,this.player.hp,this.player.maxHP);
+      this.camera.hurt(.18,local.side);
       const tags=context.damageTags;if(!tags.includes('dot'))this.visual.reactToHit();
       this.audio.playerHurt(tags.includes('dot')?'dot':tags.includes('fire')?'fire':tags.includes('laser')?'laser':tags.includes('environment')?'environment':/projectile|seed|rush/.test(context.sourceId)?'projectile':'melee');});
 
@@ -337,7 +513,10 @@ export class PlayerScene implements SceneModule {
       if(credit)this.expeditionSites?.harvest(credit.index,kill.position,credit.complete);
     });
 
-    this.events.on('PlayerKilled',()=>{if(!this.death.start())return;this.deathFlight.start(this.player.position,this.player.yaw);this.intro.abort();this.meleeReview.exit();this.deathSummary=this.summarize();this.cancelCinematic();this.weapons.cancelSkills();this.started=false;this.player.sprinting=false;this.input.clear();if(document.pointerLockElement)document.exitPointerLock();this.audio.setActive(true);this.audio.fatalImpact();this.camera.hurt(.32,1);this.hud.fatalReaction(true);});
+    this.events.on('PlayerKilled',context=>{if(!this.death.start())return;
+      // A captura vem ANTES de tudo: `started=false`, `sprinting=false` e o cancelamento das
+      // habilidades mexem no corpo, e a velocidade do instante do golpe é o que dá peso à queda.
+      this.startPlayerRagdoll(context);this.deathFlight.start(this.player.position,this.player.yaw,{up:this.player.up,forward:this.player.forward});this.intro.abort();this.meleeReview.exit();this.deathSummary=this.summarize();this.cancelCinematic();this.weapons.cancelSkills();this.started=false;this.player.sprinting=false;this.input.clear();if(document.pointerLockElement)document.exitPointerLock();this.audio.setActive(true);this.audio.fatalImpact();this.camera.hurt(.32,1);this.hud.fatalReaction(true);});
 
     this.camera.update(this.player.position,this.input.yaw,this.input.pitch,1/60);
 
@@ -354,19 +533,29 @@ export class PlayerScene implements SceneModule {
 
     if(this.skillPending||this.cinematic.preparing)return;
 
+    // Os três primeiros passos fixos VIVOS são rastreados etapa a etapa. É aqui que a entrada acaba
+    // de devolver o controle — o ponto exato em que o renderizador morreu no QA do navegador.
+    const trace=this.tracedFixed<3?(stage:string):void=>traceBoot(`fixo#${this.tracedFixed}:${stage}`):undefined;
+    if(trace){this.tracedFixed++;trace('entrou');}
+
     const input=this.paused?EMPTY_INPUT:this.input.read();if(this.reloadRunReview>0){this.reloadRunReview=Math.max(0,this.reloadRunReview-dt);input.x=0;input.z=1;input.fire=false;input.charging=false;this.player.sprinting=true;}this.charging=input.charging;
 
     const stats=this.progression.stats;this.player.maxHP=stats.maxHP;this.player.moveMultiplier=stats.moveSpeed;this.player.sprintMultiplier=stats.sprintSpeed;this.player.jumpMultiplier=stats.jump;this.player.extraJumps=stats.extraJumps;this.player.rechargeMultiplier=stats.dodgeRecharge;this.player.armor=stats.armor;this.player.regeneration=stats.regeneration;this.weapons.cadence.rateMultiplier=stats.attackSpeed;this.mp.speedMultiplier=1+(stats.mp-1)*.5;this.mp.setMaxCharges(stats.skillCharges);
 
     if(this.cancelVersion!==this.input.cancelVersion){this.mp.cancel();this.cancelVersion=this.input.cancelVersion;}
 
-    if(this.yard instanceof FarmWorld)this.yard.fixedUpdate(dt,this.player);
+    this.world.fixedUpdate(dt,this.player);
 
     if(input.reload&&this.unarmed.armed)this.weapons.requestReload();
     // Online: reconcilia com o último seq confirmado antes de prever o passo seguinte; depois envia a intenção deste passo.
     this.net?.reconcile(this.player,dt);
     const stepInput=meleeMovement(reloadMovement(input,this.weapons.magazine.reloading),this.unarmed,this.player.grounded);
-    this.player.fixedUpdate(dt,stepInput,this.input.yaw);
+    // `heading`: número no mundo plano (o yaw global de sempre), vetor de MUNDO no planeta.
+    // O contrato é o publicado pela física (`.temp/real-game-surface-api.md` §3.2); mandar o yaw
+    // global numa esfera faria o corpo andar para um canto fixo do espaço em vez de para a frente.
+    trace?.('motor:antes');
+    this.player.fixedUpdate(dt,stepInput,this.radial?this.camera.heading:this.input.yaw);
+    trace?.('motor:depois');
     this.net?.afterStep(stepInput,this.input.yaw,this.input.pitch,this.player);
 
     // Enfileirar continuação exige um NOVO pressionamento na janela final: segurar o botão não repete.
@@ -391,8 +580,10 @@ export class PlayerScene implements SceneModule {
     if(this.unarmed.active)this.resolveMelee();
     this.weapons.fixedUpdate(dt,input.fire&&this.unarmed.armed&&this.weapons.ready&&!input.charging&&this.player.dodgeRemaining===0&&this.player.hp>0);
 
+    trace?.('armas:depois');
     if(this.enemies instanceof EnemySwarm){
       this.progression.time+=dt;this.enemies.fixedUpdate(dt);
+      trace?.('horda:depois');
       const expedition=this.directorMode==='expedition'&&this.objectives.planned;
       if(expedition)this.updateExpedition(dt,this.enemies);
       // A recompensa cai onde caiu a praga decisiva; sem abate recente, na âncora do objetivo.
@@ -426,7 +617,7 @@ export class PlayerScene implements SceneModule {
     if(this.death.active)this.deathFlight.update(deathDt);
     if(this.death.update(deathDt)){this.audio.setActive(false);this.hud.defeated(this.deathSummary!,!this.net&&this.enemies instanceof EnemySwarm?()=>this.restartAttempt():undefined);}
     if(this.death.active)this.hud.fatalReaction(true,this.death.progress);
-    this.visual.deathProgress=this.death.state==='idle'?undefined:this.death.progress;
+    this.visual.deathProgress=this.death.state==='idle'||this.ragdollOwnsBody?undefined:this.death.progress;
     this.visual.deathPosition=this.death.state==='idle'?undefined:this.deathFlight.position;
     const animDt=this.poseReview?1/60:this.meleeReview.active&&!this.paused?dt:this.paused||!this.started?0:dt;
 
@@ -460,7 +651,10 @@ export class PlayerScene implements SceneModule {
     // A espera no menu corre no relógio real (o jogador ainda não apertou Jogar); a sequência
     // depois segue o mesmo `animDt` da apresentação, então pausar congela tudo junto.
     if(!this.hasArrived&&!this.started&&this.death.state==='idle'&&this.visual.ready&&this.weapons.ready)this.intro.beginStandby();
+    const heldBefore=this.intro.holdsControl;
     this.intro.update(this.death.active?0:this.intro.standby?(this.paused?0:dt):animDt,cue=>this.introCue(cue));
+    // A entrada acabou de devolver o controle: daqui em diante o motor, a horda e o clima andam.
+    if(heldBefore&&!this.intro.holdsControl){traceBoot('entrada:controle devolvido');this.settleArrival();}
     // ---- Conclusão do estágio: suco, embarque, viagem e chegada -------------------------------
     // Roda no relógio de apresentação: pausar congela a transição inteira junto com o resto.
     const journeyDt=this.paused?0:dt;
@@ -471,11 +665,33 @@ export class PlayerScene implements SceneModule {
     // retido aqui, então consumir a entrada também evita um `E` acumulado disparar ao voltar.
     if(this.journey.failed&&this.input.read().interact!==undefined)this.journey.retryNow();
     const boarding=this.journey.phase==='board'||this.journey.phase==='travel';
-    const extraction=this.dropship?.ready?extractionPresentation(this.journey.phase,this.journey.clock,this.player.position,this.player.yaw):undefined;
+    // A extração é montada com `forward=(sin y,0,cos y)` e alturas em `+Y` — o MESMO espaço local
+    // da entrada. Avaliada na origem com yaw 0 e remapeada pela base tangente, a nave sobe pela
+    // radial verdadeira em vez de rumar para o polo norte.
+    const exitYaw=this.radial?0:this.player.yaw;
+    const exitOrigin=this.radial?ORIGIN:this.player.position;
+    const extraction=this.dropship?.ready?extractionPresentation(this.journey.phase,this.journey.clock,exitOrigin,exitYaw):undefined;
+    const exitAnchor={x:this.player.position.x,y:this.player.position.y,z:this.player.position.z};
+    if(extraction&&this.radial){
+      extraction.edge=this.stageToWorld(extraction.edge,exitAnchor);
+      extraction.body=this.stageToWorld(extraction.body,exitAnchor);
+      extraction.camera=this.stageToWorld(extraction.camera,exitAnchor);
+      extraction.target=this.stageToWorld(extraction.target,exitAnchor);
+    }
 
-    const landing=this.player.position,introPose=this.intro.pose(landing,this.player.yaw);
+    // ---- entrada pela nave, no referencial do POUSO ------------------------------------------
+    // A coreografia autoral (espera no deck, corrida, salto, mergulho de cabeça, impacto, levantar)
+    // é construída com `forward=(sin y,0,cos y)` e alturas em `+Y`, ou seja, num espaço LOCAL
+    // ancorado no pouso. Em vez de reescrevê-la, ela é avaliada nesse espaço (origem, yaw 0) e a
+    // pose resultante é levada ao mundo pela base tangente da ilha. O mergulho desce pela RADIAL
+    // verdadeira e os clipes autorais continuam sendo exatamente os mesmos.
+    const landing=this.player.position,stagingYaw=this.radial?0:this.player.yaw;
+    const stagingOrigin=this.radial?ORIGIN:landing;
+    const introPose=this.intro.pose(stagingOrigin,stagingYaw);
+    if(introPose&&this.radial)introPose.position=this.stageToWorld(introPose.position,landing);
     if(this.dropship){
-      if(this.intro.visible)this.dropship.place(this.intro.deckEdge(landing,this.player.yaw),this.player.yaw);
+      this.dropship.basis=this.radial?this.world.surface.basis(boarding?exitAnchor:landing,this.player.forward):undefined;
+      if(this.intro.visible)this.dropship.place(this.stageToWorld(this.intro.deckEdge(stagingOrigin,stagingYaw),landing),this.player.yaw);
       else if(extraction)this.dropship.place(extraction.edge,extraction.shipYaw);
       this.dropship.update(this.paused?0:dt,this.intro.deckVisible||boarding);
     }
@@ -491,43 +707,59 @@ export class PlayerScene implements SceneModule {
     }:extraction?{height:0,recovery:0,position:extraction.body,
       stride:{clip:extraction.clip,progress:extraction.progress,yaw:this.player.yaw,pitch:0,roll:0}}:undefined;
     if(extraction&&this.dropship&&(this.journey.phase==='travel'||this.journey.clock>=1.85))
-      extraction.body.y+=this.dropship.root.position.y-extraction.edge.y;
-    this.visual.update(this.player,alpha,this.death.active?deathDt:this.intro.standby?dt:animDt*slow,!this.player.sprinting||this.charging,this.charging,this.input.pitch,this.mp.seconds/2.6);
+      // O corpo acompanha a subida da nave ao longo da vertical LOCAL: a diferença é medida na
+      // projeção em `up`, não em `y` de mundo, que fora do polo aponta para outro lugar.
+      extraction.body=this.followShipRise(extraction.body,extraction.edge);
+    const draw=!this.intro.holdsControl&&this.started&&this.tracedRender<3
+      ?(stage:string):void=>traceBoot(`quadro#${this.tracedRender}:${stage}`):undefined;
+    if(draw){this.tracedRender++;draw('entrou');}
+    const poseDt=this.death.active?deathDt:this.intro.standby?dt:animDt*slow;
+    const aiming=!this.player.sprinting||this.charging;
+    if(this.avatar)this.avatar.update(this.player,alpha,poseDt,aiming,this.charging,this.input.pitch,this.mp.seconds/2.6,this.camera.forward);
+    else this.visual.update(this.player,alpha,poseDt,aiming,this.charging,this.input.pitch,this.mp.seconds/2.6);
+    draw?.('avatar:depois');
     this.net?.render(animDt);
 
+    draw?.('câmera:antes');
     this.camera.setSprint(this.player.sprinting&&this.started&&!this.paused);
     this.camera.update(this.visual.position,this.input.yaw,this.input.pitch,dt,this.started&&!this.intro.visible?this.player.velocity:undefined);
 
-    const shot=this.intro.shot(landing,this.player.yaw);
+    const shot=this.intro.shot(stagingOrigin,stagingYaw);
     if(shot&&shot.weight>0){
       // `weight` cai sozinho na recuperação: a câmera volta ao jogo sem corte e sem ficar presa.
-      const normalTarget=this.camera.camera.position.add(this.camera.forward.scale(6));
-      this.camera.camera.position.copyFrom(Vector3.Lerp(this.camera.camera.position,new Vector3(shot.position.x,shot.position.y,shot.position.z),shot.weight));
-      this.camera.camera.setTarget(Vector3.Lerp(normalTarget,new Vector3(shot.target.x,shot.target.y,shot.target.z),shot.weight));
+      // `blend` substitui o `setTarget` que estava escrito aqui: no planeta `setTarget` reconstrói
+      // a rotação pelo `Y` do MUNDO e degenera exatamente quando se olha para o polo.
+      this.camera.blend(this.stageToWorld(shot.position,landing),this.stageToWorld(shot.target,landing),shot.weight);
       this.camera.sprintBlendTarget=shot.sprint*shot.weight;
     }
 
-    if(this.death.active)this.camera.skillClose(this.deathFlight.position,this.player.yaw,1,this.death.progress);
+    // O cadáver anda no relógio de apresentação: o passo fixo está parado desde `started=false`.
+    this.playerRagdoll.update(this.paused?0:dt);
+    if(this.ragdollOwnsBody){
+      // Enquadramento no quadril do cadáver, que é o que o jogador quer ver.
+      const focus=this.playerRagdoll.focus;
+      this.camera.skillClose({x:focus.x,y:focus.y,z:focus.z},this.player.yaw,1,this.death.progress);
+    }
+    else if(this.death.active)this.camera.skillClose(this.deathFlight.position,this.player.yaw,1,this.death.progress);
     if(this.cinematic.preparing)this.camera.skillClose(this.visual.position,this.castYaw,this.cinematic.tier,this.cinematic.progress);
     if(extraction){
-      this.camera.camera.position.copyFromFloats(extraction.camera.x,extraction.camera.y,extraction.camera.z);
-      this.camera.camera.setTarget(new Vector3(extraction.target.x,extraction.target.y,extraction.target.z));
+      this.camera.blend(extraction.camera,extraction.target,1);
     }
     if(this.meleeReview.active){
       // Corpo inteiro no quadro: pés e punho ao mesmo tempo, sem a aproximação das cinemáticas.
-      const review=meleeReviewShot(this.visual.position,this.input.yaw);
+      const review=meleeReviewShot(this.radial?ORIGIN:this.visual.position,this.radial?0:this.input.yaw);
       // The regular camera is reset above on every frame; blending from it never reaches this shot.
-      this.camera.camera.position.copyFromFloats(review.position.x,review.position.y,review.position.z);
-      this.camera.camera.setTarget(new Vector3(review.target.x,review.target.y,review.target.z));
+      this.camera.blend(this.stageToWorld(review.position,this.visual.position),this.stageToWorld(review.target,this.visual.position),1);
     }
 
-    this.weapons.updatePose(worldDt);this.skillAura.update(this.cinematic,this.visual.position,this.weapons);
-    this.elements.update(this.poseReview?0:animDt);if(this.intro.phase==='dive'&&introPose)this.elements.aura('fire',[new Vector3(introPose.position.x,introPose.position.y+.4,introPose.position.z)],flight.elapsed,1);
-    if(this.elementPreview&&animDt>0){this.elementClock-=animDt;if(this.elementClock<=0){this.elementClock=1.6;const p=this.visual.position.add(this.camera.forward.scale(2.4));p.y=this.player.position.y+.03;this.elements.emit(this.elementPreview,p);}}
-    if(this.cinematic.active){const elapsed=this.cinematic.elapsed,power=this.cinematic.preparing?Math.sin(this.cinematic.progress*Math.PI/2):Math.min(1,(1-this.cinematic.actionProgress)*5);this.elements.aura('electricity',[this.weapons.muzzlePose(0).position,this.weapons.muzzlePose(1).position,this.visual.position.add(new Vector3(0,.6,0))],elapsed,power);if(elapsed<this.auraLast)this.auraClock=0;if(this.cinematic.preparing&&elapsed>=this.auraClock&&elapsed<.9){this.auraClock=elapsed+.3;this.elements.emit('earth',this.visual.position,.45);}this.auraLast=elapsed;}else if(this.auraLast>=0){this.elements.clear();this.auraLast=-1;this.auraClock=0;}
+    if(!this.playerRagdoll.active)this.weapons.updatePose(worldDt);this.skillAura.update(this.cinematic,this.visual.position,this.weapons);
+    this.elements.update(this.poseReview?0:animDt);if(this.intro.phase==='dive'&&introPose)this.elements.aura('fire',[this.liftWorld(introPose.position,.4)],flight.elapsed,1);
+    if(this.elementPreview&&animDt>0){this.elementClock-=animDt;if(this.elementClock<=0){this.elementClock=1.6;const ahead=this.visual.position.add(this.camera.forward.scale(2.4));const at=this.liftWorld({x:ahead.x,y:ahead.y,z:ahead.z},0);this.elements.emit(this.elementPreview,new Vector3(at.x,at.y,at.z));}}
+    if(this.cinematic.active){const elapsed=this.cinematic.elapsed,power=this.cinematic.preparing?Math.sin(this.cinematic.progress*Math.PI/2):Math.min(1,(1-this.cinematic.actionProgress)*5);this.elements.aura('electricity',[this.weapons.muzzlePose(0).position,this.weapons.muzzlePose(1).position,this.liftWorld({x:this.visual.position.x,y:this.visual.position.y,z:this.visual.position.z},.6)],elapsed,power);if(elapsed<this.auraLast)this.auraClock=0;if(this.cinematic.preparing&&elapsed>=this.auraClock&&elapsed<.9){this.auraClock=elapsed+.3;this.elements.emit('earth',this.visual.position,.45);}this.auraLast=elapsed;}else if(this.auraLast>=0){this.elements.clear();this.auraLast=-1;this.auraClock=0;}
 
 
 
+    draw?.('câmera:depois');
     this.enemies.update(worldDt);this.footing.update(worldDt);this.abyss?.update(worldDt);
     this.expeditionSites?.update(animDt,this.objectives.totems,this.objectives.activeIndex,
       this.objectives.collected?(this.journey.phase==='harvest'?this.journey.clock/1.8:1):0,this.objectives.discovered);
@@ -538,11 +770,13 @@ export class PlayerScene implements SceneModule {
 
     if(this.enemies instanceof EnemySwarm)this.enemies.updateCameraVisibility(this.camera.camera.position,dt);
 
-    if(this.yard instanceof FarmWorld)this.yard.update(worldDt);
+    this.world.update(worldDt);
 
     for(const target of this.yard.targets)if(target.ring)target.ring.scaling.setAll(1+(target.ring.scaling.x-1)*Math.exp(-dt*18));
 
-    this.scene.physicsEnabled=this.started&&!this.paused&&!this.intro.holdsControl&&!this.meleeReview.active&&!this.cinematic.preparing&&!this.skillPending;this.scene.render();this.hud.update(this.player,this.weapons,this.visual.error||this.weapons.error||this.skillAura.error||this.enemies.error||this.interactables?.error||(this.yard instanceof FarmWorld?this.yard.error:''),this.mp,this.enemies,animDt);
+    // O cadáver articulado precisa de Havok DEPOIS de `started=false`. Sem este `||` o corpo
+    // congelaria no ar no quadro da morte — que é o oposto do pedido.
+    this.scene.physicsEnabled=(this.playerRagdoll.active&&!this.paused)||this.started&&!this.paused&&!this.intro.holdsControl&&!this.meleeReview.active&&!this.cinematic.preparing&&!this.skillPending;draw?.('cena:antes de render');this.scene.render();draw?.('cena:depois de render');this.hud.update(this.player,this.weapons,this.visual.error||this.weapons.error||this.skillAura.error||this.enemies.error||this.interactables?.error||(this.yard instanceof FarmWorld?this.yard.error:''),this.mp,this.enemies,animDt);
 
     if(this.enemies instanceof EnemySwarm){
       this.runHUD!.setVisible(this.started&&this.player.hp>0);
@@ -642,6 +876,11 @@ export class PlayerScene implements SceneModule {
    * recusar tudo travaria o carregamento por falta de ferramenta, não por falta de mapa.
    */
   private routeLength(from:Vec3,to:Vec3):number|undefined {
+    // Num mapa que sabe a própria topologia (o planeta), quem responde é o MAPA: o grafo de pontes
+    // dá a rota a pé entre ilhas em tempo constante. Consultar o Detour aqui seria pedir ao
+    // sistema errado — as cartas de ilha são locais, uma rota entre ilhas atravessa várias, e o
+    // custo disso dentro do sorteio de estágio é o que travava o carregamento.
+    if(this.radial)return this.world.routeLength(from,to);
     const tactical=this.enemies instanceof EnemySwarm?this.enemies.tactical:undefined;
     if(!tactical)return Math.hypot(from.x-to.x,from.z-to.z);
     const start=tactical.closest(from);
@@ -669,28 +908,293 @@ export class PlayerScene implements SceneModule {
   private buildStageSetup(stage:number):StageSetup|undefined {
     if(!(this.enemies instanceof EnemySwarm)||!this.enemies.navigationReady)return undefined;
     if(this.yard instanceof FarmWorld&&!this.yard.ready)return undefined;
-    const swarm=this.enemies,world=this.collision,biome=biomeForStage(stage);
+    if(this.radial&&!this.world.ready)return undefined;
+    const swarm=this.enemies,surface=this.world.surface,fullBiome=this.biomeFor(stage);
+    if(!fullBiome)return undefined;
+    const started=performance.now();
+    /**
+     * No planeta o sorteio olha um SUBCONJUNTO das ilhas, não as 38.
+     *
+     * Cada ilha reprovada custa uma varredura de anéis contra uma BVH de 1,75 milhão de
+     * triângulos — sondas de apoio, varreduras de espaço livre e teste de interior sólido. Isso é
+     * trabalho síncrono na thread da interface: com as 38 no pior caso, o carregamento congelava
+     * por dezenas de segundos (foi o travamento duro relatado no navegador).
+     *
+     * O corte não enfraquece a regra: `planStage` já devolve no PRIMEIRO par válido, a auditoria do
+     * mapa achou pouso em 38/38 e arena em 16/38, e uma falha não é fatal — a tentativa seguinte
+     * (`planRetry`) sorteia OUTRO subconjunto, porque a semente carrega o número da tentativa.
+     */
+    const biome=this.radial?{...fullBiome,islands:pickIslands(fullBiome.islands,
+      new RunRNG(`${this.attemptSeed}:stage:${stage}:pool:${this.planAttempt}`).stream('scene'),RADIAL_ISLAND_POOL)}:fullBiome;
     // Os tiles distantes são podados durante o jogo; uma rota entre ilhas os atravessa inteira.
     swarm.tactical?.restoreNavigation();
     const radii=new Map<string,number>();
     const rng=new RunRNG(`${this.attemptSeed}:stage:${stage}`).stream('scene');
     const plan=planStage(biome,rng,{
-      spawnPoint:island=>findSpawnPoint(world,island),
+      spawnPoint:island=>findSpawnPoint(surface,island),
       chalicePoint:island=>{
         for(const radius of [TOTEM_RADIUS,8.5,6.5]){
-          const at=findTotemSite(world,island,radius,()=>true);
+          const at=findTotemSite(surface,island,radius,()=>true);
           if(at){radii.set(island.id,radius);return at;}
         }
         return undefined;
       },
       route:(spawn,chalice)=>this.routeLength(spawn,chalice),
+      // No planeta o filtro barato tem de ser o ARCO: dois pontos em lados opostos da casca têm
+      // `dx`/`dz` pequenos e estão a meia circunferência de caminhada.
+      distance:(a,b)=>surface.planarDistance(a,b),
     },{minRoute:biome.separation>=WIDE_ISLAND_SEPARATION?WIDE_MIN_ROUTE:HOME_MIN_ROUTE});
-    if(!plan)return undefined;
+    stageTiming(`sorteio do estágio ${stage} · ${biome.islands.length} ilhas · ${plan?.examined??0} pares`,started);
+    if(!plan){this.planAttempt++;return undefined;}
+    this.planAttempt=0;
     const site:TotemSite={id:plan.chaliceIsland.id,name:plan.chaliceIsland.name,index:0,
       position:plan.chalice,radius:radii.get(plan.chaliceIsland.id)??TOTEM_RADIUS,juiceTarget:FINAL_CHALICE_JUICE};
     const setup={plan,site};
     this.stagePlans.set(stage,setup);
     return setup;
+  }
+
+  /**
+   * Recorte de terreno físico em volta do cadáver, no planeta.
+   *
+   * A casca tem 1,75 M de triângulos e não existe corpo estático de Havok para ela — registrar a
+   * malha inteira seria inviável. Aqui vai só o que está perto do cadáver, e o `release` devolvido
+   * é chamado pelo próprio `PlayerRagdoll` quando o corpo é recolhido.
+   */
+  private localRagdollTerrain(centre:Vec3):(()=>void)|undefined {
+    const world=this.yard instanceof PlanetWorld?this.yard:undefined;
+    const patch=world?.trianglePatch(centre,14);
+    if(!patch)return undefined;
+    try{return addRagdollTerrain(this.scene,`player-corpse-${Math.round(performance.now())}`,patch);}
+    catch{return undefined;}
+  }
+
+  // ---------------------------------------------------------------- morte articulada
+
+  /**
+   * Solta o cadáver articulado com o golpe fatal REAL.
+   *
+   * `velocity` e `lethal` são lidos do estado do instante da morte, antes de a cena zerar corrida,
+   * habilidades e entrada — é o que faz o corpo ser jogado na direção do golpe em vez de cair no
+   * lugar. Falhar aqui não custa nada: `start` devolve `false` e a morte segue com o clipe autoral
+   * de sempre, que continua no lugar.
+   */
+  private startPlayerRagdoll(context:DamageContext):void {
+    if(!this.playerRagdoll.ready||!this.visual.ready)return;
+    const skinned=this.visual.meshes.find(mesh=>mesh.skeleton);
+    const skeleton=skinned?.skeleton;
+    if(!skeleton||!skinned)return;
+    const started=this.playerRagdoll.start({
+      pose:{skeleton,root:skinned},
+      equipment:this.weapons.corpseEquipment(),
+      velocity:{...this.player.velocity},
+      lethal:{direction:context.forceDirection,magnitude:context.forceMagnitude,point:context.hitPosition},
+    });
+    if(!started)return;
+    // O rig vivo sai de cena; quem aparece é o clone físico. Sem isto o corpo rígido ficaria
+    // dentro do cadáver articulado, sobrepostos.
+    this.visual.root.setEnabled(false);
+  }
+
+  /** Enquanto o cadáver articulado existe, o clipe rígido de morte NÃO escreve osso nenhum. */
+  private get ragdollOwnsBody():boolean {return this.playerRagdoll.active;}
+
+  // ---------------------------------------------------------------- diagnóstico (F1) no planeta
+
+  /**
+   * Ponto de QA relativo a uma âncora, no plano tangente e assentado no apoio real.
+   *
+   * `side`/`ahead` são metros nas tangentes direita/frente da âncora, `lift` sobe pela vertical
+   * local. No mundo plano a base é `{+X,+Y,+Z}`, então `qaSpotNear(at,0,-2.5,.2)` devolve
+   * exatamente `{x, y+.2, z-2.5}` — os mesmos números dos botões de sempre.
+   */
+  private qaSpotNear(at:Vec3,side:number,ahead:number,lift:number):Vec3 {
+    const surface=this.world.surface;
+    const b=surface.basis(at,{x:0,y:0,z:1});
+    const spot=surface.walk(at,{
+      x:b.right.x*side+b.forward.x*ahead,
+      y:b.right.y*side+b.forward.y*ahead,
+      z:b.right.z*side+b.forward.z*ahead,
+    });
+    const support=surface.support(spot,PLAYER_TUNING.height,PLAYER_TUNING.height,PLAYER_TUNING.maxSlopeDegrees);
+    const ground=support?support.point:spot;
+    const up=surface.up(ground);
+    return {x:ground.x+up.x*lift,y:ground.y+up.y*lift,z:ground.z+up.z*lift};
+  }
+
+  /** Vira o corpo e a câmera para uma âncora, nos dois mapas. */
+  private faceQa(at:Vec3):void {
+    if(!this.radial){this.input.yaw=0;return;}
+    const here=this.player.position;
+    const heading=this.world.surface.basis(here,{x:at.x-here.x,y:at.y-here.y,z:at.z-here.z}).forward;
+    this.camera.snapTo(here,heading);
+    this.player.setHeading(heading);
+  }
+
+  /**
+   * Recusa um atalho de QA que só existe em coordenadas AUTORAIS da fazenda.
+   *
+   * Esses botões ficam visíveis para o usuário. Num planeta as coordenadas deles caem dentro do
+   * miolo da esfera, e o corpo seria enterrado no núcleo — um estado quebrado provocado por um
+   * botão de diagnóstico. Recusar e dizer o motivo é o comportamento correto.
+   */
+  private qaRefuseFlat(name:string):boolean {
+    if(!this.radial)return false;
+    this.qaNotice=`"${name}" usa coordenadas da fazenda e não existe neste mapa`;
+    return true;
+  }
+  private qaNotice='';
+
+  /**
+   * Morte articulada do jogador.
+   *
+   * O clone físico é preparado no CARREGAMENTO e fica escondido; na morte ele recebe a pose do rig
+   * vivo e solta. O rig vivo nunca é escrito — por isso o clipe `FinalDeath` é SUPRIMIDO enquanto
+   * o cadáver articulado existe: dois donos escrevendo os mesmos ossos é exatamente a briga que o
+   * usuário descreveu como "morte dura".
+   */
+  private readonly playerRagdoll:PlayerRagdoll;
+
+  /**
+   * O corpo embarcado sobe junto com a nave.
+   *
+   * A nave flutua e depois decola; o corpo em pé no deck tem de acompanhar essa subida. No mundo
+   * plano isso é a diferença em `y` entre a raiz da nave e a borda do deck — que é como o jogo
+   * sempre fez. No mapa curvo a mesma diferença é medida na projeção da vertical LOCAL: usar `y` de
+   * mundo faria o corpo escorregar para o lado enquanto a nave sobe pela radial.
+   */
+  private followShipRise(body:Vec3,edge:Vec3):Vec3 {
+    const ship=this.dropship?.root.position;
+    if(!ship)return body;
+    if(!this.radial)return {x:body.x,y:body.y+ship.y-edge.y,z:body.z};
+    const up=this.world.surface.up(body);
+    const rise=(ship.x-edge.x)*up.x+(ship.y-edge.y)*up.y+(ship.z-edge.z)*up.z;
+    return {x:body.x+up.x*rise,y:body.y+up.y*rise,z:body.z+up.z*rise};
+  }
+
+  /**
+   * Assenta um ponto de chegada sobre o convés, com a folga do pé.
+   *
+   * `findSpawnPoint` devolve o ponto de CONTATO da sonda. Num convés curvo a ponta arredondada da
+   * cápsula penetra `r·(1 − cos θ)` se o pé for posto exatamente ali, e o desencrave empurra o
+   * corpo ao longo da normal — que é justamente como um pouso válido vira um corpo escorregando ou
+   * caindo. A prévia esférica já resolvia isto com `respawnAbove(probe, .4)`; aqui a folga é medida
+   * na inclinação real em vez de fixa.
+   *
+   * No mundo plano devolve o ponto como veio: `groundAt` já é a cota em que o corpo fica de pé.
+   */
+  private seatOnDeck(at:Vec3):Vec3 {
+    if(!this.radial)return at;
+    const surface=this.world.surface;
+    const support=surface.support(at,PLAYER_TUNING.stepHeight,PLAYER_TUNING.stepHeight+.02,PLAYER_TUNING.maxSlopeDegrees);
+    const ground=support?support.point:at;
+    const facing=Math.cos(Math.min(85,support?.slopeDegrees??0)*Math.PI/180);
+    const clearance=PLAYER_TUNING.radius*(1/Math.max(.2,facing)-1)+.02;
+    const up=surface.up(ground);
+    return {x:ground.x+up.x*clearance,y:ground.y+up.y*clearance,z:ground.z+up.z*clearance};
+  }
+
+  /**
+   * Confere o pouso no instante em que a entrada devolve o controle.
+   *
+   * A chegada é uma sequência ROTEIRIZADA: enquanto ela roda o passo fixo está congelado e o
+   * contrato é "o corpo termina no pouso validado". Se por qualquer motivo o corpo chegar aqui sem
+   * apoio — ou dentro do vazio — reassentá-lo é a correção certa, e sem dano: o jogador não caiu,
+   * a transição é que errou. Sem isto o motor faz a coisa correta pelo motivo errado e cobra 35%
+   * da vida por uma queda que ninguém provocou (foi o que o QA viu: 1 retorno, 84/130).
+   */
+  private settleArrival():void {
+    if(!this.radial||this.player.hp<=0)return;
+    const surface=this.world.surface,at=this.player.position;
+    const support=surface.support(at,PLAYER_TUNING.stepHeight,PLAYER_TUNING.height,PLAYER_TUNING.maxSlopeDegrees);
+    const stranded=surface.belowVoid(at)||!support;
+    traceBoot(`pouso:raio ${Math.round(this.world.surface.altitude(at)*100)/100} m · apoio ${support?support.offset.toFixed(2):'nenhum'}${stranded?' · REASSENTADO':''}`);
+    if(!stranded)return;
+    this.player.arriveAt(this.seatOnDeck(this.spawn));
+  }
+
+  /**
+   * Semeia os baús nos decks reais do mapa.
+   *
+   * Só roda quando as DUAS pontas existem: os baús autorais já carregados (`lootReady`) e o mapa
+   * montado (`world.ready`, portanto depois de `configurePlanet`). Chamar antes trocaria a lista
+   * por posições sorteadas num referencial que ainda é plano, e os baús nasceriam dentro da rocha.
+   *
+   * É idempotente por contrato (`.temp/real-game-loot-api.md`): mesma semente e mesmos sítios dão
+   * as mesmas posições, e baús já abertos continuam abertos. Por isso pode ser chamado de novo na
+   * troca de estágio e na repetição da tentativa sem embaralhar a corrida em curso.
+   */
+  private applyLootPlacement():void {
+    const interactables=this.interactables;
+    if(!interactables||!this.lootReady||!this.radial||!this.world.ready)return;
+    interactables.configurePlacement({
+      sites:this.world.sites,
+      // Função, nunca valor: o referencial do mundo troca quando o planeta é configurado.
+      surface:()=>this.world.surface,
+      // A semente é a da TENTATIVA: repetir com a mesma semente devolve o mesmo mapa de baús,
+      // e uma tentativa nova sorteia outro — a mesma regra que já vale para ilha e cálice.
+      seed:this.attemptSeed,
+    });
+    // A malha do baú é desenho; o CORPO dele é esta lista. Sem anexar, o baú do planeta seria
+    // atravessado — a BVH do manifesto é assada sobre o asset e não contém nada criado em
+    // tempo de execução. O `PlayerMotor` original continua consultando `.surface` como sempre;
+    // é o referencial que passa a incluir os props.
+    this.collision.attachRadialProps('loot',interactables.props);
+  }
+
+  /**
+   * Malha de navegação do planeta: uma carta rígida por ilha.
+   *
+   * `EnemySwarm.prepareNavigation()` é o caminho da fazenda (navmesh assada única). No planeta quem
+   * monta é `TacticalNavigation.createIslands`, que precisa do manifesto. Os dois campos escritos
+   * aqui (`tactical`, `navigationReady`) são públicos no `EnemySwarm` justamente para isto, então
+   * a integração liga a navegação sem a horda precisar conhecer manifesto nenhum.
+   *
+   * Falhar aqui NÃO derruba a partida: sem Detour a horda cai na perseguição local do
+   * `FarmNavigation`, que é degradação anunciada no F1 — nunca uma cena sem inimigos.
+   */
+  private async prepareIslandNavigation(world:PlanetWorld):Promise<void> {
+    const swarm=this.enemies,manifest=world.manifest;
+    if(!(swarm instanceof EnemySwarm)||!manifest)return;
+    const started=performance.now();
+    try{
+      // Sem `.bin` assado NÃO se assa em tempo de execução.
+      //
+      // `createIslands` é `async`, mas o trabalho dele é CPU síncrona: `await` não devolve a thread
+      // no meio de um Recast. Assar 38 navmeshes aqui congelaria a aba do mesmo jeito, só que
+      // depois da tela de carregamento em vez de durante — que foi exatamente o travamento duro
+      // relatado. Enquanto o bake offline não existir, a horda joga em perseguição local e o HUD
+      // diz o porquê. Ver `scripts/` (dono: worker de inimigos).
+      if(!await bakedIslandNavmesh(manifest.islands[0]?.id??'')){
+        this.navigationNotice='Cartas de ilha não assadas · horda em perseguição local (rode o bake offline)';
+        return;
+      }
+      const tactical=await TacticalNavigation.createIslands({
+        centre:manifest.centre,radius:manifest.radius,
+        islands:manifest.islands.map(i=>({id:i.id,centre:i.centre,up:i.up,radius:i.radius})),
+        bridges:manifest.bridges.map(b=>({a:b.a,b:b.b,waypoints:b.waypoints})),
+        positions:manifest.positions,indices:manifest.indices,
+        baked:id=>bakedIslandNavmesh(id),
+      });
+      if(this.disposed){tactical.dispose();return;}
+      swarm.tactical=tactical;swarm.navigationReady=true;
+      traceBoot('navegação:cartas de ilha prontas');
+      stageTiming('navegação por ilha',started);
+    }catch(error){
+      this.navigationNotice=`Navegação por ilha indisponível (${error instanceof Error?error.message:'falha'}) · horda em perseguição local`;
+      // Sem Detour a horda ainda joga; liberar o carregamento é o que impede a cena travar.
+      swarm.navigationReady=true;
+    }
+  }
+
+  /**
+   * Bioma do estágio.
+   *
+   * A fazenda tem os biomas na autoria (`STAGE_BIOMES`); o planeta traz as próprias ilhas e elas
+   * viram regiões nomeadas em `siteBiomes`. A rotação por estágio é a mesma nos dois.
+   */
+  private biomeFor(stage:number):StageBiome|undefined {
+    return this.radial?siteBiomeForStage(this.worldBiomes,stage):biomeForStage(stage);
   }
 
   /**
@@ -743,8 +1247,14 @@ export class PlayerScene implements SceneModule {
       this.interactables?.reset();this.resonance.reset();this.bossRequestClock=0;
     }
     this.objectives.reset();this.objectives.setSites([site]);
+    // O sítio antigo sai de cena: o registro de corpos dele tem de sair junto, senão o cálice do
+    // estágio anterior continuaria sólido no ar sobre uma ilha que ninguém mais visita.
+    this.collision.detachRadialProps('expedition-sites');
     this.expeditionSites?.dispose();
-    this.expeditionSites=new ExpeditionSites(this.scene,this.collision);
+    this.expeditionSites=new ExpeditionSites(this.scene,this.collision,this.world.surface);
+    // O corpo do cálice entra no referencial pela mesma porta do baú. Um id por sítio, então
+    // trocar de estágio substitui o registro em vez de empilhar cálices invisíveis.
+    this.collision.attachRadialProps('expedition-sites',this.expeditionSites.props);
     void this.expeditionSites.load(this.objectives.totems);
     this.stageSetup=setup;this.pendingSetup=undefined;this.planReady=true;this.planError='';
     this.spawn.set(plan.spawn.x,plan.spawn.y,plan.spawn.z);
@@ -753,14 +1263,25 @@ export class PlayerScene implements SceneModule {
       this.player.maxHP=this.progression.stats.maxHP;
       // `arriveAt` (e não `resetAt`) reescreve TAMBÉM a origem de recuperação do motor: depois de
       // viajar, cair de uma ilha do bosque não pode devolver o corpo ao campo inicial do estágio 1.
-      this.player.arriveAt(this.spawn);
+      this.player.arriveAt(this.seatOnDeck(this.spawn));
       this.mp.cancel();this.cancelCinematic();this.weapons.cancelSkills();this.input.clear();
       // De frente para o destino: a bússola do HUD e o corpo apontam para o mesmo lado.
-      this.input.yaw=Math.atan2(plan.chalice.x-plan.spawn.x,plan.chalice.z-plan.spawn.z);
-      this.input.pitch=.02;this.player.yaw=this.input.yaw;
+      // No mapa curvo o rumo é um VETOR tangente — um `atan2(dx,dz)` de mundo apontaria para um
+      // canto fixo do espaço, e escrevê-lo em `player.yaw` (que ali é o yaw LOCAL) seria pior
+      // ainda. A câmera é a dona da marcha, então é ela que recebe a direção.
+      if(this.radial){
+        const heading=this.world.surface.basis(this.spawn,{x:plan.chalice.x-plan.spawn.x,y:plan.chalice.y-plan.spawn.y,z:plan.chalice.z-plan.spawn.z}).forward;
+        this.camera.snapTo(this.spawn,heading);
+        this.player.setHeading(heading);
+      } else {
+        this.input.yaw=Math.atan2(plan.chalice.x-plan.spawn.x,plan.chalice.z-plan.spawn.z);
+        this.player.yaw=this.input.yaw;
+      }
+      this.input.pitch=.02;
       this.camera.update(this.player.position,this.input.yaw,this.input.pitch,1);
     }
     if(!arrival)return;
+    if(this.yard instanceof PlanetWorld)this.yard.restoreScenery();
     this.events.emit('StageStarted',{stageId:String(this.progression.stage),seed:this.seed});
     // A chegada é a MESMA entrada pela nave do início da expedição: deck, corrida, salto e mergulho.
     this.intro.reset();this.intro.beginStandby();this.hasArrived=true;
@@ -775,7 +1296,7 @@ export class PlayerScene implements SceneModule {
   private beginStageJourney():boolean {
     if(this.directorMode!=='expedition'||this.journey.active)return false;
     if(!this.objectives.collect(this.player.position))return false;
-    const destination=nextBiomeForStage(this.progression.stage);
+    const destination=this.biomeFor(this.progression.stage+1)??nextBiomeForStage(this.progression.stage);
     if(!this.journey.begin(this.progression.stage,destination.name)){this.objectives.collected=false;return false;}
     // Congela o que é perigoso: o diretor para e o passo fixo inteiro fica retido por `holdsControl`.
     if(this.enemies instanceof EnemySwarm)this.enemies.director.stopped=true;
@@ -842,24 +1363,111 @@ export class PlayerScene implements SceneModule {
   private resolveMelee():void {
     if(!(this.enemies instanceof EnemySwarm))return;
     const step=this.unarmed.step,origin=this.player.position,yaw=this.input.yaw;
-    const heavy=this.unarmed.heavy;
+    const heavy=this.unarmed.heavy,surface=this.world.surface;
+    // A frente do golpe é a do CORPO, que no planeta é um vetor tangente transportado. No mundo
+    // plano `player.forward` vale exatamente `(sin yaw, 0, cos yaw)`, então nada muda ali.
+    const facing=this.player.forward;
+    const up=surface.up(origin);
+    const chest={x:origin.x+up.x*1.1,y:origin.y+up.y*1.1,z:origin.z+up.z*1.1};
     for(const actor of this.enemies.actors){
       if(!actor.active||actor.health.dead||!this.unarmed.canHit(actor.id))continue;
       const target=actor.root.position,radius=ENEMIES[actor.kind].radius*ENEMY_AFFIXES[actor.variant].scale;
-      if(!meleeReaches(step,origin,yaw,target,radius))continue;
-      const dx=target.x-origin.x,dz=target.z-origin.z,length=Math.hypot(dx,dz)||1;
+      if(!meleeReaches(step,origin,yaw,target,radius,surface,facing))continue;
+      // O peito do alvo sobe pela vertical DELE — numa ponte entre ilhas os dois `up` diferem.
+      const targetUp=surface.up(target);
+      const chestTarget={x:target.x+targetUp.x,y:target.y+targetUp.y,z:target.z+targetUp.z};
+      const to={x:chestTarget.x-chest.x,y:chestTarget.y-chest.y,z:chestTarget.z-chest.z};
       // Sem atravessar cobertura: a varredura sai do peito até o corpo do alvo.
-      const chest={x:origin.x,y:origin.y+1.1,z:origin.z};
-      if(this.collision.sweepSphere(chest,{x:dx,y:target.y+1-chest.y,z:dz},.12))continue;
+      if(surface.sweep(chest,to,.12))continue;
       this.unarmed.registerHit(actor.id);
+      // A força empurra no plano TANGENTE; no mundo plano isto é o `y:0` de sempre.
+      const push=normalizeTangent(to,up);
       const damage=step.damage*this.progression.stats.damage;
-      actor.target.onHit?.({attackerId:1,victimId:actor.id,sourceId:'unarmed_'+step.id,attackId:step.id,baseDamage:step.damage,finalDamage:damage,crit:false,procCoefficient:.8,procChainDepth:0,
-        damageTags:heavy?['melee','melee_heavy']:['melee'],
-        hitPosition:{x:target.x,y:target.y+1.1,z:target.z},hitNormal:{x:-dx/length,y:0,z:-dz/length},
-        forceDirection:{x:dx/length,y:0,z:dz/length},forceMagnitude:step.force});
-      this.events.emit('DamageDealt',{attackerId:1,victimId:actor.id,sourceId:'unarmed_'+step.id,attackId:step.id,baseDamage:step.damage,finalDamage:damage,crit:false,procCoefficient:.8,procChainDepth:0,damageTags:heavy?['melee','melee_heavy']:['melee'],hitPosition:{x:target.x,y:target.y+1.1,z:target.z},hitNormal:{x:-dx/length,y:0,z:-dz/length},forceDirection:{x:dx/length,y:0,z:dz/length},forceMagnitude:step.force});
+      const hit={attackerId:1,victimId:actor.id,sourceId:'unarmed_'+step.id,attackId:step.id,baseDamage:step.damage,finalDamage:damage,crit:false,procCoefficient:.8,procChainDepth:0,
+        damageTags:(heavy?['melee','melee_heavy']:['melee']) as string[],
+        hitPosition:{x:chestTarget.x,y:chestTarget.y,z:chestTarget.z},hitNormal:{x:-push.x,y:-push.y,z:-push.z},
+        forceDirection:push,forceMagnitude:step.force};
+      actor.target.onHit?.(hit);
+      this.events.emit('DamageDealt',hit);
       this.camera.impulse(heavy?.03:.014);this.audio.skillImpact('unarmed_'+step.id);
     }
+    this.resolveMeleeScenery(chest,facing,heavy);
+  }
+
+  /**
+   * O soco também quebra cenário.
+   *
+   * Sem isto o jogador atravessaria o combo inteiro numa caixa sem arranhá-la, enquanto uma bala
+   * a destrói — e os 520 destrutíveis do planeta ficariam sendo "coisa de arma". A varredura é a
+   * mesma do alcance do golpe e o dano entra pela MESMA porta de destruição do tiro, então perfil,
+   * estágios, áudio e cacos são os do subsistema, não uma segunda regra escrita aqui.
+   */
+  /**
+   * Uma direção de MUNDO vista pelo corpo.
+   *
+   * `arrow` sai em componentes da base de REFERÊNCIA (a tangente transportada), que é o mesmo
+   * referencial em que `player.yaw` é medido — é o par que a seta do HUD espera. `side` é a
+   * projeção na direita do corpo, que decide para que lado a câmera balança.
+   *
+   * No mundo plano a base de referência é `{+X, +Y, +Z}` e `arrow` devolve `forceDirection`
+   * intacto, então o HUD recebe exatamente o que recebia antes.
+   */
+  /**
+   * Leva um ponto do espaço de ENCENAÇÃO do pouso para o mundo.
+   *
+   * O espaço de encenação é o que a coreografia autoral já usava: origem no pouso, `+Z` para onde
+   * o corpo olha, `+Y` para cima. No mundo plano isso É o mundo (a base é `{+X,+Y,+Z}` e a origem
+   * é o pouso), então a função devolve o ponto somado ao pouso, sem mudar nada. No planeta a base
+   * é a tangente da ilha, e é isso que faz o mergulho descer pela radial.
+   */
+  private stageToWorld(local:Vec3,landing:Vec3):Vec3 {
+    if(!this.radial)return local;
+    const b=this.world.surface.basis(landing,this.player.forward);
+    return {
+      x:landing.x+b.right.x*local.x+b.up.x*local.y+b.forward.x*local.z,
+      y:landing.y+b.right.y*local.x+b.up.y*local.y+b.forward.y*local.z,
+      z:landing.z+b.right.z*local.x+b.up.z*local.y+b.forward.z*local.z,
+    };
+  }
+
+  /**
+   * Sobe `metres` pela vertical LOCAL. No mundo plano é exatamente `y + metres`, que é o que
+   * estas apresentações escreviam à mão; no planeta é o que impede o efeito nascer de lado.
+   */
+  private liftWorld(at:Vec3,metres:number):Vector3 {
+    const up=this.world.surface.up(at);
+    return new Vector3(at.x+up.x*metres,at.y+up.y*metres,at.z+up.z*metres);
+  }
+
+  private localForce(force:Vec3):{arrow:Vec3;side:number} {
+    const surface=this.world.surface,at=this.player.position;
+    const reference=surface.basis(at,this.player.reference);
+    const body=surface.basis(at,this.player.forward);
+    return {
+      arrow:{
+        x:force.x*reference.right.x+force.y*reference.right.y+force.z*reference.right.z,
+        y:force.x*reference.up.x+force.y*reference.up.y+force.z*reference.up.z,
+        z:force.x*reference.forward.x+force.y*reference.forward.y+force.z*reference.forward.z,
+      },
+      side:force.x*body.right.x+force.y*body.right.y+force.z*body.right.z,
+    };
+  }
+
+  private resolveMeleeScenery(chest:Vec3,facing:Vec3,heavy:boolean):void {
+    if(this.unarmed.sceneryHit)return;
+    const step=this.unarmed.step;
+    const direction=new Vector3(facing.x,facing.y,facing.z);
+    if(direction.lengthSquared()<1e-8)return;
+    direction.normalize();
+    const hit=this.world.surface.raycast(new Ray(new Vector3(chest.x,chest.y,chest.z),direction,step.range));
+    if(!hit)return;
+    this.unarmed.sceneryHit=true;
+    // Mesma porta do tiro: perfil, estágios, áudio, cacos e remoção de colisão são do subsistema.
+    this.weapons.destruction.hit(destructionHit(
+      hit.point,{x:direction.x,y:direction.y,z:direction.z},
+      step.damage*this.progression.stats.damage*(heavy?1.4:1),
+      undefined,hit.normal,
+    ));
   }
   /**
    * Avanço dos modos legados (`?mode=horde` e `?mode=classic`), que continuam com a fenda do celeiro
@@ -889,6 +1497,9 @@ export class PlayerScene implements SceneModule {
 
   private async restartAttempt():Promise<void> {
     this.death.reset();this.deathSummary=undefined;this.started=false;
+    // O clone volta a ficar escondido e o rig vivo reaparece — sem realocar nada.
+    this.playerRagdoll.reset();this.visual.root.setEnabled(true);
+    if(this.yard instanceof PlanetWorld)this.yard.restoreScenery();
     this.cancelCinematic();this.progression.reset();this.weapons.resetAttempt();this.visual.resetAttempt();this.mp.cancel();this.mp.current=this.mp.maximum;this.mp.releases=0;this.mp.speedMultiplier=1;
     if(this.enemies instanceof EnemySwarm)this.enemies.nextStage();this.interactables?.reset();this.objectives.reset();this.resonance.reset();this.slowMotion.reset();this.weather.reset();this.unarmed.resetAttempt();this.weapons.holstered=false;this.bossRequestClock=0;
     // A viagem volta ao zero e o estágio 1 é replanejado: nada de herdar a partida do estágio onde
@@ -898,7 +1509,7 @@ export class PlayerScene implements SceneModule {
     // senão o cache devolveria a mesma ilha de partida e o mesmo cálice para sempre. Preso por
     // `?replay=1` ou `?online=1`, a semente e os planos ficam — repetir é o pedido ali.
     const seed=retrySeed({pinned:this.seedLocked,seed:this.attemptSeed});
-    if(seed!==this.attemptSeed){this.attemptSeed=seed;this.stagePlans.clear();}
+    if(seed!==this.attemptSeed){this.attemptSeed=seed;this.stagePlans.clear();this.applyLootPlacement();}
     let destination:Promise<void>|undefined;
     if(this.stagePlanRequired){
       const cached=this.stagePlans.get(1);
@@ -963,6 +1574,14 @@ export class PlayerScene implements SceneModule {
     this.hud?.loading(stages.filter(Boolean).length,stages.length,label);for(const material of this.scene.materials){const lit=material as typeof material & {maxSimultaneousLights?:number};if(lit.maxSimultaneousLights!==undefined&&lit.maxSimultaneousLights>4){lit.unfreeze();lit.maxSimultaneousLights=4;}}if(this.visual?.ready&&this.weapons?.ready&&this.skillAura?.ready&&(!(this.yard instanceof FarmWorld)||this.yard.ready)&&(!(this.enemies instanceof EnemySwarm)||(this.enemies.ready&&this.enemies.navigationReady))&&(!this.interactables||this.interactables.ready)&&deckReady&&planned){if(this.warming)return;this.warming=true;this.scene.executeWhenReady(()=>{if(!this.disposed)this.hud.ready();});}}
 
   configure(name: string,value: number): void {
+    if(name==='review-crate'&&this.yard instanceof PlanetWorld){
+      const props=this.yard.destructibles.filter(p=>p.kind==='crate').sort((a,b)=>this.world.surface.planarDistance(a.centre,this.player.position)-this.world.surface.planarDistance(b.centre,this.player.position));
+      const prop=props[0];if(!prop)return;
+      this.intro.skip();if(this.enemies instanceof EnemySwarm){this.enemies.nextStage();this.enemies.director.stopped=true;}
+      this.player.resetAt(this.qaSpotNear(prop.centre,0,-4,.05));
+      this.faceQa(prop.centre);this.input.pitch=.32;this.player.debugInvincible=true;
+      this.weapons.holstered=false;return;
+    }
     if(name.startsWith('weather-')){
       const phase=name.slice(8);
       if(phase==='auto')this.weather.manualPhase=undefined;
@@ -1022,10 +1641,12 @@ export class PlayerScene implements SceneModule {
     if(name==='all-perks')for(const item of ITEMS)this.progression.addItem(item.id);
     if(name==='loot'){const ids=['pruner','battery','boot','watch','feather','goggles','bandage','belt','fire','harvest','bomb','crystal'];this.progression.addItem(ids[this.progression.inventory.size%ids.length]!);this.progression.credits+=100;}
 
-    if(name==='ferry'){this.player.resetAt({x:-21,y:0,z:-8});this.input.yaw=-Math.PI/2;this.input.pitch=.10;}
+    // Coordenadas AUTORAIS da fazenda. No planeta elas caem dentro do miolo da esfera, então o
+    // botão recusa em voz alta em vez de enterrar o corpo no núcleo.
+    if(name==='ferry'&&!this.qaRefuseFlat(name)){this.player.resetAt({x:-21,y:0,z:-8});this.input.yaw=-Math.PI/2;this.input.pitch=.10;}
 
-    if(name==='review-cliff'){this.player.resetAt({x:9,y:0,z:12});this.input.yaw=-.28;this.input.pitch=-.09;}
-    if(name==='review-east-bridge'){
+    if(name==='review-cliff'&&!this.qaRefuseFlat(name)){this.player.resetAt({x:9,y:0,z:12});this.input.yaw=-.28;this.input.pitch=-.09;}
+    if(name==='review-east-bridge'&&!this.qaRefuseFlat(name)){
       this.intro.abort();this.endMeleeReview();this.cancelCinematic();
       if(this.enemies instanceof EnemySwarm){this.enemies.nextStage();this.enemies.director.stopped=true;}
       this.player.resetAt({x:28,y:1,z:8});this.input.yaw=Math.PI/2;this.input.pitch=.02;
@@ -1034,7 +1655,11 @@ export class PlayerScene implements SceneModule {
       const at=this.objectives.totems[0].site.position;
       this.intro.abort();this.endMeleeReview();this.cancelCinematic();
       if(this.enemies instanceof EnemySwarm){this.enemies.nextStage();this.enemies.director.stopped=true;}
-      this.player.resetAt({x:at.x,y:at.y+.2,z:at.z-2.5});this.input.yaw=0;this.input.pitch=.05;
+      // 2,5 m ATRÁS do cálice, no plano tangente, e 20 cm acima do apoio medido. No mundo plano
+      // isto é literalmente `{x, y+.2, z-2.5}`, como sempre foi.
+      this.player.resetAt(this.qaSpotNear(at,0,-2.5,.2));
+      this.faceQa(at);
+      this.input.pitch=.05;
       if(name==='complete-chalice'){
         this.objectives.activate(this.player.position);
         for(let i=0;i<30;i++)this.objectives.harvest({sequence:1_000_000+i,kind:'watermelon',position:at},this.player.position,true);
@@ -1042,7 +1667,7 @@ export class PlayerScene implements SceneModule {
       }
     }
 
-    if(name==='barn')this.player.resetAt({x:0,y:5,z:30.8});
+    if(name==='barn'&&!this.qaRefuseFlat(name))this.player.resetAt({x:0,y:5,z:30.8});
 
     if(name==='safe-return'){
       this.intro.abort();this.endMeleeReview();this.cancelCinematic();
@@ -1055,7 +1680,7 @@ export class PlayerScene implements SceneModule {
       this.input.yaw=Math.PI/2;this.input.pitch=.02;
     }
 
-    if(name==='shop')this.player.resetAt({x:3,y:0,z:1});
+    if(name==='shop'&&!this.qaRefuseFlat(name))this.player.resetAt({x:3,y:0,z:1});
 
     if(name.startsWith('skill')&&this.started&&this.weapons.ready){const tier=Number(name.slice(5));if(tier===1||tier===2||tier===3){void this.requestSkill(tier);}}
 
@@ -1085,34 +1710,44 @@ export class PlayerScene implements SceneModule {
 
     return {entities:1+this.enemies.count,aiJobs:this.enemies instanceof EnemySwarm?this.enemies.scheduler.size:0,aiTicks:this.enemies instanceof EnemySwarm?this.enemies.scheduler.totalTicks:0,poolActive:pool.active+(this.enemies instanceof EnemySwarm?this.enemies.effects.active:0),poolCapacity:pool.capacity+(this.enemies instanceof EnemySwarm?320:0),poolPeak:pool.peak,poolMisses:pool.misses,definitions:this.enemies instanceof EnemySwarm?20:1,listeners:this.events.listenerCount,
 
-      player:`${this.net?.debugLine()??''}${this.yard instanceof FarmWorld?this.yard.regionStatus:''}${this.cameraAudit}`
+      // Avisos vivem AQUI, no diagnóstico — nunca no parâmetro `error` do HUD, que troca o botão
+      // Jogar por "Recarregue a página". Degradação anunciada não é partida quebrada.
+      player:`${this.networkNotice?this.networkNotice+'\n':''}${this.navigationNotice?this.navigationNotice+'\n':''}${this.expeditionSites?.notice?this.expeditionSites.notice+'\n':''}${this.qaNotice?this.qaNotice+'\n':''}${this.net?.debugLine()??''}${this.yard instanceof FarmWorld?this.yard.regionStatus:this.world.regionStatus??''}${this.cameraAudit}`
       +`\nEntrada ${this.intro.phase}${this.intro.skipped?' (pulada)':''} · deck ${this.dropship?this.dropship.error||(this.dropship.ready?'pronto':'carregando'):'treino'} · controle ${this.intro.holdsControl?'RETIDO':'livre'}`
       +`\n${this.stagePlanDescription}`
       +(this.meleeReview.active?`\nRevisão corpo a corpo · ${this.meleeReview.label} · voltas ${this.meleeReview.loops} · armas ${this.weapons.holstered?'guardadas':'EM MÃOS'}`:'')
-      +`\nPosição${this.player.position.x.toFixed(1)}, ${this.player.position.y.toFixed(1)}, ${this.player.position.z.toFixed(1)}\nVelocidade ${Math.hypot(this.player.velocity.x,this.player.velocity.z).toFixed(2)} m/s · ${this.player.sprinting?'CORRENDO':'NORMAL'}\nMira ${this.input.yaw.toFixed(3)} / ${this.input.pitch.toFixed(3)}\nGrounded ${this.player.grounded} · Saltos ${this.player.jumps}\nEsquivas ${this.player.dodges} · Retornos ${this.player.respawns}\n${this.enemies instanceof EnemySwarm?this.enemies.tactical?.residencyDescription??'':''}\nNavmesh ${this.enemies instanceof EnemySwarm?this.enemies.tactical?.count??0:0} agentes · Ragdolls ${this.enemies instanceof EnemySwarm?this.enemies.ragdollCount:0} · Marcas ${this.weapons.effects.decalCount}\nDisparos ${this.weapons.cadence.shots} · Acertos ${this.weapons.hits}\nImpacto ${this.weapons.lastImpact}\nModelo ${this.visual.ready?'pronto':'carregando'} · ${this.visual.skinning}\nInvulnerabilidade QA ${this.player.debugInvincible?'ATIVA':'desligada'}\nDirector ${this.enemies instanceof EnemySwarm?this.enemies.director.state:'treino'} · Estágio ${this.progression.stage}`};
+      +`\nPosição${this.player.position.x.toFixed(1)}, ${this.player.position.y.toFixed(1)}, ${this.player.position.z.toFixed(1)}\nVelocidade ${Math.hypot(this.player.velocity.x,this.player.velocity.z).toFixed(2)} m/s · ${this.player.sprinting?'CORRENDO':'NORMAL'}\nMira ${this.input.yaw.toFixed(3)} / ${this.input.pitch.toFixed(3)}\nGrounded ${this.player.grounded} · Saltos ${this.player.jumps}\nEsquivas ${this.player.dodges} · Retornos ${this.player.respawns}\n${this.enemies instanceof EnemySwarm?this.enemies.tactical?.residencyDescription??'':''}\nNavmesh ${this.enemies instanceof EnemySwarm?this.enemies.tactical?.count??0:0} agentes · Ragdolls ${this.enemies instanceof EnemySwarm?this.enemies.ragdollCount:0} · Marcas ${this.weapons.effects.decalCount}\nCorpo do jogador: ${this.playerRagdoll.ready?"pronto":"carregando"} · ${this.playerRagdoll.bodies} corpos · ${this.playerRagdoll.active?"física ativa":"inativo"} · ${this.playerRagdoll.error}\nDisparos ${this.weapons.cadence.shots} · Acertos ${this.weapons.hits}\nImpacto ${this.weapons.lastImpact}\nModelo ${this.visual.ready?'pronto':'carregando'} · ${this.visual.skinning}\nInvulnerabilidade QA ${this.player.debugInvincible?'ATIVA':'desligada'}\nDirector ${this.enemies instanceof EnemySwarm?this.enemies.director.state:'treino'} · Estágio ${this.progression.stage}`};
 
   }
 
   dispose(): void {if(this.disposed)return;this.disposed=true;
     // Invalida qualquer carregamento de destino em voo: o `.then` tardio vê a versão mudada e sai.
     this.planVersion++;this.planning=false;this.journey.reset();this.pendingSetup=undefined;this.stagePlans.clear();
-    this.weatherView?.dispose();this.weatherView=undefined;this.dropship?.dispose();this.dropship=undefined;this.expeditionSites?.dispose();this.expeditionSites=undefined;this.net?.dispose();this.cancelCinematic();this.cutIn.dispose();this.skillAura.dispose();this.elements.dispose();if(this.yard instanceof FarmWorld)this.yard.dispose();this.input.dispose();this.enemies.dispose();this.runHUD?.dispose();this.interactables?.dispose();this.events.clear();this.weapons.dispose();this.footing.dispose();this.abyss?.dispose();this.visual.dispose();this.audio.dispose();this.hud.dispose();this.instrumentation.dispose();this.scene.dispose();}
+    this.weatherView?.dispose();this.weatherView=undefined;this.dropship?.dispose();this.dropship=undefined;this.collision.detachRadialProps('expedition-sites');this.collision.detachRadialProps('loot');this.expeditionSites?.dispose();this.expeditionSites=undefined;this.playerRagdoll.dispose();this.avatar?.dispose();this.net?.dispose();this.cancelCinematic();this.cutIn.dispose();this.skillAura.dispose();this.elements.dispose();this.world.dispose();this.input.dispose();this.enemies.dispose();this.runHUD?.dispose();this.interactables?.dispose();this.events.clear();this.weapons.dispose();this.footing.dispose();this.abyss?.dispose();this.visual.dispose();this.audio.dispose();this.hud.dispose();this.instrumentation.dispose();this.scene.dispose();}
 
 }
 
+/**
+ * Componente TANGENTE de `v` em `up`, normalizada. No mundo plano (`up = +Y`) devolve
+ * exatamente o `{x/len, y:0, z/len}` que o combate original já escrevia à mão.
+ */
+const ORIGIN:Vec3={x:0,y:0,z:0};
 
+/**
+ * Cronômetro das etapas caras de carregamento.
+ *
+ * Existe porque um travamento de carregamento sem medição vira adivinhação: com isto o console diz
+ * QUAL etapa custou os segundos. Só imprime o que passou de 250 ms — abaixo disso é ruído.
+ */
+function stageTiming(label:string,startedAt:number):void {
+  const elapsed=performance.now()-startedAt;
+  if(elapsed>=250)console.info(`[planeta] ${label}: ${Math.round(elapsed)} ms`);
+}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+/** Quantas ilhas o sorteio do planeta examina por tentativa. Ver `buildStageSetup`. */
+function normalizeTangent(v:Vec3,up:Vec3):Vec3 {
+  const d=v.x*up.x+v.y*up.y+v.z*up.z;
+  const x=v.x-up.x*d,y=v.y-up.y*d,z=v.z-up.z*d;
+  const length=Math.hypot(x,y,z);
+  return length<1e-6?{x:0,y:0,z:0}:{x:x/length,y:y/length,z:z/length};
+}

@@ -1,4 +1,6 @@
 import {LoadAssetContainerAsync} from '@babylonjs/core/Loading/sceneLoader';
+import type {SurfaceFrame} from '../physics/SurfaceFrame';
+import {RadialProps} from '../physics/RadialProps';
 import type {AssetContainer} from '@babylonjs/core/assetContainer';
 import {TransformNode} from '@babylonjs/core/Meshes/transformNode';
 import {CreatePlane} from '@babylonjs/core/Meshes/Builders/planeBuilder';
@@ -55,7 +57,28 @@ export class ExpeditionSites {
   private disposed=false;
   ready=false;error='';
   private clock=0;
-  constructor(private readonly scene:Scene,private readonly world?:CollisionWorld){}
+  constructor(
+    private readonly scene:Scene,
+    private readonly world?:CollisionWorld,
+    /**
+     * Referencial do mapa. Ausente ⇒ mundo plano, tudo como sempre foi.
+     * Presente e esférico ⇒ o cálice fica DE PÉ na ilha e o limite acompanha o convés curvo.
+     */
+    private readonly surface?:SurfaceFrame,
+  ){}
+
+  /** Aviso de QA quando algo do sítio não pôde ser montado neste mapa. */
+  notice='';
+
+  /**
+   * Corpos sólidos dos cálices no mapa curvo. A cena anexa isto ao referencial
+   * (`CollisionWorld.attachRadialProps`); no mundo plano fica vazio e quem responde continua
+   * sendo a região anexada de sempre.
+   */
+  readonly props=new RadialProps();
+
+  /** Centro de cada cálice, em MUNDO, para montar o corpo orientado. */
+  private readonly chaliceAnchors:Vec3[]=[];
 
   async load(totems:readonly TotemProgress[]):Promise<void>{
     try{
@@ -89,8 +112,40 @@ export class ExpeditionSites {
       for(let i=0;i<triangles.length;i+=3)indices.push(offset+triangles[i]!,offset+triangles[i+(flipped?2:1)]!,offset+triangles[i+(flipped?1:2)]!);
     }
     if(!indices.length)return;
+    // Num mapa esférico `attachRegion` seria anexado e NUNCA consultado: quem responde ali é o
+    // `SurfaceFrame`, que lê a malha do planeta. O corpo do cálice entra pelo registro de props
+    // radiais, que é a porta que o referencial consulta de verdade.
+    if(this.surface&&this.surface.kind!=='flat'){
+      this.attachChaliceProp(positions,index);
+      return;
+    }
     const collision=new CollisionWorld();collision.setGeometry(positions,indices);collision.prepareRaycasts();
     this.releaseCollision.push(this.world.attachRegion('harvest-chalice-'+index,collision));
+  }
+
+  /**
+   * Corpo sólido do cálice num mapa curvo: uma caixa ORIENTADA pela radial da ilha.
+   *
+   * A malha do cálice tem algumas centenas de triângulos e o `RadialProps` é uma lista com rejeição
+   * por esfera envolvente — medir a pegada real e registrar UMA caixa é mais barato e mais estável
+   * que uma BVH nova por sítio, e é a mesma decisão que o baú já tomou. As meias-extensões saem dos
+   * vértices reais projetados na base local, então o corpo acompanha o asset em vez de um palpite.
+   */
+  private attachChaliceProp(positions:readonly number[],index:number):void {
+    const surface=this.surface,at=this.chaliceAnchors[index];
+    if(!surface||!at)return;
+    const b=surface.basis(at,{x:0,y:0,z:1});
+    let right=0,up=0,forward=0;
+    for(let i=0;i<positions.length;i+=3){
+      const dx=positions[i]!-at.x,dy=positions[i+1]!-at.y,dz=positions[i+2]!-at.z;
+      right=Math.max(right,Math.abs(dx*b.right.x+dy*b.right.y+dz*b.right.z));
+      up=Math.max(up,Math.abs(dx*b.up.x+dy*b.up.y+dz*b.up.z));
+      forward=Math.max(forward,Math.abs(dx*b.forward.x+dy*b.forward.y+dz*b.forward.z));
+    }
+    if(!(right>0&&up>0&&forward>0))return;
+    const id='harvest-chalice-'+index;
+    this.props.add({id,centre:at,right:b.right,up:b.up,forward:b.forward,half:{x:right,y:up,z:forward}});
+    this.releaseCollision.push(()=>{this.props.remove(id);});
   }
 
   harvest(index:number,from:Vec3,complete:boolean):void{
@@ -119,8 +174,12 @@ export class ExpeditionSites {
 
   private build(totem:TotemProgress):TotemVisual{
     const scene=this.scene,index=totem.site.index,at=totem.site.position;
+    this.chaliceAnchors[index]={x:at.x,y:at.y,z:at.z};
     const root=new TransformNode(`expedition-totem-${index}`,scene);
     root.position.set(at.x,at.y,at.z);
+    // Uma única orientação na RAIZ põe cálice, energia, feixe e núcleo de pé em qualquer ilha —
+    // todos são filhos dela, então nenhum `position.y` local abaixo precisou mudar.
+    if(this.surface)this.surface.orient(root,at,this.surface.basis(at,{x:0,y:0,z:1}).forward);
 
     const instance=this.container!.instantiateModelsToScene(name=>`totem-${index}-${name}`,false,{doNotInstantiate:true});
     for(const node of instance.rootNodes){node.parent=root;if(node instanceof TransformNode)node.scaling.setAll(.85);}
@@ -133,7 +192,10 @@ export class ExpeditionSites {
     const beamMaterial=this.tinted(`totem-beam-${index}`,beamTexture,TOTEM_COLORS.available);
     const beam=CreatePlane(`totem-beam-mesh-${index}`,{width:2.1,height:15},scene);
     beam.parent=energy;beam.position.y=7.2;beam.material=beamMaterial;beam.isPickable=false;
-    beam.billboardMode=Mesh.BILLBOARDMODE_Y;beam.renderingGroupId=1;
+    // `BILLBOARDMODE_Y` gira em torno do `Y` do MUNDO: num mapa esférico o feixe deita junto com a
+    // ilha. `ALL` encara a câmera em qualquer vertical, que é o que o feixe sempre quis dizer.
+    beam.billboardMode=this.surface&&this.surface.kind!=='flat'?Mesh.BILLBOARDMODE_ALL:Mesh.BILLBOARDMODE_Y;
+    beam.renderingGroupId=1;
 
     const coreTexture=new Texture('/textures/expedition-beam.svg',scene);
     const coreMaterial=this.tinted(`totem-core-${index}`,coreTexture,TOTEM_COLORS.available);
@@ -148,7 +210,28 @@ export class ExpeditionSites {
     boundary.position.set(at.x,0,at.z);
     // Cada vértice procura o próprio chão: o limite acompanha o relevo em vez de um disco plano.
     const vertices=boundary.getVerticesData(VertexBuffer.PositionKind);
-    if(vertices){
+    if(vertices&&this.surface){
+      // No mapa curvo o disco é montado no plano TANGENTE e cada vértice desce pela radial. O
+      // `CreateGround` continua sendo a malha de origem; só as posições finais são reescritas,
+      // agora em espaço de MUNDO (por isso a raiz do limite volta para a origem).
+      boundary.position.setAll(0);
+      boundary.rotationQuaternion=null;boundary.rotation.setAll(0);
+      const b=this.surface.basis(at,{x:0,y:0,z:1});
+      for(let i=0;i<vertices.length;i+=3){
+        const side=vertices[i]!,ahead=vertices[i+2]!;
+        const probe=this.surface.walk(at,{
+          x:b.right.x*side+b.forward.x*ahead,
+          y:b.right.y*side+b.forward.y*ahead,
+          z:b.right.z*side+b.forward.z*ahead,
+        });
+        const support=this.surface.support(probe,4,Infinity);
+        const ground=support?support.point:probe;
+        const up=this.surface.up(ground);
+        vertices[i]=ground.x+up.x*.06;vertices[i+1]=ground.y+up.y*.06;vertices[i+2]=ground.z+up.z*.06;
+      }
+      boundary.updateVerticesData(VertexBuffer.PositionKind,vertices);
+      boundary.refreshBoundingInfo();
+    } else if(vertices){
       for(let i=0;i<vertices.length;i+=3){
         const y=this.world?.groundAt(at.x+vertices[i]!,at.z+vertices[i+2]!,at.y+4);
         vertices[i+1]=Number.isFinite(y)?(y as number)+.06:at.y+.06;

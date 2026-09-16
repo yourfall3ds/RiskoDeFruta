@@ -1,7 +1,4 @@
-import {CreatePlane} from '@babylonjs/core/Meshes/Builders/planeBuilder';
-import {DynamicTexture} from '@babylonjs/core/Materials/Textures/dynamicTexture';
-import {StandardMaterial} from '@babylonjs/core/Materials/standardMaterial';
-import {Color3} from '@babylonjs/core/Maths/math.color';
+import {DamageCracks} from './DamageCracks';
 import {Quaternion, Vector3} from '@babylonjs/core/Maths/math.vector';
 import {TransformNode} from '@babylonjs/core/Meshes/transformNode';
 import type {AbstractMesh} from '@babylonjs/core/Meshes/abstractMesh';
@@ -19,17 +16,16 @@ import {FRAGMENT_SOURCE_LIMIT, shatterGeometry, type GeometrySource} from './Fra
  *
  * Quatro compromissos assumidos aqui, todos por exigência do pedido ou por defeito já observado:
  *
- * 1. **Material original intocado.** Nada troca `mesh.material`. A rachadura é um decalque por cima
- *    — mesma técnica que `ShotEffects.mark` já usa para furo de bala —, então a textura autoral do
+ * 1. **Material original intocado.** Nada troca `mesh.material`. A rachadura é uma camada sobre a malha
+ *    compartilhando sua geometria; a textura autoral do
  *    prop continua exatamente como o artista entregou, inclusive nos cacos.
- * 2. **Nenhuma primitiva vira prop visível.** Os únicos `CreatePlane` deste arquivo são decalques de
- *    VFX; corpo e caco saem sempre da malha autoral.
+ * 2. Corpo, rachadura e fragmentos seguem a geometria autoral do objeto.
  * 3. **O prop inteiro, não uma primitiva dele.** Um nó de glTF com dois materiais (casca + folha de
  *    uma árvore) chega ao Babylon como `Nome_primitive0` e `Nome_primitive1`. Mexer só na primeira
  *    faria a casca tombar e as folhas ficarem paradas no ar. Aqui o alvo é sempre o NÓ, e o
  *    estilhaço percorre todas as primitivas com o material de cada uma.
  * 4. **Árvore tomba pela raiz.** Não some no ar: gira em torno do pé por `toppleSeconds` e só então
- *    desaparece.
+ *    se fragmenta.
  *
  * Sobre matriz congelada: `PlanetWorldView` chama `freezeWorldMatrix()` em cada malha da casca, o
  * que é certo para cenário estático e fatal para cenário que se mexe. O grupo é descongelado quando
@@ -55,6 +51,7 @@ interface Group {
 }
 
 interface Attachment {
+  readonly state:DestructibleState;
   readonly group: Group | undefined;
   readonly components: (Group | undefined)[];
   /** Pivô criado só quando o corpo tomba; descartado na restauração. */
@@ -72,7 +69,6 @@ interface Attachment {
   fade: number;
 }
 
-interface Mark {mesh: Mesh; owner: string}
 
 const MARK_BUDGET = 96;
 const JOLT_SECONDS = 0.16;
@@ -83,77 +79,17 @@ export class DestructionVisuals implements DestructionPresentationPort {
   readonly missing: string[] = [];
 
   private readonly attachments = new Map<string, Attachment>();
-  private readonly marks: Mark[] = [];
+  private readonly cracks:DamageCracks;
   private readonly root: Node | undefined;
-  private nextMark = 0;
   private disposed = false;
 
   constructor(private readonly scene: Scene, options: VisualOptions = {}) {
     this.debris = new DestructionDebris(scene, options);
     this.root = options.root;
-    this.buildMarks(Math.max(8, options.markBudget ?? MARK_BUDGET));
+    this.cracks=new DamageCracks(scene,Math.max(8,options.markBudget??MARK_BUDGET));
   }
 
-  get markCount(): number {return this.marks.filter(mark => mark.owner !== '').length;}
-
-  /**
-   * Textura de rachadura desenhada uma vez: fissuras radiais com bifurcação, fundo transparente.
-   *
-   * É desenhada e não carregada porque não existe arte de rachadura no acervo, e criar um arquivo de
-   * textura novo seria arte — que é do root, não deste subsistema. `DynamicTexture` é VFX, e o
-   * projeto já gera assim o furo de bala em `ShotEffects`.
-   */
-  private buildMarks(budget: number): void {
-    // Sem canvas (teste, servidor) não há o que desenhar; o resto do sistema segue funcionando.
-    if (!this.scene.getEngine().getRenderingCanvas()) return;
-    const size = 128, half = size / 2;
-    const texture = new DynamicTexture('destruction-cracks', size, this.scene, false);
-    texture.hasAlpha = true;
-    const ctx = texture.getContext();
-    ctx.clearRect(0, 0, size, size);
-    const core = ctx.createRadialGradient(half, half, 1, half, half, 26);
-    core.addColorStop(0, '#120e0acc');
-    core.addColorStop(0.55, '#241b1288');
-    core.addColorStop(1, '#241b1200');
-    ctx.fillStyle = core;
-    ctx.fillRect(0, 0, size, size);
-    ctx.strokeStyle = '#0d0a07dd';
-    for (let i = 0; i < 11; i++) {
-      const start = i * 2.39996 + 0.4;
-      let x = half + Math.cos(start) * 5, y = half + Math.sin(start) * 5, heading = start;
-      ctx.lineWidth = 2.4;
-      ctx.beginPath();
-      ctx.moveTo(x, y);
-      for (let step = 0; step < 5; step++) {
-        heading += (fract(i * 7.13 + step * 3.77) - 0.5) * 0.9;
-        x += Math.cos(heading) * (7 + step * 2.4);
-        y += Math.sin(heading) * (7 + step * 2.4);
-        ctx.lineTo(x, y);
-      }
-      ctx.stroke();
-      if (i % 3 === 0) {
-        ctx.lineWidth = 1.2;
-        ctx.beginPath();
-        ctx.moveTo(x, y);
-        ctx.lineTo(x + Math.cos(heading + 1.1) * 13, y + Math.sin(heading + 1.1) * 13);
-        ctx.stroke();
-      }
-    }
-    texture.update();
-    const material = new StandardMaterial('destruction-crack-mark', this.scene);
-    material.diffuseTexture = texture;
-    material.opacityTexture = texture;
-    material.specularColor = Color3.Black();
-    material.backFaceCulling = false;
-    material.zOffset = -3;
-    for (let i = 0; i < budget; i++) {
-      const mesh = CreatePlane('destruction-crack', {size: 0.4}, this.scene);
-      mesh.material = material;
-      mesh.isPickable = false;
-      mesh.setEnabled(false);
-      this.marks.push({mesh, owner: ''});
-    }
-  }
+  get markCount():number {return this.cracks.count;}
 
   /**
    * O subsistema consegue mesmo representar a quebra deste prop?
@@ -173,7 +109,7 @@ export class DestructionVisuals implements DestructionPresentationPort {
     const group = this.findGroup(state.record.nodeName);
     if (state.record.nodeName && !group) this.missing.push(state.record.nodeName);
     const attachment: Attachment = {
-      group,
+      state,group,
       components: state.record.components.map(part => this.findGroup(part.nodeName)),
       pivot: undefined,
       parent: group?.body.parent ?? null,
@@ -240,22 +176,10 @@ export class DestructionVisuals implements DestructionPresentationPort {
     return holder;
   }
 
-  mark(state: DestructibleState, point: Vec3, normal: Vec3, stage: number): void {
-    if (this.disposed || this.marks.length === 0 || stage <= 0) return;
-    const item = this.marks[this.nextMark++ % this.marks.length]!;
-    const direction = new Vector3(normal.x, normal.y, normal.z);
-    if (direction.lengthSquared() < 1e-6) direction.set(0, 1, 0); else direction.normalize();
-    item.mesh.position.set(point.x, point.y, point.z).addInPlace(direction.scale(0.01));
-    item.mesh.rotationQuaternion = Quaternion.FromUnitVectorsToRef(
-      new Vector3(0, 0, -1), direction, Quaternion.Identity(),
-    );
-    // A rachadura cresce e escurece com o estágio: o jogador lê o progresso sem número na tela.
-    item.mesh.scaling.setAll(0.34 + stage * 0.26);
-    item.mesh.visibility = Math.min(1, 0.55 + stage * 0.2);
-    item.mesh.setEnabled(true);
-    // Marca de cenário não expira por tempo como o furo de bala: ela É o estado do corpo, e some
-    // junto com ele. Por isso o pool é maior e a reciclagem é circular.
-    item.owner = state.id;
+  mark(state:DestructibleState,_point:Vec3,_normal:Vec3,_stage:number):void {
+    if(this.disposed||state.fraction>=1)return;
+    const group=this.attach(state).group;
+    if(group)this.cracks.apply(state.id,group.parts,state.fraction);
   }
 
   jolt(state: DestructibleState, direction: Vec3, power: number): void {
@@ -281,7 +205,7 @@ export class DestructionVisuals implements DestructionPresentationPort {
     this.clearMarks(state.id);
     void point;
     if (state.profile.style === 'topple') {
-      // Árvore: sem estilhaço. Tomba pela raiz e só depois some.
+      // A árvore permanece inteira durante o tombamento; update fragmenta ao tocar o chão.
       this.prepareTopple(attachment, state, direction);
       return;
     }
@@ -312,7 +236,16 @@ export class DestructionVisuals implements DestructionPresentationPort {
     const {centre, extents, up} = state.record;
     // Alcance da caixa envolvente ao longo da vertical local — a "meia altura" real do prop mesmo
     // quando o `up` não é +Y, que é a regra e não a exceção num planeta.
-    const reach = Math.abs(up.x) * extents.x + Math.abs(up.y) * extents.y + Math.abs(up.z) * extents.z;
+    let lowest=Infinity;const sample=new Vector3();
+    for(const mesh of group.parts){
+      const vertices=mesh.getVerticesData('position');if(!vertices)continue;
+      const world=mesh.computeWorldMatrix(true);
+      for(let i=0;i<vertices.length;i+=3){
+        Vector3.TransformCoordinatesFromFloatsToRef(vertices[i]!,vertices[i+1]!,vertices[i+2]!,world,sample);
+        lowest=Math.min(lowest,(sample.x-centre.x)*up.x+(sample.y-centre.y)*up.y+(sample.z-centre.z)*up.z);
+      }
+    }
+    const reach=Number.isFinite(lowest)?-lowest:Math.abs(up.x)*extents.x+Math.abs(up.y)*extents.y+Math.abs(up.z)*extents.z;
     const pivot = new TransformNode(`destruction-pivot-${state.id}`, this.scene);
     pivot.position.set(centre.x - up.x * reach, centre.y - up.y * reach, centre.z - up.z * reach);
     pivot.rotationQuaternion = Quaternion.Identity();
@@ -362,13 +295,7 @@ export class DestructionVisuals implements DestructionPresentationPort {
     }
   }
 
-  private clearMarks(owner: string): void {
-    for (const mark of this.marks) {
-      if (mark.owner !== owner) continue;
-      mark.owner = '';
-      mark.mesh.setEnabled(false);
-    }
-  }
+  private clearMarks(owner:string):void {this.cracks.clear(owner);}
 
   update(dt: number): void {
     if (this.disposed || !(dt > 0)) return;
@@ -392,18 +319,17 @@ export class DestructionVisuals implements DestructionPresentationPort {
         attachment.pivot.rotationQuaternion = Quaternion.RotationAxis(attachment.impulse, fall ** 1.7 * (Math.PI / 2));
       }
       if (fall < 1) continue;
-      attachment.fade += dt;
-      const linger = Math.max(0.1, attachment.linger);
-      const visibility = Math.max(0, 1 - attachment.fade / linger);
-      for (const part of group.parts) part.visibility = visibility;
-      if (attachment.fade >= linger) {group.body.setEnabled(false); attachment.topple = -1;}
+      // The whole tree falls first; only its landed pose becomes fragments.
+      this.throwPieces(group,attachment.state,attachment.state.record.up,1);
+      group.body.setEnabled(false);attachment.topple=-1;
+
     }
   }
 
   /** Volta corpos, marcas e cacos ao estado intacto. */
   restore(): void {
     this.debris.clear();
-    for (const mark of this.marks) {mark.owner = ''; mark.mesh.setEnabled(false);}
+    this.cracks.reset();
     for (const attachment of this.attachments.values()) {
       const group = attachment.group;
       if (attachment.pivot && group) {
@@ -441,14 +367,13 @@ export class DestructionVisuals implements DestructionPresentationPort {
     if (this.disposed) return;
     this.disposed = true;
     this.debris.dispose();
-    for (const mark of this.marks) mark.mesh.dispose();
-    this.marks.length = 0;
+    this.cracks.dispose();
     for (const attachment of this.attachments.values()) attachment.pivot?.dispose();
     this.attachments.clear();
   }
 }
 
-const fract = (n: number): number => n - Math.floor(n);
+
 
 /** FNV-1a: mesma caixa quebra sempre nos mesmos pedaços, entre execuções e entre máquinas. */
 const hash = (text: string): number => {

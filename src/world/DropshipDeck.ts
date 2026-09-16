@@ -1,7 +1,7 @@
 import {LoadAssetContainerAsync} from '@babylonjs/core/Loading/sceneLoader';
 import type {AssetContainer} from '@babylonjs/core/assetContainer';
 import {TransformNode} from '@babylonjs/core/Meshes/transformNode';
-import {Vector3} from '@babylonjs/core/Maths/math.vector';
+import {Vector3, Matrix, Quaternion} from '@babylonjs/core/Maths/math.vector';
 import type {Scene} from '@babylonjs/core/scene';
 import type {Vec3} from '../core/contracts';
 
@@ -65,14 +65,55 @@ export class DropshipDeck {
     }catch(error){if(!this.disposed)this.error=error instanceof Error?error.message:'Falha no deck da nave';}
   }
 
+  /**
+   * Base local da nave, quando o mapa é curvo.
+   *
+   * Ausente ⇒ mundo plano: `rotation.y` e `position.y`, exatamente como sempre. Presente ⇒ a nave
+   * assenta e flutua ao longo da vertical LOCAL, e o eixo de corrida do deck é montado na tangente.
+   * Sem isto a nave aparece deitada e "sobe" na direção do polo norte em vez de para cima.
+   */
+  basis:{right:Vec3;up:Vec3;forward:Vec3}|undefined;
+
   /** Ancora a borda aberta do deck no ponto de salto, com o eixo de corrida no yaw do jogador. */
   place(edge:Vec3,yaw:number):void {
     if(this.disposed)return;
+    const b=this.basis;
+    if(b){
+      // O recuo do lábio do deck é TANGENTE; a orientação vem da base, por quaternion.
+      this.base.set(
+        edge.x-b.forward.x*DECK_LIP_OFFSET,
+        edge.y-b.forward.y*DECK_LIP_OFFSET,
+        edge.z-b.forward.z*DECK_LIP_OFFSET,
+      );
+      this.orientTo(b,deckRotationY(yaw)-yaw);
+      this.root.position.copyFrom(this.base);
+      return;
+    }
     this.base.set(edge.x-Math.sin(yaw)*DECK_LIP_OFFSET,edge.y,edge.z-Math.cos(yaw)*DECK_LIP_OFFSET);
     this.root.rotation.y=deckRotationY(yaw);
     this.root.position.copyFrom(this.base);
   }
   private readonly base=Vector3.Zero();
+  private readonly axisX=Vector3.Zero();
+  private readonly axisY=Vector3.Zero();
+  private readonly axisZ=Vector3.Zero();
+  private readonly deckMatrix=Matrix.Identity();
+
+  /** Orienta a raiz pela base tangente, com um giro extra em torno da vertical local. */
+  private orientTo(b:{right:Vec3;up:Vec3;forward:Vec3},spin:number):void {
+    const cos=Math.cos(spin),sin=Math.sin(spin);
+    // `forward` girado em torno de `up`; `right = up × forward` mantém a base de mão-esquerda.
+    this.axisZ.set(
+      b.forward.x*cos+b.right.x*sin,
+      b.forward.y*cos+b.right.y*sin,
+      b.forward.z*cos+b.right.z*sin,
+    );
+    this.axisY.set(b.up.x,b.up.y,b.up.z);
+    Vector3.CrossToRef(this.axisY,this.axisZ,this.axisX);
+    Matrix.FromXYZAxesToRef(this.axisX,this.axisY,this.axisZ,this.deckMatrix);
+    this.root.rotationQuaternion??=Quaternion.Identity();
+    Quaternion.FromRotationMatrixToRef(this.deckMatrix,this.root.rotationQuaternion);
+  }
 
   /** `visible` desliga a nave inteira de uma vez — sem sobra em cena ao pular ou reiniciar. */
   update(dt:number,visible:boolean):void {
@@ -82,8 +123,16 @@ export class DropshipDeck {
     this.clock+=Math.max(0,Number.isFinite(dt)?dt:0);
     // Flutuação lenta do voo estacionário, sempre calculada a partir da âncora — nunca acumulada.
     this.root.position.copyFrom(this.base);
-    this.root.position.y+=Math.sin(this.clock*.55)*.16;
-    this.root.rotation.z=Math.sin(this.clock*.37)*.006;
+    const rise=Math.sin(this.clock*.55)*.16;
+    const b=this.basis;
+    if(b){
+      this.root.position.addInPlaceFromFloats(b.up.x*rise,b.up.y*rise,b.up.z*rise);
+      // O balanço lateral já está na orientação por quaternion; escrever `rotation.z` aqui
+      // brigaria com ela (o Babylon ignora Euler quando há quaternion).
+    } else {
+      this.root.position.y+=rise;
+      this.root.rotation.z=Math.sin(this.clock*.37)*.006;
+    }
     if(this.glow)this.glow.scaling.setAll(1+Math.sin(this.clock*2.4)*.012);
   }
 

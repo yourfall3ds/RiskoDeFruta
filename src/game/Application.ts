@@ -87,10 +87,9 @@ export class Application {
   }
   private restart(seed: string): void {
     this.lifecycle.replace(() => {
-      // Roteamento ADITIVO: `?mode=planet` é a prévia de travessia esférica e não altera em nada o
-      // caminho de produção (`PlayerScene`) nem o de fundação. Ver `src/game/PlanetScene.ts`.
+      // The simplified sandbox is available only through the explicit preview route.
       const mode = new URL(location.href).searchParams.get('mode');
-      const scene = mode==='planet' ? new PlanetScene(this.session.engine,seed)
+      const scene = mode==='planet-preview' ? new PlanetScene(this.session.engine,seed)
         : mode==='foundation' ? new FoundationScene(this.session.engine,seed)
         : new PlayerScene(this.session.engine,seed);
       this.foundation = scene;

@@ -1,5 +1,6 @@
 import type {Vec3} from '../core/contracts';
 import type {RandomStream} from '../core/RunRNG';
+import type {SurfaceFrame} from '../physics/SurfaceFrame';
 
 /** Juice units required by each chalice, independent of elapsed time. */
 export const CHALICE_JUICE_TARGETS=[40,60,80,100] as const;
@@ -23,71 +24,120 @@ export interface TotemProgress {site:TotemSite;charged:number;state:TotemState}
  */
 export type ExpeditionPhase='totems'|'boss'|'extract';
 
-/** Consultas mínimas de mundo; mantém a simulação testável sem Babylon. */
-export interface ExpeditionTerrain {
-  groundAt(x:number,z:number,maxHeight?:number,maxSlope?:number):number;
-  insideSolid(p:Vec3,height?:number):boolean;
-  sweepSphere(origin:Vec3,delta:Vec3,radius:number,mesh?:boolean):unknown;
+/**
+ * Consultas mínimas de mundo; mantém a simulação testável sem Babylon.
+ *
+ * É o `SurfaceFrame` da física, estreitado ao que a expedição realmente usa. Continua sendo uma
+ * interface estrutural: um dublê de teste satisfaz isto com cinco funções e nenhum Babylon.
+ */
+export type ExpeditionTerrain=Pick<SurfaceFrame,
+  'up'|'support'|'insideSolid'|'sweep'|'walk'|'basis'|'planarDistance'|'heightGap'>;
+
+/**
+ * Métrica do mapa: distância CAMINHANDO e desnível.
+ *
+ * Existe porque toda esta simulação compara "está perto do cálice?" e "está na mesma laje?", e as
+ * duas perguntas mudam de fórmula num mundo curvo — mas nenhuma REGRA muda. Separando a métrica do
+ * resto, o raio de captura, o alcance do `E`, o raio de descoberta e os limites de altura seguem
+ * sendo exatamente os mesmos números de sempre.
+ *
+ * O padrão é o mundo plano, bit a bit: `hypot(dx,dz)` e `a.y − b.y`.
+ */
+export interface ExpeditionMetric {
+  planar(a:Vec3,b:Vec3):number;
+  /** Desnível de `a` em relação a `b`, ao longo da vertical local de `b`. */
+  heightGap(a:Vec3,b:Vec3):number;
 }
 
-const planar=(a:{x:number;z:number},b:{x:number;z:number})=>Math.hypot(a.x-b.x,a.z-b.z);
+export const FLAT_METRIC:ExpeditionMetric={
+  planar:(a,b)=>Math.hypot(a.x-b.x,a.z-b.z),
+  heightGap:(a,b)=>a.y-b.y,
+};
+
+/** Métrica tirada de um referencial de superfície — é o que o planeta usa. */
+export const metricOf=(surface:ExpeditionTerrain):ExpeditionMetric=>({
+  planar:(a,b)=>surface.planarDistance(a,b),
+  heightGap:(a,b)=>surface.heightGap(a,b),
+});
+
 
 /**
  * Piso contínuo e largo o bastante para combater: descarta pontes estreitas, interiores sólidos
  * e beiradas onde o jogador cairia ao recuar. Amostra dois anéis para não aprovar um corredor.
  */
-export function isOpenGround(world:ExpeditionTerrain,x:number,z:number,y:number,radius:number,samples=12):boolean {
+export function isOpenGround(world:ExpeditionTerrain,centre:Vec3,radius:number,samples=12):boolean {
+  const up=world.up(centre),basis=world.basis(centre,{x:0,y:0,z:1});
+  const along=(sin:number,cos:number,r:number):Vec3=>({
+    x:(basis.right.x*sin+basis.forward.x*cos)*r,
+    y:(basis.right.y*sin+basis.forward.y*cos)*r,
+    z:(basis.right.z*sin+basis.forward.z*cos)*r,
+  });
   // Reject roofs and enclosed buildings; broad floor samples alone can jump over thin walls.
-  if(world.sweepSphere({x,y:y+1,z},{x:0,y:8,z:0},.4,true))return false;
+  if(world.sweep(lift(centre,up,1),{x:up.x*8,y:up.y*8,z:up.z*8},.4))return false;
   for(let i=0;i<samples;i++){
-    const angle=i/samples*Math.PI*2;
-    if(world.sweepSphere({x,y:y+2.5,z},{x:Math.sin(angle)*radius,y:0,z:Math.cos(angle)*radius},.6,true))return false;
+    const angle=i/samples*Math.PI*2,sin=Math.sin(angle),cos=Math.cos(angle);
+    if(world.sweep(lift(centre,up,2.5),along(sin,cos,radius),.6))return false;
     for(const r of [radius*.45,radius]){
-      const px=x+Math.sin(angle)*r,pz=z+Math.cos(angle)*r;
-      const py=world.groundAt(px,pz,y+2.4);
-      if(!Number.isFinite(py)||Math.abs(py-y)>3.5)return false;
-      if(world.insideSolid({x:px,y:py,z:pz},1.8))return false;
+      const probe=world.walk(centre,along(sin,cos,r));
+      const support=world.support(probe,2.4,Infinity);
+      if(!support||Math.abs(world.heightGap(support.point,centre))>3.5)return false;
+      if(world.insideSolid(support.point,1.8))return false;
     }
   }
   return true;
 }
 
+const lift=(p:Vec3,up:Vec3,metres:number):Vec3=>
+  ({x:p.x+up.x*metres,y:p.y+up.y*metres,z:p.z+up.z*metres});
+
 /** Procura um centro válido em anéis crescentes ao redor da âncora do distrito. */
 export function findTotemSite(world:ExpeditionTerrain,anchor:TotemAnchor,radius:number,reachable:(p:Vec3)=>boolean):Vec3|undefined {
+  const centre:Vec3={x:anchor.x,y:anchor.y,z:anchor.z};
+  const basis=world.basis(centre,{x:0,y:0,z:1});
   for(const ring of [0,7,14,21]){
     for(let i=0;i<(ring?12:1);i++){
-      const angle=i*Math.PI/6,x=anchor.x+Math.sin(angle)*ring,z=anchor.z+Math.cos(angle)*ring;
-      if(anchor.width!==undefined&&Math.abs(x-anchor.x)>anchor.width/2-2.5)continue;
-      if(anchor.depth!==undefined&&Math.abs(z-anchor.z)>anchor.depth/2-2.5)continue;
-      const y=world.groundAt(x,z,anchor.y+3.5);
-      if(!Number.isFinite(y)||Math.abs(y-anchor.y)>9)continue;
-      if(anchor.width!==undefined&&y<anchor.y-1.5)continue;
-      if(world.insideSolid({x,y,z},1.8))continue;
-      if(!isOpenGround(world,x,z,y,radius))continue;
-      if(!reachable({x,y,z}))continue;
-      return {x,y,z};
+      const angle=i*Math.PI/6,side=Math.sin(angle)*ring,ahead=Math.cos(angle)*ring;
+      // Os limites da autoria valem nas componentes LOCAIS da ilha. No mundo plano `right`/`forward`
+      // são `+X`/`+Z`, então isto continua sendo exatamente o recorte em `x`/`z` de antes.
+      if(anchor.width!==undefined&&Math.abs(side)>anchor.width/2-2.5)continue;
+      if(anchor.depth!==undefined&&Math.abs(ahead)>anchor.depth/2-2.5)continue;
+      const probe=world.walk(centre,{
+        x:basis.right.x*side+basis.forward.x*ahead,
+        y:basis.right.y*side+basis.forward.y*ahead,
+        z:basis.right.z*side+basis.forward.z*ahead,
+      });
+      const support=world.support(probe,3.5,Infinity);
+      if(!support)continue;
+      const drop=world.heightGap(support.point,centre);
+      if(Math.abs(drop)>9)continue;
+      if(anchor.width!==undefined&&drop<-1.5)continue;
+      if(world.insideSolid(support.point,1.8))continue;
+      if(!isOpenGround(world,support.point,radius))continue;
+      if(!reachable(support.point))continue;
+      return support.point;
     }
   }
   return undefined;
 }
 
 /** Candidatos alcançáveis e separados para escolher a arena final do estágio. */
-export function planExpedition(world:ExpeditionTerrain,anchors:readonly TotemAnchor[],origin:Vec3,reachable:(p:Vec3)=>boolean,count=4,radius=TOTEM_RADIUS):TotemSite[] {
-  const sorted=[...anchors].sort((a,b)=>planar(a,origin)-planar(b,origin));
+export function planExpedition(world:ExpeditionTerrain,anchors:readonly TotemAnchor[],origin:Vec3,reachable:(p:Vec3)=>boolean,count=4,radius=TOTEM_RADIUS,metric:ExpeditionMetric=FLAT_METRIC):TotemSite[] {
+  const distance=(a:{x:number;y:number;z:number})=>metric.planar({x:a.x,y:a.y,z:a.z},origin);
+  const sorted=[...anchors].sort((a,b)=>distance(a)-distance(b));
   const sites:TotemSite[]=[];
   for(const anchor of sorted){
     if(sites.length>=count)break;
     const position=findTotemSite(world,anchor,radius,reachable);
     if(!position)continue;
-    if(sites.some(site=>planar(site.position,position)<radius*2.2))continue;
+    if(sites.some(site=>metric.planar(site.position,position)<radius*2.2))continue;
     sites.push({id:anchor.id,name:anchor.name,index:sites.length,position,radius,juiceTarget:CHALICE_JUICE_TARGETS[sites.length]??CHALICE_JUICE_TARGETS[CHALICE_JUICE_TARGETS.length-1]!});
   }
   return sites;
 }
 
 /** One reachable destination per stage, beyond the arrival field whenever the map allows it. */
-export function chooseChalice(sites:readonly TotemSite[],origin:Vec3,rng:RandomStream):TotemSite|undefined {
- const away=sites.filter(s=>planar(s.position,origin)>=60);
+export function chooseChalice(sites:readonly TotemSite[],origin:Vec3,rng:RandomStream,metric:ExpeditionMetric=FLAT_METRIC):TotemSite|undefined {
+ const away=sites.filter(s=>metric.planar(s.position,origin)>=60);
  const pool=away.length?away:sites.filter(s=>s.id!=='initial-field');
  if(!pool.length)return undefined;
  return {...rng.pick(pool),index:0,juiceTarget:FINAL_CHALICE_JUICE};
@@ -113,6 +163,13 @@ export class ExpeditionObjectives {
   get nextRewardPosition():Vec3|undefined{return this.rewardPositions[0];}
   /** Juice yield multiplier from varied combat; it never creates passive progress. */
   chargeMultiplier=1;
+  /**
+   * Métrica do mapa. Padrão plano; a cena troca por `metricOf(surface)` no planeta.
+   * Nenhum raio, alcance ou limite de altura muda junto — só a fórmula da distância.
+   */
+  metric:ExpeditionMetric=FLAT_METRIC;
+  private near(a:Vec3,b:Vec3):number {return this.metric.planar(a,b);}
+  private drop(a:Vec3,b:Vec3):number {return Math.abs(this.metric.heightGap(a,b));}
 
   setSites(sites:readonly TotemSite[]):void {
     this.reset();
@@ -125,25 +182,25 @@ export class ExpeditionObjectives {
   get total():number {return this.totems.length;}
   get current():TotemProgress|undefined {return this.totems[this.activeIndex];}
   inside(totem:TotemProgress,player:Vec3):boolean {
-    return planar(totem.site.position,player)<=totem.site.radius&&Math.abs(player.y-totem.site.position.y)<=8;
+    return this.near(totem.site.position,player)<=totem.site.radius&&this.drop(player,totem.site.position)<=8;
   }
   /** Marco mais próximo ainda pendente; é ele que o HUD aponta. */
   nearestPending(player:Vec3):{totem:TotemProgress;distance:number}|undefined {
     const pending=this.totems.filter(t=>t.state!=='complete');
     if(!pending.length)return undefined;
     const active=this.current;
-    const totem=active&&active.state!=='complete'?active:pending.reduce((a,b)=>planar(a.site.position,player)<=planar(b.site.position,player)?a:b);
-    return {totem,distance:planar(totem.site.position,player)};
+    const totem=active&&active.state!=='complete'?active:pending.reduce((a,b)=>this.near(a.site.position,player)<=this.near(b.site.position,player)?a:b);
+    return {totem,distance:this.near(totem.site.position,player)};
   }
   /** Junto ao poste: o mesmo alcance vale para ativar e, depois, para recolher o suco. */
   private atHand(totem:TotemProgress,player:Vec3):boolean {
-    return planar(totem.site.position,player)<=TOTEM_ACTIVATION_RANGE&&Math.abs(player.y-totem.site.position.y)<=4;
+    return this.near(totem.site.position,player)<=TOTEM_ACTIVATION_RANGE&&this.drop(player,totem.site.position)<=4;
   }
   /** Marco ao alcance do `E`, para o HUD anunciar a ação antes de o jogador apertar. */
   interactable(player:Vec3):TotemProgress|undefined {
     if(this.phase==='extract')return this.collectable(player);
     return this.phase==='totems'
-      ?this.totems.filter(t=>t.state!=='complete'&&t.state!=='charging'&&this.atHand(t,player)).sort((a,b)=>planar(a.site.position,player)-planar(b.site.position,player))[0]
+      ?this.totems.filter(t=>t.state!=='complete'&&t.state!=='charging'&&this.atHand(t,player)).sort((a,b)=>this.near(a.site.position,player)-this.near(b.site.position,player))[0]
       :undefined;
   }
   /** Cálice concluído ao alcance do `E`, pronto para o suco ser recolhido e a viagem começar. */
@@ -165,7 +222,7 @@ export class ExpeditionObjectives {
   /** `E` inicia a horda final uma única vez, junto ao cálice. */
   activate(player:Vec3):TotemProgress|undefined {
     if(this.phase!=='totems')return undefined;
-    const candidate=this.totems.filter(t=>t.state!=='complete'&&planar(t.site.position,player)<=TOTEM_ACTIVATION_RANGE&&Math.abs(player.y-t.site.position.y)<=4).sort((a,b)=>planar(a.site.position,player)-planar(b.site.position,player))[0];
+    const candidate=this.totems.filter(t=>t.state!=='complete'&&this.near(t.site.position,player)<=TOTEM_ACTIVATION_RANGE&&this.drop(player,t.site.position)<=4).sort((a,b)=>this.near(a.site.position,player)-this.near(b.site.position,player))[0];
     if(!candidate)return undefined;
     const previous=this.current;
     if(previous&&previous!==candidate&&previous.state!=='complete')previous.state='paused';
@@ -177,7 +234,7 @@ export class ExpeditionObjectives {
   }
   update(dt:number,player:Vec3,alive:boolean):void {
     this.messageTime=Math.max(0,this.messageTime-dt);
-    if(!this.discovered&&this.totems.some(t=>planar(t.site.position,player)<=CHALICE_DISCOVERY_RADIUS&&Math.abs(player.y-t.site.position.y)<16)){
+    if(!this.discovered&&this.totems.some(t=>this.near(t.site.position,player)<=CHALICE_DISCOVERY_RADIUS&&this.drop(player,t.site.position)<16)){
       this.discovered=true;this.say('CÁLICE ENCONTRADO · prepare-se antes de ativar',5);
     }
     if(this.phase==='extract')return;
@@ -194,7 +251,7 @@ export class ExpeditionObjectives {
     this.lastHarvestSequence=kill.sequence;
     const totem=this.current,yieldUnits=FRUIT_JUICE[kill.kind];
     if(!alive||this.phase!=='boss'||!totem||totem.state==='complete'||!yieldUnits||!this.inside(totem,player))return;
-    if(planar(kill.position,totem.site.position)>CHALICE_CAPTURE_RADIUS||Math.abs(kill.position.y-totem.site.position.y)>12)return;
+    if(this.near(kill.position,totem.site.position)>CHALICE_CAPTURE_RADIUS||this.drop(kill.position,totem.site.position)>12)return;
     const amount=Math.min(totem.site.juiceTarget-totem.charged,yieldUnits*Math.max(0,this.chargeMultiplier));
     if(amount<=0)return;
     totem.charged+=amount;totem.state='charging';

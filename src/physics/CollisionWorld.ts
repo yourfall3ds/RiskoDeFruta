@@ -6,6 +6,13 @@ import {StaticRayIndex,type RayIndexSnapshot} from './StaticRayIndex';
 import {Vector3} from '@babylonjs/core/Maths/math.vector';
 import type {Ray} from '@babylonjs/core/Culling/ray';
 import { TriangleGround,type GroundSample } from './TriangleGround';
+import type {PlanetFrame} from '../planet/PlanetFrame';
+import type {PlanetCollision} from '../planet/PlanetCollision';
+import type {SurfaceFrame} from './SurfaceFrame';
+import {FlatSurface} from './FlatSurface';
+import {SphereSurface} from './SphereSurface';
+import {withProps,type RadialProps} from './RadialProps';
+import {withPropContact} from './PropContact';
 export type { GroundSample } from './TriangleGround';
 export interface BoxCollider { id: string; min: Vec3; max: Vec3 }
 export interface GroundSurface { id: string; x: number; z: number; width: number; depth: number; height: number; slopeX?: number; slopeZ?: number; ellipse?:boolean }
@@ -28,6 +35,75 @@ export function sweepBox(origin: Vec3, delta: Vec3, box: BoxCollider, radius = 0
 }
 
 export class CollisionWorld {
+  /**
+   * Backend de superfície. **Nenhum método original muda de comportamento por causa dele.**
+   *
+   * Sem `configurePlanet`, `surface` é um `FlatSurface` — um adaptador fino que chama exatamente
+   * `groundAt`/`move`/`moveAirborne`/`sweepSphere`/`raycast`/`insideSolid` deste mesmo objeto, com
+   * as mesmas tolerâncias. Depois de `configurePlanet`, `surface` é um `SphereSurface` com
+   * gravidade radial de verdade sobre `PlanetFrame` + `PlanetCollision`.
+   *
+   * `groundAt(x, z)` é intrinsecamente incapaz de descrever uma esfera — não recebe `y`. Quem for
+   * migrado para o planeta usa `surface.support(p, above, below)`. Ver
+   * `.temp/real-game-surface-api.md`.
+   */
+  private planetBackend:{frame:PlanetFrame;collision:PlanetCollision}|undefined;
+  private surfaceFrame:SurfaceFrame|undefined;
+  /** Liga o backend esférico. Idempotente para o mesmo par. */
+  configurePlanet(frame:PlanetFrame,collision:PlanetCollision):void {
+    if(this.planetBackend&&this.planetBackend.frame===frame&&this.planetBackend.collision===collision)return;
+    this.planetBackend={frame,collision};this.surfaceFrame=undefined;
+  }
+  /** `true` depois de `configurePlanet`. */
+  get spherical():boolean {return this.planetBackend!==undefined;}
+  /** O par configurado, para quem precisa do serviço cru (destruição, ragdoll, navegação). */
+  get planet():{frame:PlanetFrame;collision:PlanetCollision}|undefined {return this.planetBackend;}
+  /**
+   * Corpos sólidos COMPACTOS criados em tempo de execução: baús, altares, cálice.
+   *
+   * Por que o hook vive aqui e não na cena: o `PlayerMotor` ORIGINAL lê `world.surface` por conta
+   * própria a cada passo. Se o envoltório de props fosse montado na cena
+   * (`withProps(collision.surface, props)`), o motor consultaria o `SphereSurface` cru e
+   * atravessaria o baú — exatamente o defeito que se quer corrigir. Registrando aqui, TODO
+   * consumidor de `collision.surface` vê os corpos, sem exceção e sem monkey-patch.
+   *
+   * O registro é VIVO: o envoltório guarda a referência do `RadialProps`, então `props.add`/
+   * `props.remove` em tempo de execução valem no mesmo quadro, sem re-attach e sem invalidar cache.
+   * Nada da BVH do planeta é reconstruído — prop é lista de OBB com rejeição por esfera envolvente.
+   */
+  private readonly propRegistries=new Map<string,RadialProps>();
+  /** Registra um conjunto de corpos compactos. Substitui um `id` já registrado. */
+  attachRadialProps(id:string,props:RadialProps):void {
+    if(!id)throw Error('Radial prop registry needs an id');
+    if(this.propRegistries.get(id)===props)return;
+    this.propRegistries.set(id,props);
+    this.surfaceFrame=undefined;
+  }
+  /** Remove o registro. Silencioso quando o `id` não existe. */
+  detachRadialProps(id:string):void {
+    if(this.propRegistries.delete(id))this.surfaceFrame=undefined;
+  }
+  /** Ids registrados agora, em ordem de registro. Diagnóstico e teste. */
+  get radialPropRegistries():readonly string[] {return [...this.propRegistries.keys()];}
+  /**
+   * O referencial de superfície deste mundo. Criado uma vez e cacheado; o cache é invalidado por
+   * `configurePlanet`, `attachRadialProps` e `detachRadialProps`.
+   *
+   * Os corpos compactos entram SÓ no caminho esférico: no mundo plano quem responde por caixa de
+   * runtime continua sendo `movingBoxes`, e o `FlatSurface` puro mantém cada número como era.
+   */
+  get surface():SurfaceFrame {
+    if(this.surfaceFrame)return this.surfaceFrame;
+    if(!this.planetBackend)return this.surfaceFrame=new FlatSurface(this);
+    const terrain=new SphereSurface(this.planetBackend.frame,this.planetBackend.collision);
+    if(!this.propRegistries.size)return this.surfaceFrame=terrain;
+    // Mescla de CONSULTA pelo `withProps` do dono do loot (apoio no baú, mira, varredura), e por
+    // cima o CONTATO sustentado — a varredura sozinha só barra no quadro do primeiro toque.
+    let frame:SurfaceFrame=terrain;
+    const registries=[...this.propRegistries.values()];
+    for(const props of registries)frame=withProps(frame,props);
+    return this.surfaceFrame=withPropContact(frame,registries,terrain);
+  }
   private regionOwners=0;
   private readonly regions=new Map<string,{world:CollisionWorld;minX:number;maxX:number;minZ:number;maxZ:number}>();
   get regionCount():number{return this.regions.size;}
@@ -68,7 +144,43 @@ export class CollisionWorld {
   readonly navigationPatches:{positions:number[];indices:number[]}[]=[];
   geometry:{positions:number[];indices:number[]}|undefined;
   private triangles:TriangleGround|undefined;private rays:StaticRayIndex|undefined;
-  raycast(ray:Ray):ReturnType<StaticRayIndex["cast"]>{let result=this.rays?.cast(ray);for(const region of this.regions.values()){const hit=region.world.raycast(ray);if(hit&&(!result||hit.distance<result.distance))result=hit;}for(const box of this.movingBoxes){const hit=sweepBox(ray.origin,ray.direction.scale(ray.length),box);if(hit&&(!result||hit.time*ray.length<result.distance)){const distance=hit.time*ray.length;result={distance,point:ray.origin.add(ray.direction.scale(distance)),normal:new Vector3(hit.normal.x,hit.normal.y,hit.normal.z)};}}return result; }
+  /**
+   * Raio de MUNDO contra tudo o que este mundo conhece: malha plana, regiões anexadas, caixas
+   * móveis e — quando `configurePlanet` foi chamado — a BVH do planeta.
+   *
+   * A delegação para o planeta **não duplica geometria**: nenhum buffer novo, nenhuma segunda
+   * árvore, nenhuma cópia dos 1,75 M de triângulos. É a mesma BVH que o mundo do planeta já
+   * construiu, consultada aqui. `point`/`normal` saem como `Vector3` (o `PlanetCollision` devolve
+   * `Vec3` puro) para que nenhum consumidor de `raycast` precise mudar.
+   *
+   * No planeta a consulta passa pelo `surface` ENVOLTO, não pelo `PlanetCollision` cru: é assim que
+   * a bala e a mira encostam nos baús e no cálice. Sem recursão — o `SphereSurface` base fala
+   * direto com o `PlanetCollision`, e no mundo plano este delegate nem é chamado (senão o
+   * `FlatSurface.raycast`, que delega para cá, voltaria em laço).
+   */
+  raycast(ray:Ray):ReturnType<StaticRayIndex["cast"]>{let result=this.rays?.cast(ray);for(const region of this.regions.values()){const hit=region.world.raycast(ray);if(hit&&(!result||hit.distance<result.distance))result=hit;}for(const box of this.movingBoxes){const hit=sweepBox(ray.origin,ray.direction.scale(ray.length),box);if(hit&&(!result||hit.time*ray.length<result.distance)){const distance=hit.time*ray.length;result={distance,point:ray.origin.add(ray.direction.scale(distance)),normal:new Vector3(hit.normal.x,hit.normal.y,hit.normal.z)};}}
+   const planet=this.planetBackend?this.surface.raycast(ray):undefined;
+   if(planet&&(!result||planet.distance<result.distance)){
+    // A normal sai orientada CONTRA o raio. A geometria autoral do planeta não tem winding
+    // confiável (`supportBelow` já orienta por isso) e a caixa de prop devolve a face de entrada
+    // virada para dentro: sem isto o decalque e o impulso do tiro apontariam para dentro do sólido.
+    const into=planet.normal.x*ray.direction.x+planet.normal.y*ray.direction.y+planet.normal.z*ray.direction.z;
+    const sign=into>0?-1:1;
+    result={distance:planet.distance,point:new Vector3(planet.point.x,planet.point.y,planet.point.z),normal:new Vector3(planet.normal.x*sign,planet.normal.y*sign,planet.normal.z*sign)};
+   }
+   return result; }
+  /**
+   * Existe terreno consultável? Malha plana, região anexada OU planeta pronto.
+   *
+   * Quem testava `collision.geometry` para decidir se a bala encosta no mundo passa a testar isto:
+   * no planeta `geometry` é `undefined` de propósito (a malha vive no `PlanetCollision`) e o teste
+   * antigo deixaria o terreno radial NÃO SÓLIDO para as balas.
+   */
+  get hasTerrain():boolean {
+    if(this.geometry||this.planetBackend?.collision.ready)return true;
+    for(const region of this.regions.values())if(region.world.hasTerrain)return true;
+    return false;
+  }
   private boxCount=-1;private readonly cells=new Map<string,BoxCollider[]>();
   setGeometry(positions:number[],indices:number[]):void {if(this.regionOwners)throw Error('Detach collision region before changing geometry');this.geometry={positions,indices};this.triangles=new TriangleGround(positions,indices);this.rays=undefined;}
   async prepareRaycastsAsync():Promise<void>{

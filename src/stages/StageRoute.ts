@@ -105,3 +105,74 @@ export function nextBiomeForStage(stage:number):StageBiome {
 export function biomeById(id:string):StageBiome|undefined {
   return STAGE_BIOMES.find(biome=>biome.id===id);
 }
+
+// ---------------------------------------------------------------------------------------------
+// Rota da expedição num mapa que traz as próprias ilhas (o planeta)
+// ---------------------------------------------------------------------------------------------
+
+/** Ilha vinda do mundo: centro, vertical local e raio da pegada caminhável. */
+export interface RouteSite {
+  readonly id:string; readonly name:string;
+  readonly centre:{x:number;y:number;z:number};
+  readonly radius:number;
+}
+
+/** Quantas regiões nomeadas a expedição percorre num mapa com ilhas próprias. */
+export const PLANET_BIOME_COUNT=6;
+
+/**
+ * Divide as ilhas do mapa em regiões nomeadas, para a expedição continuar **viajando para outro
+ * lugar com nome** em vez de reciclar o mesmo bioma para sempre.
+ *
+ * As sementes de região são escolhidas por amostragem do PONTO MAIS DISTANTE (greedy
+ * farthest-point): começa pela ilha de maior pegada e, a cada passo, adota a ilha mais longe de
+ * todas as já adotadas. Isso espalha as regiões pela casca inteira sem depender de nome de ilha
+ * nem de eixo do manifesto — trocar o mapa não quebra a rota. Cada ilha restante entra na região
+ * da semente mais próxima, e a região herda o nome da semente.
+ *
+ * `measure` é a distância CAMINHANDO (arco, no planeta). Passá-la é obrigatório: no mundo curvo a
+ * distância em linha reta atravessa a rocha e agruparia ilhas antípodas.
+ *
+ * **Cada bioma fica com a lista INTEIRA de ilhas, não com o seu agrupamento.** A semente dá só
+ * identidade e nome à etapa. Restringir o sorteio ao agrupamento parecia mais arrumado e é uma
+ * armadilha: um agrupamento pode ser internamente desconexo (as pontes ligam ilhas de regiões
+ * diferentes), e aí nenhum par teria rota, `planStage` devolveria `undefined` para sempre e a
+ * expedição travaria no carregamento. Com a lista inteira, conectividade e separação continuam
+ * sendo decididas por quem sabe: a rota real.
+ */
+export function siteBiomes(
+  sites:readonly RouteSite[],
+  measure:(a:{x:number;y:number;z:number},b:{x:number;y:number;z:number})=>number,
+  separation=WIDE_ISLAND_SEPARATION,
+):StageBiome[] {
+  if(sites.length===0)return [];
+  const pool=[...sites].sort((a,b)=>b.radius-a.radius||a.id.localeCompare(b.id));
+  const seeds:RouteSite[]=[pool[0]!];
+  while(seeds.length<Math.min(PLANET_BIOME_COUNT,pool.length)){
+    let best:RouteSite|undefined,bestGap=-1;
+    for(const site of pool){
+      if(seeds.some(seed=>seed.id===site.id))continue;
+      // Distância até a semente MAIS PRÓXIMA: adotar quem maximiza isso é o que espalha.
+      let gap=Infinity;
+      for(const seed of seeds)gap=Math.min(gap,measure(site.centre,seed.centre));
+      if(gap>bestGap){bestGap=gap;best=site;}
+    }
+    if(!best)break;
+    seeds.push(best);
+  }
+  const islands=sites.map(toStageIsland);
+  return seeds.map(seed=>({id:seed.id,name:seed.name,region:undefined,islands,separation}));
+}
+
+/** Bioma do estágio numa lista já dividida por `siteBiomes`. Mesma rotação de `biomeForStage`. */
+export function siteBiomeForStage(biomes:readonly StageBiome[],stage:number):StageBiome|undefined {
+  if(biomes.length===0)return undefined;
+  const index=Number.isFinite(stage)?Math.max(0,Math.floor(stage)-1)%biomes.length:0;
+  return biomes[index];
+}
+
+const toStageIsland=(site:RouteSite):StageIsland=>({
+  id:site.id,name:site.name,x:site.centre.x,y:site.centre.y,z:site.centre.z,
+  // `width`/`depth` limitam a busca de pouso ao corpo da ilha; num convés redondo é o diâmetro.
+  width:site.radius*2,depth:site.radius*2,
+});

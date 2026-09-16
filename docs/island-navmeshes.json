@@ -1,0 +1,1071 @@
+{
+  "radius": 180,
+  "islands": 38,
+  "bridges": 48,
+  "tuning": {
+    "tileSize": 128,
+    "cs": 0.2,
+    "ch": 0.1,
+    "walkableSlopeAngle": 49,
+    "walkableHeight": 18,
+    "walkableClimb": 6,
+    "walkableRadius": 3,
+    "minRegionArea": 8,
+    "mergeRegionArea": 20,
+    "maxSimplificationError": 1.1,
+    "detailSampleDist": 6,
+    "detailSampleMaxError": 1
+  },
+  "charts": [
+    {
+      "id": "north",
+      "ok": true,
+      "triangles": 162502,
+      "bytes": 117860,
+      "reachArc": 106.2,
+      "edgeSlopeDegrees": 33.8,
+      "onMesh": true,
+      "bridges": 4,
+      "crossings": 4,
+      "overlaps": 3,
+      "routes": [
+        {
+          "bridge": "north-crossing-6",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "north-crossing-9",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "north-crossing-18",
+          "ok": true,
+          "overlap": false
+        },
+        {
+          "bridge": "north-crossing-21",
+          "ok": true,
+          "overlap": true
+        }
+      ],
+      "ms": 1703
+    },
+    {
+      "id": "east",
+      "ok": true,
+      "triangles": 170388,
+      "bytes": 96328,
+      "reachArc": 90.8,
+      "edgeSlopeDegrees": 28.9,
+      "onMesh": true,
+      "bridges": 4,
+      "crossings": 4,
+      "overlaps": 4,
+      "routes": [
+        {
+          "bridge": "east-crossing-12",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "east-crossing-15",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "east-crossing-19",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "east-crossing-22",
+          "ok": true,
+          "overlap": true
+        }
+      ],
+      "ms": 1314
+    },
+    {
+      "id": "front",
+      "ok": true,
+      "triangles": 146724,
+      "bytes": 225912,
+      "reachArc": 119.5,
+      "edgeSlopeDegrees": 38,
+      "onMesh": true,
+      "bridges": 4,
+      "crossings": 4,
+      "overlaps": 4,
+      "routes": [
+        {
+          "bridge": "front-crossing-3",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "front-crossing-10",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "front-crossing-16",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "front-crossing-23",
+          "ok": true,
+          "overlap": true
+        }
+      ],
+      "ms": 1191
+    },
+    {
+      "id": "south",
+      "ok": true,
+      "triangles": 171731,
+      "bytes": 126784,
+      "reachArc": 104.8,
+      "edgeSlopeDegrees": 33.4,
+      "onMesh": true,
+      "bridges": 4,
+      "crossings": 4,
+      "overlaps": 4,
+      "routes": [
+        {
+          "bridge": "south-crossing-0",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "south-crossing-4",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "south-crossing-13",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "south-crossing-17",
+          "ok": true,
+          "overlap": true
+        }
+      ],
+      "ms": 924
+    },
+    {
+      "id": "west",
+      "ok": true,
+      "triangles": 146985,
+      "bytes": 92656,
+      "reachArc": 96.1,
+      "edgeSlopeDegrees": 30.6,
+      "onMesh": true,
+      "bridges": 4,
+      "crossings": 4,
+      "overlaps": 4,
+      "routes": [
+        {
+          "bridge": "west-crossing-1",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "west-crossing-5",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "west-crossing-7",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "west-crossing-11",
+          "ok": true,
+          "overlap": true
+        }
+      ],
+      "ms": 792
+    },
+    {
+      "id": "back",
+      "ok": true,
+      "triangles": 176783,
+      "bytes": 98348,
+      "reachArc": 93.9,
+      "edgeSlopeDegrees": 29.9,
+      "onMesh": true,
+      "bridges": 4,
+      "crossings": 4,
+      "overlaps": 4,
+      "routes": [
+        {
+          "bridge": "back-crossing-2",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "back-crossing-8",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "back-crossing-14",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "back-crossing-20",
+          "ok": true,
+          "overlap": true
+        }
+      ],
+      "ms": 915
+    },
+    {
+      "id": "junction-0",
+      "ok": true,
+      "triangles": 237161,
+      "bytes": 77424,
+      "reachArc": 89,
+      "edgeSlopeDegrees": 28.3,
+      "onMesh": true,
+      "bridges": 3,
+      "crossings": 3,
+      "overlaps": 3,
+      "routes": [
+        {
+          "bridge": "crossing-0-junction-0",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "crossing-1-junction-0",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "crossing-2-junction-0",
+          "ok": true,
+          "overlap": true
+        }
+      ],
+      "ms": 1047
+    },
+    {
+      "id": "junction-1",
+      "ok": true,
+      "triangles": 144919,
+      "bytes": 59812,
+      "reachArc": 83.6,
+      "edgeSlopeDegrees": 26.6,
+      "onMesh": true,
+      "bridges": 3,
+      "crossings": 3,
+      "overlaps": 3,
+      "routes": [
+        {
+          "bridge": "crossing-3-junction-1",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "crossing-4-junction-1",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "crossing-5-junction-1",
+          "ok": true,
+          "overlap": true
+        }
+      ],
+      "ms": 618
+    },
+    {
+      "id": "junction-2",
+      "ok": true,
+      "triangles": 87831,
+      "bytes": 46228,
+      "reachArc": 82,
+      "edgeSlopeDegrees": 26.1,
+      "onMesh": true,
+      "bridges": 3,
+      "crossings": 3,
+      "overlaps": 3,
+      "routes": [
+        {
+          "bridge": "crossing-6-junction-2",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "crossing-7-junction-2",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "crossing-8-junction-2",
+          "ok": true,
+          "overlap": true
+        }
+      ],
+      "ms": 389
+    },
+    {
+      "id": "junction-3",
+      "ok": true,
+      "triangles": 115294,
+      "bytes": 47636,
+      "reachArc": 81.7,
+      "edgeSlopeDegrees": 26,
+      "onMesh": true,
+      "bridges": 3,
+      "crossings": 3,
+      "overlaps": 3,
+      "routes": [
+        {
+          "bridge": "crossing-9-junction-3",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "crossing-10-junction-3",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "crossing-11-junction-3",
+          "ok": true,
+          "overlap": true
+        }
+      ],
+      "ms": 494
+    },
+    {
+      "id": "junction-4",
+      "ok": true,
+      "triangles": 133580,
+      "bytes": 87724,
+      "reachArc": 89.4,
+      "edgeSlopeDegrees": 28.5,
+      "onMesh": true,
+      "bridges": 3,
+      "crossings": 3,
+      "overlaps": 3,
+      "routes": [
+        {
+          "bridge": "crossing-12-junction-4",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "crossing-13-junction-4",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "crossing-14-junction-4",
+          "ok": true,
+          "overlap": true
+        }
+      ],
+      "ms": 678
+    },
+    {
+      "id": "junction-5",
+      "ok": true,
+      "triangles": 135118,
+      "bytes": 83104,
+      "reachArc": 87,
+      "edgeSlopeDegrees": 27.7,
+      "onMesh": true,
+      "bridges": 3,
+      "crossings": 3,
+      "overlaps": 3,
+      "routes": [
+        {
+          "bridge": "crossing-15-junction-5",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "crossing-16-junction-5",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "crossing-17-junction-5",
+          "ok": true,
+          "overlap": true
+        }
+      ],
+      "ms": 637
+    },
+    {
+      "id": "junction-6",
+      "ok": true,
+      "triangles": 131697,
+      "bytes": 83360,
+      "reachArc": 87.5,
+      "edgeSlopeDegrees": 27.9,
+      "onMesh": true,
+      "bridges": 3,
+      "crossings": 3,
+      "overlaps": 3,
+      "routes": [
+        {
+          "bridge": "crossing-18-junction-6",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "crossing-19-junction-6",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "crossing-20-junction-6",
+          "ok": true,
+          "overlap": true
+        }
+      ],
+      "ms": 656
+    },
+    {
+      "id": "junction-7",
+      "ok": true,
+      "triangles": 233255,
+      "bytes": 75632,
+      "reachArc": 87.7,
+      "edgeSlopeDegrees": 27.9,
+      "onMesh": true,
+      "bridges": 3,
+      "crossings": 3,
+      "overlaps": 3,
+      "routes": [
+        {
+          "bridge": "crossing-21-junction-7",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "crossing-22-junction-7",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "crossing-23-junction-7",
+          "ok": true,
+          "overlap": true
+        }
+      ],
+      "ms": 959
+    },
+    {
+      "id": "crossing-0",
+      "ok": true,
+      "triangles": 69964,
+      "bytes": 33988,
+      "reachArc": 64.5,
+      "edgeSlopeDegrees": 20.5,
+      "onMesh": true,
+      "bridges": 2,
+      "crossings": 2,
+      "overlaps": 2,
+      "routes": [
+        {
+          "bridge": "south-crossing-0",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "crossing-0-junction-0",
+          "ok": true,
+          "overlap": true
+        }
+      ],
+      "ms": 385
+    },
+    {
+      "id": "crossing-1",
+      "ok": true,
+      "triangles": 90741,
+      "bytes": 36096,
+      "reachArc": 75.2,
+      "edgeSlopeDegrees": 23.9,
+      "onMesh": true,
+      "bridges": 2,
+      "crossings": 2,
+      "overlaps": 2,
+      "routes": [
+        {
+          "bridge": "west-crossing-1",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "crossing-1-junction-0",
+          "ok": true,
+          "overlap": true
+        }
+      ],
+      "ms": 342
+    },
+    {
+      "id": "crossing-2",
+      "ok": true,
+      "triangles": 48110,
+      "bytes": 41380,
+      "reachArc": 75,
+      "edgeSlopeDegrees": 23.9,
+      "onMesh": true,
+      "bridges": 2,
+      "crossings": 2,
+      "overlaps": 2,
+      "routes": [
+        {
+          "bridge": "back-crossing-2",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "crossing-2-junction-0",
+          "ok": true,
+          "overlap": true
+        }
+      ],
+      "ms": 209
+    },
+    {
+      "id": "crossing-3",
+      "ok": true,
+      "triangles": 64683,
+      "bytes": 30256,
+      "reachArc": 55,
+      "edgeSlopeDegrees": 17.5,
+      "onMesh": true,
+      "bridges": 2,
+      "crossings": 2,
+      "overlaps": 2,
+      "routes": [
+        {
+          "bridge": "front-crossing-3",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "crossing-3-junction-1",
+          "ok": true,
+          "overlap": true
+        }
+      ],
+      "ms": 250
+    },
+    {
+      "id": "crossing-4",
+      "ok": true,
+      "triangles": 85692,
+      "bytes": 34596,
+      "reachArc": 69.5,
+      "edgeSlopeDegrees": 22.1,
+      "onMesh": true,
+      "bridges": 2,
+      "crossings": 2,
+      "overlaps": 2,
+      "routes": [
+        {
+          "bridge": "south-crossing-4",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "crossing-4-junction-1",
+          "ok": true,
+          "overlap": true
+        }
+      ],
+      "ms": 390
+    },
+    {
+      "id": "crossing-5",
+      "ok": true,
+      "triangles": 56124,
+      "bytes": 39876,
+      "reachArc": 80.1,
+      "edgeSlopeDegrees": 25.5,
+      "onMesh": true,
+      "bridges": 2,
+      "crossings": 2,
+      "overlaps": 2,
+      "routes": [
+        {
+          "bridge": "west-crossing-5",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "crossing-5-junction-1",
+          "ok": true,
+          "overlap": true
+        }
+      ],
+      "ms": 250
+    },
+    {
+      "id": "crossing-6",
+      "ok": true,
+      "triangles": 54736,
+      "bytes": 33508,
+      "reachArc": 71.9,
+      "edgeSlopeDegrees": 22.9,
+      "onMesh": true,
+      "bridges": 2,
+      "crossings": 2,
+      "overlaps": 2,
+      "routes": [
+        {
+          "bridge": "north-crossing-6",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "crossing-6-junction-2",
+          "ok": true,
+          "overlap": true
+        }
+      ],
+      "ms": 240
+    },
+    {
+      "id": "crossing-7",
+      "ok": true,
+      "triangles": 49921,
+      "bytes": 37348,
+      "reachArc": 82,
+      "edgeSlopeDegrees": 26.1,
+      "onMesh": true,
+      "bridges": 2,
+      "crossings": 2,
+      "overlaps": 2,
+      "routes": [
+        {
+          "bridge": "west-crossing-7",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "crossing-7-junction-2",
+          "ok": true,
+          "overlap": true
+        }
+      ],
+      "ms": 202
+    },
+    {
+      "id": "crossing-8",
+      "ok": true,
+      "triangles": 75149,
+      "bytes": 42716,
+      "reachArc": 82,
+      "edgeSlopeDegrees": 26.1,
+      "onMesh": true,
+      "bridges": 2,
+      "crossings": 2,
+      "overlaps": 2,
+      "routes": [
+        {
+          "bridge": "back-crossing-8",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "crossing-8-junction-2",
+          "ok": true,
+          "overlap": true
+        }
+      ],
+      "ms": 294
+    },
+    {
+      "id": "crossing-9",
+      "ok": true,
+      "triangles": 59554,
+      "bytes": 33804,
+      "reachArc": 72,
+      "edgeSlopeDegrees": 22.9,
+      "onMesh": true,
+      "bridges": 2,
+      "crossings": 2,
+      "overlaps": 2,
+      "routes": [
+        {
+          "bridge": "north-crossing-9",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "crossing-9-junction-3",
+          "ok": true,
+          "overlap": true
+        }
+      ],
+      "ms": 312
+    },
+    {
+      "id": "crossing-10",
+      "ok": true,
+      "triangles": 56766,
+      "bytes": 33252,
+      "reachArc": 58.5,
+      "edgeSlopeDegrees": 18.6,
+      "onMesh": true,
+      "bridges": 2,
+      "crossings": 2,
+      "overlaps": 2,
+      "routes": [
+        {
+          "bridge": "front-crossing-10",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "crossing-10-junction-3",
+          "ok": true,
+          "overlap": true
+        }
+      ],
+      "ms": 230
+    },
+    {
+      "id": "crossing-11",
+      "ok": true,
+      "triangles": 65271,
+      "bytes": 39864,
+      "reachArc": 82.1,
+      "edgeSlopeDegrees": 26.1,
+      "onMesh": true,
+      "bridges": 2,
+      "crossings": 2,
+      "overlaps": 2,
+      "routes": [
+        {
+          "bridge": "west-crossing-11",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "crossing-11-junction-3",
+          "ok": true,
+          "overlap": true
+        }
+      ],
+      "ms": 243
+    },
+    {
+      "id": "crossing-12",
+      "ok": true,
+      "triangles": 38378,
+      "bytes": 37904,
+      "reachArc": 71.7,
+      "edgeSlopeDegrees": 22.8,
+      "onMesh": true,
+      "bridges": 2,
+      "crossings": 2,
+      "overlaps": 2,
+      "routes": [
+        {
+          "bridge": "east-crossing-12",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "crossing-12-junction-4",
+          "ok": true,
+          "overlap": true
+        }
+      ],
+      "ms": 164
+    },
+    {
+      "id": "crossing-13",
+      "ok": true,
+      "triangles": 32815,
+      "bytes": 33508,
+      "reachArc": 62.3,
+      "edgeSlopeDegrees": 19.8,
+      "onMesh": true,
+      "bridges": 2,
+      "crossings": 2,
+      "overlaps": 2,
+      "routes": [
+        {
+          "bridge": "south-crossing-13",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "crossing-13-junction-4",
+          "ok": true,
+          "overlap": true
+        }
+      ],
+      "ms": 185
+    },
+    {
+      "id": "crossing-14",
+      "ok": true,
+      "triangles": 36057,
+      "bytes": 37800,
+      "reachArc": 75,
+      "edgeSlopeDegrees": 23.9,
+      "onMesh": true,
+      "bridges": 2,
+      "crossings": 2,
+      "overlaps": 2,
+      "routes": [
+        {
+          "bridge": "back-crossing-14",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "crossing-14-junction-4",
+          "ok": true,
+          "overlap": true
+        }
+      ],
+      "ms": 207
+    },
+    {
+      "id": "crossing-15",
+      "ok": true,
+      "triangles": 30754,
+      "bytes": 39320,
+      "reachArc": 74.1,
+      "edgeSlopeDegrees": 23.6,
+      "onMesh": true,
+      "bridges": 2,
+      "crossings": 2,
+      "overlaps": 2,
+      "routes": [
+        {
+          "bridge": "east-crossing-15",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "crossing-15-junction-5",
+          "ok": true,
+          "overlap": true
+        }
+      ],
+      "ms": 184
+    },
+    {
+      "id": "crossing-16",
+      "ok": true,
+      "triangles": 32038,
+      "bytes": 31200,
+      "reachArc": 49.5,
+      "edgeSlopeDegrees": 15.8,
+      "onMesh": true,
+      "bridges": 2,
+      "crossings": 2,
+      "overlaps": 2,
+      "routes": [
+        {
+          "bridge": "front-crossing-16",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "crossing-16-junction-5",
+          "ok": true,
+          "overlap": true
+        }
+      ],
+      "ms": 145
+    },
+    {
+      "id": "crossing-17",
+      "ok": true,
+      "triangles": 36696,
+      "bytes": 36304,
+      "reachArc": 64.8,
+      "edgeSlopeDegrees": 20.6,
+      "onMesh": true,
+      "bridges": 2,
+      "crossings": 2,
+      "overlaps": 2,
+      "routes": [
+        {
+          "bridge": "south-crossing-17",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "crossing-17-junction-5",
+          "ok": true,
+          "overlap": true
+        }
+      ],
+      "ms": 189
+    },
+    {
+      "id": "crossing-18",
+      "ok": true,
+      "triangles": 43209,
+      "bytes": 37212,
+      "reachArc": 65.1,
+      "edgeSlopeDegrees": 20.7,
+      "onMesh": true,
+      "bridges": 2,
+      "crossings": 2,
+      "overlaps": 2,
+      "routes": [
+        {
+          "bridge": "north-crossing-18",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "crossing-18-junction-6",
+          "ok": true,
+          "overlap": true
+        }
+      ],
+      "ms": 227
+    },
+    {
+      "id": "crossing-19",
+      "ok": true,
+      "triangles": 49557,
+      "bytes": 46868,
+      "reachArc": 73.9,
+      "edgeSlopeDegrees": 23.5,
+      "onMesh": true,
+      "bridges": 2,
+      "crossings": 2,
+      "overlaps": 2,
+      "routes": [
+        {
+          "bridge": "east-crossing-19",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "crossing-19-junction-6",
+          "ok": true,
+          "overlap": true
+        }
+      ],
+      "ms": 239
+    },
+    {
+      "id": "crossing-20",
+      "ok": true,
+      "triangles": 48411,
+      "bytes": 48388,
+      "reachArc": 76.5,
+      "edgeSlopeDegrees": 24.4,
+      "onMesh": true,
+      "bridges": 2,
+      "crossings": 2,
+      "overlaps": 2,
+      "routes": [
+        {
+          "bridge": "back-crossing-20",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "crossing-20-junction-6",
+          "ok": true,
+          "overlap": true
+        }
+      ],
+      "ms": 268
+    },
+    {
+      "id": "crossing-21",
+      "ok": true,
+      "triangles": 28452,
+      "bytes": 32728,
+      "reachArc": 64.6,
+      "edgeSlopeDegrees": 20.6,
+      "onMesh": true,
+      "bridges": 2,
+      "crossings": 2,
+      "overlaps": 2,
+      "routes": [
+        {
+          "bridge": "north-crossing-21",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "crossing-21-junction-7",
+          "ok": true,
+          "overlap": true
+        }
+      ],
+      "ms": 202
+    },
+    {
+      "id": "crossing-22",
+      "ok": true,
+      "triangles": 74277,
+      "bytes": 41812,
+      "reachArc": 73.4,
+      "edgeSlopeDegrees": 23.4,
+      "onMesh": true,
+      "bridges": 2,
+      "crossings": 2,
+      "overlaps": 2,
+      "routes": [
+        {
+          "bridge": "east-crossing-22",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "crossing-22-junction-7",
+          "ok": true,
+          "overlap": true
+        }
+      ],
+      "ms": 328
+    },
+    {
+      "id": "crossing-23",
+      "ok": true,
+      "triangles": 84174,
+      "bytes": 33536,
+      "reachArc": 51.5,
+      "edgeSlopeDegrees": 16.4,
+      "onMesh": true,
+      "bridges": 2,
+      "crossings": 2,
+      "overlaps": 2,
+      "routes": [
+        {
+          "bridge": "front-crossing-23",
+          "ok": true,
+          "overlap": true
+        },
+        {
+          "bridge": "crossing-23-junction-7",
+          "ok": true,
+          "overlap": true
+        }
+      ],
+      "ms": 311
+    }
+  ]
+}

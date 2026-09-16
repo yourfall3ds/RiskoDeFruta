@@ -125,17 +125,17 @@ describe('pouso seguro na ilha sorteada',()=>{
 
   it('aceita piso de topo com espaço acima e apoio em volta',()=>{
     const world=terrain();
-    expect(isSafeSpawnGround(world,0,0,0)).toBe(true);
-    expect(findSpawnPoint(world,{x:0,y:0,z:0})).toEqual({x:0,y:0,z:0});
+    expect(isSafeSpawnGround(world.surface,{x:0,y:0,z:0})).toBe(true);
+    expect(findSpawnPoint(world.surface,{x:0,y:0,z:0})).toEqual({x:0,y:0,z:0});
   });
 
   it('recusa ficar preso sob uma laje e prefere o topo dela',()=>{
     const world=terrain();
     // Sob o telhado: existe piso, mas não há espaço de cabeça.
-    expect(isSafeSpawnGround(world,18,0,0)).toBe(false);
+    expect(isSafeSpawnGround(world.surface,{x:18,y:0,z:0})).toBe(false);
     // `groundAt` sem teto devolve o topo da laje, que é livre — é ali que a queda termina.
     expect(world.groundAt(18,0)).toBeCloseTo(3.3,3);
-    const top=findSpawnPoint(world,{x:18,y:3.3,z:0});
+    const top=findSpawnPoint(world.surface,{x:18,y:3.3,z:0});
     expect(top).toEqual({x:18,y:3.3,z:0});
     // Um telhado plano não pode recusar a si mesmo: a varredura começa acima dos pés.
     expect(world.sweepSphere({x:top!.x,y:top!.y+1,z:top!.z},{x:0,y:SPAWN_HEADROOM-1,z:0},.4,true)).toBeFalsy();
@@ -144,14 +144,14 @@ describe('pouso seguro na ilha sorteada',()=>{
   it('recusa passarela estreita, onde o primeiro passo cairia no vazio',()=>{
     const world=terrain();
     expect(SPAWN_FOOTING_RADIUS).toBeGreaterThan(1.5);
-    expect(isSafeSpawnGround(world,100,0,0)).toBe(false);
-    expect(findSpawnPoint(world,{x:100,y:0,z:0})).toBeUndefined();
+    expect(isSafeSpawnGround(world.surface,{x:100,y:0,z:0})).toBe(false);
+    expect(findSpawnPoint(world.surface,{x:100,y:0,z:0})).toBeUndefined();
   });
 
   it('procura em anéis quando o centro da ilha não serve',()=>{
     const world=terrain();
     world.boxes.push({id:'torre',min:{x:-2,y:0,z:-2},max:{x:2,y:9,z:2}});
-    const point=findSpawnPoint(world,{x:0,y:0,z:0});
+    const point=findSpawnPoint(world.surface,{x:0,y:0,z:0});
     expect(point).toBeDefined();
     expect(Math.hypot(point!.x,point!.z)).toBeGreaterThan(3);
     expect(world.insideSolid(point!,1.8)).toBe(false);

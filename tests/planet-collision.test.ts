@@ -188,3 +188,11 @@ describe('PlanetCollision — coerência com o referencial', () => {
     expect(distance(sub(sample.point, PLANET.centre), scale(frame.up(above), PLANET.surfaceRadius))).toBeLessThan(0.06);
   });
 });
+
+it('extracts nearby corpse terrain including large faces and excludes destroyed props',()=>{
+ const collision=new PlanetCollision();
+ collision.setGeometry([-10,0,-10,10,0,-10,0,0,10,100,0,100,101,0,100,100,0,101],[0,1,2,3,4,5]);
+ const patch=collision.trianglesAround({x:0,y:0,z:0},1);
+ expect(patch.indices).toHaveLength(3);expect(patch.positions).toHaveLength(9);
+ collision.disableTriangles(0,1);expect(collision.trianglesAround({x:0,y:0,z:0},1).indices).toHaveLength(0);
+});

@@ -346,11 +346,14 @@ describe('DestructionVisuals — o prop inteiro, não uma primitiva', () => {
 
     system.hit({point: {x: 0, y: 180, z: 0}, direction: {x: 0, y: 0, z: 1}, damage: 1000, triangle: 104});
     system.update(0.5);
+    expect(visuals.debris.active).toBe(0);
     // Árvore tomba: ainda visível no meio da queda, presa a um pivô na raiz.
     expect(node.isEnabled()).toBe(true);
     expect(node.parent?.name).toContain('destruction-pivot');
     system.update(DESTRUCTIBLE_PROFILES.tree.toppleSeconds + DESTRUCTIBLE_PROFILES.tree.linger + 0.2);
     expect(node.isEnabled()).toBe(false);
+    expect(visuals.debris.active).toBeGreaterThan(2);
+    const fragmentCount=visuals.debris.active;system.update(.05);expect(visuals.debris.active).toBe(fragmentCount);
 
     system.resetAttempt();
     expect(node.isEnabled()).toBe(true);

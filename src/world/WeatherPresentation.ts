@@ -13,7 +13,7 @@ import type {WeatherCycle,WeatherStop} from './WeatherCycle';
 import {RAIN_STREAK_TEXTURE,RAIN_SPLASH_TEXTURE,RAIN_HAZE_TEXTURE,ATLAS_CELL,ATLAS_LAST_CELL,SPLASH_FLIPBOOK_FPS} from './rain/RainAtlas';
 import {RAIN_LAYERS,RAIN_TOTAL_CAPACITY,layerIntensity,type RainLayerId,type RainLayerSpec} from './rain/RainLayers';
 import {rainWind,windDrift,type RainWind} from './rain/RainWind';
-import {RainSurfaceSampler,SPLASH_CAPACITY,type RainWorldQuery,type SplashPlacement} from './rain/RainSurface';
+import {RainSurfaceSampler,SPLASH_CAPACITY,type RainSurfaceFrame,type RainWorldQuery,type SplashPlacement} from './rain/RainSurface';
 import {WetnessField,WET_ROUGHNESS_DROP,WET_ALBEDO_DROP,WET_SPECULAR_GAIN} from './rain/WetnessField';
 
 /** Gotas vivas somadas nas três camadas. Menor que as 900 da versão anterior. */
@@ -39,6 +39,15 @@ interface WetRecord {
 }
 
 interface RainLayer {spec:RainLayerSpec;system:ParticleSystem}
+
+/** Base tangente da câmera neste quadro: é nela que a caixa de chuva e a queda são montadas. */
+interface EmitFrame {origin:Vec3;up:Vec3;right:Vec3;forward:Vec3}
+
+/** Gerador próprio para a colocação radial das gotas: determinístico, independente do Babylon. */
+function stream(seed:number):()=>number {
+  let state=seed>>>0||1;
+  return ()=>{state=(state*1664525+1013904223)>>>0;return state/4294967296;};
+}
 
 /**
  * Aplica o estado do `WeatherCycle` à cena: céu, sol, preenchimento, névoa, exposição, chuva,
@@ -80,8 +89,23 @@ export class WeatherPresentation {
   private readonly surfaces=new RainSurfaceSampler();
   /** Fila de respingos deste quadro, consumida pelo `startPositionFunction`. */
   private readonly pendingSplashes:SplashPlacement[]=[];
+  /**
+   * Cursores independentes de posição e direção sobre a fila. Índices em vez de `shift` porque as
+   * duas funções são chamadas uma vez por partícula e a ORDEM entre elas não é garantida pelo
+   * Babylon; por índice o par posição/normal casa de qualquer jeito.
+   */
+  private readonly splashCursor={position:0,direction:0};
   private clock=0;
   private wind:RainWind=rainWind(0,0);
+  /**
+   * Base tangente da câmera. `undefined` no mundo plano — e é isso que mantém o default do Babylon
+   * intacto lá: as funções de colocação radial só são instaladas quando o mundo vira esfera.
+   */
+  private emitFrame:EmitFrame|undefined;
+  private radialEmission=false;
+  /** Sistemas que já receberam a colocação radial (`'near'|'mid'|'far'|'splash'`). */
+  private readonly placed=new Set<string>();
+  private readonly noise=stream(0x7a1f5);
 
   /**
    * Consulta de mundo OPCIONAL. `undefined` desliga respingo e supressão sob cobertura.
@@ -147,6 +171,8 @@ export class WeatherPresentation {
       system.isBillboardBased=true;
       system.start();
       this.layers.set(spec.id,{spec,system});
+      // Camada nascida depois de o mundo virar esfera recebe a colocação radial na hora.
+      if(this.radialEmission)this.installRadialEmission();
       return system;
     }catch(error){console.warn('Camada de chuva indisponível: '+spec.id,error);return undefined;}
   }
@@ -180,9 +206,11 @@ export class WeatherPresentation {
       system.direction1=new Vector3(0,1,0);system.direction2=new Vector3(0,1,0);
       const queue=this.pendingSplashes;
       system.startPositionFunction=(_world,position)=>{
-        const placement=queue.shift();
-        if(placement)position.copyFromFloats(placement.x,placement.y+.02,placement.z);
-        else position.setAll(0);
+        const placement=queue[this.splashCursor.position++];
+        if(!placement){position.setAll(0);return;}
+        // A coroa sobe 2 cm pela NORMAL da superfície no planeta; no plano, pelo +Y de sempre.
+        if(this.emitFrame){const n=placement.normal;position.copyFromFloats(placement.x+n.x*.02,placement.y+n.y*.02,placement.z+n.z*.02);}
+        else position.copyFromFloats(placement.x,placement.y+.02,placement.z);
       };
       system.start();
       this.splash=system;
@@ -307,8 +335,61 @@ export class WeatherPresentation {
     if(cue!==this.lastRainCue){this.lastRainCue=cue;this.onRain?.(cue);}
   }
 
+  /**
+   * Base tangente da câmera para ESTE quadro. Lida de `world.surface` sempre — nunca capturada —
+   * então a chuva vira radial no quadro em que o planeta é configurado. No mundo plano devolve
+   * `undefined`, e com isso tudo daqui para baixo cai no caminho original.
+   */
+  private frameAt(viewer:Vec3):EmitFrame|undefined {
+    const world=this.world;
+    if(!world?.spherical||!world.surface)return undefined;
+    const frame:RainSurfaceFrame=world.surface;
+    const basis=frame.basis(viewer,{x:0,y:0,z:1});
+    return {origin:{x:viewer.x,y:viewer.y,z:viewer.z},up:basis.up,right:basis.right,forward:basis.forward};
+  }
+
+  /**
+   * Coloca a gota na caixa TANGENTE da câmera e deita a coroa do respingo na normal real.
+   *
+   * Só é instalado quando o mundo é esférico: no plano as funções nunca existem e a emissão
+   * continua sendo a implementação default do Babylon, bit a bit.
+   */
+  private installRadialEmission():void {
+    this.radialEmission=true;
+    for(const {spec,system} of this.layers.values()){
+      if(this.placed.has(spec.id))continue;
+      this.placed.add(spec.id);
+      system.startPositionFunction=(_world,position)=>{
+        const frame=this.emitFrame;
+        const u=(this.noise()*2-1)*spec.radius,w=(this.noise()*2-1)*spec.radius;
+        const h=spec.bottom+this.noise()*(spec.top-spec.bottom);
+        const origin=(system.emitter as Vector3|undefined)??Vector3.Zero();
+        if(!frame){position.copyFromFloats(origin.x+u,origin.y+h,origin.z+w);return;}
+        position.copyFromFloats(
+          frame.origin.x+frame.right.x*u+frame.forward.x*w+frame.up.x*h,
+          frame.origin.y+frame.right.y*u+frame.forward.y*w+frame.up.y*h,
+          frame.origin.z+frame.right.z*u+frame.forward.z*w+frame.up.z*h,
+        );
+      };
+    }
+    if(this.splash&&!this.placed.has('splash')){
+      this.placed.add('splash');
+      this.splash.startDirectionFunction=(_world,direction)=>{
+        const placement=this.pendingSplashes[this.splashCursor.direction++];
+        if(placement)direction.copyFromFloats(placement.normal.x,placement.normal.y,placement.normal.z);
+        else direction.copyFromFloats(0,1,0);
+      };
+    }
+  }
+
   private updateRain(state:WeatherStop,viewer:Vec3,dt:number):void {
     this.wind=rainWind(this.clock,state.rain);
+    this.emitFrame=this.frameAt(viewer);
+    const frame=this.emitFrame;
+    // Vertical local: no plano é exatamente (0,1,0) e nenhum número muda.
+    const up=frame?.up??{x:0,y:1,z:0};
+    const right=frame?.right??{x:1,y:0,z:0};
+    const ahead=frame?.forward??{x:0,y:0,z:1};
     // Sob cobertura a chuva de perto cessa, e com ela o respingo.
     const placements=this.surfaces.update(dt,viewer,state.rain,this.world);
     const exposure=this.surfaces.viewerCovered?0:1;
@@ -319,22 +400,33 @@ export class WeatherPresentation {
       if(!system)continue;
       system.emitter=new Vector3(viewer.x,viewer.y,viewer.z);
       system.emitRate=Math.round(spec.emitRate*intensity);
+      // A gota cai na vertical LOCAL, não em −Y do mundo.
+      system.gravity=new Vector3(-up.x*spec.fall*.45,-up.y*spec.fall*.45,-up.z*spec.fall*.45);
       // Vento coerente: a mesma direção nas três camadas, com a fração de cada uma.
       const drift=windDrift(this.wind,spec.windFactor);
       const spread=spec.haze?.35:.12;
-      system.direction1=new Vector3(drift.x-spread*spec.fall,-spec.fall,drift.z-spread*spec.fall);
-      system.direction2=new Vector3(drift.x+spread*spec.fall,-spec.fall,drift.z+spread*spec.fall);
+      const lateral=spread*spec.fall;
+      const base=(sign:number):Vector3=>new Vector3(
+        right.x*(drift.x+sign*lateral)+ahead.x*(drift.z+sign*lateral)-up.x*spec.fall,
+        right.y*(drift.x+sign*lateral)+ahead.y*(drift.z+sign*lateral)-up.y*spec.fall,
+        right.z*(drift.x+sign*lateral)+ahead.z*(drift.z+sign*lateral)-up.z*spec.fall,
+      );
+      system.direction1=base(-1);
+      system.direction2=base(1);
       const alpha=spec.alpha*intensity;
       system.color1=new Color3(.78,.86,.95).toColor4(alpha);
       system.color2=new Color3(.58,.7,.84).toColor4(alpha*.72);
       system.colorDead=new Color3(.5,.62,.76).toColor4(0);
     }
 
-    if(!placements.length&&!this.splash)return;
+    this.splashCursor.position=0;this.splashCursor.direction=0;
+    if(!placements.length&&!this.splash){if(frame)this.installRadialEmission();return;}
     const splash=this.ensureSplash();
+    // Camadas e respingo nascem sob demanda; a colocação radial é instalada em quem ainda não tem.
+    if(frame)this.installRadialEmission();
     if(!splash)return;
     splash.emitter=new Vector3(viewer.x,viewer.y,viewer.z);
-    // A fila é consumida pelo `startPositionFunction`; o que sobrar é descartado no quadro seguinte.
+    // A fila é lida por índice pelas funções de colocação; o que sobrar morre no quadro seguinte.
     this.pendingSplashes.length=0;
     this.pendingSplashes.push(...placements.slice(0,SPLASH_CAPACITY));
     splash.manualEmitCount=this.pendingSplashes.length;
@@ -350,6 +442,8 @@ export class WeatherPresentation {
       if(record.specular!==undefined)(record.material as PBRMaterial&{metallicF0Factor:number}).metallicF0Factor=record.specular;
     }
     this.tracked.clear();this.wet.clear();this.surfaces.reset();this.pendingSplashes.length=0;
+    this.placed.clear();this.radialEmission=false;this.emitFrame=undefined;
+    this.splashCursor.position=0;this.splashCursor.direction=0;
     for(const {system} of this.layers.values()){system.stop();system.dispose();}
     this.layers.clear();
     this.splash?.stop();this.splash?.dispose();this.splash=undefined;

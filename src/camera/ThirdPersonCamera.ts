@@ -6,11 +6,37 @@ import type { CollisionWorld } from '../physics/CollisionWorld';
 import type { Vec3 } from '../core/contracts';
 import { PlanetaryHorizon } from './PlanetaryHorizon';
 import { CAMERA_TUNING as t } from '../player/PlayerTuning';
+import type { GameCamera } from './GameCamera';
 
-export class ThirdPersonCamera {
+export class ThirdPersonCamera implements GameCamera {
   readonly camera: FreeCamera;
   readonly forward=new Vector3(0,0,1);
   readonly pivot=Vector3.Zero();
+  /** Vertical do mundo plano: constante. Existe para satisfazer o contrato `GameCamera`. */
+  readonly up:Vec3={x:0,y:1,z:0};
+  private yawValue=0;
+  /**
+   * Frente projetada no plano tangente — no mundo plano, o próprio `yaw` como vetor.
+   * É o que o motor consome; aqui o valor é exatamente o `(sin yaw, 0, cos yaw)` de sempre.
+   */
+  get heading():Vec3 {return {x:Math.sin(this.yawValue),y:0,z:Math.cos(this.yawValue)};}
+  /**
+   * Sobreposição de apresentação (entrada, extração, revisão, morte).
+   * No mundo plano é o mesmo `Lerp` + `setTarget` que a cena escrevia à mão.
+   */
+  blend(position:Vec3,target:Vec3,weight:number):void {
+    const w=Math.max(0,Math.min(1,weight));
+    if(w<=0)return;
+    this.camera.position.copyFrom(Vector3.Lerp(this.camera.position,new Vector3(position.x,position.y,position.z),w));
+    const normal=this.camera.position.add(this.forward.scale(6));
+    this.camera.setTarget(Vector3.Lerp(normal,new Vector3(target.x,target.y,target.z),w));
+  }
+  /** Realinha sem suavização. No mundo plano basta reiniciar a suavização do pivô. */
+  snapTo(position:Vec3):void {
+    this.pivot.set(position.x,position.y+t.pivotHeight,position.z);
+    this.lead.setAll(0);
+    this.initialized=false;
+  }
   private distance: number = t.distance;
   private readonly horizon=new PlanetaryHorizon(); private kick=0;private hurtKick=0;private hurtSide=1;
   private initialized=false;private readonly closeHidden:AbstractMesh[]=[];
@@ -64,6 +90,7 @@ export class ThirdPersonCamera {
     // Abertura de FOV na corrida, contínua nos dois sentidos e independente da taxa de quadros.
     this.fovBlend+=(this.sprintBlendTarget-this.fovBlend)*(this.initialized?1-Math.exp(-step/t.fovSmoothing):1);
     this.camera.fov=this.baseFov+this.fovBlend*t.sprintFovDegrees*Math.PI/180;
+    this.yawValue=yaw;
     this.forward.set(Math.sin(yaw)*Math.cos(pitch),-Math.sin(pitch),Math.cos(yaw)*Math.cos(pitch));
     // Keep the reference's left-third composition even in the narrow app preview.
     const aspect=this.camera.getEngine().getAspectRatio(this.camera);

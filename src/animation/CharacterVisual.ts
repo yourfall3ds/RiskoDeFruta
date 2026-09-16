@@ -12,6 +12,26 @@ import type { Scene } from '@babylonjs/core/scene';
 import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
 import type { MorphTarget } from '@babylonjs/core/Morph/morphTarget';
 import type { PlayerMotor } from '../player/PlayerMotor';
+
+/**
+ * O que a visual REALMENTE lê do motor.
+ *
+ * Existe para o avatar radial poder entregar uma POSE LOCAL (posição na origem do pai radial,
+ * velocidade na base tangente, `yaw` local) sem inventar um `PlayerMotor` inteiro nem passar por
+ * um elenco. `PlayerMotor` satisfaz este tipo estruturalmente, então nenhuma chamada existente
+ * muda — e se a visual passar a ler um campo novo, o compilador cobra os dois chamadores em vez de
+ * deixar `undefined` vazar por baixo de um `as`.
+ */
+type CharacterPoseField =
+  'position'|'previous'|'velocity'|'yaw'|'grounded'|'sprinting'
+  |'bumpRemaining'|'wallSliding'|'dodgeRemaining'|'dodgeYaw'|'backflipProgress'|'jumpMultiplier';
+
+/**
+ * `-readonly` porque no motor `dodgeYaw` e `backflipProgress` são acessores só-leitura, e o avatar
+ * radial precisa ESCREVER a pose que monta. O tipo de cada campo continua vindo do `PlayerMotor`,
+ * então nenhum deles pode divergir em silêncio.
+ */
+export type CharacterPose = {-readonly [K in CharacterPoseField]: PlayerMotor[K]};
 import { PLAYER_TUNING as tuning } from '../player/PlayerTuning';
 import { AnimationStateMachine } from './AnimationStateMachine';
 import {poseAkimbo} from './StylishAim';
@@ -151,7 +171,7 @@ export class CharacterVisual {
       Quaternion.RotationAxisToRef(axis,angle,turn);node.rotationQuaternion.multiplyInPlace(turn).normalize();node.computeWorldMatrix(true);
     }
   }
-  update(player: PlayerMotor,alpha: number,dt: number,aiming: boolean,charging=false,pitch=0,chargeProgress=0): void {
+  update(player: CharacterPose,alpha: number,dt: number,aiming: boolean,charging=false,pitch=0,chargeProgress=0,aimWorld?:{x:number;y:number;z:number}): void {
     // The rig has no finger bones: the authored glove shape closes the fingers only in melee.
     const fistWeight=this.unarmedStance||this.meleePose?1:0;
     for(const fist of this.fists)fist.influence+=(fistWeight-fist.influence)*(dt>0?1-Math.exp(-dt*22):1);
@@ -258,15 +278,16 @@ export class CharacterVisual {
         if(fire)this.sample(fire,this.firing[side]!,name=>(name.startsWith(prefix)&&upper(name))||(side===this.lastShotSide&&!casting&&name.startsWith('Spine')));
       }
       for(const [index,side] of ['Right','Left'].entries()) {
-        const arm=this.scene.getTransformNodeByName(`${side}Arm`);
+        const arm=this.bones.get(`${side}Arm`);
         if(!arm?.rotationQuaternion || !arm.parent)continue;
         const previous=this.armPose.get(arm);if(previous)previous.copyFrom(arm.rotationQuaternion);else this.armPose.set(arm,arm.rotationQuaternion.clone());
         const grip=this.grips[index];if(!grip)continue;
-        const direction=new Vector3(Math.sin(player.yaw)*Math.cos(pitch),-Math.sin(pitch),Math.cos(player.yaw)*Math.cos(pitch));
-        const forearm=this.scene.getTransformNodeByName(side+'ForeArm'),hand=this.hands[index];
+        const direction=aimWorld?new Vector3(aimWorld.x,aimWorld.y,aimWorld.z).normalize():new Vector3(Math.sin(player.yaw)*Math.cos(pitch),-Math.sin(pitch),Math.cos(player.yaw)*Math.cos(pitch));
+        const forearm=this.bones.get(side+'ForeArm'),hand=this.hands[index];
         if(this.styleTime>0&&forearm&&hand){const sign=index===0?1:-1,cross=(1-Math.cos(this.styleClock*7))*.5,lateral=sign*(.20-.30*cross),forward=.28-.10*cross;
           const wrist=this.position.add(new Vector3(Math.cos(player.yaw)*lateral+Math.sin(player.yaw)*forward,1.30+sign*cross*.025,Math.cos(player.yaw)*forward-Math.sin(player.yaw)*lateral));
           const pole=this.position.add(new Vector3(Math.cos(player.yaw)*sign*.65,.78,-Math.sin(player.yaw)*sign*.65));
+          if(aimWorld&&this.root.parent){const frame=this.root.parent.getWorldMatrix();Vector3.TransformCoordinatesToRef(wrist,frame,wrist);Vector3.TransformCoordinatesToRef(pole,frame,pole);}
           const target=this.targetTime[index]!>0?this.styleTargets[index]!:wrist.add(direction.scale(30));poseAkimbo(arm,forearm,hand,grip,wrist,pole,target);
         }else aimArmAt(arm,grip,this.fanTime[index]!>0?this.fanDirections[index]!:direction);
       }

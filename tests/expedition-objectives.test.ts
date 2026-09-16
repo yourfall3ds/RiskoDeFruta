@@ -24,30 +24,30 @@ const anchors:readonly TotemAnchor[]=[
 describe('colocação dos totens',()=>{
   it('aceita praça larga e recusa ponte estreita e ilhota curta',()=>{
     const w=world();
-    expect(isOpenGround(w,0,0,0,TOTEM_RADIUS)).toBe(true);
-    expect(isOpenGround(w,0,80,0,TOTEM_RADIUS)).toBe(false);
-    expect(isOpenGround(w,200,0,0,TOTEM_RADIUS)).toBe(false);
+    expect(isOpenGround(w.surface,{x:0,y:0,z:0},TOTEM_RADIUS)).toBe(true);
+    expect(isOpenGround(w.surface,{x:0,y:0,z:80},TOTEM_RADIUS)).toBe(false);
+    expect(isOpenGround(w.surface,{x:200,y:0,z:0},TOTEM_RADIUS)).toBe(false);
   });
   it('recusa chão amplo cercado por parede fina ou sob um teto',()=>{
     const w=world();
     w.boxes.push({id:'thin-wall',min:{x:-15,y:0,z:6},max:{x:15,y:6,z:6.1}});
-    expect(isOpenGround(w,0,0,0,TOTEM_RADIUS)).toBe(false);
+    expect(isOpenGround(w.surface,{x:0,y:0,z:0},TOTEM_RADIUS)).toBe(false);
     w.boxes.length=0;
     w.boxes.push({id:'roof',min:{x:-20,y:5,z:-20},max:{x:20,y:5.2,z:20}});
-    expect(isOpenGround(w,0,0,0,TOTEM_RADIUS)).toBe(false);
+    expect(isOpenGround(w.surface,{x:0,y:0,z:0},TOTEM_RADIUS)).toBe(false);
   });
   it('não devolve sítio quando nenhum anel ao redor da âncora tem piso largo',()=>{
-    expect(findTotemSite(world(),{id:'islet',name:'Ilhota',x:200,y:0,z:0},TOTEM_RADIUS,()=>true)).toBeUndefined();
+    expect(findTotemSite(world().surface,{id:'islet',name:'Ilhota',x:200,y:0,z:0},TOTEM_RADIUS,()=>true)).toBeUndefined();
   });
   it('planeja marcos alcançáveis, separados e com os tempos pedidos',()=>{
-    const sites=planExpedition(world(),anchors,{x:0,y:0,z:-20},()=>true);
+    const sites=planExpedition(world().surface,anchors,{x:0,y:0,z:-20},()=>true);
     expect(sites).toHaveLength(2); // só as duas praças validam nesta maquete
     expect(sites.map(s=>s.id)).toEqual(['a','b']);
     expect(sites.map(s=>s.juiceTarget)).toEqual([CHALICE_JUICE_TARGETS[0],CHALICE_JUICE_TARGETS[1]]);
     expect(Math.hypot(sites[0]!.position.x-sites[1]!.position.x,sites[0]!.position.z-sites[1]!.position.z)).toBeGreaterThan(TOTEM_RADIUS*2.2);
   });
   it('descarta destino sem rota mesmo com piso válido',()=>{
-    const sites=planExpedition(world(),anchors,{x:0,y:0,z:-20},p=>p.z<80);
+    const sites=planExpedition(world().surface,anchors,{x:0,y:0,z:-20},p=>p.z<80);
     expect(sites.map(s=>s.id)).toEqual(['a']);
   });
 });
@@ -57,7 +57,7 @@ function collect(o:ExpeditionObjectives,count:number,at:{x:number;y:number;z:num
  for(let i=0;i<count;i++)o.harvest({sequence:++harvestSequence,kind:'carrot',position:at},at,alive);
 }
 describe('cálice por abates reais',()=>{
-  const sites=planExpedition(world(),anchors,{x:0,y:0,z:-20},()=>true);
+  const sites=planExpedition(world().surface,anchors,{x:0,y:0,z:-20},()=>true);
   const make=()=>{const o=new ExpeditionObjectives();o.setSites(sites);return o;};
   const run=(o:ExpeditionObjectives,seconds:number,p:{x:number;y:number;z:number},alive=true)=>{for(let i=0;i<seconds*60;i++)o.update(1/60,p,alive);};
 
@@ -136,7 +136,7 @@ describe('cálice por abates reais',()=>{
 });
 
 describe('chefe e embarque no cálice',()=>{
-  const sites=planExpedition(world(),anchors,{x:0,y:0,z:-20},()=>true);
+  const sites=planExpedition(world().surface,anchors,{x:0,y:0,z:-20},()=>true);
   function completed():ExpeditionObjectives {
     const o=new ExpeditionObjectives();o.setSites(sites);
     for(const totem of o.totems){o.activate(totem.site.position);collect(o,totem.site.juiceTarget,totem.site.position);}

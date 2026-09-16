@@ -31,6 +31,14 @@ export interface StagePlanValidation {
    * `undefined` quando não existe rota — é também a checagem de alcançabilidade.
    */
   route(spawn:Vec3,chalice:Vec3):number|undefined;
+  /**
+   * Distância "no chão" entre dois pontos, usada como filtro barato antes de consultar a rota.
+   *
+   * Ausente ⇒ `hypot(dx,dz)`, que é o mundo plano de sempre. Num mapa esférico ela TEM de ser
+   * informada: duas ilhas em lados opostos do planeta podem ter `dx`/`dz` pequenos e mesmo assim
+   * estar a meia circunferência de caminhada, e o filtro barato aprovaria um par absurdo.
+   */
+  distance?(a:Vec3,b:Vec3):number;
 }
 
 /** Piso de rota real no primeiro bioma, onde as ilhas são muitas e pequenas. */
@@ -67,11 +75,11 @@ export const planar=(a:{x:number;z:number},b:{x:number;z:number}):number=>Math.h
  * Todos os pares ordenados em ilhas diferentes e suficientemente separadas, em ordem estável.
  * A lista é a mesma para a mesma definição de bioma — o sorteio é que muda entre sementes.
  */
-export function islandPairs(biome:StageBiome):IslandPair[] {
+export function islandPairs(biome:StageBiome,measure:(a:Vec3,b:Vec3)=>number=planar):IslandPair[] {
   const pairs:IslandPair[]=[];
   for(const spawn of biome.islands)for(const chalice of biome.islands){
     if(spawn.id===chalice.id)continue;
-    const distance=planar(spawn,chalice);
+    const distance=measure(spawn,chalice);
     if(distance<biome.separation)continue;
     pairs.push({spawn,chalice,distance});
   }
@@ -98,7 +106,8 @@ function shuffle<T>(values:T[],rng:RandomStream):T[] {
  * The route floor is mandatory. Accepting a shorter fallback would reintroduce the reported bug.
  */
 export function planStage(biome:StageBiome,rng:RandomStream,validation:StagePlanValidation,options:StagePlanOptions):StagePlan|undefined {
-  const pairs=shuffle(islandPairs(biome),rng);
+  const measure=validation.distance??planar;
+  const pairs=shuffle(islandPairs(biome,measure),rng);
   // Um ponto por ilha basta: o piso escolhido não depende de com quem a ilha é emparelhada.
   const spawns=new Map<string,Vec3|undefined>(),chalices=new Map<string,Vec3|undefined>();
   let examined=0;
@@ -112,7 +121,7 @@ export function planStage(biome:StageBiome,rng:RandomStream,validation:StagePlan
     if(!chalice)continue;
     // A distância vale entre os pontos ESCOLHIDOS: o piso válido pode estar dezenas de metros
     // fora da âncora, e aceitar o par pela âncora aprovaria um destino perto demais.
-    const distance=planar(spawn,chalice);
+    const distance=measure(spawn,chalice);
     if(distance<biome.separation)continue;
     const routeLength=validation.route(spawn,chalice);
     if(routeLength===undefined)continue;

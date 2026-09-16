@@ -10,6 +10,7 @@ import type {ExpeditionObjectives} from '../run/ExpeditionObjectives';
 import type {HarvestResonance} from '../run/HarvestResonance';
 import type {MPCharge} from '../combat/MPCharge';
 import type {WeatherCycle} from '../world/WeatherCycle';
+import {radialSurfaceOf,type EnemySurface} from '../enemies/EnemySpace';
 
 const COMPASS=['↑','↗','→','↘','↓','↙','←','↖'] as const;
 const bearingArrow=(from:{x:number;z:number},to:{x:number;z:number},heading:number)=>COMPASS[Math.round(((Math.atan2(to.x-from.x,to.z-from.z)*180/Math.PI-heading+720)%360)/45)%8]!;
@@ -124,7 +125,15 @@ export class RunHUD {
  private decay='';
  // Seleção das barras próximas sem `filter`/`sort` por atualização: buffers reaproveitados.
  private readonly nearby:SwarmActor[]=[];private readonly nearbyKeys:number[]=[];
- private readonly world=new Vector3();private readonly screen=new Vector3();
+ private readonly world=new Vector3();private readonly screen=new Vector3();private readonly anchor=new Vector3();
+ /**
+  * Referencial dos marcadores de mundo. Resolvido do próprio `EnemySwarm` a cada atualização, então
+  * a integração não precisa ligar nada. `useSurface` existe só para quem quiser injetar outro.
+  */
+ private surface:EnemySurface|undefined;
+ private surfaceOverride:EnemySurface|undefined;
+ /** Porto opcional: quem passar um `FlatSurface` continua no caminho plano literal. */
+ useSurface(surface:EnemySurface|undefined):void {this.surfaceOverride=radialSurfaceOf(surface);}
  constructor(){
   this.element.id='run-hud';this.element.innerHTML='<div class="run-inventory"></div><div class="run-clock"></div><div class="run-mission"></div><aside class="expedition-route" hidden></aside><div class="harvest-resonance" hidden></div><aside class="district-contract"></aside><div class="run-boss" hidden><span>PRAGA ALFA</span><div><i></i></div><small></small></div><div class="run-xp"><span></span><div><i></i></div></div><div class="run-hostiles"></div><div class="run-interact" hidden></div><div class="run-toast"></div><div class="damage-labels"></div><div class="run-bearing"></div><div class="world-supplies"></div><div class="enemy-health-bars"></div><aside class="run-stats" hidden></aside><small class="stats-hint">TAB · ATRIBUTOS</small>';document.body.append(this.element);
   const pick=(selector:string):HTMLElement=>this.element.querySelector(selector) as HTMLElement;
@@ -151,6 +160,9 @@ export class RunHUD {
   */
  update(run:RunProgression,swarm:EnemySwarm,interact:RunInteractables,camera:Camera,expedition?:{objectives:ExpeditionObjectives;resonance:HarvestResonance;mp:MPCharge;player:{x:number;y:number;z:number};weather?:WeatherCycle;journey?:StageJourneyView}):void {
   if(run.time>=this.lastUpdate&&run.time-this.lastUpdate<UPDATE_PERIOD)return;this.lastUpdate=run.time;
+  // Sem fiação nova: quem tem a horda já tem o referencial dela. Na fazenda isto é `undefined` e
+  // todos os marcadores seguem pelo caminho plano literal.
+  this.surface=this.surfaceOverride??swarm.surface;
   const key=[...run.inventory].join();if(key!==this.inventoryKey){this.inventoryKey=key;this.inventory.set([...run.inventory].slice(0,12).map(([id,count])=>{const item=ITEMS.find(x=>x.id===id)!;return `<div title="${item.name}: ${item.description}"><i class="item-icon" style='${perkIcon(item.icon)}'></i><b>×${count}</b></div>`;}).join('')+(run.inventory.size>12?'<small class=inventory-more>+'+(run.inventory.size-12)+' ITENS · TAB</small>':''));}
   const f=camera.getForwardRay().direction,heading=(Math.atan2(f.x,f.z)*180/Math.PI+360)%360,seconds=Math.floor(run.time);
   this.bearing.set(`${['N','NE','L','SE','S','SO','O','NO'][Math.round(heading/45)%8]} · ${Math.round(heading)}°`);
@@ -185,7 +197,9 @@ export class RunHUD {
   };
   this.damage.begin();
   for(const l of swarm.labels){
-   if(!project(l.position.x,l.position.y+(1-l.time)*.8,l.position.z))continue;
+   // O número de dano sobe 0,8 m na vertical LOCAL do golpe, não no `+Y` do mundo.
+   this.lift(l.position,(1-l.time)*.8,this.anchor);
+   if(!project(this.anchor.x,this.anchor.y,this.anchor.z))continue;
    const marker=this.damage.take();
    classes(marker.root,l.crit?'crit':'');
    css(marker.root,'left',pct(this.screen.x/width*100));css(marker.root,'top',pct(this.screen.y/height*100));
@@ -197,7 +211,8 @@ export class RunHUD {
   this.bars.begin();
   for(let i=0;i<near;i++){
    const a=this.nearby[i]!;
-   if(!project(a.root.position.x,a.body.getBoundingInfo().boundingBox.maximumWorld.y+.22,a.root.position.z))continue;
+   this.headAnchor(a,this.anchor);
+   if(!project(this.anchor.x,this.anchor.y,this.anchor.z))continue;
    const marker=this.bars.take();
    classes(marker.root,`enemy-health variant-${a.variant}${a.hit>0?' damaged':''}`);
    css(marker.root,'left',pct(this.screen.x/width*100));css(marker.root,'top',pct(this.screen.y/height*100));
@@ -208,14 +223,44 @@ export class RunHUD {
   this.supplies.begin();
   for(const e of interact.entries){
    if(e.used)continue;
-   const d=Math.hypot(e.x-camera.position.x,e.z-camera.position.z);
-   if(d>=35||d<=3||!project(e.x,e.y+1.8,e.z))continue;
+   // Distância CAMINHÁVEL (arco na esfera) e etiqueta 1,8 m acima na vertical local do baú.
+   const d=this.surface?this.surface.planarDistance(e,camera.position):Math.hypot(e.x-camera.position.x,e.z-camera.position.z);
+   this.lift(e,1.8,this.anchor);
+   if(d>=35||d<=3||!project(this.anchor.x,this.anchor.y,this.anchor.z))continue;
    const marker=this.supplies.take();
    css(marker.root,'left',pct(this.screen.x/width*100));css(marker.root,'top',pct(this.screen.y/height*100));
    css(marker.root,'opacity',String(Math.round(Math.min(1,(35-d)/10)*100)/100));
    text(marker.cost,String(e.cost));
   }
   this.supplies.end();
+ }
+ /** `p` deslocado `height` metros na vertical LOCAL. Sem superfície é o `+Y` de sempre. */
+ private lift(p:{x:number;y:number;z:number},height:number,out:Vector3):Vector3 {
+  if(!this.surface)return out.copyFromFloats(p.x,p.y+height,p.z);
+  const up=this.surface.up(p);
+  return out.copyFromFloats(p.x+up.x*height,p.y+up.y*height,p.z+up.z*height);
+ }
+ /**
+  * Ponto logo acima da CABEÇA da praga, que é onde a barra é ancorada.
+  *
+  * No plano é literalmente a expressão de sempre: o topo da caixa em `y`, sobre o `x`/`z` do corpo.
+  *
+  * Na esfera "acima da cabeça" não é `+Y` — é a radial DAQUELE ponto. Usar o `maximumWorld.y` numa
+  * ilha fora do polo norte ancorava a barra num ponto que não fica sobre o corpo (e muitas vezes
+  * dentro do convés ou fora do tronco de visão), e a barra simplesmente sumia. O topo agora é medido
+  * projetando os oito cantos da caixa na vertical local — o análogo exato de `maximumWorld.y`, e
+  * independente de como o corpo está girado.
+  */
+ private headAnchor(a:SwarmActor,out:Vector3):Vector3 {
+  const box=a.body.getBoundingInfo().boundingBox,p=a.root.position;
+  if(!this.surface)return out.copyFromFloats(p.x,box.maximumWorld.y+.22,p.z);
+  const up=this.surface.up(p);
+  let top=0;
+  for(const corner of box.vectorsWorld){
+   const along=(corner.x-p.x)*up.x+(corner.y-p.y)*up.y+(corner.z-p.z)*up.z;
+   if(along>top)top=along;
+  }
+  return this.lift(p,top+.22,out);
  }
  /**
   * As `NEARBY_BARS` pragas vivas mais próximas, ordenadas como antes (distância 3D à câmera,
@@ -224,14 +269,28 @@ export class RunHUD {
   * O `filter().sort()` anterior alocava um array por atualização e recalculava `DistanceSquared`
   * dentro do comparador — O(n log n) distâncias para ficar com doze. Aqui cada ator é medido uma
   * única vez.
+  *
+  * O recorte plano `dx² + dz²` NÃO vale numa esfera: dois corpos em lados opostos do globo têm o
+  * mesmo `(x, z)` e passariam pelo teste, roubando as doze vagas de quem está de fato ao lado do
+  * jogador — barras aparecendo para quem não se vê, e faltando para quem está na sua cara. Na
+  * esfera o recorte é o ARCO no convés e a altura é medida na vertical local, que é a mesma métrica
+  * que a horda usa para alcance de ataque.
   */
  private selectNearby(swarm:EnemySwarm,camera:Camera):number {
-  const actors=this.nearby,keys=this.nearbyKeys,eye=camera.position;let count=0;
+  const actors=this.nearby,keys=this.nearbyKeys,eye=camera.position,surface=this.surface;let count=0;
   for(const a of swarm.actors){
    if(!a.active||a.health.dead)continue;
-   const dx=a.root.position.x-eye.x,dz=a.root.position.z-eye.z;
-   if(dx*dx+dz*dz>=NEARBY_RANGE*NEARBY_RANGE)continue;
-   const dy=a.root.position.y-eye.y,key=dx*dx+dy*dy+dz*dz;
+   let key:number;
+   if(surface){
+    const arc=surface.planarDistance(a.root.position,eye);
+    if(arc>=NEARBY_RANGE)continue;
+    const lift=surface.heightGap(a.root.position,eye);
+    key=arc*arc+lift*lift;
+   }else{
+    const dx=a.root.position.x-eye.x,dz=a.root.position.z-eye.z;
+    if(dx*dx+dz*dz>=NEARBY_RANGE*NEARBY_RANGE)continue;
+    const dy=a.root.position.y-eye.y;key=dx*dx+dy*dy+dz*dz;
+   }
    if(count===NEARBY_BARS&&key>=keys[NEARBY_BARS-1]!)continue;
    let i=Math.min(count,NEARBY_BARS-1);
    for(;i>0&&keys[i-1]!>key;i--){actors[i]=actors[i-1]!;keys[i]=keys[i-1]!;}

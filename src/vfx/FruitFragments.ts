@@ -3,6 +3,7 @@ import {Mesh} from '@babylonjs/core/Meshes/mesh';
 import type {Scene} from '@babylonjs/core/scene';
 import type {Vec3} from '../core/contracts';
 import type {CollisionWorld} from '../physics/CollisionWorld';
+import {radialSurfaceOf,type EnemySurface} from '../enemies/EnemySpace';
 import {FragmentLibrary,SHAPE_VARIANTS,type FragmentLoader,type FragmentRole,type FragmentTemplate,type FruitFamily} from './FragmentLibrary';
 
 export type {FragmentRole,FruitFamily,FragmentLoader} from './FragmentLibrary';
@@ -64,10 +65,16 @@ interface Fragment {
   /** Meia-extensão local do molde, em metros, antes da escala do pedaço. */
   half:Vector3;
   velocity:Vector3;spin:Vector3;
+  /** Vertical local guardada no nascimento do caco: `(0,1,0)` na fazenda, radial no planeta. */
+  up:Vector3;
   life:number;maxLife:number;active:boolean;resting:boolean;
 }
 
-interface PendingBurst {kind:string;x:number;y:number;z:number;dx:number;dz:number;power:number}
+interface PendingBurst {kind:string;x:number;y:number;z:number;dx:number;dy:number;dz:number;power:number}
+
+/** Base fixa do mundo plano e rascunhos da quebra: nada disto aloca por caco. */
+const FLAT_UP:Vec3={x:0,y:1,z:0},FLAT_RIGHT:Vec3={x:1,y:0,z:0},FLAT_FORWARD:Vec3={x:0,y:0,z:1};
+const BURST_ORIGIN=new Vector3(),SPAWN_POINT=new Vector3();
 
 /** Ruído determinístico barato: a mesma sequência de golpes dá sempre os mesmos cacos. */
 const noise=(n:number):number=>{const s=Math.sin(n*127.1+311.7)*43758.5453;return s-Math.floor(s);};
@@ -92,6 +99,7 @@ export class FruitFragments {
   /** Contador das quebras: toda variação sai daqui. */
   private spawns=0;
   private disposed=false;
+  private surface:EnemySurface|undefined;
   /** Resolve quando os moldes reais estão prontos (ou falharam). A fixture de QA usa isto. */
   readonly ready:Promise<boolean>;
 
@@ -99,6 +107,9 @@ export class FruitFragments {
     this.library=loader?new FragmentLibrary(scene,loader):new FragmentLibrary(scene);
     this.ready=this.library.ready.then(ok=>{if(ok&&!this.disposed)this.flush();return ok;});
   }
+
+  /** Liga o referencial radial. A ordem dos argumentos do construtor fica intocada de propósito. */
+  useSurface(surface:EnemySurface|undefined):void {this.surface=radialSurfaceOf(surface);}
 
   get active():number {return this.pool.filter(fragment=>fragment.active).length;}
   get capacity():number {return FRAGMENT_BUDGET;}
@@ -116,7 +127,7 @@ export class FruitFragments {
       const mesh=new Mesh('fruit-fragment',this.scene);
       mesh.isPickable=false;mesh.receiveShadows=true;mesh.rotationQuaternion=null;mesh.doNotSyncBoundingInfo=true;
       mesh.setEnabled(false);
-      fragment={mesh,extras:[],role,template:'',half:Vector3.Zero(),velocity:Vector3.Zero(),spin:Vector3.Zero(),
+      fragment={mesh,extras:[],role,template:'',half:Vector3.Zero(),velocity:Vector3.Zero(),spin:Vector3.Zero(),up:new Vector3(0,1,0),
                 life:0,maxLife:ROLE_LIFE[role],active:false,resting:false};
       this.pool.push(fragment);
     }
@@ -151,10 +162,21 @@ export class FruitFragments {
     fragment.template=template.key;
   }
 
-  /** Altura de saída: o meio do corpo que quebrou, com recuo seguro se a caixa vier estranha. */
-  private burstHeight(position:Vec3,body:Mesh|undefined):number {
-    const center=body&&!body.isDisposed()&&body.getTotalVertices()>0?body.getBoundingInfo().boundingBox.centerWorld.y:NaN;
-    return Number.isFinite(center)&&Math.abs(center-position.y)<4?center:position.y+.9;
+  /**
+   * Ponto de saída: o meio do corpo que quebrou, com recuo seguro se a caixa vier estranha.
+   *
+   * Na fazenda continua sendo só a cota `y`. No planeta o recuo de 0,9 m sobe pela vertical LOCAL,
+   * e a distância "estranha" de 4 m é medida ao longo dessa mesma vertical.
+   */
+  private burstOrigin(position:Vec3,body:Mesh|undefined,out:Vector3):Vector3 {
+    const centre=body&&!body.isDisposed()&&body.getTotalVertices()>0?body.getBoundingInfo().boundingBox.centerWorld:undefined;
+    if(!this.surface){
+      const y=centre?centre.y:NaN;
+      return out.copyFromFloats(position.x,Number.isFinite(y)&&Math.abs(y-position.y)<4?y:position.y+.9,position.z);
+    }
+    if(centre&&Math.abs(this.surface.heightGap(centre,position))<4)return out.copyFrom(centre);
+    const up=this.surface.up(position);
+    return out.copyFromFloats(position.x+up.x*.9,position.y+up.y*.9,position.z+up.z*.9);
   }
 
   /** Quanto o pedaço, já girado e escalado, desce abaixo do próprio centro. */
@@ -171,27 +193,33 @@ export class FruitFragments {
    */
   burst(kind:string,position:Vec3,direction:Vec3,body:Mesh,power=1):void {
     if(this.disposed)return;
-    const height=this.burstHeight(position,body);
+    const origin=this.burstOrigin(position,body,BURST_ORIGIN);
     if(!this.library.loaded){
       // Guarda o pedido — nunca a malha do inimigo, que pode ser destruída antes do modelo chegar.
-      this.queue.push({kind,x:position.x,y:height,z:position.z,dx:direction.x,dz:direction.z,power});
+      this.queue.push({kind,x:origin.x,y:origin.y,z:origin.z,dx:direction.x,dy:direction.y,dz:direction.z,power});
       if(this.queue.length>PENDING_BURSTS)this.queue.shift();
       return;
     }
-    this.spawn(kind,position.x,height,position.z,direction.x,direction.z,power);
+    this.spawn(kind,origin.x,origin.y,origin.z,direction.x,direction.y,direction.z,power);
   }
 
   private flush():void {
     const pending=this.queue.splice(0,this.queue.length);
-    for(const burst of pending)this.spawn(burst.kind,burst.x,burst.y,burst.z,burst.dx,burst.dz,burst.power);
+    for(const burst of pending)this.spawn(burst.kind,burst.x,burst.y,burst.z,burst.dx,burst.dy,burst.dz,burst.power);
   }
 
-  private spawn(kind:string,x:number,y:number,z:number,dx:number,dz:number,power:number):void {
+  private spawn(kind:string,x:number,y:number,z:number,dx:number,dy:number,dz:number,power:number):void {
     const palette=fruitPalette(kind),scale=Math.max(.2,Math.min(2,power));
     const family=palette.family??'berry';
     const size=(palette.size??1)*Math.min(1.25,.85+scale*.25);
-    const push=new Vector3(dx,0,dz);
-    if(push.lengthSquared()<1e-4)push.set(0,0,1);else push.normalize();
+    // Base de arremesso: no plano é `(dx,0,dz)` com lateral em X e frente em Z, exatamente como
+    // antes; no planeta os três eixos saem da base tangente do ponto onde a fruta arrebentou.
+    SPAWN_POINT.copyFromFloats(x,y,z);
+    const basis=this.surface?.basis(SPAWN_POINT,{x:0,y:0,z:1});
+    const up=basis?basis.up:FLAT_UP,side=basis?basis.right:FLAT_RIGHT,ahead=basis?basis.forward:FLAT_FORWARD;
+    const push=new Vector3(dx,this.surface?dy:0,dz);
+    if(this.surface){const along=push.x*up.x+push.y*up.y+push.z*up.z;push.set(push.x-up.x*along,push.y-up.y*along,push.z-up.z*along);}
+    if(push.lengthSquared()<1e-4)push.copyFromFloats(ahead.x,ahead.y,ahead.z);else push.normalize();
     let index=0;
     for(const role of ['shell','pulp','seed'] as const){
       const count=Math.max(1,Math.round(palette.counts[role]*Math.min(1.5,scale)));
@@ -207,10 +235,13 @@ export class FruitFragments {
         // Variação quase uniforme: o caco é um corpo real, esticar num eixo denuncia o truque.
         fragment.mesh.scaling.set(grow*(.97+.06*noise(roll*7+3)),grow*(.97+.06*noise(roll*11+4)),grow*(.97+.06*noise(roll*13+5)));
         fragment.mesh.position.set(x,y,z);
+        fragment.up.copyFromFloats(up.x,up.y,up.z);
+        const lift=(role==='shell'?3:role==='pulp'?4.2:5.4)*scale*(.7+.3*Math.abs(Math.cos(angle)));
+        const across=Math.sin(angle)*spread*speed,along=Math.cos(angle)*spread*speed;
         fragment.velocity.set(
-          (push.x+Math.sin(angle)*spread)*speed,
-          (role==='shell'?3:role==='pulp'?4.2:5.4)*scale*(.7+.3*Math.abs(Math.cos(angle))),
-          (push.z+Math.cos(angle)*spread)*speed,
+          push.x*speed+side.x*across+ahead.x*along+up.x*lift,
+          push.y*speed+side.y*across+ahead.y*along+up.y*lift,
+          push.z*speed+side.z*across+ahead.z*along+up.z*lift,
         );
         fragment.spin.set(2+index*.4,1.2-index*.13,2.6-index*.21);
         fragment.mesh.rotation.set(angle,angle*.7,angle*.3);
@@ -234,11 +265,40 @@ export class FruitFragments {
       // Último segundo desaparece em vez de sumir de um quadro para o outro.
       this.fade(fragment,Math.min(1,fragment.life));
       if(fragment.resting)continue;
-      fragment.velocity.y-=15*dt;
-      fragment.mesh.position.addInPlace(fragment.velocity.scale(dt));
+      const up=fragment.up,fall=15*dt;
+      fragment.velocity.set(fragment.velocity.x-up.x*fall,fragment.velocity.y-up.y*fall,fragment.velocity.z-up.z*fall);
+      fragment.mesh.position.addInPlaceFromFloats(fragment.velocity.x*dt,fragment.velocity.y*dt,fragment.velocity.z*dt);
       fragment.mesh.rotation.addInPlace(fragment.spin.scale(dt));
       // O apoio sai da extensão do pedaço já girado: caco chato deita, lasca comprida não afunda.
       const rest=this.support(fragment);
+      if(this.surface){
+        // A vertical do caco acompanha a ilha por onde ele rolou.
+        const radial=this.surface.up(fragment.mesh.position);up.copyFromFloats(radial.x,radial.y,radial.z);
+        // Sem apoio a 80 m abaixo, o caco caiu no vão entre ilhas: recolhe em vez de cair para
+        // sempre — é a mesma decisão do ramo plano, com o vazio medido pela radial.
+        const support=this.surface.support(fragment.mesh.position,2,80);
+        if(!support){fragment.active=false;fragment.mesh.setEnabled(false);continue;}
+        const gap=this.surface.heightGap(fragment.mesh.position,support.point);
+        if(gap>rest)continue;
+        fragment.mesh.position.copyFromFloats(support.point.x+up.x*rest,support.point.y+up.y*rest,support.point.z+up.z*rest);
+        const bounce=fragment.role==='seed'?.34:fragment.role==='pulp'?.12:.2;
+        const along=fragment.velocity.x*up.x+fragment.velocity.y*up.y+fragment.velocity.z*up.z;
+        const friction=Math.exp(-dt*(fragment.role==='pulp'?11:7));
+        fragment.velocity.set(
+          (fragment.velocity.x-up.x*along)*friction+up.x*Math.abs(along)*bounce,
+          (fragment.velocity.y-up.y*along)*friction+up.y*Math.abs(along)*bounce,
+          (fragment.velocity.z-up.z*along)*friction+up.z*Math.abs(along)*bounce,
+        );
+        fragment.spin.scaleInPlace(friction);
+        if(fragment.velocity.lengthSquared()<.35){
+          fragment.resting=true;fragment.velocity.setAll(0);fragment.spin.setAll(0);
+          fragment.mesh.rotation.x=Math.round(fragment.mesh.rotation.x/Math.PI)*Math.PI;
+          fragment.mesh.rotation.z=Math.round(fragment.mesh.rotation.z/Math.PI)*Math.PI;
+          const settled=this.support(fragment);
+          fragment.mesh.position.copyFromFloats(support.point.x+up.x*settled,support.point.y+up.y*settled,support.point.z+up.z*settled);
+        }
+        continue;
+      }
       const ground=this.collision.groundAt(fragment.mesh.position.x,fragment.mesh.position.z,fragment.mesh.position.y+2);
       if(!Number.isFinite(ground)){
         // Caiu no vazio entre as ilhas: recolhe em vez de cair para sempre.

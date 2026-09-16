@@ -54,6 +54,38 @@ export class PlanetCollision {
   /** Triângulos hoje removidos por destruição. */
   get disabledCount(): number {return this.masked;}
 
+  /** Compact live geometry for local Havok bodies; traverses the existing BVH. */
+  trianglesAround(centre: Vec3, radius: number): {positions: number[]; indices: number[]} {
+    const positions:number[]=[],indices:number[]=[],vertices=new Map<number,number>();
+    const overlaps=(n:{minX:number;minY:number;minZ:number;maxX:number;maxY:number;maxZ:number}):boolean=>{
+      const x=Math.max(n.minX-centre.x,0,centre.x-n.maxX);
+      const y=Math.max(n.minY-centre.y,0,centre.y-n.maxY);
+      const z=Math.max(n.minZ-centre.z,0,centre.z-n.maxZ);
+      return x*x+y*y+z*z<=radius*radius;
+    };
+    const visit=(node:Node):void=>{
+      if(!overlaps(node))return;
+      if(node.left&&node.right){visit(node.left);visit(node.right);return;}
+      for(let i=node.start;i<node.end;i++){
+        const triangle=this.order[i]!;
+        if(this.isTriangleDisabled(triangle))continue;
+        this.load(triangle);
+        if(!overlaps({minX:Math.min(this.a.x,this.b.x,this.c.x),maxX:Math.max(this.a.x,this.b.x,this.c.x),
+          minY:Math.min(this.a.y,this.b.y,this.c.y),maxY:Math.max(this.a.y,this.b.y,this.c.y),
+          minZ:Math.min(this.a.z,this.b.z,this.c.z),maxZ:Math.max(this.a.z,this.b.z,this.c.z)}))continue;
+        for(let k=0;k<3;k++){
+          const source=this.indices[triangle*3+k]!;
+          let index=vertices.get(source);
+          if(index===undefined){index=positions.length/3;vertices.set(source,index);
+            positions.push(this.positions[source*3]!,this.positions[source*3+1]!,this.positions[source*3+2]!);}
+          indices.push(index);
+        }
+      }
+    };
+    if(this.root&&radius>0)visit(this.root);
+    return {positions,indices};
+  }
+
   setGeometry(positions: ArrayLike<number>, indices: ArrayLike<number>): void {
     this.positions = Float64Array.from(positions as ArrayLike<number>);
     this.indices = Int32Array.from(indices as ArrayLike<number>);

@@ -55,14 +55,14 @@ export interface KindProfile {
  * responde, que é o oposto de diversão.
  */
 export const DESTRUCTIBLE_PROFILES: Readonly<Record<DestructibleKind, KindProfile>> = {
-  crate:     {health: 36,  stages: 2, style: 'shatter',    material: 'wood',    fragments: 7,  fragmentLife: 4.5, fragmentSpeed: 4.2, toppleSeconds: 0,   chainDamage: 0,  chainRadius: 0,   linger: 0},
+  crate:     {health: 36,  stages: 2, style: 'shatter',    material: 'wood',    fragments: 14,  fragmentLife: 4.5, fragmentSpeed: 4.2, toppleSeconds: 0,   chainDamage: 0,  chainRadius: 0,   linger: 0},
   // `chainDamage` do barril é calibrado para MATAR um vizinho colado: a 1,4 m o alcance de 3,2 m
   // deixa passar 56% do valor, e 90 × 0,56 ≈ 50 supera os 48 de vida. Menos que isso e a corrente
   // vira um susto que não derruba nada — que é pior que não ter corrente.
-  barrel:    {health: 48,  stages: 2, style: 'shatter',    material: 'wood',    fragments: 9,  fragmentLife: 4.5, fragmentSpeed: 5.0, toppleSeconds: 0,   chainDamage: 90, chainRadius: 3.2, linger: 0},
-  rock:      {health: 120, stages: 3, style: 'shatter',    material: 'stone',   fragments: 8,  fragmentLife: 6.0, fragmentSpeed: 3.4, toppleSeconds: 0,   chainDamage: 0,  chainRadius: 0,   linger: 0},
-  tree:      {health: 150, stages: 3, style: 'topple',     material: 'foliage', fragments: 4,  fragmentLife: 3.5, fragmentSpeed: 2.6, toppleSeconds: 1.25, chainDamage: 0, chainRadius: 0,   linger: 1.6},
-  structure: {health: 420, stages: 4, style: 'components', material: 'stone',   fragments: 10, fragmentLife: 5.5, fragmentSpeed: 3.8, toppleSeconds: 0,   chainDamage: 0,  chainRadius: 0,   linger: 0},
+  barrel:    {health: 48,  stages: 2, style: 'shatter',    material: 'wood',    fragments: 18,  fragmentLife: 4.5, fragmentSpeed: 5.0, toppleSeconds: 0,   chainDamage: 90, chainRadius: 3.2, linger: 0},
+  rock:      {health: 120, stages: 3, style: 'shatter',    material: 'stone',   fragments: 16,  fragmentLife: 6.0, fragmentSpeed: 3.4, toppleSeconds: 0,   chainDamage: 0,  chainRadius: 0,   linger: 0},
+  tree:      {health: 150, stages: 3, style: 'topple',     material: 'foliage', fragments: 12,  fragmentLife: 3.5, fragmentSpeed: 2.6, toppleSeconds: 1.25, chainDamage: 0, chainRadius: 0,   linger: 1.6},
+  structure: {health: 420, stages: 4, style: 'components', material: 'stone',   fragments: 22, fragmentLife: 5.5, fragmentSpeed: 3.8, toppleSeconds: 0,   chainDamage: 0,  chainRadius: 0,   linger: 0},
 };
 
 export const profileOf = (kind: DestructibleKind): KindProfile => DESTRUCTIBLE_PROFILES[kind];
