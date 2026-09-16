@@ -13,7 +13,7 @@ export const TOTEM_ACTIVATION_RANGE=3.5;
 /** Segundos sem rota até o chefe antes de recuperá-lo para perto do jogador. */
 export const BOSS_RECOVERY_SECONDS=6;
 
-export interface TotemAnchor {id:string;name:string;x:number;y:number;z:number}
+export interface TotemAnchor {id:string;name:string;x:number;y:number;z:number;width?:number;depth?:number}
 export interface TotemSite {id:string;name:string;index:number;position:Vec3;radius:number;juiceTarget:number}
 export type TotemState='available'|'charging'|'paused'|'complete';
 export interface TotemProgress {site:TotemSite;charged:number;state:TotemState}
@@ -57,8 +57,11 @@ export function findTotemSite(world:ExpeditionTerrain,anchor:TotemAnchor,radius:
   for(const ring of [0,7,14,21]){
     for(let i=0;i<(ring?12:1);i++){
       const angle=i*Math.PI/6,x=anchor.x+Math.sin(angle)*ring,z=anchor.z+Math.cos(angle)*ring;
+      if(anchor.width!==undefined&&Math.abs(x-anchor.x)>anchor.width/2-2.5)continue;
+      if(anchor.depth!==undefined&&Math.abs(z-anchor.z)>anchor.depth/2-2.5)continue;
       const y=world.groundAt(x,z,anchor.y+3.5);
       if(!Number.isFinite(y)||Math.abs(y-anchor.y)>9)continue;
+      if(anchor.width!==undefined&&y<anchor.y-1.5)continue;
       if(world.insideSolid({x,y,z},1.8))continue;
       if(!isOpenGround(world,x,z,y,radius))continue;
       if(!reachable({x,y,z}))continue;

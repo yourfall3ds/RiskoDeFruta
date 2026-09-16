@@ -1,5 +1,6 @@
 import { FixedLoop } from '../core/FixedLoop';
 import { createSeed } from '../core/RunRNG';
+import { seedPolicy, type SeedPolicy } from '../run/AttemptSeed';
 import { createEngine } from '../engine/createEngine';
 import { SceneLifecycle } from '../engine/SceneLifecycle';
 import { DebugOverlay } from '../debug/DebugOverlay';
@@ -13,6 +14,8 @@ export class Application {
   private readonly loop: FixedLoop;
   private readonly debug: DebugOverlay;
   private foundation!: FoundationScene | PlayerScene;
+  /** De onde veio a semente do arranque; decide se uma repetição pode sortear outra. */
+  private readonly policy: SeedPolicy;
   private seed: string;
   private simulationMs=0;
   private presentationMs=0;
@@ -27,7 +30,10 @@ export class Application {
 
   constructor(canvas: HTMLCanvasElement) {
     this.session = createEngine(canvas);
-    this.seed = new URL(location.href).searchParams.get('seed') || 'mutant-farm-m0';
+    // Arranque comum sorteia semente nova mesmo com a semente da partida anterior ainda na URL;
+    // `?replay=1` e `?online=1` continuam presos ao que a URL pede. Ver `AttemptSeed`.
+    this.policy = seedPolicy(location.href);
+    this.seed = this.policy.seed;
     this.loop = new FixedLoop(dt => {
       const start=performance.now();try{this.lifecycle.fixedUpdate(dt);}finally{this.simulationMs+=performance.now()-start;}
     }, alpha => this.renderMeasured(alpha));
@@ -50,6 +56,10 @@ export class Application {
         this.timingAverage={simulation:this.timingSimulation/this.timingFrames,presentation:this.timingPresentation/this.timingFrames};
         this.timingFrames=0;this.timingSimulation=0;this.timingPresentation=0;this.timingSince=measuredAt;
       }
+      // A cena pode sortear uma semente nova sozinha ao repetir depois da derrota, sem passar por
+      // `restart` (os assets ficam de pé). A URL e o overlay têm de mostrar a semente REAL em vigor,
+      // senão o QA reportaria a semente errada.
+      this.adoptSeed((this.foundation as {runSeed?: string}).runSeed);
       this.debug.update(this.session.engine.getDeltaTime() / 1000, () => {
         const f = this.foundation;
         return {
@@ -67,6 +77,12 @@ export class Application {
   }
   private renderMeasured(alpha:number):void {
     const start=performance.now();try{this.lifecycle.render(alpha);}finally{this.presentationMs+=performance.now()-start;}
+  }
+  /** Passa a tratar `seed` como a semente ativa e reescreve a URL, sem recriar nada. */
+  private adoptSeed(seed: string | undefined): void {
+    if (!seed || seed === this.seed) return;
+    this.seed = seed;
+    const url = new URL(location.href); url.searchParams.set('seed', seed); history.replaceState(null, '', url);
   }
   private restart(seed: string): void {
     this.lifecycle.replace(() => {

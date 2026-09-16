@@ -293,7 +293,7 @@ export class RunHUD {
    :objectives.current?.state==='complete'?'O cálice está cheio. Derrote a Praga Alfa para poder embarcar.'
    :objectives.current?`${objectives.bossDefeated?'Chefe derrotado. ':''}Elimine frutas próximas dentro da área para coletar suco.`
    :objectives.discovered?'Siga o feixe âmbar até o cálice. Ative quando estiver preparado.'
-   :'Procure o feixe âmbar em uma das ilhas. Abra baús e melhore seus equipamentos pelo caminho.';
+    :'Explore as ilhas e suas pontes para encontrar o cálice. Abra baús e melhore seus equipamentos pelo caminho.';
   this.route.set(`<small>${header}</small><ul>${marks}</ul><span class="route-hint">${footer}</span>`);
   const resonance=expedition.resonance;
   const charges=expedition.mp.maxCharges

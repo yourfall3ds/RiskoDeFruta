@@ -162,7 +162,7 @@ export class ExpeditionSites {
     return {root,energy,beam,core,boundary,light,beamMaterial,coreMaterial,boundaryMaterial};
   }
 
-  update(dt:number,totems:readonly TotemProgress[],activeIndex:number,harvestProgress=0):void{
+  update(dt:number,totems:readonly TotemProgress[],activeIndex:number,harvestProgress=0,discovered=false):void{
     if(!this.ready)return;
     this.clock+=dt;
     for(let i=0;i<this.visuals.length;i++){
@@ -182,7 +182,9 @@ export class ExpeditionSites {
       visual.boundaryMaterial.alpha=complete?.08:(charging?.42+.3*progress:.3+.08*pulse);
       visual.light.intensity=complete?.5:charging?1.6+1.4*progress:1.2+.5*pulse;
       visual.beam.scaling.y=complete?.2:charging?.72+.5*progress:1;
-      visual.beam.setEnabled(!complete);
+      // Search is about finding the cup among the islands, not following a global pillar of light.
+      // Once discovered, the beacon helps return to the event without revealing it at spawn.
+      visual.beam.setEnabled(!complete&&(discovered||charging||state==='paused'));
       // O limite só aparece quando a área importa: durante a carga do próprio marco.
       visual.boundary.setEnabled(charging||i===activeIndex);
       // Apenas a energia gira e flutua; a base de runas permanece imóvel.

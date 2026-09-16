@@ -73,9 +73,10 @@ import { ExpeditionObjectives,findTotemSite,FINAL_CHALICE_JUICE,TOTEM_RADIUS,typ
 
 import { StageJourney,type JourneyCue } from '../stages/StageJourney';
 
-import { biomeForStage,nextBiomeForStage } from '../stages/StageRoute';
+import { biomeForStage,nextBiomeForStage,WIDE_ISLAND_SEPARATION } from '../stages/StageRoute';
 
-import { planStage,type StagePlan } from '../stages/StagePlan';
+import { planStage,HOME_MIN_ROUTE,WIDE_MIN_ROUTE,type StagePlan } from '../stages/StagePlan';
+import { seedPinned,retrySeed } from '../run/AttemptSeed';
 
 import { findSpawnPoint } from '../stages/StageSpawn';
 
@@ -165,9 +166,27 @@ export class PlayerScene implements SceneModule {
   private stageSetup:StageSetup|undefined;
   /** Plano do próximo estágio, validado durante a viagem e aplicado na chegada. */
   private pendingSetup:StageSetup|undefined;
-  /** Planos já validados por estágio; reiniciar a tentativa reaproveita o do estágio 1. */
+  /**
+   * Planos já validados por estágio, guardados DENTRO da tentativa corrente.
+   *
+   * Reaproveitar isto entre tentativas é exatamente o que congelava a expedição: o estágio 1 voltava
+   * com a mesma partida e o mesmo cálice para sempre. O cache é esvaziado sempre que a semente da
+   * tentativa muda — ver `restartAttempt`.
+   */
   private readonly stagePlans=new Map<number,StageSetup>();
   private planReady=false;private planning=false;private planError='';private planVersion=0;private planRetry=0;
+  /**
+   * Semente da TENTATIVA corrente, que é o que alimenta o sorteio de ilhas.
+   *
+   * Separada de `seed` de propósito: `seed` é a semente da SESSÃO e continua sendo a chave da sala
+   * de co-op (`NetworkSession` já a recebeu no construtor). Trocar a semente da tentativa depois de
+   * morrer não pode mudar a sala nem desconectar ninguém.
+   */
+  private attemptSeed:string;
+  /** `true` quando a semente é contrato (`?replay=1` ou `?online=1`) e a repetição não re-sorteia. */
+  private readonly seedLocked:boolean;
+  /** Semente realmente em vigor; o `Application` espelha isto na URL e no overlay. */
+  get runSeed():string {return this.attemptSeed;}
 
   /** Apresentação apenas: nunca aplicada ao passo fixo, ao diretor nem ao servidor. */
   readonly slowMotion=new SlowMotion();
@@ -212,6 +231,8 @@ export class PlayerScene implements SceneModule {
     this.scene=new Scene(engine);
 
     this.scene.skipPointerMovePicking=true;this.scene.skipPointerDownPicking=true;this.scene.skipPointerUpPicking=true;
+
+    this.attemptSeed=seed;this.seedLocked=seedPinned(location.href);
 
     const rng=new RunRNG(seed);this.rewardRng=rng.stream('loot');
 
@@ -509,7 +530,7 @@ export class PlayerScene implements SceneModule {
 
     this.enemies.update(worldDt);this.footing.update(worldDt);this.abyss?.update(worldDt);
     this.expeditionSites?.update(animDt,this.objectives.totems,this.objectives.activeIndex,
-      this.objectives.collected?(this.journey.phase==='harvest'?this.journey.clock/1.8:1):0);
+      this.objectives.collected?(this.journey.phase==='harvest'?this.journey.clock/1.8:1):0,this.objectives.discovered);
     // Clima: relógio real + crédito por abates; a chuva viaja com a câmera.
     this.weather.paused=this.paused||!this.started;
     this.weather.update(animDt,this.enemies instanceof EnemySwarm?this.enemies.kills:0);
@@ -609,6 +630,34 @@ export class PlayerScene implements SceneModule {
   }
 
   /**
+   * Comprimento da rota REALMENTE percorrível entre dois pontos, em metros.
+   *
+   * Consulta o Detour e soma a polilinha que ele devolve (`computePath` já entrega o caminho
+   * suavizado pelo funil, que é por onde um corpo andaria). A reta entre as âncoras não serve para
+   * isto: ela atravessa o vão entre as ilhas, onde não há chão nenhum — era por isso que um cálice
+   * "a 140 m" podia estar na ilha colada do outro lado de uma ponte curta.
+   *
+   * `undefined` quando não existe rota; é também a checagem de alcançabilidade do par. Sem malha de
+   * navegação (testes e modos sem `EnemySwarm`) devolve a reta, porque ali não há o que medir e
+   * recusar tudo travaria o carregamento por falta de ferramenta, não por falta de mapa.
+   */
+  private routeLength(from:Vec3,to:Vec3):number|undefined {
+    const tactical=this.enemies instanceof EnemySwarm?this.enemies.tactical:undefined;
+    if(!tactical)return Math.hypot(from.x-to.x,from.z-to.z);
+    const start=tactical.closest(from);
+    if(!start||Math.hypot(start.x-from.x,start.z-from.z)>1.4)return undefined;
+    const route=tactical.query.computePath(start,to,{maxPathPolys:2048,maxStraightPathPoints:2048});
+    const path=route.success?route.path:undefined;
+    if(!path?.length)return undefined;
+    // Caminho que para longe do destino é caminho truncado: o cálice não está ligado à partida.
+    const end=path[path.length-1]!;
+    if(Math.hypot(end.x-to.x,end.z-to.z)>3)return undefined;
+    let length=0;
+    for(let i=1;i<path.length;i++)length+=Math.hypot(path[i]!.x-path[i-1]!.x,path[i]!.z-path[i-1]!.z);
+    return length;
+  }
+
+  /**
    * Valida um par (ilha de partida, ilha do cálice) do bioma do estágio.
    *
    * A partida precisa de piso de TOPO com espaço acima e apoio em volta; o cálice precisa de arena
@@ -624,17 +673,18 @@ export class PlayerScene implements SceneModule {
     // Os tiles distantes são podados durante o jogo; uma rota entre ilhas os atravessa inteira.
     swarm.tactical?.restoreNavigation();
     const radii=new Map<string,number>();
-    const plan=planStage(biome,new RunRNG(`${this.seed}:stage:${stage}`).stream('scene'),{
+    const rng=new RunRNG(`${this.attemptSeed}:stage:${stage}`).stream('scene');
+    const plan=planStage(biome,rng,{
       spawnPoint:island=>findSpawnPoint(world,island),
       chalicePoint:island=>{
         for(const radius of [TOTEM_RADIUS,8.5,6.5]){
-          const at=findTotemSite(world,{id:island.id,name:island.name,x:island.x,y:island.y,z:island.z},radius,()=>true);
+          const at=findTotemSite(world,island,radius,()=>true);
           if(at){radii.set(island.id,radius);return at;}
         }
         return undefined;
       },
-      route:(spawn,chalice)=>swarm.tactical?swarm.tactical.reachable(chalice,spawn):true,
-    });
+      route:(spawn,chalice)=>this.routeLength(spawn,chalice),
+    },{minRoute:biome.separation>=WIDE_ISLAND_SEPARATION?WIDE_MIN_ROUTE:HOME_MIN_ROUTE});
     if(!plan)return undefined;
     const site:TotemSite={id:plan.chaliceIsland.id,name:plan.chaliceIsland.name,index:0,
       position:plan.chalice,radius:radii.get(plan.chaliceIsland.id)??TOTEM_RADIUS,juiceTarget:FINAL_CHALICE_JUICE};
@@ -837,23 +887,32 @@ export class PlayerScene implements SceneModule {
 
   }
 
-  private restartAttempt():void {
+  private async restartAttempt():Promise<void> {
     this.death.reset();this.deathSummary=undefined;this.started=false;
     this.cancelCinematic();this.progression.reset();this.weapons.resetAttempt();this.visual.resetAttempt();this.mp.cancel();this.mp.current=this.mp.maximum;this.mp.releases=0;this.mp.speedMultiplier=1;
     if(this.enemies instanceof EnemySwarm)this.enemies.nextStage();this.interactables?.reset();this.objectives.reset();this.resonance.reset();this.slowMotion.reset();this.weather.reset();this.unarmed.resetAttempt();this.weapons.holstered=false;this.bossRequestClock=0;
     // A viagem volta ao zero e o estágio 1 é replanejado: nada de herdar a partida do estágio onde
-    // a tentativa terminou. O plano é determinístico pela semente, então a ilha inicial é a mesma.
+    // a tentativa terminou.
     this.journey.reset();this.pendingSetup=undefined;
+    // Tentativa nova é EXPEDIÇÃO nova: sorteia outra semente e joga fora os planos da anterior,
+    // senão o cache devolveria a mesma ilha de partida e o mesmo cálice para sempre. Preso por
+    // `?replay=1` ou `?online=1`, a semente e os planos ficam — repetir é o pedido ali.
+    const seed=retrySeed({pinned:this.seedLocked,seed:this.attemptSeed});
+    if(seed!==this.attemptSeed){this.attemptSeed=seed;this.stagePlans.clear();}
+    let destination:Promise<void>|undefined;
     if(this.stagePlanRequired){
       const cached=this.stagePlans.get(1);
       this.planReady=false;this.planError='';this.stageSetup=undefined;
       if(cached)this.spawn.set(cached.plan.spawn.x,cached.plan.spawn.y,cached.plan.spawn.z);
-      void this.loadStageDestination(1);
+      destination=this.loadStageDestination(1);
     }
     this.player.maxHP=this.progression.stats.maxHP;this.player.moveMultiplier=1;this.player.jumpMultiplier=1;this.player.extraJumps=0;this.player.rechargeMultiplier=1;this.player.armor=0;this.player.regeneration=1;this.player.debugInvincible=false;
     this.player.arriveAt(this.spawn);this.player.jumps=0;this.player.dodges=0;this.player.respawns=0;this.player.solidRecoveries=0;this.player.wallJumps=0;
     // A entrada volta ao zero: nada de corpo suspenso, câmera presa ou deck sobrando em cena.
     this.reloadRunReview=0;this.intro.reset();this.endMeleeReview();this.dropship?.update(0,false);this.hasArrived=false;this.paused=false;this.input.clear();this.input.yaw=-.13;this.input.pitch=.02;this.camera.update(this.player.position,this.input.yaw,this.input.pitch,1);
+    // The retry button must wait for the NEW island before starting the arrival cinematic.
+    await destination;
+    if(this.stagePlanRequired&&!this.planReady)throw Error(this.planError||'A nova ilha ainda não carregou. Tente novamente.');
   }
   private cancelCinematic():void{this.continuationTier=undefined;this.chargingPressed=false;this.elements?.clear();this.auraClock=0;this.auraLast=-1;this.poseReview=false;this.castVersion++;this.skillPending=false;this.cinematic.cancel();this.visual.endPreparation();this.audio.cancelVoice();}
 
@@ -869,8 +928,12 @@ export class PlayerScene implements SceneModule {
     const setup=this.stageSetup;
     if(!setup)return `Rota de estágio: ${this.planError||(this.planning?'planejando…':'sem plano')}`;
     const {plan}=setup;
+    // O comprimento que importa é o PERCORRIDO; a reta vai junto só para comparar. `shortfall`
+    // aparece escrito porque um cálice abaixo do piso nunca pode passar despercebido.
     return `Rota de estágio: ${plan.biome.name} · partida ${plan.spawnIsland.name} · cálice ${plan.chaliceIsland.name}`
-      +` · ${Math.round(plan.distance)} m (mínimo ${plan.biome.separation}) · viagem ${this.journey.phase}`;
+      +` · caminhada ${Math.round(plan.routeLength)} m (mínimo ${plan.minRoute})${plan.shortfall?' · ABAIXO DO PISO':''}`
+      +` · reta ${Math.round(plan.distance)} m (mínimo ${plan.biome.separation})`
+      +` · semente ${this.attemptSeed}${this.seedLocked?' (presa)':''} · viagem ${this.journey.phase}`;
   }
 
   /** O plano do estágio é exigência de arranque: sem ele o objetivo ficaria indefinido. */

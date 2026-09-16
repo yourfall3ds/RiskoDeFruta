@@ -65,19 +65,25 @@ export class BarnInteriors {
       this.container=container;container.addAllToScene();
       const details:WorldDetail[]=[];
       for(const barn of this.barns){
-        const mesh=container.meshes.find(candidate=>candidate.name===barn.mesh);
-        if(!mesh)throw Error('Celeiro sem malha: '+barn.mesh);
-        mesh.receiveShadows=true;mesh.isPickable=false;
-        mesh.computeWorldMatrix(true);mesh.freezeWorldMatrix();
+        // A GLB node with several material primitives loads as a TransformNode and child meshes.
+        const root=container.transformNodes.find(candidate=>candidate.name===barn.mesh)
+          ??container.meshes.find(candidate=>candidate.name===barn.mesh);
+        if(!root)throw Error('Celeiro sem malha: '+barn.mesh);
+        const meshes=root.getChildMeshes().filter(mesh=>mesh.getTotalVertices()>0);
+        const direct=container.meshes.find(mesh=>mesh===root&&mesh.getTotalVertices()>0);
+        if(direct)meshes.push(direct);
+        if(!meshes.length)throw Error('Celeiro sem primitivas: '+barn.mesh);
+        for(const mesh of meshes){mesh.receiveShadows=true;mesh.isPickable=false;
+          mesh.computeWorldMatrix(true);mesh.freezeWorldMatrix();}
         // The lantern is scoped to its own barn. A scene-wide point light would push every material
         // in the world up a light slot for a lamp the player only ever sees from inside one room.
         const light=new PointLight('barn-lantern-'+barn.id,new Vector3(barn.lantern.x,barn.lantern.y,barn.lantern.z),this.scene);
         light.diffuse=Color3.FromHexString(barn.lantern.color);
         light.intensity=2.6;light.range=Math.max(barn.interior.maxX-barn.interior.minX,barn.interior.maxZ-barn.interior.minZ);
-        light.includedOnlyMeshes=[mesh];
+        light.includedOnlyMeshes=meshes;
         this.lights.push(light);
         details.push({center:{x:barn.centre.x,y:barn.centre.y+2,z:barn.centre.z},radius:BARN_VIEW_RANGE,visible:true,
-          setVisible:visible=>{mesh.isVisible=visible;light.setEnabled(visible);}});
+          setVisible:visible=>{for(const mesh of meshes)mesh.isVisible=visible;light.setEnabled(visible);}});
       }
       this.details=new DetailVisibility(details);
       this.ready=true;

@@ -6,8 +6,8 @@ import {EventBus} from '../src/core/EventBus';
 import {RunRNG} from '../src/core/RunRNG';
 import {RunProgression} from '../src/run/RunProgression';
 import {ExpeditionObjectives,findTotemSite,FINAL_CHALICE_JUICE,TOTEM_ACTIVATION_RANGE,TOTEM_RADIUS,type TotemSite} from '../src/run/ExpeditionObjectives';
-import {STAGE_BIOMES,biomeForStage,nextBiomeForStage,type StageIsland} from '../src/stages/StageRoute';
-import {planStage,planar,type StagePlan} from '../src/stages/StagePlan';
+import {STAGE_BIOMES,biomeForStage,nextBiomeForStage,WIDE_ISLAND_SEPARATION,type StageIsland} from '../src/stages/StageRoute';
+import {planStage,planar,HOME_MIN_ROUTE,WIDE_MIN_ROUTE,type StagePlan} from '../src/stages/StagePlan';
 import {findSpawnPoint} from '../src/stages/StageSpawn';
 import {StageJourney,JOURNEY_HARVEST_SECONDS,JOURNEY_BOARD_SECONDS,JOURNEY_MIN_TRAVEL_SECONDS,JOURNEY_RETRY_SECONDS} from '../src/stages/StageJourney';
 import type {GameEvents,Vec3} from '../src/core/contracts';
@@ -59,14 +59,23 @@ function chaliceAt(world:CollisionWorld,island:StageIsland):Vec3|undefined {
 }
 
 let navMesh:NavMesh|undefined,query:NavMeshQuery|undefined;
-/** `reachable` do jogo, reproduzido sobre o navmesh assado de verdade. */
-function routeExists(from:Vec3,to:Vec3):boolean {
+/**
+ * `PlayerScene.routeLength` reproduzido sobre o navmesh assado de verdade: soma a polilinha do
+ * Detour, em metros. `undefined` quando não há rota — é também a checagem de alcançabilidade.
+ */
+function routeLength(from:Vec3,to:Vec3):number|undefined {
   const near=query!.findClosestPoint(from);
-  if(!near.success||Math.hypot(from.x-near.point.x,from.z-near.point.z)>1.4)return false;
-  const path=query!.computePath(near.point,to,{maxPathPolys:2048,maxStraightPathPoints:2048});
-  const end=path.path.at(-1);
-  return path.success&&Boolean(end)&&Math.hypot(end!.x-to.x,end!.z-to.z)<3;
+  if(!near.success||Math.hypot(from.x-near.point.x,from.z-near.point.z)>1.4)return undefined;
+  const route=query!.computePath(near.point,to,{maxPathPolys:2048,maxStraightPathPoints:2048});
+  const path=route.success?route.path:undefined;
+  if(!path?.length)return undefined;
+  const end=path[path.length-1]!;
+  if(Math.hypot(end.x-to.x,end.z-to.z)>3)return undefined;
+  let length=0;
+  for(let i=1;i<path.length;i++)length+=Math.hypot(path[i]!.x-path[i-1]!.x,path[i]!.z-path[i-1]!.z);
+  return length;
 }
+const routeExists=(from:Vec3,to:Vec3):boolean=>routeLength(from,to)!==undefined;
 
 beforeAll(async()=>{
   await init();
@@ -79,12 +88,15 @@ afterAll(()=>{query?.destroy();navMesh?.destroy();});
 /** Plano do estágio sobre colisão e navegação reais, como `PlayerScene.buildStageSetup`. */
 function realPlan(seed:string,stage:number):StagePlan|undefined {
   const biome=biomeForStage(stage),world=worldFor(biome.region);
-  return planStage(biome,new RunRNG(`${seed}:stage:${stage}`).stream('scene'),{
+  const rng=new RunRNG(`${seed}:stage:${stage}`).stream('scene');
+  return planStage(biome,rng,{
     spawnPoint:island=>findSpawnPoint(world,island),
     chalicePoint:island=>chaliceAt(world,island),
-    route:(spawn,chalice)=>routeExists(chalice,spawn),
-  });
+    route:(spawn,chalice)=>routeLength(spawn,chalice),
+  },{minRoute:minRouteFor(biome)});
 }
+const minRouteFor=(biome:{separation:number}):number=>
+  biome.separation>=WIDE_ISLAND_SEPARATION?WIDE_MIN_ROUTE:HOME_MIN_ROUTE;
 
 describe('partida sorteada e cálice em outra ilha, no mundo real',()=>{
   it.each(STAGE_BIOMES.map((biome,index)=>[biome.id,index+1] as const))
@@ -109,6 +121,33 @@ describe('partida sorteada e cálice em outra ilha, no mundo real',()=>{
       spawns.add(plan!.spawnIsland.id);
     }
     expect(spawns.size).toBeGreaterThanOrEqual(2);
+  });
+
+  /**
+   * Mede a CAMINHADA real, não a reta, sobre o navmesh que o jogo carrega.
+   *
+   * É este teste que sustenta o piso de `HOME_MIN_ROUTE`/`WIDE_MIN_ROUTE`: sem ele o número seria um
+   * palpite. Falhar aqui significa que a topologia autoral atual não sustenta o piso pedido — o que
+   * é informação, não bug do planejador.
+   */
+  it.each(STAGE_BIOMES.map((biome,index)=>[biome.id,index+1] as const))
+  ('%s: a caminhada até o cálice cumpre o piso de rota em todas as sementes',(_id,stage)=>{
+    const biome=biomeForStage(stage),floor=minRouteFor(biome),measured:number[]=[];
+    for(const seed of Array.from({length:24},(_,i)=>`semente-${i}`)){
+      const plan=realPlan(seed,stage);
+      expect(plan,`sem par de ilhas válido em ${biome.name}`).toBeDefined();
+      // O comprimento guardado no plano é o mesmo que o Detour devolve, medido de novo aqui.
+      const walked=routeLength(plan!.spawn,plan!.chalice);
+      expect(walked,`cálice inalcançável em ${biome.name}`).toBeDefined();
+      expect(walked!).toBeCloseTo(plan!.routeLength,0);
+      measured.push(walked!);
+      expect(plan!.shortfall,
+        `${biome.name}: melhor caminhada ${Math.round(walked!)} m < piso ${floor} m (semente ${seed},`
+        +` ${plan!.spawnIsland.name} → ${plan!.chaliceIsland.name})`).toBe(false);
+    }
+    // Medido no navmesh assado em 2026-09: mínimos de 187 m (cidade), 244 m (fronteira),
+    // 272 m (campos altos) e 226 m (bosque) — o piso tem folga real, não passa raspando.
+    expect(Math.min(...measured)).toBeGreaterThanOrEqual(floor);
   });
 
   it('o pouso real fica em piso de topo, fora de sólidos e com apoio em volta',()=>{

@@ -10,6 +10,12 @@ import type {StageBiome,StageIsland} from './StageRoute';
  * de navegação real entre os dois. Se nenhum par do bioma validar, o plano falha — não existe
  * aproximação de emergência do cálice, porque isso é exatamente o que o pedido proíbe.
  *
+ * **O que decide a separação é a rota percorrida, não a reta.** Duas ilhas a 140 m de distância
+ * podem ficar a 300 m de caminhada porque a única travessia fica do outro lado; e a ilha ao lado
+ * continua sendo a ilha ao lado mesmo quando a reta passa do mínimo. Por isso `route` devolve o
+ * COMPRIMENTO real do caminho de navegação, e `minRoute` é o piso que afasta o cálice do vizinho
+ * imediato. A reta segue valendo como filtro barato antes de consultar a navegação.
+ *
  * Determinístico pela semente: a mesma semente e o mesmo estágio produzem o mesmo plano.
  */
 
@@ -20,8 +26,21 @@ export interface StagePlanValidation {
   spawnPoint(island:StageIsland):Vec3|undefined;
   /** Arena de combate válida para o cálice, ou `undefined`. */
   chalicePoint(island:StageIsland):Vec3|undefined;
-  /** Existe rota de navegação do pouso até o cálice. */
-  route(spawn:Vec3,chalice:Vec3):boolean;
+  /**
+   * Comprimento REAL da rota de navegação do pouso até o cálice, em metros.
+   * `undefined` quando não existe rota — é também a checagem de alcançabilidade.
+   */
+  route(spawn:Vec3,chalice:Vec3):number|undefined;
+}
+
+/** Piso de rota real no primeiro bioma, onde as ilhas são muitas e pequenas. */
+export const HOME_MIN_ROUTE=180;
+/** Piso de rota real nas regiões de três ilhas, mais largas e mais distantes entre si. */
+export const WIDE_MIN_ROUTE=150;
+
+export interface StagePlanOptions {
+  /** Caminhada mínima, em metros, entre o pouso e o cálice. */
+  minRoute:number;
 }
 
 export interface StagePlan {
@@ -30,6 +49,14 @@ export interface StagePlan {
   spawnIsland:StageIsland;chaliceIsland:StageIsland;
   /** Distância planar entre os pontos ESCOLHIDOS, não entre as âncoras. */
   distance:number;
+  /** Comprimento da rota realmente percorrível entre os dois pontos. */
+  routeLength:number;
+  /** Piso de rota que este plano tentou cumprir. */
+  minRoute:number;
+  /**
+   * Retained in diagnostics for report compatibility. Successful plans never accept a short route.
+   */
+  shortfall:boolean;
   /** Quantos pares foram examinados até validar; diagnóstico de QA. */
   examined:number;
 }
@@ -61,10 +88,16 @@ function shuffle<T>(values:T[],rng:RandomStream):T[] {
 }
 
 /**
- * Sorteia um par e o valida inteiro. `undefined` quando nenhum par do bioma serve — quem chama
- * mantém a interface de carregamento em espera e relata o erro em vez de cair num plano indefinido.
+ * Sorteia um par e o valida inteiro. `undefined` quando nenhum par do bioma tem pouso, arena e rota
+ * — quem chama mantém a interface de carregamento em espera e relata o erro em vez de cair num
+ * plano indefinido.
+ *
+ * A ordem dos pares é embaralhada pela semente antes de qualquer validação, então não existe viés
+ * para "a primeira ilha da lista que serve": partida e cálice variam de tentativa para tentativa.
+ *
+ * The route floor is mandatory. Accepting a shorter fallback would reintroduce the reported bug.
  */
-export function planStage(biome:StageBiome,rng:RandomStream,validation:StagePlanValidation):StagePlan|undefined {
+export function planStage(biome:StageBiome,rng:RandomStream,validation:StagePlanValidation,options:StagePlanOptions):StagePlan|undefined {
   const pairs=shuffle(islandPairs(biome),rng);
   // Um ponto por ilha basta: o piso escolhido não depende de com quem a ilha é emparelhada.
   const spawns=new Map<string,Vec3|undefined>(),chalices=new Map<string,Vec3|undefined>();
@@ -81,8 +114,11 @@ export function planStage(biome:StageBiome,rng:RandomStream,validation:StagePlan
     // fora da âncora, e aceitar o par pela âncora aprovaria um destino perto demais.
     const distance=planar(spawn,chalice);
     if(distance<biome.separation)continue;
-    if(!validation.route(spawn,chalice))continue;
-    return {biome,spawn,chalice,spawnIsland:pair.spawn,chaliceIsland:pair.chalice,distance,examined};
+    const routeLength=validation.route(spawn,chalice);
+    if(routeLength===undefined)continue;
+    const plan:StagePlan={biome,spawn,chalice,spawnIsland:pair.spawn,chaliceIsland:pair.chalice,
+      distance,routeLength,minRoute:options.minRoute,shortfall:false,examined};
+    if(routeLength>=options.minRoute)return plan;
   }
   return undefined;
 }

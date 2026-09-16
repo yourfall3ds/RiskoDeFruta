@@ -131,7 +131,7 @@ export class PlayerHUD {
     (this.element.querySelector('.loading-progress') as HTMLElement).hidden=true;this.loaded=true;
     this.button.disabled=false;this.button.textContent='PRESS START · JOGAR' ;this.diagnostic.textContent=this.farm?(this.mode==='expedition'?'Expedição pronta · encontre o cálice nas ilhas':'Siga o caminho até o celeiro'):'Pista pronta · Carregador de 50 balas';}
   fatalReaction(active:boolean,progress=0):void {this.element.classList.toggle('fatal-reaction',active);this.element.style.setProperty('--fatal-flash',String(Math.max(0,1-progress*14)));if(active){this.skipIntro(false);this.gate.hidden=true;this.button.disabled=true;}}
-  defeated(summary:AttemptSummary,retry?:()=>void): void {
+  defeated(summary:AttemptSummary,retry?:()=>void|Promise<void>): void {
     this.skipIntro(false);this.fatalReaction(false);this.dead=true;this.gate.hidden=false;this.gate.classList.remove('loading');this.gate.classList.add('defeated');document.body.classList.add('game-menu-open');
     this.gate.querySelector<HTMLVideoElement>('video')?.pause();this.element.querySelector('.gate-card .eyebrow')!.textContent='EXPEDIÇÃO ENCERRADA';
     this.element.querySelector('h1')!.textContent='A última colheita.';
@@ -168,9 +168,15 @@ export class PlayerHUD {
     items.innerHTML='<h2>SUA COLHEITA</h2><p>Melhorias coletadas nesta tentativa</p><div>'+summary.items.map(item=>`<article><i class="item-icon" style='${perkIcon(item.icon)}'></i><span>${item.name}</span><b>×${item.count}</b></article>`).join('')+'</div>'+(summary.items.length?'':'<p>Nenhum item coletado. Abra baús e recolha as recompensas das hordas para ganhar poder.</p>');this.gate.append(items);
     this.button.disabled=false;this.button.textContent='RENASCER';
     this.gate.querySelector('.return-menu')?.remove();const menu=document.createElement('button');menu.className='return-menu';menu.textContent='VOLTAR AO MENU';this.button.after(menu);
-    const leave=(play:boolean)=>{
+    const leave=async(play:boolean)=>{
       if(!retry){location.reload();return;}
-      retry();this.dead=false;this.entered=false;this.gate.classList.remove('defeated');items.remove();menu.remove();report.remove();
+      this.button.disabled=true;menu.disabled=true;this.button.textContent='SORTEANDO NOVA EXPEDIÇÃO…';
+      try{await retry();}catch(error){
+        this.button.disabled=false;menu.disabled=false;this.button.textContent='TENTAR NOVAMENTE';
+        this.gate.querySelector('.gate-card p')!.textContent=error instanceof Error?error.message:'Não foi possível preparar a nova ilha. Tente novamente.';
+        return;
+      }
+      this.button.disabled=false;this.dead=false;this.entered=false;this.gate.classList.remove('defeated');items.remove();menu.remove();report.remove();
       this.damage.flash=0;this.damage.hold=0;this.damage.amount=0;this.damage.trail=1;
       this.element.querySelector('.gate-card .eyebrow')!.textContent='MUTANT FARM / ILHAS SUSPENSAS';this.element.querySelector('h1')!.textContent='A colheita se revoltou.';
       this.element.querySelector('.gate-card p')!.textContent=this.mode==='expedition'?'Explore as ilhas e encontre o cálice. Sua ativação inicia a horda final: encha-o de suco e derrote a Praga Alfa.':'Sobreviva às hordas, recolha itens e explore os campos.';

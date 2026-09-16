@@ -54,27 +54,28 @@ const HOME_ISLANDS:readonly StageIsland[]=[
   {id:'barn-plateau',name:'Platô do celeiro',x:0,y:5,z:29,width:30,depth:26},
   {id:'west-outpost',name:'Posto oeste',x:-42,y:0,z:4,width:26,depth:24},
   {id:'east-outpost',name:'Lavoura leste',x:42,y:2,z:10,width:26,depth:24},
-  {id:'seeds',name:'Distrito das Sementes',x:100,y:2,z:8,width:30,depth:26},
-  {id:'solar',name:'Fazenda Solar',x:105,y:12,z:72,width:28,depth:23},
-  {id:'harvest',name:'Mercado da Colheita',x:160,y:7,z:45,width:25,depth:23},
+  // Authoring tuples contain radii; placement bounds use full widths/depths.
+  {id:'seeds',name:'Distrito das Sementes',x:100,y:2,z:8,width:60,depth:52},
+  {id:'solar',name:'Fazenda Solar',x:105,y:12,z:72,width:56,depth:46},
+  {id:'harvest',name:'Mercado da Colheita',x:160,y:7,z:45,width:50,depth:46},
 ];
 
 const FRONTIER_ISLANDS:readonly StageIsland[]=[
-  {id:'orchard',name:'Pomar dos Ventos',x:248,y:9,z:45,width:48,depth:43},
-  {id:'port',name:'Porto dos Grãos',x:285,y:15,z:147,width:48,depth:45},
-  {id:'glasshouse',name:'Distrito das Estufas',x:285,y:15,z:280,width:74,depth:72},
+  {id:'orchard',name:'Pomar dos Ventos',x:248,y:9,z:45,width:96,depth:86},
+  {id:'port',name:'Porto dos Grãos',x:285,y:15,z:147,width:96,depth:90},
+  {id:'glasshouse',name:'Distrito das Estufas',x:285,y:15,z:280,width:148,depth:144},
 ];
 
 const HIGHLAND_ISLANDS:readonly StageIsland[]=[
-  {id:'highland',name:'Campos Altos',x:500,y:23,z:280,width:100,depth:98},
-  {id:'windmill',name:'Moinhos do Leste',x:720,y:31,z:320,width:95,depth:85},
-  {id:'valley',name:'Vale das Sementes',x:610,y:25,z:520,width:110,depth:95},
+  {id:'highland',name:'Campos Altos',x:500,y:23,z:280,width:200,depth:196},
+  {id:'windmill',name:'Moinhos do Leste',x:720,y:31,z:320,width:190,depth:170},
+  {id:'valley',name:'Vale das Sementes',x:610,y:25,z:520,width:220,depth:190},
 ];
 
 const ROOTWOOD_ISLANDS:readonly StageIsland[]=[
-  {id:'root-grove',name:'Bosque da Colheita',x:940,y:35,z:360,width:110,depth:90},
-  {id:'root-mill',name:'Ruínas do Engenho',x:1150,y:43,z:420,width:110,depth:110},
-  {id:'root-seed',name:'Terraços das Sementes',x:1030,y:29,z:630,width:120,depth:100},
+  {id:'root-grove',name:'Bosque da Colheita',x:940,y:35,z:360,width:220,depth:180},
+  {id:'root-mill',name:'Ruínas do Engenho',x:1150,y:43,z:420,width:220,depth:220},
+  {id:'root-seed',name:'Terraços das Sementes',x:1030,y:29,z:630,width:240,depth:200},
 ];
 
 /**

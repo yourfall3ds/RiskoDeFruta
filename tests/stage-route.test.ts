@@ -40,7 +40,7 @@ describe('rota entre biomas existentes',()=>{
   it('a partida varia entre ilhas do primeiro bioma conforme a semente',()=>{
     const biome=biomeForStage(1),spawns=new Set<string>(),chalices=new Set<string>();
     for(let i=0;i<40;i++){
-      const plan=planStage(biome,new RunRNG(`semente-${i}:stage:1`).stream('scene'),acceptAll(biome));
+      const plan=planStage(biome,new RunRNG(`semente-${i}:stage:1`).stream('scene'),acceptAll(biome),anyRoute);
       expect(plan).toBeDefined();
       spawns.add(plan!.spawnIsland.id);chalices.add(plan!.chaliceIsland.id);
     }
@@ -50,8 +50,8 @@ describe('rota entre biomas existentes',()=>{
 
   it('a mesma semente e o mesmo estágio reproduzem o mesmo plano',()=>{
     const biome=biomeForStage(3);
-    const first=planStage(biome,new RunRNG('fixa:stage:3').stream('scene'),acceptAll(biome));
-    const again=planStage(biome,new RunRNG('fixa:stage:3').stream('scene'),acceptAll(biome));
+    const first=planStage(biome,new RunRNG('fixa:stage:3').stream('scene'),acceptAll(biome),anyRoute);
+    const again=planStage(biome,new RunRNG('fixa:stage:3').stream('scene'),acceptAll(biome),anyRoute);
     expect(first).toBeDefined();
     expect({spawn:first!.spawnIsland.id,chalice:first!.chaliceIsland.id}).toEqual({spawn:again!.spawnIsland.id,chalice:again!.chaliceIsland.id});
   });
@@ -66,18 +66,38 @@ describe('rota entre biomas existentes',()=>{
     const plan=planStage(biome,new RunRNG('encolhe').stream('scene'),{
       spawnPoint:island=>({x:island.x===0?40:80,y:0,z:0}),
       chalicePoint:island=>({x:island.x===0?40:80,y:0,z:0}),
-      route:()=>true,
-    });
+      route:(a,b)=>planar(a,b),
+    },anyRoute);
     expect(plan).toBeUndefined();
+  });
+
+  /**
+   * O caso que a reta sozinha aprovava: duas ilhas a 300 m de distância mas ligadas por uma ponte
+   * curta, ou seja, VIZINHAS de percorrer. É a caminhada que decide, não a reta.
+   */
+  it('recusa o cálice na ilha vizinha mesmo com a reta passando do mínimo',()=>{
+    const biome:StageBiome={id:'teste',name:'Teste',region:undefined,separation:100,islands:[
+      {id:'a',name:'A',x:0,y:0,z:0,width:20,depth:20},
+      {id:'b',name:'B',x:300,y:0,z:0,width:20,depth:20},
+    ]};
+    const at=(island:{x:number;y:number;z:number}):Vec3=>({x:island.x,y:island.y,z:island.z});
+    // Reta de 300 m, mas a travessia real custa só 40 m: é a ilha do lado.
+    const vizinha:StagePlanValidation={spawnPoint:at,chalicePoint:at,route:()=>40};
+    expect(planStage(biome,new RunRNG('vizinha').stream('scene'),vizinha,{minRoute:180})).toBeUndefined();
+    // A mesma dupla com uma caminhada de verdade passa.
+    const longe:StagePlanValidation={...vizinha,route:()=>210};
+    const plan=planStage(biome,new RunRNG('vizinha').stream('scene'),longe,{minRoute:180});
+    expect(plan?.routeLength).toBe(210);
+    expect(plan?.minRoute).toBe(180);
   });
 
   it('não devolve plano quando não existe rota, em vez de aproximar o cálice',()=>{
     const biome=biomeForStage(2);
-    const blocked=planStage(biome,new RunRNG('sem-rota').stream('scene'),{...acceptAll(biome),route:()=>false});
+    const blocked=planStage(biome,new RunRNG('sem-rota').stream('scene'),{...acceptAll(biome),route:()=>undefined},anyRoute);
     expect(blocked).toBeUndefined();
-    const noSpawn=planStage(biome,new RunRNG('sem-partida').stream('scene'),{...acceptAll(biome),spawnPoint:()=>undefined});
+    const noSpawn=planStage(biome,new RunRNG('sem-partida').stream('scene'),{...acceptAll(biome),spawnPoint:()=>undefined},anyRoute);
     expect(noSpawn).toBeUndefined();
-    const noChalice=planStage(biome,new RunRNG('sem-calice').stream('scene'),{...acceptAll(biome),chalicePoint:()=>undefined});
+    const noChalice=planStage(biome,new RunRNG('sem-calice').stream('scene'),{...acceptAll(biome),chalicePoint:()=>undefined},anyRoute);
     expect(noChalice).toBeUndefined();
   });
 
@@ -86,7 +106,7 @@ describe('rota entre biomas existentes',()=>{
     const plan=planStage(biome,new RunRNG('ilha-quebrada').stream('scene'),{
       ...acceptAll(biome),
       spawnPoint:island=>island.id===broken?undefined:{x:island.x,y:island.y,z:island.z},
-    });
+    },anyRoute);
     expect(plan).toBeDefined();
     expect(plan!.spawnIsland.id).not.toBe(broken);
     expect(plan!.distance).toBeGreaterThanOrEqual(biome.separation);
@@ -138,8 +158,13 @@ describe('pouso seguro na ilha sorteada',()=>{
   });
 });
 
-/** Validação que aprova qualquer ilha na própria âncora; isola a lógica de sorteio do terreno. */
+/**
+ * Validação que aprova qualquer ilha na própria âncora; isola a lógica de sorteio do terreno.
+ * A "rota" aqui é a própria reta: sem mundo real não há caminho a medir.
+ */
 function acceptAll(_biome:StageBiome):StagePlanValidation {
   const at=(island:{x:number;y:number;z:number}):Vec3=>({x:island.x,y:island.y,z:island.z});
-  return {spawnPoint:at,chalicePoint:at,route:(a,b)=>planar(a,b)>0};
+  return {spawnPoint:at,chalicePoint:at,route:(a,b)=>planar(a,b)||undefined};
 }
+/** Piso de rota baixo o bastante para não interferir nos testes de sorteio puro. */
+const anyRoute={minRoute:0};

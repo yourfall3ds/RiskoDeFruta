@@ -5,7 +5,7 @@ import {CollisionWorld} from '../src/physics/CollisionWorld';
 import {applyInitialRockFix} from '../src/world/terrain/InitialRocks';
 import {sculptRegion,isSculptedRegion} from '../src/world/terrain/WorldTerrain';
 import {STAGE_BIOMES} from '../src/stages/StageRoute';
-import {planStage} from '../src/stages/StagePlan';
+import {planStage,HOME_MIN_ROUTE,WIDE_MIN_ROUTE} from '../src/stages/StagePlan';
 import {findSpawnPoint} from '../src/stages/StageSpawn';
 import {findTotemSite} from '../src/run/ExpeditionObjectives';
 import {RunRNG} from '../src/core/RunRNG';
@@ -24,18 +24,20 @@ for(const biome of STAGE_BIOMES){
 }
 await init();const nav=importNavMesh(new Uint8Array(readFileSync('public/models/farm-navmesh.bin'))).navMesh,query=new NavMeshQuery(nav,{maxNodes:8192});query.defaultQueryHalfExtents={x:2,y:3,z:2};
 const reachable=(spawn:Vec3,chalice:Vec3)=>{
- const p=query.findClosestPoint(chalice);if(!p.success||Math.hypot(p.point.x-chalice.x,p.point.z-chalice.z)>1.4)return false;
- const route=query.computePath(p.point,spawn,{maxPathPolys:2048,maxStraightPathPoints:2048});
- return route.success&&route.path.length>0&&Math.hypot(route.path.at(-1)!.x-spawn.x,route.path.at(-1)!.z-spawn.z)<3;
+ const p=query.findClosestPoint(spawn);if(!p.success||Math.hypot(p.point.x-spawn.x,p.point.z-spawn.z)>1.4)return undefined;
+ const route=query.computePath(p.point,chalice,{maxPathPolys:2048,maxStraightPathPoints:2048});
+ if(!route.success||!route.path.length||Math.hypot(route.path.at(-1)!.x-chalice.x,route.path.at(-1)!.z-chalice.z)>=3)return undefined;
+ return route.path.slice(1).reduce((total,p,i)=>total+Math.hypot(p.x-route.path[i]!.x,p.z-route.path[i]!.z),0);
 };
 const report=[];let failed=false;
 for(const [index,biome] of STAGE_BIOMES.entries()){
  const points=biome.islands.map(i=>({id:i.id,spawn:findSpawnPoint(world,i),chalice:[11,8.5,6.5].map(r=>findTotemSite(world,i,r,()=>true)).find(Boolean)}));
  const seeds=['mutant-farm-m0',...Array.from({length:12},(_,i)=>'route-'+i)],plans=[];
  for(const seed of seeds){
-  const plan=planStage(biome,new RunRNG(`${seed}:stage:${index+1}`).stream('scene'),{spawnPoint:i=>points.find(p=>p.id===i.id)?.spawn,chalicePoint:i=>points.find(p=>p.id===i.id)?.chalice,route:reachable});
+  const rng=new RunRNG(`${seed}:stage:${index+1}`).stream('scene');
+  const plan=planStage(biome,rng,{spawnPoint:i=>findSpawnPoint(world,i),chalicePoint:i=>points.find(p=>p.id===i.id)?.chalice,route:reachable},{minRoute:biome.separation>=150?WIDE_MIN_ROUTE:HOME_MIN_ROUTE});
   if(!plan)failed=true;
-  plans.push({seed,spawn:plan?.spawnIsland.id,chalice:plan?.chaliceIsland.id,distance:plan?.distance,position:plan?.spawn});
+  plans.push({seed,spawn:plan?.spawnIsland.id,chalice:plan?.chaliceIsland.id,distance:plan?.distance,routeLength:plan?.routeLength,shortfall:plan?.shortfall,position:plan?.spawn});
  }
  report.push({biome:biome.id,points,plans});console.log(biome.id,JSON.stringify(plans));
 }
