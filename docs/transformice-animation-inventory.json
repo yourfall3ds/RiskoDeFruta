@@ -1,0 +1,1031 @@
+{
+  "source": "C:/Users/darck/transformice/assets/animations",
+  "inventory": [
+    {
+      "file": "ANALISAR E COLOCAR NA PASTA CERTA/Animacoes de espada/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Attack_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Attack|baselayer"
+      ]
+    },
+    {
+      "file": "ANALISAR E COLOCAR NA PASTA CERTA/Animacoes de espada/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Axe_Spin_Attack_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Axe_Spin_Attack|baselayer"
+      ]
+    },
+    {
+      "file": "ANALISAR E COLOCAR NA PASTA CERTA/Animacoes de espada/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Basic_Jump_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Basic_Jump|baselayer"
+      ]
+    },
+    {
+      "file": "ANALISAR E COLOCAR NA PASTA CERTA/Animacoes de espada/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Charged_Slash_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Charged_Slash|baselayer"
+      ]
+    },
+    {
+      "file": "ANALISAR E COLOCAR NA PASTA CERTA/Animacoes de espada/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Combat_Stance_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Combat_Stance|baselayer"
+      ]
+    },
+    {
+      "file": "ANALISAR E COLOCAR NA PASTA CERTA/Animacoes de espada/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Double_Blade_Spin_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Double_Blade_Spin|baselayer"
+      ]
+    },
+    {
+      "file": "ANALISAR E COLOCAR NA PASTA CERTA/Animacoes de espada/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Double_Combo_Attack_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Double_Combo_Attack|baselayer"
+      ]
+    },
+    {
+      "file": "ANALISAR E COLOCAR NA PASTA CERTA/Animacoes de espada/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Draw_and_Shoot_Left_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Draw_and_Shoot_Left|baselayer"
+      ]
+    },
+    {
+      "file": "ANALISAR E COLOCAR NA PASTA CERTA/Animacoes de espada/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Heavy_Hammer_Swing_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Heavy_Hammer_Swing|baselayer"
+      ]
+    },
+    {
+      "file": "ANALISAR E COLOCAR NA PASTA CERTA/Animacoes de espada/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Left_Slash_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Left_Slash|baselayer"
+      ]
+    },
+    {
+      "file": "ANALISAR E COLOCAR NA PASTA CERTA/Animacoes de espada/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Running_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|running|baselayer"
+      ]
+    },
+    {
+      "file": "ANALISAR E COLOCAR NA PASTA CERTA/Animacoes de espada/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Simple_Kick_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Simple_Kick|baselayer"
+      ]
+    },
+    {
+      "file": "ANALISAR E COLOCAR NA PASTA CERTA/Animacoes de espada/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Sword_Judgment_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Sword_Judgment|baselayer"
+      ]
+    },
+    {
+      "file": "ANALISAR E COLOCAR NA PASTA CERTA/Animacoes de espada/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Thrust_Slash_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Thrust_Slash|baselayer"
+      ]
+    },
+    {
+      "file": "ANALISAR E COLOCAR NA PASTA CERTA/Animacoes de espada/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Triple_Combo_Attack_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Triple_Combo_Attack|baselayer"
+      ]
+    },
+    {
+      "file": "ANALISAR E COLOCAR NA PASTA CERTA/Animacoes de espada/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Walking_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|walking_man|baselayer"
+      ]
+    },
+    {
+      "file": "ANALISAR E COLOCAR NA PASTA CERTA/Animacoes de espada/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Weapon_Combo_2_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Weapon_Combo_2|baselayer"
+      ]
+    },
+    {
+      "file": "ANALISAR E COLOCAR NA PASTA CERTA/Animacoes de espada/Meshy_AI_Faça_um_rato_mistura_biped_Character_output.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|clip0|baselayer"
+      ]
+    },
+    {
+      "file": "ANALISAR E COLOCAR NA PASTA CERTA/Armado/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Block8_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Block8|baselayer"
+      ]
+    },
+    {
+      "file": "ANALISAR E COLOCAR NA PASTA CERTA/Armado/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Forward_Reload_Subtle_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Forward_Reload_Subtle|baselayer"
+      ]
+    },
+    {
+      "file": "ANALISAR E COLOCAR NA PASTA CERTA/Armado/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Gun_Hold_Left_Turn_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Gun_Hold_Left_Turn|baselayer"
+      ]
+    },
+    {
+      "file": "ANALISAR E COLOCAR NA PASTA CERTA/Armado/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Rifle_Charge_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Rifle_Charge|baselayer"
+      ]
+    },
+    {
+      "file": "ANALISAR E COLOCAR NA PASTA CERTA/Armado/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Running_Reload_inplace_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Running_Reload_inplace|baselayer"
+      ]
+    },
+    {
+      "file": "ANALISAR E COLOCAR NA PASTA CERTA/Armado/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Running_Reload_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Running_Reload|baselayer"
+      ]
+    },
+    {
+      "file": "ANALISAR E COLOCAR NA PASTA CERTA/Armado/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Running_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|running|baselayer"
+      ]
+    },
+    {
+      "file": "ANALISAR E COLOCAR NA PASTA CERTA/Armado/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Slow_Walk_Reload_inplace_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Slow_Walk_Reload_inplace|baselayer"
+      ]
+    },
+    {
+      "file": "ANALISAR E COLOCAR NA PASTA CERTA/Armado/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Slow_Walk_Reload_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Slow_Walk_Reload|baselayer"
+      ]
+    },
+    {
+      "file": "ANALISAR E COLOCAR NA PASTA CERTA/Armado/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Standing_Reload_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Standing_Reload|baselayer"
+      ]
+    },
+    {
+      "file": "ANALISAR E COLOCAR NA PASTA CERTA/Armado/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Walking_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|walking_man|baselayer"
+      ]
+    },
+    {
+      "file": "ANALISAR E COLOCAR NA PASTA CERTA/Armado/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Walk_Backward_While_Shooting_inplace_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Walk_Backward_While_Shooting_inplace|baselayer"
+      ]
+    },
+    {
+      "file": "ANALISAR E COLOCAR NA PASTA CERTA/Armado/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Walk_Backward_with_Bow_Aimed_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Walk_Backward_with_Bow_Aimed|baselayer"
+      ]
+    },
+    {
+      "file": "ANALISAR E COLOCAR NA PASTA CERTA/Armado/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Walk_Backward_with_Gun_1_inplace_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Walk_Backward_with_Gun_1_inplace|baselayer"
+      ]
+    },
+    {
+      "file": "ANALISAR E COLOCAR NA PASTA CERTA/Armado/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Walk_Backward_with_Gun_1_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Walk_Backward_with_Gun_1|baselayer"
+      ]
+    },
+    {
+      "file": "ANALISAR E COLOCAR NA PASTA CERTA/Armado/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Walk_Backward_with_Gun_inplace_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Walk_Backward_with_Gun_inplace|baselayer"
+      ]
+    },
+    {
+      "file": "ANALISAR E COLOCAR NA PASTA CERTA/Armado/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Walk_Backward_with_Gun_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Walk_Backward_with_Gun|baselayer"
+      ]
+    },
+    {
+      "file": "ANALISAR E COLOCAR NA PASTA CERTA/Armado/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Walk_Forward_While_Shooting_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Walk_Forward_While_Shooting|baselayer"
+      ]
+    },
+    {
+      "file": "ANALISAR E COLOCAR NA PASTA CERTA/Armado/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Walk_Forward_with_Bow_Aimed_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Walk_Forward_with_Bow_Aimed|baselayer"
+      ]
+    },
+    {
+      "file": "ANALISAR E COLOCAR NA PASTA CERTA/Armado/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Walk_Left_with_Gun_inplace_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Walk_Left_with_Gun_inplace|baselayer"
+      ]
+    },
+    {
+      "file": "ANALISAR E COLOCAR NA PASTA CERTA/Armado/Meshy_AI_Faça_um_rato_mistura_biped_Character_output.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|clip0|baselayer"
+      ]
+    },
+    {
+      "file": "ANALISAR E COLOCAR NA PASTA CERTA/Meshy_AI_Faça_um_rato_mistura_biped/Meshy_AI_Faça_um_rato_mistura_biped_Character_output.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|clip0|baselayer"
+      ]
+    },
+    {
+      "file": "ANALISAR E COLOCAR NA PASTA CERTA/Parkour/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Jump_Over_Obstacle_1_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Jump_Over_Obstacle_1|baselayer"
+      ]
+    },
+    {
+      "file": "ANALISAR E COLOCAR NA PASTA CERTA/Parkour/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Jump_Over_Obstacle_2_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Jump_Over_Obstacle_2|baselayer"
+      ]
+    },
+    {
+      "file": "ANALISAR E COLOCAR NA PASTA CERTA/Parkour/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Parkour_Vault_1_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Parkour_Vault_1|baselayer"
+      ]
+    },
+    {
+      "file": "ANALISAR E COLOCAR NA PASTA CERTA/Parkour/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Parkour_Vault_2_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Parkour_Vault_2|baselayer"
+      ]
+    },
+    {
+      "file": "ANALISAR E COLOCAR NA PASTA CERTA/Parkour/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Parkour_Vault_3_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Parkour_Vault_3|baselayer"
+      ]
+    },
+    {
+      "file": "ANALISAR E COLOCAR NA PASTA CERTA/Parkour/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Parkour_Vault_with_Roll_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Parkour_Vault_with_Roll|baselayer"
+      ]
+    },
+    {
+      "file": "ANALISAR E COLOCAR NA PASTA CERTA/Parkour/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Running_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|running|baselayer"
+      ]
+    },
+    {
+      "file": "ANALISAR E COLOCAR NA PASTA CERTA/Parkour/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Walking_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|walking_man|baselayer"
+      ]
+    },
+    {
+      "file": "ANALISAR E COLOCAR NA PASTA CERTA/Parkour/Meshy_AI_Faça_um_rato_mistura_biped_Character_output.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|clip0|baselayer"
+      ]
+    },
+    {
+      "file": "armado/charge.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Rifle_Charge|baselayer"
+      ]
+    },
+    {
+      "file": "armado/idle_aim.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Gun_Hold_Left_Turn|baselayer"
+      ]
+    },
+    {
+      "file": "armado/reload.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Standing_Reload|baselayer"
+      ]
+    },
+    {
+      "file": "armado/reload_run.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Running_Reload_inplace|baselayer"
+      ]
+    },
+    {
+      "file": "armado/reload_stand.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Standing_Reload|baselayer"
+      ]
+    },
+    {
+      "file": "armado/run_aim.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|running|baselayer"
+      ]
+    },
+    {
+      "file": "armado/walk_aim.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Walk_Forward_While_Shooting|baselayer"
+      ]
+    },
+    {
+      "file": "armado/walk_back_gun.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Walk_Backward_with_Gun_inplace|baselayer"
+      ]
+    },
+    {
+      "file": "armado/walk_shoot.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Walk_Forward_While_Shooting|baselayer"
+      ]
+    },
+    {
+      "file": "basico/idle.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Idle_5|baselayer"
+      ]
+    },
+    {
+      "file": "basico/jump.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Regular_Jump|baselayer"
+      ]
+    },
+    {
+      "file": "basico/run.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|running|baselayer"
+      ]
+    },
+    {
+      "file": "basico/walk.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|walking_man|baselayer"
+      ]
+    },
+    {
+      "file": "Chutes-glb/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Double_kick_forward_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Double_kick_forward|baselayer"
+      ]
+    },
+    {
+      "file": "Chutes-glb/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Flying_Fist_Kick_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Flying_Fist_Kick|baselayer"
+      ]
+    },
+    {
+      "file": "Chutes-glb/Meshy_AI_Faça_um_rato_mistura_biped_Animation_High_Kick_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|High_Kick|baselayer"
+      ]
+    },
+    {
+      "file": "Chutes-glb/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Lunge_Spin_Kick_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Lunge_Spin_Kick|baselayer"
+      ]
+    },
+    {
+      "file": "Chutes-glb/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Rising_Flying_Kick_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Rising_Flying_Kick|baselayer"
+      ]
+    },
+    {
+      "file": "Chutes-glb/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Roundhouse_Kick_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Roundhouse_Kick|baselayer"
+      ]
+    },
+    {
+      "file": "Chutes-glb/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Running_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|running|baselayer"
+      ]
+    },
+    {
+      "file": "Chutes-glb/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Spartan_Kick_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Spartan_Kick|baselayer"
+      ]
+    },
+    {
+      "file": "Chutes-glb/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Step_in_High_Kick_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Step_in_High_Kick|baselayer"
+      ]
+    },
+    {
+      "file": "Chutes-glb/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Step_Step_Turn_Kick_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Step_Step_Turn_Kick|baselayer"
+      ]
+    },
+    {
+      "file": "Chutes-glb/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Sweeping_Kick_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Sweeping_Kick|baselayer"
+      ]
+    },
+    {
+      "file": "Chutes-glb/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Sweep_Kick_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Sweep_Kick|baselayer"
+      ]
+    },
+    {
+      "file": "Chutes-glb/Meshy_AI_Faça_um_rato_mistura_biped_Animation_Walking_withSkin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|walking_man|baselayer"
+      ]
+    },
+    {
+      "file": "Chutes-glb/Meshy_AI_Faça_um_rato_mistura_biped_Character_output.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|clip0|baselayer"
+      ]
+    },
+    {
+      "file": "com_espada/attack_01.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Attack|baselayer"
+      ]
+    },
+    {
+      "file": "com_espada/attack_charged.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Charged_Slash|baselayer"
+      ]
+    },
+    {
+      "file": "com_espada/attack_combo_2.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Double_Combo_Attack|baselayer"
+      ]
+    },
+    {
+      "file": "com_espada/attack_combo_3.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Triple_Combo_Attack|baselayer"
+      ]
+    },
+    {
+      "file": "com_espada/blade_spin.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Double_Blade_Spin|baselayer"
+      ]
+    },
+    {
+      "file": "com_espada/charged_slash.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Charged_Slash|baselayer"
+      ]
+    },
+    {
+      "file": "com_espada/combat_stance.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Combat_Stance|baselayer"
+      ]
+    },
+    {
+      "file": "com_espada/double_combo.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Double_Combo_Attack|baselayer"
+      ]
+    },
+    {
+      "file": "com_espada/heavy_swing.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Heavy_Hammer_Swing|baselayer"
+      ]
+    },
+    {
+      "file": "com_espada/idle.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Combat_Stance|baselayer"
+      ]
+    },
+    {
+      "file": "com_espada/left_slash.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Left_Slash|baselayer"
+      ]
+    },
+    {
+      "file": "com_espada/sword_judgment.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Sword_Judgment|baselayer"
+      ]
+    },
+    {
+      "file": "com_espada/thrust_slash.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Thrust_Slash|baselayer"
+      ]
+    },
+    {
+      "file": "com_espada/triple_combo.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Triple_Combo_Attack|baselayer"
+      ]
+    },
+    {
+      "file": "com_espada/ultimate.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Sword_Judgment|baselayer"
+      ]
+    },
+    {
+      "file": "com_espada/weapon_combo_2.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Weapon_Combo_2|baselayer"
+      ]
+    },
+    {
+      "file": "extras/catch_breath.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Catching_Breath|baselayer"
+      ]
+    },
+    {
+      "file": "extras/combo_punch_0.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Punch_Combo|baselayer"
+      ]
+    },
+    {
+      "file": "extras/combo_punch_1.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Punch_Combo_1|baselayer"
+      ]
+    },
+    {
+      "file": "extras/combo_punch_2.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Punch_Combo_2|baselayer"
+      ]
+    },
+    {
+      "file": "extras/combo_punch_3.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Punch_Combo_3|baselayer"
+      ]
+    },
+    {
+      "file": "extras/combo_punch_4.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Punch_Combo_4|baselayer"
+      ]
+    },
+    {
+      "file": "extras/combo_punch_5.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Punch_Combo_5|baselayer"
+      ]
+    },
+    {
+      "file": "extras/dead.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Dead|baselayer"
+      ]
+    },
+    {
+      "file": "extras/falling.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Fall1|baselayer"
+      ]
+    },
+    {
+      "file": "extras/hit_back_run.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Hit_in_Back_While_Running|baselayer"
+      ]
+    },
+    {
+      "file": "extras/hit_face.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Face_Punch_Reaction|baselayer"
+      ]
+    },
+    {
+      "file": "extras/hit_face_2.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Face_Punch_Reaction_1|baselayer"
+      ]
+    },
+    {
+      "file": "extras/idle_02.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Idle_02|baselayer"
+      ]
+    },
+    {
+      "file": "extras/jump_punch.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Jumping_Punch|baselayer"
+      ]
+    },
+    {
+      "file": "extras/kungfu_punch.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Kung_Fu_Punch|baselayer"
+      ]
+    },
+    {
+      "file": "extras/pickup.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Male_Bend_Over_Pick_Up|baselayer"
+      ]
+    },
+    {
+      "file": "extras/running_alt.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|running|baselayer"
+      ]
+    },
+    {
+      "file": "extras/run_fast.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|RunFast|baselayer"
+      ]
+    },
+    {
+      "file": "extras/vault_rifle.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Vault_with_Rifle|baselayer"
+      ]
+    },
+    {
+      "file": "extras/walking_alt.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|walking_man|baselayer"
+      ]
+    },
+    {
+      "file": "extras/walk_back.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Walk_Backward_inplace|baselayer"
+      ]
+    },
+    {
+      "file": "extras/walk_back_heavy.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Walk_Backward_with_Gun_1_inplace|baselayer"
+      ]
+    },
+    {
+      "file": "extras/walk_back_pistol.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Walk_Backward_with_Gun|baselayer"
+      ]
+    },
+    {
+      "file": "luta_sem_arma/dodge.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Roll_Dodge_1|baselayer"
+      ]
+    },
+    {
+      "file": "luta_sem_arma/kick_01.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Step_in_High_Kick|baselayer"
+      ]
+    },
+    {
+      "file": "luta_sem_arma/kick_02.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Roundhouse_Kick|baselayer"
+      ]
+    },
+    {
+      "file": "luta_sem_arma/knockdown.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Knock_Down|baselayer"
+      ]
+    },
+    {
+      "file": "luta_sem_arma/punch_01.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Punch_Combo_1|baselayer"
+      ]
+    },
+    {
+      "file": "luta_sem_arma/punch_02.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Left_Hook_from_Guard|baselayer"
+      ]
+    },
+    {
+      "file": "luta_sem_arma/punch_03.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Left_Uppercut_from_Guard|baselayer"
+      ]
+    },
+    {
+      "file": "luta_sem_arma/punch_04.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Elbow_Strike|baselayer"
+      ]
+    },
+    {
+      "file": "parkour/vault_01.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Parkour_Vault_1|baselayer"
+      ]
+    },
+    {
+      "file": "parkour/vault_02.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Parkour_Vault_2|baselayer"
+      ]
+    },
+    {
+      "file": "parkour/vault_roll.glb",
+      "joints": 24,
+      "matchingNames": true,
+      "clips": [
+        "Armature|Parkour_Vault_with_Roll|baselayer"
+      ]
+    }
+  ],
+  "selected": [
+    {
+      "clip": "RecordedFall",
+      "source": "extras/falling.glb",
+      "seconds": 4.5333333015441895,
+      "rotationChannels": 24,
+      "rootMotion": false,
+      "scaleTracks": false
+    },
+    {
+      "clip": "RecordedHit",
+      "source": "extras/hit_face.glb",
+      "seconds": 2.866666555404663,
+      "rotationChannels": 24,
+      "rootMotion": false,
+      "scaleTracks": false
+    }
+  ]
+}

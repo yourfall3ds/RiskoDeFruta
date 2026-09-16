@@ -115,6 +115,7 @@ if (failures.length) {
 
 // ---- merge ---------------------------------------------------------------------------------------
 const merged = [];
+let flips = 0;
 for (const clip of manifest.clips) {
   const animation = source.json.animations.find(a => a.name === clip.clip);
   const built = {name: clip.clip, channels: [], samplers: []};
@@ -169,6 +170,7 @@ console.log(JSON.stringify({
   parity: {worst: Number(worstParity.toFixed(6)), at: worstJoint, limit: PARITY_LIMIT},
   restTranslation: {worst: Number(worstRest.toFixed(8)), at: worstRestJoint, limit: REST_LIMIT},
   merged,
+  quaternionHemisphereFlips: flips,
   animations: target.json.animations.length,
   backup: BACKUP,
 }, null, 1));

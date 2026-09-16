@@ -55,9 +55,9 @@
    "frames": 43,
    "contactFrame": 17,
    "note": "lead hook; the turn comes from the hips and the lead ball, the elbow stays under 90 degrees",
-   "plantErrorMillimetres": 35.361,
-   "plantErrorFrame": 24,
-   "replayErrorDegrees": 0.06853
+   "plantErrorMillimetres": 0.016,
+   "plantErrorFrame": 11,
+   "replayErrorDegrees": 0.05595
   },
   {
    "id": "right-kick",
@@ -101,15 +101,15 @@
   {
    "id": "spin-kick",
    "clip": "ComboSpinKick",
-   "windup": 0.38,
-   "active": 0.2,
+   "windup": 0.34,
+   "active": 0.25,
    "recover": 0.5,
    "frames": 66,
-   "contactFrame": 24,
+   "contactFrame": 21,
    "note": "spinning back kick; one full revolution around the planted lead ball, head leads the turn",
    "plantErrorMillimetres": 0.019,
    "plantErrorFrame": 32,
-   "replayErrorDegrees": 0.27976
+   "replayErrorDegrees": 0.26541
   }
  ]
 }

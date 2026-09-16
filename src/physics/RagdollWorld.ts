@@ -13,6 +13,7 @@ import type {Observer} from '@babylonjs/core/Misc/observable';
 import type {Scene} from '@babylonjs/core/scene';
 import type {Skeleton} from '@babylonjs/core/Bones/skeleton';
 import type {DamageContext} from '../core/contracts';
+import {corpseLaunch} from '../enemies/EnemyImpact';
 
 const physicsInitialization=new WeakMap<Scene,Promise<void>>();
 /** Scene-local initialization: loading another region never replaces a running physics world. */
@@ -68,7 +69,8 @@ export class RagdollWorld {
         skeleton.computeAbsoluteMatrices(true);
       }
     });
-    for(let i=0;i<selected.length;i++){const aggregate=rig.getAggregate(i);aggregate.body.setLinearVelocity(new Vector3(context.forceDirection.x*3,2.2,context.forceDirection.z*3));aggregate.body.setAngularVelocity(new Vector3(.6,0,.9));}
+    const launch=corpseLaunch(context);
+    for(let i=0;i<selected.length;i++){const aggregate=rig.getAggregate(i);aggregate.body.setLinearVelocity(new Vector3(launch.x,launch.y,launch.z));aggregate.body.setAngularVelocity(new Vector3(.6,0,.9));}
     const handle={rig,disposed:false,scene:body.getScene(),observer};this.handles.push(handle);const active=activeRagdolls.get(handle.scene)??new Set<Handle>();active.add(handle);activeRagdolls.set(handle.scene,active);if(this.handles.length>4)this.release(this.handles[0]);return handle;
   }
   release(handle:Handle|undefined):void {if(!handle||handle.disposed)return;handle.disposed=true;activeRagdolls.get(handle.scene)?.delete(handle);handle.scene.onBeforeRenderObservable.remove(handle.observer);handle.rig.dispose();const i=this.handles.indexOf(handle);if(i>=0)this.handles.splice(i,1);}

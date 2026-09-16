@@ -42,7 +42,7 @@ export function attemptScore(summary:AttemptSummary):{total:number;kills:number;
   const boss=summary.objectives.bossDefeated?SCORE_BOSS:0;
   const kills=summary.kills*SCORE_PER_KILL,items=itemCount*SCORE_PER_ITEM,time=Math.floor(summary.time);
   return {total:kills+progress+items+time+boss+stage,kills,progress,items,time,boss,stage,
-    progressLabel:expedition?'MARCOS CONCLUÍDOS':'HORDAS VENCIDAS'};
+    progressLabel:expedition?'CÁLICE CHEIO':'HORDAS VENCIDAS'};
 }
 
 /** Copy the completed attempt before mutable run state is reset. */

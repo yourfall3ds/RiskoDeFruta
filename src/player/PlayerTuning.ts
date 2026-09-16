@@ -27,11 +27,12 @@ export const PISTOL_TUNING = { rate: 3.3, damage: 12, spreadDegrees: 1.5, range:
 // Combate desarmado alternável (tecla V). Cadência inicial lenta, conforme pedido.
 export const MELEE_TUNING = {
   steps: [
-    {id:'right-cross', windup:0.20, active:0.14, recover:0.30, damage:26, range:2.35, coneDegrees:95, force:4},
-    {id:'left-hook',   windup:0.18, active:0.14, recover:0.28, damage:28, range:2.35, coneDegrees:95, force:4},
-    {id:'uppercut',    windup:0.24, active:0.16, recover:0.36, damage:34, range:2.20, coneDegrees:80, force:8},
-    {id:'front-kick',  windup:0.22, active:0.16, recover:0.34, damage:32, range:2.60, coneDegrees:80, force:9},
-    {id:'spin-kick',   windup:0.28, active:0.22, recover:0.46, damage:44, range:2.90, coneDegrees:220, force:12},
+    {id:'right-cross', windup:0.28, active:0.13, recover:0.33, damage:26, range:2.35, coneDegrees:95, force:4},
+    {id:'left-hook',   windup:0.26, active:0.13, recover:0.31, damage:28, range:2.35, coneDegrees:95, force:4},
+    {id:'right-kick',  windup:0.30, active:0.15, recover:0.37, damage:32, range:2.60, coneDegrees:80, force:9},
+    {id:'uppercut',    windup:0.30, active:0.15, recover:0.37, damage:34, range:2.20, coneDegrees:80, force:8},
+    {id:'left-kick',   windup:0.32, active:0.15, recover:0.38, damage:32, range:2.60, coneDegrees:95, force:9},
+    {id:'spin-kick',   windup:0.34, active:0.25, recover:0.50, damage:44, range:2.90, coneDegrees:220, force:12},
   ],
   comboWindowSeconds: 0.55,
 } as const;

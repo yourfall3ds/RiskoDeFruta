@@ -1,0 +1,115 @@
+{
+  "origin": "User-owned transformice project, explicitly supplied for reuse. Original third-party license not independently established.",
+  "recordings": [
+    {
+      "group": "melee-punch",
+      "file": "/audio/combat/punch-hit.wav",
+      "source": "C:\\Users\\darck\\transformice\\assets\\Sound FX\\socos\\soco quando acerta.wav",
+      "sha256": "e4a77461a4905e46dad7d99ad430e5e236fba0cfd492bf7998d19d9151198dfe",
+      "seconds": 0.4073,
+      "channels": 1,
+      "rate": 22050,
+      "peak": 0.97913,
+      "rms": 0.32145
+    },
+    {
+      "group": "melee-heavy-punch",
+      "file": "/audio/combat/punch-heavy.wav",
+      "source": "C:\\Users\\darck\\transformice\\assets\\Sound FX\\socos\\soco critico.wav",
+      "sha256": "9d23581416330abeef2b8655da048691e70ef6f22a765b5f0354ca0c9e0fcf3d",
+      "seconds": 1.3501,
+      "channels": 1,
+      "rate": 22050,
+      "peak": 0.99997,
+      "rms": 0.32749
+    },
+    {
+      "group": "melee-kick",
+      "file": "/audio/combat/kick-hit.wav",
+      "source": "C:\\Users\\darck\\transformice\\assets\\Sound FX\\chutes\\chute medio.wav",
+      "sha256": "ba974c9ea511dbd09fb5eb0c99ed75844dc9b0622150dec5023dbeef9376e888",
+      "seconds": 0.3483,
+      "channels": 1,
+      "rate": 22050,
+      "peak": 1.0,
+      "rms": 0.43651
+    },
+    {
+      "group": "melee-kick",
+      "file": "/audio/combat/kick-hit-2.wav",
+      "source": "C:\\Users\\darck\\transformice\\assets\\Sound FX\\chutes\\chute.wav",
+      "sha256": "0b8414df94869ad9ebf8c0b41bd50271c583c8636e02de492f1900e5ef185e13",
+      "seconds": 0.2264,
+      "channels": 1,
+      "rate": 22050,
+      "peak": 0.96552,
+      "rms": 0.23041
+    },
+    {
+      "group": "melee-heavy-kick",
+      "file": "/audio/combat/kick-heavy.wav",
+      "source": "C:\\Users\\darck\\transformice\\assets\\Sound FX\\chutes\\Golpe Critico forte.wav",
+      "sha256": "5cd1c4772112dae4fcdebf7ad8eee5a3f978c13019f47ee628892fe080cbab78",
+      "seconds": 1.4933,
+      "channels": 1,
+      "rate": 22050,
+      "peak": 0.99521,
+      "rms": 0.34846
+    },
+    {
+      "group": "melee-swing",
+      "file": "/audio/combat/swing-1.wav",
+      "source": "C:\\Users\\darck\\transformice\\assets\\Sound FX\\ataque\\ataque 1.wav",
+      "sha256": "446cb72d99cd6dab5cecc1ed8b895475adb0ea7f70edb13a090aa3a4e86b0374",
+      "seconds": 0.3585,
+      "channels": 1,
+      "rate": 22050,
+      "peak": 1.0,
+      "rms": 0.32922
+    },
+    {
+      "group": "melee-swing",
+      "file": "/audio/combat/swing-2.wav",
+      "source": "C:\\Users\\darck\\transformice\\assets\\Sound FX\\ataque\\ataque 2.wav",
+      "sha256": "6fb62e5b7138cacea305c5498878b125dc0cf19156fd2a8c5a9826458e81890e",
+      "seconds": 0.3026,
+      "channels": 1,
+      "rate": 22050,
+      "peak": 1.0,
+      "rms": 0.3763
+    },
+    {
+      "group": "melee-swing",
+      "file": "/audio/combat/swing-3.wav",
+      "source": "C:\\Users\\darck\\transformice\\assets\\Sound FX\\ataque\\ataque 3.wav",
+      "sha256": "41e66eaf99c3a5af4f1a15da4564d41738fd6157e603efbcd7c081820c7509e3",
+      "seconds": 0.4203,
+      "channels": 1,
+      "rate": 22050,
+      "peak": 0.99368,
+      "rms": 0.38495
+    },
+    {
+      "group": "melee-launch",
+      "file": "/audio/combat/launch.wav",
+      "source": "C:\\Users\\darck\\transformice\\assets\\Sound FX\\voos e rushs\\Barulho do cara voando longe quando recebe um golpe forte.wav",
+      "sha256": "0e71112c93b4b746801b83c788dcd2b273fb94ea2626e2cfc79950a2ad1631d8",
+      "seconds": 4.6273,
+      "channels": 1,
+      "rate": 22050,
+      "peak": 0.88303,
+      "rms": 0.21613
+    },
+    {
+      "group": "body-ground",
+      "file": "/audio/combat/body-ground.wav",
+      "source": "C:\\Users\\darck\\transformice\\assets\\Sound FX\\voos e rushs\\groundhit.wav",
+      "sha256": "8bfce2a1fb58042b0433965ab345b94fc2f09179504cb5cedfedf990967fcc37",
+      "seconds": 0.2264,
+      "channels": 1,
+      "rate": 22050,
+      "peak": 0.94376,
+      "rms": 0.22171
+    }
+  ]
+}

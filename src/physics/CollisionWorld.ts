@@ -59,6 +59,11 @@ export class CollisionWorld {
   readonly boxes: BoxCollider[] = [];readonly movingBoxes:BoxCollider[]=[];
   onMovingGround(p:Vec3):boolean{return this.surfaces.some(s=>s.id.startsWith("moving-")&&Math.abs(p.y-s.height)<.2&&((p.x-s.x)/(s.width/2))**2+((p.z-s.z)/(s.depth/2))**2<=1); }
   readonly surfaces: GroundSurface[] = [];
+  /** Static authored floors, including loaded islands, for rare recovery searches. */
+  *recoverySurfaces():Generator<GroundSurface>{
+    for(const surface of this.surfaces)if(!surface.id.startsWith('moving-'))yield surface;
+    for(const region of this.regions.values())yield* region.world.recoverySurfaces();
+  }
   readonly walkableLinks:{a:Vec3;b:Vec3;width:number}[]=[];
   readonly navigationPatches:{positions:number[];indices:number[]}[]=[];
   geometry:{positions:number[];indices:number[]}|undefined;

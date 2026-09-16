@@ -29,13 +29,13 @@
    "frames": 45,
    "contactFrame": 18,
    "activeFrames": 8,
-   "strikePeakFrame": 18,
+   "strikePeakFrame": 19,
    "strikeWindow": [
     16,
     28
    ],
-   "strikeReachAtContact": 0.5606,
-   "strikeReachInWindup": 0.5305,
+   "strikeReachAtContact": 0.4207,
+   "strikeReachInWindup": 0.3479,
    "elbowStraightest": {
     "value": 135.5979,
     "frame": 18
@@ -73,15 +73,15 @@
     "frame": 18
    },
    "lowestToe": {
-    "value": 0.0369,
+    "value": 0.0368,
     "frame": 9
    },
    "pelvisShift": {
-    "value": 0.0295,
-    "frame": 19
+    "value": 0.0528,
+    "frame": 18
    },
    "airborneFrames": 0,
-   "skateMetresPerFrame": 0.00057,
+   "skateMetresPerFrame": 0.00069,
    "skateAtFrame": 9,
    "loopErrorDegrees": 0.041,
    "loopErrorJoint": "head_end",
@@ -93,60 +93,60 @@
    "frames": 43,
    "contactFrame": 17,
    "activeFrames": 8,
-   "strikePeakFrame": 6,
+   "strikePeakFrame": 17,
    "strikeWindow": [
     15,
     27
    ],
-   "strikeReachAtContact": 0.4564,
-   "strikeReachInWindup": 0.5742,
+   "strikeReachAtContact": 0.4457,
+   "strikeReachInWindup": 0.3779,
    "elbowStraightest": {
-    "value": 94.6605,
+    "value": 108.9872,
     "frame": 17
    },
    "elbowTightest": {
-    "value": 67.9733,
-    "frame": 24
+    "value": 57.5358,
+    "frame": 8
    },
    "kneeStraightest": {
-    "value": 143.3438,
-    "frame": 29
+    "value": 138.2906,
+    "frame": 24
    },
    "kneeTightest": {
-    "value": 120.9268,
-    "frame": 9
+    "value": 121.574,
+    "frame": 12
    },
    "fistOverReach": {
-    "value": 0.7354,
+    "value": 0.8141,
     "frame": 17
    },
    "ankleOverReach": {
-    "value": 0.95,
-    "frame": 29
-   },
-   "torsoTwist": {
-    "value": 14.4831,
+    "value": 0.9355,
     "frame": 24
    },
+   "torsoTwist": {
+    "value": 11.6584,
+    "frame": 18
+   },
    "neckTwist": {
-    "value": 29.9598,
-    "frame": 7
+    "value": 48.9889,
+    "frame": 24
    },
    "shoulderSpanDrift": {
     "value": 0.003,
-    "frame": 18
+    "frame": 17
    },
    "lowestToe": {
-    "value": 0.0363,
-    "frame": 8
+    "value": 0.037,
+    "frame": 29
    },
    "pelvisShift": {
-    "value": 0.0472,
-    "frame": 24
+    "value": 0.0452,
+    "frame": 8
    },
    "airborneFrames": 0,
-   "skateMetresPerFrame": 0.00323,
-   "skateAtFrame": 29,
+   "skateMetresPerFrame": 0.00014,
+   "skateAtFrame": 16,
    "loopErrorDegrees": 0.041,
    "loopErrorJoint": "head_end",
    "loopHipsMetres": 0
@@ -162,8 +162,8 @@
     17,
     30
    ],
-   "strikeReachAtContact": 0.8086,
-   "strikeReachInWindup": 0.7175,
+   "strikeReachAtContact": 0.8081,
+   "strikeReachInWindup": 0.7068,
    "elbowStraightest": {
     "value": 88.8359,
     "frame": 39
@@ -290,8 +290,8 @@
     18,
     31
    ],
-   "strikeReachAtContact": 0.7003,
-   "strikeReachInWindup": 0.7086,
+   "strikeReachAtContact": 0.7647,
+   "strikeReachInWindup": 0.7312,
    "elbowStraightest": {
     "value": 102.1114,
     "frame": 15
@@ -301,7 +301,7 @@
     "frame": 14
    },
    "kneeStraightest": {
-    "value": 148.5402,
+    "value": 155.652,
     "frame": 19
    },
    "kneeTightest": {
@@ -313,7 +313,7 @@
     "frame": 15
    },
    "ankleOverReach": {
-    "value": 0.963,
+    "value": 0.9777,
     "frame": 19
    },
    "torsoTwist": {
@@ -347,25 +347,25 @@
    "id": "spin-kick",
    "clip": "ComboSpinKick",
    "frames": 66,
-   "contactFrame": 24,
-   "activeFrames": 12,
-   "strikePeakFrame": 24,
+   "contactFrame": 21,
+   "activeFrames": 15,
+   "strikePeakFrame": 21,
    "strikeWindow": [
-    22,
+    19,
     38
    ],
-   "strikeReachAtContact": 0.9163,
-   "strikeReachInWindup": 0.9076,
+   "strikeReachAtContact": 0.6866,
+   "strikeReachInWindup": 0.2773,
    "elbowStraightest": {
-    "value": 91.2526,
-    "frame": 42
+    "value": 88.8299,
+    "frame": 4
    },
    "elbowTightest": {
-    "value": 19.0693,
-    "frame": 41
+    "value": 73.6447,
+    "frame": 11
    },
    "kneeStraightest": {
-    "value": 146.6859,
+    "value": 151.6221,
     "frame": 21
    },
    "kneeTightest": {
@@ -373,11 +373,11 @@
     "frame": 16
    },
    "fistOverReach": {
-    "value": 0.7149,
-    "frame": 42
+    "value": 0.7,
+    "frame": 4
    },
    "ankleOverReach": {
-    "value": 0.9587,
+    "value": 0.9699,
     "frame": 21
    },
    "torsoTwist": {
@@ -385,8 +385,8 @@
     "frame": 11
    },
    "neckTwist": {
-    "value": 150.5503,
-    "frame": 28
+    "value": 55.861,
+    "frame": 44
    },
    "shoulderSpanDrift": {
     "value": 0.0001,
@@ -408,12 +408,5 @@
    "loopHipsMetres": 0
   }
  ],
- "problems": [
-  "right-cross: pelvis barely moves (2.9 cm) — no weight shift",
-  "left-hook: strike peaks at frame 6, outside the damage window 15..27",
-  "left-hook: the windup already reaches further than the contact frame",
-  "left-kick: the windup already reaches further than the contact frame",
-  "spin-kick: elbow folds past the joint — 19.1 at frame 41 deg",
-  "spin-kick: neck twists off the shoulders — 150.6 at frame 28 deg"
- ]
+ "problems": []
 }

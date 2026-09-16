@@ -1,5 +1,7 @@
 # Chalice objectives and gentle expedition opening
 
+> Historical delivery: the rock layer and multi-chalice flow described below were superseded by [the current delivery](CURRENT_GAMEPLAY_DELIVERY.md).
+
 ## Behavior
 
 - The first ambient enemy arrives after six seconds of active gameplay. Spawns are individual.

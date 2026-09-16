@@ -4,6 +4,8 @@ import {buildOutcropGeometry,type OrientedVolume,type OutcropPlacement,type Outc
 export interface InitialRockFix {
  source:{vertices:number;triangles:number;checksum:number};
  offenders:readonly{name:string;box:OrientedVolume;firstTriangle:number;triangles:number}[];
+ /** Distant dressing that was never included in the original collision bake. */
+ visualOnly?:readonly string[];
  replacements:readonly OutcropPlacement[];
 }
 
@@ -55,5 +57,5 @@ export function applyInitialRockFix(
  data.indices=indices;
  const geometry=fix.replacements.length?buildOutcropGeometry(shape,fix.replacements,{naturalSize:shape.sourceExtent}):undefined;
  if(geometry)appendGeometry(data,geometry);
- return{hidden:ranges.map(range=>range.name),geometry,removedTriangles,removedInstances:ranges.length,placements:fix.replacements};
+ return{hidden:[...ranges.map(range=>range.name),...fix.visualOnly??[]],geometry,removedTriangles,removedInstances:ranges.length,placements:fix.replacements};
 }

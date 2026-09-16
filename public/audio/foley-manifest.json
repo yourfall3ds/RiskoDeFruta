@@ -258,5 +258,32 @@
   "enemy-boss-heavy": [
     "/audio/enemies/boss-impact-0.ogg",
     "/audio/enemies/boss-impact-1.ogg"
+  ],
+  "melee-punch": [
+    "/audio/combat/punch-hit.wav"
+  ],
+  "melee-heavy-punch": [
+    "/audio/combat/punch-heavy.wav"
+  ],
+  "melee-kick": [
+    "/audio/combat/kick-hit.wav",
+    "/audio/combat/kick-hit-2.wav"
+  ],
+  "melee-heavy-kick": [
+    "/audio/combat/kick-heavy.wav"
+  ],
+  "melee-swing": [
+    "/audio/combat/swing-1.wav",
+    "/audio/combat/swing-2.wav",
+    "/audio/combat/swing-3.wav"
+  ],
+  "melee-launch": [
+    "/audio/combat/launch.wav"
+  ],
+  "body-ground": [
+    "/audio/combat/body-ground.wav"
+  ],
+  "player-hit": [
+    "/audio/combat/punch-hit.wav"
   ]
 }

@@ -2,6 +2,8 @@ import {describe,it,expect} from 'vitest';
 import {CollisionWorld} from '../src/physics/CollisionWorld';
 import {ExpeditionObjectives,planExpedition,findTotemSite,isOpenGround,CHALICE_JUICE_TARGETS,TOTEM_RADIUS,BOSS_RECOVERY_SECONDS,type TotemAnchor} from '../src/run/ExpeditionObjectives';
 import {HarvestResonance,RESONANCE_MAX,RESONANCE_DECAY_SECONDS} from '../src/run/HarvestResonance';
+import {chooseChalice,FINAL_CHALICE_JUICE} from '../src/run/ExpeditionObjectives';
+import {RunRNG} from '../src/core/RunRNG';
 
 /** Duas praças largas, uma ponte estreita entre elas e uma ilhota curta. */
 function world():CollisionWorld {
@@ -25,6 +27,14 @@ describe('colocação dos totens',()=>{
     expect(isOpenGround(w,0,0,0,TOTEM_RADIUS)).toBe(true);
     expect(isOpenGround(w,0,80,0,TOTEM_RADIUS)).toBe(false);
     expect(isOpenGround(w,200,0,0,TOTEM_RADIUS)).toBe(false);
+  });
+  it('recusa chão amplo cercado por parede fina ou sob um teto',()=>{
+    const w=world();
+    w.boxes.push({id:'thin-wall',min:{x:-15,y:0,z:6},max:{x:15,y:6,z:6.1}});
+    expect(isOpenGround(w,0,0,0,TOTEM_RADIUS)).toBe(false);
+    w.boxes.length=0;
+    w.boxes.push({id:'roof',min:{x:-20,y:5,z:-20},max:{x:20,y:5.2,z:20}});
+    expect(isOpenGround(w,0,0,0,TOTEM_RADIUS)).toBe(false);
   });
   it('não devolve sítio quando nenhum anel ao redor da âncora tem piso largo',()=>{
     expect(findTotemSite(world(),{id:'islet',name:'Ilhota',x:200,y:0,z:0},TOTEM_RADIUS,()=>true)).toBeUndefined();
@@ -70,7 +80,7 @@ describe('cálice por abates reais',()=>{
     expect(o.current!.charged).toBe(0);
   });
   it('completes on a decisive kill, clamps overflow and keeps that exact reward position',()=>{
-    const o=make(),at=sites[0]!.position;o.activate(at);collect(o,39,at);
+    const o=make(),at=sites[0]!.position;o.activate(at);o.onBossKilled(at);collect(o,39,at);
     const decisive={x:at.x+6,y:at.y+1,z:at.z};
     const result=o.harvest({sequence:++harvestSequence,kind:'watermelon',position:decisive},at,true);
     expect(result).toEqual({index:0,amount:1,complete:true});
@@ -90,8 +100,9 @@ describe('cálice por abates reais',()=>{
     expect(o.current!.state).toBe('charging');
     collect(o,CHALICE_JUICE_TARGETS[0],at);
     expect(o.completed).toBe(1);
-    expect(o.rewardsPending).toBe(1);
-    expect(o.activeIndex).toBe(-1);
+    expect(o.rewardsPending).toBe(0);
+    expect(o.activeIndex).toBe(0);
+    expect(o.phase).toBe('boss');
   });
   it('sair pausa a carga sem apagá-la e voltar retoma de onde parou',()=>{
     const o=make(),at=sites[0]!.position,away={x:at.x+60,y:0,z:at.z};
@@ -108,13 +119,15 @@ describe('cálice por abates reais',()=>{
     const held=o.totems[0]!.charged;run(o,10,at,false);collect(o,10,at,false);
     expect(o.totems[0]!.charged).toBeCloseTo(held,3);
   });
-  it('ativar outro marco pausa o anterior preservando o progresso',()=>{
+  it('só existe um cálice e ativar outra vez não reinicia a horda',()=>{
     const o=make(),first=sites[0]!.position,second=sites[1]!.position;
     o.activate(first);collect(o,9,first);
     o.activate(second);
-    expect(o.totems[0]!.state).toBe('paused');
+    expect(o.totems).toHaveLength(1);
+    expect(o.activate(first)).toBeUndefined();
+    expect(o.totems[0]!.state).toBe('charging');
     expect(o.totems[0]!.charged).toBeCloseTo(9,1);
-    expect(o.current!.site.id).toBe(sites[1]!.id);
+    expect(o.current!.site.id).toBe(sites[0]!.id);
   });
   it('a ressonância acelera a carga sem ser necessária',()=>{
     const o=make(),at=sites[0]!.position;o.chargeMultiplier=1.36;o.activate(at);run(o,10,at);collect(o,10,at);
@@ -129,13 +142,37 @@ describe('chefe e fenda',()=>{
     for(const totem of o.totems){o.activate(totem.site.position);collect(o,totem.site.juiceTarget,totem.site.position);}
     return o;
   }
-  it('entra na fase do chefe só depois dos marcos e abre a fenda ao derrotá-lo',()=>{
+  it('cálice cheio espera o chefe e a recompensa cai na morte dele',()=>{
     const o=completed();
     expect(o.completed).toBe(o.total);
     expect(o.phase).toBe('boss');
-    o.bossSpawned=true;o.onBossKilled();
+    expect(o.rewardsPending).toBe(0);
+    const bossPosition={x:6,y:0,z:4};
+    o.bossSpawned=true;o.onBossKilled(bossPosition);
     expect(o.phase).toBe('rift');
     expect(o.bossDefeated).toBe(true);
+    expect(o.nextRewardPosition).toEqual(bossPosition);
+    o.onBossKilled(bossPosition);expect(o.rewardsPending).toBe(1);
+  });
+  it('ativação chama o chefe imediatamente; matá-lo cedo não abre a fenda',()=>{
+    const o=new ExpeditionObjectives();o.setSites(sites);
+    const at=sites[0]!.position;
+    expect(o.phase).toBe('totems');
+    o.activate(at);expect(o.phase).toBe('boss');expect(o.completed).toBe(0);
+    o.bossSpawned=true;o.onBossKilled(at);
+    expect(o.phase).toBe('boss');expect(o.rewardsPending).toBe(0);
+    collect(o,sites[0]!.juiceTarget-1,at);
+    const last={x:at.x+5,y:at.y,z:at.z};
+    o.harvest({sequence:++harvestSequence,kind:'carrot',position:last},at,true);
+    expect(o.phase).toBe('rift');expect(o.nextRewardPosition).toEqual(last);
+    expect(o.rewardsPending).toBe(1);
+  });
+  it('descobre o cálice ao se aproximar, sem iniciar o evento',()=>{
+    const o=new ExpeditionObjectives();o.setSites(sites);
+    o.update(1,{x:100,y:0,z:0},true);expect(o.discovered).toBe(false);
+    o.update(1,{x:30,y:0,z:0},true);expect(o.discovered).toBe(true);
+    expect(o.phase).toBe('totems');expect(o.current).toBeUndefined();
+    o.reset();expect(o.discovered).toBe(false);
   });
   it('pede recuperação quando o chefe fica inacessível e zera ao recuperá-lo',()=>{
     const o=completed();o.bossSpawned=true;
@@ -154,6 +191,26 @@ describe('chefe e fenda',()=>{
     expect(o.phase).toBe('totems');expect(o.completed).toBe(0);expect(o.rewardsPending).toBe(0);
     expect(o.totems.every(t=>t.state==='available'&&t.charged===0)).toBe(true);
     expect(o.bossSpawned).toBe(false);expect(o.bossDefeated).toBe(false);
+  });
+});
+
+describe('um destino de exploração por estágio',()=>{
+  const origin={x:0,y:0,z:0};
+  const candidates=[0,80,160].map((x,index)=>({id:index?'island-'+index:'initial-field',name:'Ilha',index,position:{x,y:0,z:0},radius:11,juiceTarget:40}));
+  const pick=(seed:string)=>chooseChalice(candidates,origin,new RunRNG(seed).stream('scene'));
+  it('é determinístico, escolhe uma ilha distante e define o objetivo de suco',()=>{
+    expect(pick('same')).toEqual(pick('same'));
+    const found=new Set<string>();
+    for(let i=0;i<30;i++){
+      const site=pick(String(i))!;found.add(site.id);
+      expect(site.position.x).toBeGreaterThanOrEqual(60);
+      expect(site.juiceTarget).toBe(FINAL_CHALICE_JUICE);expect(site.index).toBe(0);
+    }
+    expect(found.size).toBe(2);
+  });
+  it('não inventa uma ilha sem rota quando não há candidato',()=>{
+    expect(chooseChalice([],origin,new RunRNG('empty').stream('scene'))).toBeUndefined();
+    expect(chooseChalice(candidates.slice(0,1),origin,new RunRNG('spawn').stream('scene'))).toBeUndefined();
   });
 });
 

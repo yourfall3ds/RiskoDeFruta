@@ -1,8 +1,11 @@
 import type {Vec3} from '../core/contracts';
+import type {RandomStream} from '../core/RunRNG';
 
 /** Juice units required by each chalice, independent of elapsed time. */
 export const CHALICE_JUICE_TARGETS=[40,60,80,100] as const;
 export const CHALICE_CAPTURE_RADIUS=26;
+export const FINAL_CHALICE_JUICE=60;
+export const CHALICE_DISCOVERY_RADIUS=35;
 export const FRUIT_JUICE:Readonly<Record<string,number>>={carrot:1,corn:2,tomato:2,eggplant:3,watermelon:4,boss:20};
 export const TOTEM_RADIUS=11;
 /** Distância de uso do `E`: junto ao poste. A carga vale em toda a área de raio `TOTEM_RADIUS`. */
@@ -20,6 +23,7 @@ export type ExpeditionPhase='totems'|'boss'|'rift';
 export interface ExpeditionTerrain {
   groundAt(x:number,z:number,maxHeight?:number,maxSlope?:number):number;
   insideSolid(p:Vec3,height?:number):boolean;
+  sweepSphere(origin:Vec3,delta:Vec3,radius:number,mesh?:boolean):unknown;
 }
 
 const planar=(a:{x:number;z:number},b:{x:number;z:number})=>Math.hypot(a.x-b.x,a.z-b.z);
@@ -29,8 +33,11 @@ const planar=(a:{x:number;z:number},b:{x:number;z:number})=>Math.hypot(a.x-b.x,a
  * e beiradas onde o jogador cairia ao recuar. Amostra dois anéis para não aprovar um corredor.
  */
 export function isOpenGround(world:ExpeditionTerrain,x:number,z:number,y:number,radius:number,samples=12):boolean {
+  // Reject roofs and enclosed buildings; broad floor samples alone can jump over thin walls.
+  if(world.sweepSphere({x,y:y+1,z},{x:0,y:8,z:0},.4,true))return false;
   for(let i=0;i<samples;i++){
     const angle=i/samples*Math.PI*2;
+    if(world.sweepSphere({x,y:y+2.5,z},{x:Math.sin(angle)*radius,y:0,z:Math.cos(angle)*radius},.6,true))return false;
     for(const r of [radius*.45,radius]){
       const px=x+Math.sin(angle)*r,pz=z+Math.cos(angle)*r;
       const py=world.groundAt(px,pz,y+2.4);
@@ -57,7 +64,7 @@ export function findTotemSite(world:ExpeditionTerrain,anchor:TotemAnchor,radius:
   return undefined;
 }
 
-/** Quatro marcos alcançáveis e separados, ordenados por proximidade do ponto de partida. */
+/** Candidatos alcançáveis e separados para escolher a arena final do estágio. */
 export function planExpedition(world:ExpeditionTerrain,anchors:readonly TotemAnchor[],origin:Vec3,reachable:(p:Vec3)=>boolean,count=4,radius=TOTEM_RADIUS):TotemSite[] {
   const sorted=[...anchors].sort((a,b)=>planar(a,origin)-planar(b,origin));
   const sites:TotemSite[]=[];
@@ -71,13 +78,22 @@ export function planExpedition(world:ExpeditionTerrain,anchors:readonly TotemAnc
   return sites;
 }
 
+/** One reachable destination per stage, beyond the arrival field whenever the map allows it. */
+export function chooseChalice(sites:readonly TotemSite[],origin:Vec3,rng:RandomStream):TotemSite|undefined {
+ const away=sites.filter(s=>planar(s.position,origin)>=60);
+ const pool=away.length?away:sites.filter(s=>s.id!=='initial-field');
+ if(!pool.length)return undefined;
+ return {...rng.pick(pool),index:0,juiceTarget:FINAL_CHALICE_JUICE};
+}
+
 /**
- * Four activated chalices filled by nearby combat deaths, then a boss and the rift.
+ * One hidden chalice: activation starts the final horde and boss. Juice plus boss unlock the rift.
  * Nada aqui depende de zerar a população — o diretor continua ativo durante toda a carga.
  */
 export class ExpeditionObjectives {
   readonly totems:TotemProgress[]=[];
   phase:ExpeditionPhase='totems';
+  discovered=false;
   activeIndex=-1;
   bossSpawned=false;bossDefeated=false;bossRecoveries=0;
   rewardsPending=0;
@@ -90,8 +106,9 @@ export class ExpeditionObjectives {
   chargeMultiplier=1;
 
   setSites(sites:readonly TotemSite[]):void {
+    this.reset();
     this.totems.length=0;
-    for(const site of sites)this.totems.push({site,charged:0,state:'available'});
+    for(const site of sites.slice(0,1))this.totems.push({site:{...site,index:0},charged:0,state:'available'});
     this.activeIndex=-1;this.phase='totems';
   }
   get planned():boolean {return this.totems.length>0;}
@@ -115,7 +132,7 @@ export class ExpeditionObjectives {
       ?this.totems.filter(t=>t.state!=='complete'&&t.state!=='charging'&&planar(t.site.position,player)<=TOTEM_ACTIVATION_RANGE&&Math.abs(player.y-t.site.position.y)<=4).sort((a,b)=>planar(a.site.position,player)-planar(b.site.position,player))[0]
       :undefined;
   }
-  /** `E` junto ao poste: ativa e passa a carregar. Ativar outro pausa o anterior sem apagar a carga. */
+  /** `E` inicia a horda final uma única vez, junto ao cálice. */
   activate(player:Vec3):TotemProgress|undefined {
     if(this.phase!=='totems')return undefined;
     const candidate=this.totems.filter(t=>t.state!=='complete'&&planar(t.site.position,player)<=TOTEM_ACTIVATION_RANGE&&Math.abs(player.y-t.site.position.y)<=4).sort((a,b)=>planar(a.site.position,player)-planar(b.site.position,player))[0];
@@ -123,37 +140,39 @@ export class ExpeditionObjectives {
     const previous=this.current;
     if(previous&&previous!==candidate&&previous.state!=='complete')previous.state='paused';
     this.activeIndex=this.totems.indexOf(candidate);
+    this.discovered=true;this.phase='boss';
     candidate.state='charging';
-    this.say(`CÁLICE ${candidate.site.index+1} ATIVO · elimine frutas próximas para coletar suco`,4);
+    this.say('HORDA FINAL · a Praga Alfa despertou! Encha o cálice e derrote o chefe.',5);
     return candidate;
   }
   update(dt:number,player:Vec3,alive:boolean):void {
     this.messageTime=Math.max(0,this.messageTime-dt);
-    if(this.phase!=='totems')return;
+    if(!this.discovered&&this.totems.some(t=>planar(t.site.position,player)<=CHALICE_DISCOVERY_RADIUS&&Math.abs(player.y-t.site.position.y)<16)){
+      this.discovered=true;this.say('CÁLICE ENCONTRADO · prepare-se antes de ativar',5);
+    }
+    if(this.phase==='rift')return;
     const totem=this.current;
     if(totem&&totem.state!=='complete'){
       if(alive&&this.inside(totem,player)){
         totem.state='charging';
       } else totem.state='paused';
     }
-    if(this.total>0&&this.completed>=this.total){this.phase='boss';this.say('A PRAGA ALFA DESPERTOU',5);}
   }
   /** Called once for each actual combat death; sequence survives pooled actor ID reuse. */
   harvest(kill:{sequence:number;kind:string;position:Vec3},player:Vec3,alive:boolean):{index:number;amount:number;complete:boolean}|undefined {
     if(!Number.isSafeInteger(kill.sequence)||kill.sequence<=this.lastHarvestSequence)return;
     this.lastHarvestSequence=kill.sequence;
     const totem=this.current,yieldUnits=FRUIT_JUICE[kill.kind];
-    if(!alive||this.phase!=='totems'||!totem||totem.state==='complete'||!yieldUnits||!this.inside(totem,player))return;
+    if(!alive||this.phase!=='boss'||!totem||totem.state==='complete'||!yieldUnits||!this.inside(totem,player))return;
     if(planar(kill.position,totem.site.position)>CHALICE_CAPTURE_RADIUS||Math.abs(kill.position.y-totem.site.position.y)>12)return;
     const amount=Math.min(totem.site.juiceTarget-totem.charged,yieldUnits*Math.max(0,this.chargeMultiplier));
     if(amount<=0)return;
     totem.charged+=amount;totem.state='charging';
     const complete=totem.charged>=totem.site.juiceTarget;
     if(complete){
-      totem.state='complete';this.activeIndex=-1;this.rewardsPending++;
-      this.rewardPositions.push({...kill.position});
-      this.say(`CÁLICE ${totem.site.index+1} CHEIO · recolha a recompensa`,6);
-      if(this.completed>=this.total){this.phase='boss';this.say('OS CÁLICES ESTÃO CHEIOS · A PRAGA ALFA DESPERTOU',6);}
+      totem.state='complete';
+      this.say('CÁLICE CHEIO · derrote a Praga Alfa',6);
+      this.finishIfReady(kill.position);
     }
     return{index:totem.site.index,amount,complete};
   }
@@ -164,12 +183,23 @@ export class ExpeditionObjectives {
   }
   get needsBossRecovery():boolean {return this.bossUnreachable>=BOSS_RECOVERY_SECONDS;}
   recoveredBoss():void {this.bossUnreachable=0;this.bossRecoveries++;this.say('A PRAGA ALFA VOLTOU AO CAMPO',4);}
-  onBossKilled():void {if(this.bossDefeated)return;this.bossDefeated=true;this.phase='rift';this.say('FENDA ABERTA · atravesse para avançar de estágio',8);}
+  onBossKilled(position?:Vec3):void {
+    if(this.bossDefeated||this.phase!=='boss')return;
+    this.bossDefeated=true;
+    this.say('PRAGA ALFA DERROTADA · termine de encher o cálice',6);
+    this.finishIfReady(position??this.totems[0]?.site.position);
+  }
+  private finishIfReady(position:Vec3|undefined):void {
+    if(this.phase!=='boss'||!this.bossDefeated||!this.total||this.completed<this.total||!position)return;
+    this.phase='rift';this.activeIndex=-1;this.rewardsPending++;
+    this.rewardPositions.push({...position});
+    this.say('COLHEITA CONCLUÍDA · recolha a recompensa e atravesse a fenda',8);
+  }
   takeReward():boolean {if(this.rewardsPending<=0)return false;this.rewardsPending--;this.rewardPositions.shift();return true;}
   private say(message:string,seconds:number):void {this.message=message;this.messageTime=seconds;}
   reset():void {
     for(const totem of this.totems){totem.charged=0;totem.state='available';}
-    this.activeIndex=-1;this.phase='totems';this.bossSpawned=false;this.bossDefeated=false;
+    this.activeIndex=-1;this.phase='totems';this.discovered=false;this.bossSpawned=false;this.bossDefeated=false;
     this.bossUnreachable=0;this.bossRecoveries=0;this.rewardsPending=0;this.message='';this.messageTime=0;this.chargeMultiplier=1;
     this.lastHarvestSequence=-1;this.rewardPositions.length=0;
   }

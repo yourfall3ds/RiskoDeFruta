@@ -7,7 +7,7 @@ import {ImportMeshAsync} from '@babylonjs/core/Loading/sceneLoader';
 import '@babylonjs/loaders/glTF';
 import type {AnimationGroup} from '@babylonjs/core/Animations/animationGroup';
 import {MeleeReview,meleeReviewShot,MELEE_REVIEW_RATES} from '../src/animation/MeleeReview';
-import {MELEE_POSES} from '../src/animation/MeleePoses';
+import {MELEE_CLIPS} from '../src/animation/MeleeClips';
 import {MELEE_TUNING} from '../src/player/PlayerTuning';
 import {CharacterVisual} from '../src/animation/CharacterVisual';
 import {PlayerMotor} from '../src/player/PlayerMotor';
@@ -95,7 +95,7 @@ it('writes every melee bone on the real rig and never accumulates rotation on th
   visual.ready=true;
 
   const named=new Map(imported.transformNodes.map(n=>[n.name,n]));
-  const referenced=new Set(Object.values(MELEE_POSES).flat().map(p=>p.bone));
+  const referenced=new Set(Object.values(MELEE_CLIPS).flatMap(spec=>clips.get(spec.clip)!.targetedAnimations.map(t=>(t.target as {name:string}).name)));
   // Todo osso citado pelas poses existe no rig…
   for(const bone of referenced)expect(named.has(bone),`osso ${bone}`).toBe(true);
   // …e é reescrito pelo clipe de locomoção, que é a base da camada aditiva.

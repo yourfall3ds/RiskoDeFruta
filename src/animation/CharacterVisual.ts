@@ -5,7 +5,7 @@ import '@babylonjs/loaders/glTF';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Vector3, Quaternion, Matrix } from '@babylonjs/core/Maths/math.vector';
 import {freefallFlutter,type FlutterBend} from './FreefallFlutter';
-import {meleePose} from './MeleePoses';
+import {MELEE_CLIPS,meleeClipProgress} from './MeleeClips';
 import type {MeleePhase} from '../combat/UnarmedCombat';
 import type { AnimationGroup } from '@babylonjs/core/Animations/animationGroup';
 import type { Scene } from '@babylonjs/core/scene';
@@ -41,12 +41,15 @@ export class CharacterVisual {
   /**
    * Etapa de combate desarmado em curso.
    *
-   * A pose vem de `MeleePoses`: curvas autorais escritas nos ossos reais do rig, aplicadas como
-   * camada aditiva sobre a locomoção pelo mesmo caminho do `freefallFlutter`. Nenhum clipe de tiro
-   * é reaproveitado para representar soco ou chute, e o clipe de locomoção reescreve as juntas no
-   * quadro seguinte — nada acumula.
+   * Amostra as ações feitas no Blender usando a fase autoritativa do golpe.
+   * O clipe inteiro substitui a locomoção; nenhuma rotação aditiva entorta o rig.
    */
   meleePose:{stepId:string;phase:MeleePhase;progress:number;heavy:boolean}|undefined;
+  unarmedStance=false;
+  meleeRate=1;
+  private airborneSeconds=0;
+  private hitReaction=0;
+  reactToHit():void {this.hitReaction=.32;}
   private readonly bones=new Map<string,TransformNode>();
   private fanCastTime=0;private preparation:{tier:1|2|3;progress:number}|undefined;
   prepareSkill(tier:1|2|3,progress:number):void {this.preparation={tier,progress};}
@@ -72,7 +75,7 @@ export class CharacterVisual {
   error='';
   dodging=false;
   constructor(private readonly scene: Scene,private readonly onReady: () => void) {this.root=new TransformNode('player-visual',scene);}
-  resetAttempt():void {this.deathProgress=undefined;this.deathPosition=undefined;this.machine.reset();this.active='';this.clock=0;this.facingYaw=0;this.wasGrounded=true;this.landingTime=0;this.firing.fill(1);this.fanCastTime=0;this.releaseTime=1;this.styleTime=0;this.styleClock=0;this.targetTime.fill(0);this.fanTime.fill(0);this.preparation=undefined;this.skillPerformance=undefined;this.arrivalPose=undefined;this.reloadProgress=-1;this.dodging=false;this.meleePose=undefined;}
+  resetAttempt():void {this.airborneSeconds=0;this.hitReaction=0;this.unarmedStance=false;this.meleeRate=1;this.deathProgress=undefined;this.deathPosition=undefined;this.machine.reset();this.active='';this.clock=0;this.facingYaw=0;this.wasGrounded=true;this.landingTime=0;this.firing.fill(1);this.fanCastTime=0;this.releaseTime=1;this.styleTime=0;this.styleClock=0;this.targetTime.fill(0);this.fanTime.fill(0);this.preparation=undefined;this.skillPerformance=undefined;this.arrivalPose=undefined;this.reloadProgress=-1;this.dodging=false;this.meleePose=undefined;}
   setSkinning(mode:'auto'|'cpu'):void{configureSkinning(this.meshes,mode);}
   get skinning():string{const skinned=this.meshes.filter(m=>m.skeleton);return skinned.length&&skinned.every(m=>m.computeBonesUsingShaders)?'GPU · ossos em textura':'CPU';}
   async load(): Promise<void> {
@@ -131,6 +134,8 @@ export class CharacterVisual {
     }
   }
   update(player: PlayerMotor,alpha: number,dt: number,aiming: boolean,charging=false,pitch=0,chargeProgress=0): void {
+    this.airborneSeconds=player.grounded?0:this.airborneSeconds+dt;
+    this.hitReaction=Math.max(0,this.hitReaction-dt);
     Vector3.LerpToRef(new Vector3(player.previous.x,player.previous.y,player.previous.z),new Vector3(player.position.x,player.position.y,player.position.z),alpha,this.position);
     this.root.position.copyFrom(this.position);this.root.rotation.z=0;this.root.rotation.x=player.bumpRemaining>0?-Math.sin(player.bumpRemaining/.24*Math.PI)*.055:0;const facing=player.dodgeRemaining>0?player.dodgeYaw:player.yaw;this.facingYaw+=Math.atan2(Math.sin(facing-this.facingYaw),Math.cos(facing-this.facingYaw))*Math.min(1,dt>0?dt*14:1);this.root.rotation.y=this.facingYaw;
     if(!this.ready)return;
@@ -157,7 +162,8 @@ export class CharacterVisual {
     const flipping=player.backflipProgress>=0&&this.clips.has('Backflip');
     this.landingTime=Math.max(0,this.landingTime-dt);if(player.grounded&&!this.wasGrounded)this.landingTime=.2;this.wasGrounded=player.grounded;
     const locomotion=directionalLocomotion(player.velocity.x,player.velocity.z,player.yaw);
-    const name=flipping?'Backflip':player.dodgeRemaining>0?'Dodge':!player.grounded?(player.wallSliding?'WallSlide':player.velocity.y>0?'JumpRise':'JumpFall'):(fanActive||mortalActive||this.fanCastTime>0)&&speed<.5?(mortalActive?'MortalCast':'FanCast'):this.landingTime>0?'Land':locomotion.primary;
+    const longFall=this.airborneSeconds>1.15&&player.velocity.y<-8&&!charging&&!performance&&!this.firing.some(t=>t<1)&&this.clips.has('RecordedFall');
+    const name=flipping?'Backflip':player.dodgeRemaining>0?'Dodge':!player.grounded?(player.wallSliding?'WallSlide':player.velocity.y>0?'JumpRise':longFall?'RecordedFall':'JumpFall'):(fanActive||mortalActive||this.fanCastTime>0)&&speed<.5?(mortalActive?'MortalCast':'FanCast'):this.landingTime>0?'Land':locomotion.primary;
     this.play(name);this.clock+=dt*(name.startsWith('Run')?Math.max(.3,speed/9):['Walk','WalkBackward','StrafeLeft','StrafeRight'].includes(name)?Math.max(.3,speed/2.2):1);
     const airborne=['JumpRise','JumpFall','Land','WallSlide'].includes(name),clipName=airborne&&this.clips.has('Jump')?'Jump':name;
     const clip=this.clips.get(clipName)??this.clips.get('Idle')!;
@@ -178,8 +184,26 @@ export class CharacterVisual {
     // Durante o corpo a corpo o clipe precisa reescrever TODAS as juntas antes da camada aditiva.
     // Com o filtro de mira ligado, braço, antebraço e ombro não eram reescritos e o
     // `applyFlutter` multiplicava a mesma junta quadro após quadro — o braço girava sem limite.
-    const lower=(bone:string)=>!aiming||this.meleePose!==undefined||name==='Dodge'||flipping||!upper(bone);
+    if(this.meleePose){
+      const {stepId,phase,progress}=this.meleePose,spec=MELEE_CLIPS[stepId];
+      if(spec&&this.clips.has(spec.clip)){
+        this.machine.sample(spec.clip,meleeClipProgress(stepId,phase,progress),dt*Math.max(1,this.meleeRate));
+        this.root.computeWorldMatrix(true);
+        for(const hand of this.hands)hand?.computeWorldMatrix(true);
+        for(const grip of this.grips)grip?.computeWorldMatrix(true);
+        return;
+      }
+    }
+    const lower=(bone:string)=>!aiming||this.unarmedStance||name==='Dodge'||name==='RecordedFall'||flipping||!upper(bone);
     this.machine.sample(name,progress,dt,lower,clipName);
+    if(name==='RecordedFall'){
+      this.root.computeWorldMatrix(true);for(const grip of this.grips)grip?.computeWorldMatrix(true);return;
+    }
+    const reaction=this.clips.get('RecordedHit');
+    if(reaction&&this.hitReaction>0&&!flipping&&name!=='Dodge'){
+      const p=1-this.hitReaction/.32;
+      this.sample(reaction,p*.45,bone=>bone.startsWith('Spine')||bone==='neck'||bone==='Head',Math.sin(p*Math.PI)*.35);
+    }
     if(name===locomotion.primary&&locomotion.weight>0){
       const second=this.clips.get(locomotion.secondary);
       if(second){
@@ -190,20 +214,10 @@ export class CharacterVisual {
         this.sample(second,progress,bone=>lower(bone)&&(sameCycle||/^(Spine|Head|Neck|(?:Left|Right)(?:Shoulder|Arm|ForeArm|Hand|WeaponGrip))/.test(bone)),locomotion.weight);
       }
     }
-    if(this.meleePose){
-      // O clipe de locomoção já foi amostrado acima: estes ângulos entram POR CIMA dele, então as
-      // pernas continuam andando enquanto o tronco, o quadril e os braços executam o golpe.
-      const {stepId,phase,progress,heavy}=this.meleePose;
-      const pose=meleePose(stepId,phase,progress,heavy?1:.9);
-      this.root.rotation.y+=pose.root.yaw;
-      this.root.rotation.x+=pose.root.pitch;
-      this.root.rotation.z+=pose.root.roll;
-      this.root.computeWorldMatrix(true);
-      this.applyFlutter(pose.bends);
-      this.root.computeWorldMatrix(true);
-      for(const hand of this.hands)hand?.computeWorldMatrix(true);
-      for(const grip of this.grips)grip?.computeWorldMatrix(true);
-      return;
+    if(this.unarmedStance&&!this.dodging&&!flipping){
+      const guard=this.clips.get('ComboRightCross');
+      if(guard)this.sample(guard,0,bone=>speed<.1&&player.grounded||upper(bone)||bone.startsWith('Spine'));
+      this.root.computeWorldMatrix(true);return;
     }
     for(let side=0;side<2;side++)this.firing[side]=Math.min(1,this.firing[side]!+dt/.21);
     this.releaseTime=Math.min(1,this.releaseTime+dt/.3);this.styleTime=Math.max(0,this.styleTime-dt);this.styleClock+=dt;for(let i=0;i<2;i++)this.fanTime[i]=Math.max(0,this.fanTime[i]!-dt);for(const side of [0,1] as const)this.targetTime[side]=Math.max(0,this.targetTime[side]!-dt);

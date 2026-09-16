@@ -103,7 +103,7 @@ type SwarmActor=EnemySwarm['actors'][number];
  */
 export function modeBrief(expedition:boolean,hordeMode:boolean):string {
  const base='Abata pragas para ganhar XP e créditos. Abra baús e combine melhorias. ';
- if(expedition)return base+'Ative os quatro cálices e elimine frutas próximas enquanto estiver na área: o suco das frutas enche cada cálice. Sair preserva o que já foi coletado. Com os quatro prontos, derrote a Praga Alfa e atravesse a fenda.';
+ if(expedition)return base+'Explore as ilhas e encontre o cálice. Ative-o quando estiver preparado: isso inicia a horda final com a Praga Alfa. Elimine frutas próximas dentro da área para coletar suco. Encha o cálice e derrote o chefe para abrir a fenda. Sair preserva o suco coletado.';
  if(hordeMode)return base+'Vença cada horda e recolha o item que cai no campo. A cada cinco ondas, enfrente uma Praga Alfa.';
  return base+'Contenha a infestação até a Praga Alfa aparecer, derrote-a e atravesse a fenda para avançar de estágio.';
 }
@@ -167,7 +167,7 @@ export class RunHUD {
   const totem=expedition?.objectives.interactable(expedition.player);
   const riftOpen=expedition?.objectives.planned?expedition.objectives.phase==='rift':swarm.bossDeadTime>=5;
   shown(this.interactBox,Boolean(entry||loot||totem||(riftOpen&&interact.atRift)));
-  this.interact.set(riftOpen&&interact.atRift?'<b>[E] ATRAVESSAR A FENDA</b><span>Créditos restantes viram XP.</span>':totem?`<b>[E] ATIVAR MARCO ${totem.site.index+1} · ${totem.site.name}</b><span>Colete ${totem.site.juiceTarget} unidades de suco eliminando frutas próximas. Esperar não enche o cálice.</span>`:loot?`<b><i class="item-icon" style='${perkIcon(loot.item.icon)}'></i>${loot.item.name}</b><span>${loot.item.description}</span><span>[E] Recolher item</span>`:entry?`<b>${entry.name} · ◈ ${entry.cost}</b><span>[E] ${entry.kind==='altar'?'Oferecer créditos · 58% de chance':'Abrir · item aleatório'}</span>`:'');
+  this.interact.set(riftOpen&&interact.atRift?'<b>[E] ATRAVESSAR A FENDA</b><span>Créditos restantes viram XP.</span>':totem?`<b>[E] ATIVAR CÁLICE · INICIAR HORDA FINAL</b><span>A Praga Alfa virá. Colete ${totem.site.juiceTarget} unidades de suco e derrote o chefe para abrir a fenda.</span>`:loot?`<b><i class="item-icon" style='${perkIcon(loot.item.icon)}'></i>${loot.item.name}</b><span>${loot.item.description}</span><span>[E] Recolher item</span>`:entry?`<b>${entry.name} · ◈ ${entry.cost}</b><span>[E] ${entry.kind==='altar'?'Oferecer créditos · 58% de chance':'Abrir · item aleatório'}</span>`:'');
   this.toast.set(interact.messageTime>0?interact.message:'');
   this.renderStats(run,Boolean(expedition?.objectives.planned),swarm.director.hordeMode);
   const engine=camera.getEngine(),width=engine.getRenderWidth(),height=engine.getRenderHeight(),viewport=camera.viewport.toGlobal(width,height),transform=camera.getTransformationMatrix();
@@ -247,31 +247,34 @@ export class RunHUD {
  }
  private expeditionMission(objectives:ExpeditionObjectives,player:{x:number;y:number;z:number},heading:number):string {
   if(objectives.phase==='rift')return 'ENTRE NA FENDA · CELEIRO';
-  if(objectives.phase==='boss')return objectives.bossSpawned?'ELIMINE A PRAGA ALFA':'A PRAGA ALFA SE APROXIMA';
   const current=objectives.current;
-  if(current?.state==='charging')return `ENCHA O CÁLICE ${current.site.index+1} · ${Math.floor(current.charged)}/${current.site.juiceTarget} SUCO`;
-  if(current?.state==='paused')return `CÁLICE ${current.site.index+1} PAUSADO · volte à área`;
+  if(objectives.phase==='boss'){
+   if(current?.state==='complete')return 'CÁLICE CHEIO · DERROTE A PRAGA ALFA';
+   if(current?.state==='paused')return 'VOLTE À ÁREA DO CÁLICE · COLETE SUCO';
+   return `HORDA FINAL · ${Math.floor(current?.charged??0)}/${current?.site.juiceTarget??60} SUCO · ${objectives.bossDefeated?'CHEFE DERROTADO':'DERROTE O CHEFE'}`;
+  }
+  if(!objectives.discovered)return 'EXPLORE AS ILHAS · ENCONTRE O CÁLICE';
   const next=objectives.nearestPending(player);
   if(next){
    if(objectives.interactable(player))return `[E] ATIVE O CÁLICE · ${next.totem.site.name}`;
    return `SIGA ${bearingArrow(player,next.totem.site.position,heading)} ${next.totem.site.name} · ${Math.round(next.distance)} m`;
   }
-  return `EXPLORE AS ILHAS · ${objectives.completed}/${objectives.total} CÁLICES`;
+  return 'EXPLORE AS ILHAS · ENCONTRE O CÁLICE';
  }
- /** Rota e distância dos quatro marcos, carga em curso e nível de ressonância. */
+ /** Busca, destino descoberto, carga da horda final e ressonância. */
  private renderExpedition(expedition:{objectives:ExpeditionObjectives;resonance:HarvestResonance;mp:MPCharge;player:{x:number;y:number;z:number};weather?:WeatherCycle}|undefined,camera:Camera,heading:number):void {
   const objectives=expedition?.objectives;
   shown(this.routeBox,Boolean(objectives?.planned));shown(this.meterBox,Boolean(objectives?.planned));
   if(!expedition||!objectives?.planned)return;
   const player=expedition.player,eye=camera.position,pending=objectives.nearestPending(player);
-  const marks=objectives.totems.map(totem=>{
+  const marks=objectives.discovered?objectives.totems.map(totem=>{
    const distance=Math.hypot(totem.site.position.x-player.x,totem.site.position.z-player.z);
    const percent=Math.round(totem.charged/totem.site.juiceTarget*100);
    const label=totem.state==='complete'?'CHEIO':totem.state==='charging'?`${Math.floor(totem.charged)}/${totem.site.juiceTarget} SUCO · ${percent}%`:totem.charged>0?`PAUSADO ${percent}%`:`${totem.site.juiceTarget} SUCO`;
    return `<li class="totem-${totem.state}${pending?.totem===totem?' totem-target':''}"><b>${totem.site.index+1}</b><span>${totem.site.name}<small>${label}</small></span><em>${bearingArrow(eye,totem.site.position,heading)} ${Math.round(distance)} m</em><i style="width:${Math.min(100,percent)}%"></i></li>`;
-  }).join('');
-  const header=objectives.phase==='rift'?'FENDA ABERTA':objectives.phase==='boss'?'ÚLTIMO EVENTO · PRAGA ALFA':`EXPEDIÇÃO · ${objectives.completed}/${objectives.total} MARCOS`;
-  const footer=objectives.messageTime>0?objectives.message:objectives.interactable(player)?'[E] ATIVAR ESTE CÁLICE':objectives.current?'Elimine frutas próximas dentro da área para coletar suco.':'Siga o feixe âmbar. Abra baús no caminho e avance: a dificuldade aumenta com o tempo.';
+  }).join(''):'';
+  const header=objectives.phase==='rift'?'FENDA ABERTA':objectives.phase==='boss'?'HORDA FINAL':objectives.discovered?'CÁLICE ENCONTRADO':'BUSCA DO CÁLICE';
+  const footer=objectives.messageTime>0?objectives.message:objectives.phase==='rift'?'Recolha a recompensa e atravesse a fenda no celeiro.':objectives.interactable(player)?'[E] Ativar inicia a horda final com chefe. Prepare seus itens antes.':objectives.current?.state==='complete'?'O cálice está cheio. Derrote a Praga Alfa para abrir a fenda.':objectives.current?`${objectives.bossDefeated?'Chefe derrotado. ':''}Elimine frutas próximas dentro da área para coletar suco.`:objectives.discovered?'Siga o feixe âmbar até o cálice. Ative quando estiver preparado.':'Procure o feixe âmbar em uma das ilhas. Abra baús e melhore seus equipamentos pelo caminho.';
   this.route.set(`<small>${header}</small><ul>${marks}</ul><span class="route-hint">${footer}</span>`);
   const resonance=expedition.resonance;
   const charges=expedition.mp.maxCharges

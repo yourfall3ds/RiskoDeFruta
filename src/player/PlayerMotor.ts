@@ -3,6 +3,7 @@ import type { EventBus } from '../core/EventBus';
 import type { InputFrame } from '../input/GameInput';
 import type { CollisionWorld } from '../physics/CollisionWorld';
 import { PLAYER_TUNING as t } from './PlayerTuning';
+import {findSafeRecovery,safeRecoverySupport} from './SafeRecovery';
 
 export class PlayerMotor {
   readonly position: Vec3;
@@ -11,6 +12,7 @@ export class PlayerMotor {
   private readonly push={x:0,z:0};
   knockback(direction:Vec3,strength:number):void {const length=Math.hypot(direction.x,direction.z);if(length<.001)return;const force=Math.max(0,Math.min(14,strength));this.push.x=direction.x/length*force;this.push.z=direction.z/length*force;}
   readonly safe: Vec3;
+  private readonly initialSpawn:Vec3;
   hp: number = t.maxHP;
   maxHP:number=t.maxHP;
   debugInvincible=false;
@@ -52,11 +54,14 @@ export class PlayerMotor {
   get backflipProgress():number {return this.retreatRemaining>0?1-this.retreatRemaining/.6:-1;}
   resetAt(spawn:Vec3):void {this.sliding=false;this.slideSeconds=0;this.dashRemaining=0;this.dashCooldown=0;this.dashAirUsed=0;this.slides=0;this.tapClock.clear();this.lastAxis={x:0,z:0};this.bumpRemaining=0;this.sprinting=false;this.regenerationDelay=0;this.push.x=0;this.push.z=0;this.wallKick=0;this.lastWall=undefined;this.wallSliding=false;this.position.x=spawn.x;this.position.y=spawn.y;this.position.z=spawn.z;Object.assign(this.previous,this.position);Object.assign(this.safe,this.position);this.velocity.x=0;this.velocity.y=0;this.velocity.z=0;this.hp=this.maxHP;this.grounded=true;this.charges=t.dodgeCharges;this.recharge=0;this.dodgeRemaining=0;this.retreatRemaining=0;this.airDodged=false;this.airJumpsUsed=0;this.jumpBuffer=0;this.coyote=t.coyoteSeconds;this.invulnerable=1;}
   constructor(private readonly world: CollisionWorld,private readonly events: EventBus<GameEvents>,spawn: Vec3) {
+    this.initialSpawn={...spawn};
     this.position={x:spawn.x,y:spawn.y,z:spawn.z};this.previous={...this.position};this.safe={...this.position};
   }
   fixedUpdate(dt: number,input: InputFrame,yaw: number): void {
     if(this.hp<=0)return;
     if(this.world.insideSolid(this.position,t.height)){
+      const destination=findSafeRecovery(this.world,this.safe,this.initialSpawn);
+      if(destination)Object.assign(this.safe,destination);
       // O dash também precisa morrer aqui: senão o resto do deslocamento empurra de volta para a emenda.
       Object.assign(this.position,this.safe);Object.assign(this.previous,this.safe);this.velocity.x=0;this.velocity.y=0;this.velocity.z=0;this.push.x=0;this.push.z=0;this.dodgeRemaining=0;this.retreatRemaining=0;this.dashRemaining=0;this.sliding=false;this.slideSeconds=0;this.sprinting=false;this.solidRecoveries++;
     }
@@ -142,7 +147,7 @@ export class PlayerMotor {
     this.resolveSteepSlope(dt,ground,oldY,wasGrounded);
     if(this.grounded) {
       this.safeElapsed+=dt;
-      if(this.safeElapsed>=t.safeGroundInterval&&!this.world.onMovingGround(this.position)){Object.assign(this.safe,this.position);this.safeElapsed=0;}
+      if(this.safeElapsed>=t.safeGroundInterval){if(safeRecoverySupport(this.world,this.position))Object.assign(this.safe,this.position);this.safeElapsed=0;}
     } else this.safeElapsed=0;
     if(this.position.y<t.voidHeight) this.respawn();
     if(this.hp>0&&this.regenerationDelay===0)this.hp=Math.min(this.maxHP,this.hp+this.regeneration*dt);
@@ -220,10 +225,13 @@ export class PlayerMotor {
     const damage=this.maxHP*t.voidDamageFraction;
     const context: DamageContext={attackerId:0,victimId:1,sourceId:'void',attackId:'void_return',baseDamage:damage,finalDamage:damage,crit:false,procCoefficient:0,procChainDepth:0,damageTags:['environment'],hitPosition:{...this.position},hitNormal:{x:0,y:1,z:0},forceDirection:{x:0,y:0,z:0},forceMagnitude:0};
     this.applyDamage(context);
+    const destination=findSafeRecovery(this.world,this.safe,this.initialSpawn);
+    if(destination)Object.assign(this.safe,destination);
     Object.assign(this.position,this.safe);Object.assign(this.previous,this.safe);
     this.velocity.x=0;this.velocity.y=0;this.velocity.z=0;this.sprinting=false;this.dodgeRemaining=0;
     // Sem zerar o dash, o resto do deslocamento continuava a partir do ponto seguro.
     this.dashRemaining=0;this.dashAirUsed=0;this.sliding=false;this.slideSeconds=0;
+    this.push.x=0;this.push.z=0;this.retreatRemaining=0;this.wallKick=0;this.wallSliding=false;this.lastWall=undefined;this.jumpBuffer=0;this.safeElapsed=0;
     this.invulnerable=t.respawnProtection;this.grounded=true;this.airDodged=false;this.airJumpsUsed=0;this.respawns++;
   }
   applyDamage(context: DamageContext): void {

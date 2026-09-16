@@ -362,7 +362,7 @@ RIGHT_CROSS = strike(
                          'Left': {'dir': (-.22, -.86, .28), 'ext': .78}},
                    foot={'Right': {'pitch': 2}, 'Left': {'pitch': 4}}), 'smooth'),
         # Contact: hips and spine drive the shoulder through, rear heel lifts onto the ball.
-        at(18, pose(hips={'yaw': -2, 'pitch': 9, 'dz': -.048, 'dy': -.030}, spine={'yaw': 9, 'pitch': 9},
+        at(18, pose(hips={'yaw': -2, 'pitch': 9, 'dz': -.048, 'dy': -.055}, spine={'yaw': 9, 'pitch': 9},
                     neck={'yaw': -4},
                     shoulder={'Right': {'forward': 15}},
                     hand={'Right': {'dir': (.06, -.99, .02), 'ext': .94, 'elbow': (.9, .12, .1)},
@@ -386,25 +386,25 @@ LEFT_HOOK = strike(
     'left-hook', 'ComboLeftHook', .26, .13, .31, [
         at(1, pose()),
         # Coil onto the lead foot and open the elbow: the hook is thrown from the shoulder line.
-        at(7, pose(hips={'yaw': -34, 'dz': -.080, 'dx': .038}, spine={'yaw': -8},
-                   neck={'yaw': 32},
+        at(7, pose(hips={'yaw': 8, 'dz': -.080, 'dx': .038}, spine={'yaw': 8},
+                   neck={'yaw': -12},
                    shoulder={'Left': {'lift': 9, 'forward': 6}},
-                   hand={'Left': {'dir': (.10, -.62, .45), 'ext': .60, 'elbow': (.45, .85, .1)},
+                   hand={'Left': {'dir': (.70, -.15, .20), 'ext': .48, 'elbow': (.45, .85, .1)},
                          'Right': {'dir': (.30, -.60, .58), 'ext': .64}},
                    foot={'Left': {'pitch': 2}, 'Right': {'pitch': 10}}), 'smooth'),
         # Contact: hips rotate past neutral, lead heel turns out on the ball, elbow stays bent.
-        at(17, pose(hips={'yaw': 12, 'pitch': 8, 'dz': -.044, 'dx': -.032, 'dy': -.018}, spine={'yaw': 14, 'pitch': 7},
-                    neck={'yaw': -20},
+        at(17, pose(hips={'yaw': -36, 'pitch': 8, 'dz': -.060, 'dx': -.020, 'dy': -.018}, spine={'yaw': -10, 'pitch': 7},
+                    neck={'yaw': 40},
                     shoulder={'Left': {'lift': 11, 'forward': 14}},
-                    hand={'Left': {'dir': (-.56, -.80, .10), 'ext': .74, 'twist': -22, 'elbow': (.35, .9, .05)},
+                    hand={'Left': {'dir': (-.20, -.95, .03), 'ext': .82, 'twist': -22, 'elbow': (.35, .9, .05)},
                           'Right': {'dir': (.34, -.50, .60), 'ext': .58}},
-                    foot={'Left': {'yaw': 16, 'pitch': 30}, 'Right': {'yaw': -44, 'pitch': 4}}), 'snap'),
-        at(24, pose(hips={'yaw': 19, 'pitch': 7, 'dz': -.048, 'dx': -.040, 'dy': -.024}, spine={'yaw': 16, 'pitch': 7},
-                    neck={'yaw': -26},
+                    foot={'Left': {'yaw': -48, 'pitch': 22}, 'Right': {'yaw': -44, 'pitch': 4}}), 'smooth'),
+        at(24, pose(hips={'yaw': -44, 'pitch': 7, 'dz': -.060, 'dx': -.024, 'dy': -.024}, spine={'yaw': -10, 'pitch': 7},
+                    neck={'yaw': 48},
                     shoulder={'Left': {'lift': 10, 'forward': 13}},
                     hand={'Left': {'dir': (-.78, -.60, .06), 'ext': .68, 'twist': -26, 'elbow': (.3, .9, .05)},
                           'Right': {'dir': (.34, -.48, .62), 'ext': .56}},
-                    foot={'Left': {'yaw': 22, 'pitch': 26}, 'Right': {'yaw': -44, 'pitch': 2}}), 'ease-out'),
+                    foot={'Left': {'yaw': -56, 'pitch': 20}, 'Right': {'yaw': -44, 'pitch': 2}}), 'ease-out'),
         at(33, pose(hips={'yaw': -6, 'dz': -.062}, spine={'yaw': 2},
                     neck={'yaw': 12},
                     hand={'Left': {'dir': (-.46, -.72, .30), 'ext': .66}},
@@ -524,7 +524,7 @@ LEFT_KICK = strike(
                     neck={'yaw': -26},
                     hand={'Left': {'dir': (.22, .28, -.72), 'ext': .70},
                           'Right': {'dir': (.30, -.40, .70), 'ext': .60}},
-                    foot={'Left': {'mode': 'reach', 'dir': (-.34, -.91, .24), 'ext': .88, 'yaw': 30, 'pitch': -12, 'knee': (.9, -.55)},
+                    foot={'Left': {'mode': 'reach', 'dir': (-.24, -.96, .20), 'ext': .94, 'yaw': 30, 'pitch': -12, 'knee': (.9, -.55)},
                           'Right': {'yaw': -88, 'pitch': 14}}), 'snap'),
         at(29, pose(hips={'yaw': 30, 'roll': -12, 'dz': -.040, 'dx': -.048, 'dy': .014},
                     spine={'yaw': 12, 'roll': -8},
@@ -551,10 +551,17 @@ LEFT_KICK = strike(
 
 def spin_key(frame, yaw, easing='smooth', **overrides):
     """The spin turns around the planted lead ball, so the hips ride a circle instead of sliding."""
-    return at(frame, pivot_hips(pose(**overrides), LEAD, yaw), easing)
+    key = pivot_hips(pose(**overrides), LEAD, yaw)
+    # Keep the guard with the turning torso. A world-fixed fist target drove the arm behind
+    # the back halfway through the turn. Head spotting also stays within anatomical range.
+    key['neck']['yaw'] = max(-55., min(55., key['neck']['yaw']))
+    turn = rot('Z', yaw - GUARD['hips']['yaw'])
+    for side in ('Right', 'Left'):
+        key['hand'][side]['dir'] = tuple(turn @ Vector(GUARD['hand'][side]['dir']))
+    return at(frame, key, easing)
 
 SPIN_KICK = strike(
-    'spin-kick', 'ComboSpinKick', .38, .20, .50, [
+    'spin-kick', 'ComboSpinKick', .34, .25, .50, [
         at(1, pose()),
         # Load: the head turns first, the weight crosses to the lead foot, the rear heel comes up.
         spin_key(5, -40, 'smooth',
@@ -578,7 +585,7 @@ SPIN_KICK = strike(
                  hips={'pitch': 10, 'roll': 8, 'dz': -.055}, spine={'yaw': 6, 'pitch': 8}, neck={'yaw': 150, 'pitch': 4},
                  hand={'Right': {'dir': (.20, .30, .50), 'ext': .62},
                        'Left': {'dir': (-.16, .36, .46), 'ext': .62}},
-                 foot={'Right': {'mode': 'reach', 'dir': (-.04, -.95, .30), 'ext': .90, 'yaw': -206, 'pitch': -10, 'knee': (.95, .05)},
+                 foot={'Right': {'mode': 'reach', 'dir': (-.04, -.95, .30), 'ext': .95, 'yaw': -206, 'pitch': -10, 'knee': (.95, .05)},
                        'Left': {'yaw': -150, 'pitch': 26}}),
         spin_key(33, -252, 'ease-out',
                  hips={'pitch': 8, 'roll': 5, 'dz': -.058}, spine={'yaw': 2, 'pitch': 6}, neck={'yaw': 150},

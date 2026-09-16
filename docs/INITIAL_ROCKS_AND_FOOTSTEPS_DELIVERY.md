@@ -1,5 +1,7 @@
 # Initial bridge rocks and directional footsteps
 
+> Historical delivery: the rock layer and multi-chalice flow described below were superseded by [the current delivery](CURRENT_GAMEPLAY_DELIVERY.md).
+
 ## Rocks
 
 Integrated 39 replacements using geometry derived from the existing scanned rock asset.

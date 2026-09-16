@@ -67,7 +67,7 @@ import { FootingPresentation } from '../world/FootingPresentation';
 
 import { RunHUD } from '../ui/RunHUD';
 
-import { ExpeditionObjectives,planExpedition,TOTEM_RADIUS } from '../run/ExpeditionObjectives';
+import { ExpeditionObjectives,planExpedition,chooseChalice,TOTEM_RADIUS } from '../run/ExpeditionObjectives';
 
 import { EXPEDITION_ANCHORS } from '../run/ExpeditionAnchors';
 
@@ -137,7 +137,7 @@ export class PlayerScene implements SceneModule {
 
   private readonly rewardRng:RandomStream;
 
-  /** Expedição padrão: quatro marcos, chefe e fenda. `?mode=horde` e `?mode=classic` mantêm os modos antigos. */
+  /** Expedição: explorar, encontrar o cálice e ativar a horda final com chefe. */
   readonly objectives=new ExpeditionObjectives();
   readonly resonance=new HarvestResonance();
   private expeditionSites:ExpeditionSites|undefined;
@@ -202,7 +202,7 @@ export class PlayerScene implements SceneModule {
 
     const training=mode==='training';
 
-    // Padrão novo: expedição com quatro totens. `?mode=expedition` é a URL EXPLÍCITA dela.
+    // Expedição com um cálice por estágio. Modos legados continuam disponíveis pela URL.
     // Os modos anteriores continuam acessíveis: `?mode=horde` e `?mode=classic` (antigo `legacy`).
     this.directorMode=mode==='horde'?'horde':(mode==='classic'||mode==='legacy')?'classic':'expedition';
 
@@ -257,7 +257,7 @@ export class PlayerScene implements SceneModule {
 
     this.instrumentation=new SceneInstrumentation(this.scene);this.instrumentation.captureFrameTime=true;
 
-    this.events.on('BodyBumped',({strength})=>{this.camera.impulse(.02*strength);this.audio.impact();});
+    this.events.on('BodyBumped',({strength})=>{this.camera.impulse(.02*strength);this.audio.bodyGround(strength);});
 
     this.events.on('Dodged',({direction})=>{this.footing.dodge(direction);this.audio.dodge();this.camera.impulse(.035);});
 
@@ -271,10 +271,10 @@ export class PlayerScene implements SceneModule {
 
     // O timbre do dano recebido segue a origem real do golpe, para o jogador identificar o que o acertou.
     this.events.on('PlayerHit',context=>{this.hud.hit(context,this.input.yaw,this.player.hp,this.player.maxHP);this.camera.hurt(.18,context.forceDirection.x*Math.cos(this.input.yaw)-context.forceDirection.z*Math.sin(this.input.yaw));
-      const tags=context.damageTags;
+      const tags=context.damageTags;if(!tags.includes('dot'))this.visual.reactToHit();
       this.audio.playerHurt(tags.includes('dot')?'dot':tags.includes('fire')?'fire':tags.includes('laser')?'laser':tags.includes('environment')?'environment':/projectile|seed|rush/.test(context.sourceId)?'projectile':'melee');});
 
-    this.events.on('EnemyHit',()=>this.audio.impact());
+    this.events.on('EnemyHit',hit=>{if(!hit.damageTags.includes('melee'))this.audio.impact();});
 
     // Ressonância da Colheita: só acertos reais e mobilidade aérea real alimentam o bônus.
     this.events.on('DamageDealt',hit=>{if(hit.attackerId!==1||hit.finalDamage<=0)return;if(hit.damageTags.includes('melee'))this.resonance.register('melee');else if(hit.damageTags.includes('bullet'))this.resonance.register('shot');});
@@ -317,7 +317,7 @@ export class PlayerScene implements SceneModule {
 
     if(this.yard instanceof FarmWorld)this.yard.fixedUpdate(dt,this.player);
 
-    if(input.reload)this.weapons.requestReload();
+    if(input.reload&&this.unarmed.armed)this.weapons.requestReload();
     // Online: reconcilia com o último seq confirmado antes de prever o passo seguinte; depois envia a intenção deste passo.
     this.net?.reconcile(this.player,dt);
     const stepInput=reloadMovement(input,this.weapons.magazine.reloading);
@@ -330,15 +330,17 @@ export class PlayerScene implements SceneModule {
       this.continuationTier=this.cinematic.tier;
     }
 
-    const released=this.player.hp>0?this.mp.update(dt,input.charging&&!this.weapons.magazine.reloading&&!this.cinematic.active):0;
+    const released=this.player.hp>0?this.mp.update(dt,this.unarmed.armed&&input.charging&&!this.weapons.magazine.reloading&&!this.cinematic.active):0;
 
     if(released){void this.requestSkill(released);return;}
 
-    if(input.stance&&this.unarmed.toggle()){this.weapons.cancelSkills();this.weapons.holstered=!this.unarmed.armed;this.audio.dodge();}
+    if(input.stance&&this.unarmed.toggle()){this.mp.cancel();this.weapons.cancelSkills();this.weapons.holstered=!this.unarmed.armed;this.audio.dodge();}
     this.unarmed.rateMultiplier=stats.attackSpeed;
     const canAct=this.player.dodgeRemaining===0&&this.player.hp>0&&!input.charging;
     if(!this.unarmed.armed&&input.fire&&canAct)this.unarmed.strike();
+    const meleeWasActive=this.unarmed.active;
     this.unarmed.update(dt);
+    if(this.unarmed.active&&!meleeWasActive)this.audio.meleeSwing();
     if(this.unarmed.active)this.resolveMelee();
     this.weapons.fixedUpdate(dt,input.fire&&this.unarmed.armed&&this.weapons.ready&&!input.charging&&this.player.dodgeRemaining===0&&this.player.hp>0);
 
@@ -383,6 +385,8 @@ export class PlayerScene implements SceneModule {
     this.visual.skillPerformance=this.cinematic.active&&!this.cinematic.preparing?{tier:this.cinematic.tier,progress:this.cinematic.actionProgress}:undefined;
     // A revisão do F1 usa o MESMO contrato de pose do combate real, com relógio próprio.
     if(this.meleeReview.active)this.meleeReview.update(this.paused?0:dt);
+    this.visual.unarmedStance=!this.unarmed.armed;
+    this.visual.meleeRate=this.unarmed.rateMultiplier;
     this.visual.meleePose=this.meleeReview.active?this.meleeReview.pose
       :this.unarmed.busy?{stepId:this.unarmed.step.id,phase:this.unarmed.phase,progress:this.unarmed.phaseProgress,heavy:this.unarmed.heavy}:undefined;
     // A continuação entra quando a atuação original termina, sem cortar a fala nem os áudios originais.
@@ -475,9 +479,9 @@ export class PlayerScene implements SceneModule {
       if(this.objectives.planned){
         const pending=this.objectives.nearestPending(this.player.position);
         this.hud.setObjective(this.objectives.phase==='rift'?'Fenda aberta · atravesse no celeiro'
-          :this.objectives.phase==='boss'?'Derrote a Praga Alfa'
-          :pending?`Marco ${pending.totem.site.index+1} · ${Math.round(pending.distance)} m · ${this.objectives.completed}/${this.objectives.total}`
-          :'');
+          :this.objectives.phase==='boss'?'Horda final · encha o cálice e derrote o chefe'
+          :this.objectives.discovered&&pending?`Cálice encontrado · ${Math.round(pending.distance)} m`
+          :'Explore as ilhas · encontre o cálice');
       }
     }
 
@@ -548,7 +552,7 @@ export class PlayerScene implements SceneModule {
   }
 
   /**
-   * Escolhe quatro marcos em piso largo, contínuo e com rota a partir da partida.
+   * Escolhe um cálice em piso largo, contínuo e com rota a partir da partida.
    * Se o relevo disponível não sustentar o raio pedido, tenta raios menores antes de desistir;
    * sem nenhum sítio válido a expedição fica sem plano e o próximo `checkReady` tenta de novo.
    */
@@ -558,11 +562,12 @@ export class PlayerScene implements SceneModule {
     if(this.yard instanceof FarmWorld&&!this.yard.ready)return;
     const swarm=this.enemies,origin:Vec3={x:this.spawn.x,y:this.spawn.y,z:this.spawn.z};
     const reachable=(p:Vec3)=>swarm.tactical?swarm.tactical.reachable(p,origin):true;
-    let sites=planExpedition(this.collision,EXPEDITION_ANCHORS,origin,reachable,4,TOTEM_RADIUS);
-    for(const radius of [8.5,6.5]){if(sites.length>=4)break;sites=planExpedition(this.collision,EXPEDITION_ANCHORS,origin,reachable,4,radius);}
-    if(!sites.length)return;
+    let sites=planExpedition(this.collision,EXPEDITION_ANCHORS,origin,reachable,EXPEDITION_ANCHORS.length,TOTEM_RADIUS);
+    for(const radius of [8.5,6.5]){if(sites.some(s=>s.id!=='initial-field'))break;sites=planExpedition(this.collision,EXPEDITION_ANCHORS,origin,reachable,EXPEDITION_ANCHORS.length,radius);}
+    const choice=chooseChalice(sites,origin,new RunRNG(this.seed+':chalice:'+this.progression.stage).stream('scene'));
+    if(!choice)return;
     this.expeditionPlanned=true;
-    this.objectives.setSites(sites);
+    this.objectives.setSites([choice]);
     this.expeditionSites?.dispose();
     this.expeditionSites=new ExpeditionSites(this.scene,this.collision);
     void this.expeditionSites.load(this.objectives.totems);
@@ -573,10 +578,8 @@ export class PlayerScene implements SceneModule {
     objectives.chargeMultiplier=this.resonance.chargeMultiplier;
     this.resonance.update(dt);
     objectives.update(dt,this.player.position,this.player.hp>0);
-    const active=objectives.current;
-    const charging=active?.state==='charging';
-    // A pressão sobe com o evento: carregar um marco e enfrentar o chefe custam mais que caminhar.
-    swarm.director.pressure=objectives.phase==='boss'?1:charging?.4+.5*(active!.charged/active!.site.juiceTarget):objectives.completed/Math.max(1,objectives.total)*.3;
+    // Exploração mantém a abertura suave; o evento eleva a reposição e o teto de hostis.
+    swarm.director.pressure=objectives.phase==='boss'?1:0;
     if(objectives.phase==='boss'&&!objectives.bossDefeated){
       this.bossRequestClock=Math.max(0,this.bossRequestClock-dt);
       if(!objectives.bossSpawned){
@@ -585,8 +588,9 @@ export class PlayerScene implements SceneModule {
         objectives.updateBoss(dt,swarm.bossReachable);
         if(objectives.needsBossRecovery&&swarm.recoverBoss())objectives.recoveredBoss();
       }
-      if(objectives.bossSpawned&&swarm.boss?.health.dead)objectives.onBossKilled();
+      if(objectives.bossSpawned&&swarm.boss?.health.dead)objectives.onBossKilled(swarm.boss.root.position);
     }
+    if(objectives.phase==='rift'&&!swarm.director.stopped){swarm.director.stopped=true;this.events.emit('StageCompleted',{stageId:String(this.progression.stage)});}
   }
   /**
    * Resolve a etapa ativa do combo: alcance, cone e linha de visão reais.
@@ -618,6 +622,7 @@ export class PlayerScene implements SceneModule {
     if(!(this.enemies instanceof EnemySwarm))return;
     this.progression.advanceStage();this.enemies.nextStage();this.interactables!.reset();
     this.objectives.reset();this.resonance.reset();
+    this.expeditionPlanned=false;this.planExpeditionRoute();
     this.player.maxHP=this.progression.stats.maxHP;this.player.resetAt(this.spawn);
     this.mp.cancel();this.cancelCinematic();this.weapons.cancelSkills();
     this.events.emit('StageStarted',{stageId:String(this.progression.stage),seed:this.seed});
@@ -732,6 +737,17 @@ export class PlayerScene implements SceneModule {
     }
 
     if(name==='barn')this.player.resetAt({x:0,y:5,z:30.8});
+
+    if(name==='safe-return'){
+      this.intro.abort();this.endMeleeReview();this.cancelCinematic();
+      if(this.enemies instanceof EnemySwarm){this.enemies.nextStage();this.enemies.director.stopped=true;}
+      this.player.resetAt({x:44,y:2,z:8});
+      // Reproduce the report: saved checkpoint below the outpost, followed by a void fall.
+      Object.assign(this.player.safe,{x:44,y:-5,z:8});
+      Object.assign(this.player.position,{x:66,y:-30,z:8});
+      this.player.grounded=false;this.player.velocity.y=-20;
+      this.input.yaw=Math.PI/2;this.input.pitch=.02;
+    }
 
     if(name==='shop')this.player.resetAt({x:3,y:0,z:1});
 

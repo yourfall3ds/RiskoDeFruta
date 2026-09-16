@@ -11,7 +11,7 @@ it('scores the expedition by real milestones instead of horde counters',()=>{
  const progression=run();for(let i=0;i<7;i++)progression.reward();
  const summary=attemptSummary(progression,1,0,{mode:'expedition',completed:3,total:4,phase:'totems',bossDefeated:false});
  const score=attemptScore(summary);
- expect(score.progressLabel).toBe('MARCOS CONCLUÍDOS');
+ expect(score.progressLabel).toBe('CÁLICE CHEIO');
  expect(score.progress).toBe(3*SCORE_PER_MILESTONE);
  expect(score.kills).toBe(summary.kills*SCORE_PER_KILL);
  expect(score.items).toBe(3*SCORE_PER_ITEM);
@@ -47,7 +47,7 @@ it('keeps the legacy horde mode scoring untouched',()=>{
 
 it('writes TAB copy for the mode that is actually running',()=>{
  const expedition=modeBrief(true,false),horde=modeBrief(false,true),classic=modeBrief(false,false);
- expect(expedition).toContain('cálices');
+ expect(expedition).toContain('cálice');
  expect(expedition).toContain('suco');
  expect(expedition).toContain('Praga Alfa');
  // Nada de prometer chefe a cada cinco ondas fora do modo horda.

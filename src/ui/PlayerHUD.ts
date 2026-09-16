@@ -66,11 +66,11 @@ export class PlayerHUD {
       this.element.querySelector('h1')!.innerHTML='A colheita<br>se revoltou.';
       // Texto do modo realmente ativo. O antigo prometia item no centro e chefe a cada cinco ondas.
       this.element.querySelector('.gate-card p')!.textContent=mode==='expedition'
-        ?'Ative os quatro cálices da expedição e elimine frutas próximas para enchê-los de suco. Sair da área preserva o suco coletado. As pragas nunca param de chegar: concluir não depende de eliminar todas. Com os quatro marcos prontos, derrote a Praga Alfa e atravesse a fenda.'
+        ?'Explore as ilhas, abra baús e encontre o cálice. Ative-o quando estiver preparado para a horda final com a Praga Alfa. Encha o cálice com o suco das frutas e derrote o chefe para abrir a fenda. Não é necessário eliminar todos os inimigos.'
         :mode==='horde'
         ?'Sobreviva a hordas cada vez mais fortes. Ao vencer cada onda, recolha o item que cai no campo para acumular poder. A cada cinco ondas, enfrente uma Praga Alfa.'
         :'Contenha a infestação até a Praga Alfa aparecer, derrote-a e atravesse a fenda para avançar de estágio.';
-      this.element.querySelector('.controls')!.insertAdjacentHTML('beforeend','<span><kbd>DIREITO</kbd> Carregar habilidade</span><span><kbd>E</kbd> Ativar marco / abrir / recolher</span><span><kbd>W A S D</kbd> ×2 Arrancada</span><span><kbd>V</kbd> Corpo a corpo</span>');
+      this.element.querySelector('.controls')!.insertAdjacentHTML('beforeend','<span><kbd>DIREITO</kbd> Carregar habilidade</span><span><kbd>E</kbd> Ativar cálice / abrir / recolher</span><span><kbd>W A S D</kbd> ×2 Arrancada</span><span><kbd>V</kbd> Corpo a corpo</span>');
     }
     if(farm)this.element.insertAdjacentHTML('beforeend','<div class="class-sigil"><img src="/ui/farm-mark.svg" alt="Divisão agrícola"></div><div class="weapon-readout"><span>PISTOLAS DUPLAS</span><b>50 / 50</b><small>R · RECARREGAR</small></div>');
     const options=document.createElement('div');options.className='game-options';options.innerHTML='<label>Som <input aria-label="Volume do som" type="range" min="0" max="100" value="55"></label>';
@@ -99,7 +99,7 @@ export class PlayerHUD {
     // A barra terminada continuava desenhada a 100% por cima do menu pronto. `.loading` só escondia
     // os controles; o próprio bloco de progresso nunca saía.
     (this.element.querySelector('.loading-progress') as HTMLElement).hidden=true;this.loaded=true;
-    this.button.disabled=false;this.button.textContent='PRESS START · JOGAR' ;this.diagnostic.textContent=this.farm?(this.mode==='expedition'?'Rota da expedição pronta · quatro marcos no mapa':'Siga o caminho até o celeiro'):'Pista pronta · Carregador de 50 balas';}
+    this.button.disabled=false;this.button.textContent='PRESS START · JOGAR' ;this.diagnostic.textContent=this.farm?(this.mode==='expedition'?'Expedição pronta · encontre o cálice nas ilhas':'Siga o caminho até o celeiro'):'Pista pronta · Carregador de 50 balas';}
   fatalReaction(active:boolean,progress=0):void {this.element.classList.toggle('fatal-reaction',active);this.element.style.setProperty('--fatal-flash',String(Math.max(0,1-progress*14)));if(active){this.skipIntro(false);this.gate.hidden=true;this.button.disabled=true;}}
   defeated(summary:AttemptSummary,retry?:()=>void): void {
     this.skipIntro(false);this.fatalReaction(false);this.dead=true;this.gate.hidden=false;this.gate.classList.remove('loading');this.gate.classList.add('defeated');document.body.classList.add('game-menu-open');
@@ -107,10 +107,10 @@ export class PlayerHUD {
     this.element.querySelector('h1')!.textContent='A última colheita.';
     const objectives=summary.objectives,expedition=objectives.mode==='expedition';
     const reached=expedition
-      ?objectives.bossDefeated?'fenda atravessada'
-        :objectives.phase==='rift'?'fenda aberta'
-        :objectives.phase==='boss'?'diante da Praga Alfa'
-        :`${objectives.completed??0} de ${objectives.total??0} marcos`
+      ?objectives.phase==='rift'?'fenda aberta'
+        :objectives.bossDefeated?'chefe derrotado · cálice incompleto'
+        :objectives.phase==='boss'?'na horda final'
+        :'em busca do cálice'
       :objectives.mode==='horde'?`horda ${summary.wave}`
       :objectives.bossDefeated?'Praga Alfa derrotada':'infestação em curso';
     this.element.querySelector('.gate-card p')!.textContent=`Você caiu. Sua história ficou no campo. Estágio ${summary.stage} · Nível ${summary.level} · ${reached}.`;
@@ -143,7 +143,7 @@ export class PlayerHUD {
       retry();this.dead=false;this.entered=false;this.gate.classList.remove('defeated');items.remove();menu.remove();report.remove();
       this.damage.flash=0;this.damage.hold=0;this.damage.amount=0;this.damage.trail=1;
       this.element.querySelector('.gate-card .eyebrow')!.textContent='MUTANT FARM / ILHAS SUSPENSAS';this.element.querySelector('h1')!.textContent='A colheita se revoltou.';
-      this.element.querySelector('.gate-card p')!.textContent=this.mode==='expedition'?'Explore as ilhas, ative os quatro cálices e encha-os com o suco das frutas derrotadas. Depois, enfrente a Praga Alfa.':'Sobreviva às hordas, recolha itens e explore os campos.';
+      this.element.querySelector('.gate-card p')!.textContent=this.mode==='expedition'?'Explore as ilhas e encontre o cálice. Sua ativação inicia a horda final: encha-o de suco e derrote a Praga Alfa.':'Sobreviva às hordas, recolha itens e explore os campos.';
       this.button.textContent='PRESS START · JOGAR';this.button.onclick=()=>{this.setActive(true);this.start();};this.setActive(play);if(play)this.start();
     };
     this.button.onclick=()=>leave(true);menu.onclick=()=>leave(false);
@@ -151,7 +151,11 @@ export class PlayerHUD {
 
   setActive(active: boolean): void {this.playActive=active;const film=this.gate.querySelector<HTMLVideoElement>('video');if(active)film?.pause();else if(film)void film.play().catch(()=>{});document.body.classList.toggle('game-menu-open',!active);this.gate.hidden=active;if(active)this.entered=true;else if(this.entered&&!this.dead){this.element.querySelector('h1')!.textContent='Campo pausado.';this.button.textContent='CONTINUAR EXPEDIÇÃO →';}}
   update(player: PlayerMotor,pistols: DualPistols,error: string,mp: MPCharge,enemies:Pick<EnemyReview,'count'|'kills'|'status'>,dt=1/60): void {
-    const ammo=this.element.querySelector('.weapon-readout b');if(ammo){ammo.textContent=pistols.magazine.ammo+' / '+pistols.magazine.capacity;this.element.querySelector('.weapon-readout small')!.textContent=pistols.magazine.reloading?'RECARREGANDO · '+Math.round(pistols.magazine.progress*100)+'%':'R · RECARREGAR';}
+    const ammo=this.element.querySelector('.weapon-readout b');if(ammo){
+      this.element.querySelector('.weapon-readout span')!.textContent=pistols.holstered?'CORPO A CORPO':'PISTOLAS DUPLAS';
+      ammo.textContent=pistols.holstered?'COMBO':pistols.magazine.ammo+' / '+pistols.magazine.capacity;
+      this.element.querySelector('.weapon-readout small')!.textContent=pistols.holstered?'CLIQUE · GOLPEAR / V · SACAR':pistols.magazine.reloading?'RECARREGANDO · '+Math.round(pistols.magazine.progress*100)+'%':'R · RECARREGAR / V · GUARDAR';
+    }
     const resource=this.element.querySelector('.mp-resource')!;resource.setAttribute('aria-valuenow',String(Math.round(mp.current)));(resource.querySelector('i') as HTMLElement).style.width=mp.current+'%';resource.querySelector('b')!.textContent=Math.floor(mp.current)+' / 100';resource.classList.toggle('mp-low',mp.current<25);
     this.hp.textContent=`${Math.ceil(player.hp)} / ${player.maxHP}`;
     (this.element.querySelector('.hp-current') as HTMLElement).style.width=`${player.hp/player.maxHP*100}%`;

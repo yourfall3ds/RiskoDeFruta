@@ -4,7 +4,7 @@ import {aimArmAt} from '../animation/AimArm';
 import {PointLight} from '@babylonjs/core/Lights/pointLight';
 import {ElementalEffects} from '../vfx/ElementalEffects';
 import {BurningStatus} from '../combat/BurningStatus';
-import {enemyImpact} from '../enemies/EnemyImpact';
+import {enemyImpact,corpseLaunch} from '../enemies/EnemyImpact';
 import { LoadAssetContainerAsync } from '@babylonjs/core/Loading/sceneLoader';
 import type { AssetContainer } from '@babylonjs/core/assetContainer';
 import type { AnimationGroup } from '@babylonjs/core/Animations/animationGroup';
@@ -188,10 +188,12 @@ export class EnemySwarm {
     this.audio?.enemy('hit',a.kind,distance(a.root.position,this.player.position));this.labels.push({position:{x:a.root.position.x,y:a.root.position.y+1.8,z:a.root.position.z},amount:Math.round(finalDamage),crit:applied.crit,time:.7});if(this.labels.length>32)this.labels.shift();
     this.procs.onHit(context,{burn:seconds=>{a.burn=seconds;a.burnClock=0;this.effects.burst(a.root.position,'seed');},blast:radius=>{this.effects.burst(a.root.position,'seed',2);for(const other of this.actors)if(other!==a&&other.active&&!other.health.dead&&distance(other.root.position,a.root.position)<radius)this.hit(other,{...applied,victimId:other.id,baseDamage:finalDamage*.5,finalDamage:finalDamage*.5,procChainDepth:1,sourceProcId:'bomb'});}});
     if(a.health.dead){this.lastKill={position:{x:a.root.position.x,y:a.root.position.y,z:a.root.position.z},kind:a.kind,age:0};this.scheduler.remove(a.id);a.state='dead';a.time=0;this.tactical?.remove(a.id);a.palette.sync();a.ragdoll=this.ragdolls.create(a.skeleton,a.body,applied,a.scale);this.audio?.enemy('death',a.kind,distance(a.root.position,this.player.position));a.body.isPickable=false;a.deathVelocity.set(context.forceDirection.x*3,3,context.forceDirection.z*3);this.kills++;this.progression.reward(a.kind==='boss',ENEMY_AFFIXES[a.variant].gold);const heal=this.procs.onKill();this.player.hp=Math.min(this.player.maxHP,this.player.hp+heal);this.effects.burst(a.root.position,heal?'energy':'juice',a.kind==='boss'?4:1.2);this.fragments.burst(a.kind,a.root.position,context.forceDirection,a.body,a.kind==='boss'?1.6:1);
+      const launch=corpseLaunch(applied);a.deathVelocity.set(launch.x,launch.y,launch.z);
+      if(applied.damageTags.includes('melee_heavy')&&applied.forceMagnitude>=8)this.audio?.meleeLaunch(distance(a.root.position,this.player.position));
       for(const mesh of a.target.meshes??[a.body])mesh.isPickable=false;
       if(context.attackerId===1&&!context.damageTags.some(tag=>tag==='qa'||tag==='debug')&&!/^(qa|debug)/i.test(context.sourceId))
         this.events.emit('FruitHarvested',{sequence:++this.harvestSequence,entityId:a.id,kind:a.kind,position:{x:a.root.position.x,y:a.root.position.y+1,z:a.root.position.z}});
-      if(a.kind==='boss'){this.debris.fracture(a.target.meshes??[a.body],a.body);for(const corpse of this.actors)if(corpse!==a&&corpse.active&&corpse.health.dead&&distance(corpse.root.position,a.root.position)<12){corpse.deathVelocity.x+=(corpse.root.position.x-a.root.position.x)*.8;corpse.deathVelocity.z+=(corpse.root.position.z-a.root.position.z)*.8;corpse.deathVelocity.y=5;}this.director.bossKilled();this.bossDeadTime=this.mode==='classic'?0:-1;this.events.emit('BossKilled',applied);this.events.emit('StageCompleted',{stageId:String(this.progression.stage)});}
+      if(a.kind==='boss'){this.debris.fracture(a.target.meshes??[a.body],a.body);for(const corpse of this.actors)if(corpse!==a&&corpse.active&&corpse.health.dead&&distance(corpse.root.position,a.root.position)<12){corpse.deathVelocity.x+=(corpse.root.position.x-a.root.position.x)*.8;corpse.deathVelocity.z+=(corpse.root.position.z-a.root.position.z)*.8;corpse.deathVelocity.y=5;}this.director.bossKilled();this.bossDeadTime=this.mode==='classic'?0:-1;this.events.emit('BossKilled',applied);if(this.mode!=='expedition')this.events.emit('StageCompleted',{stageId:String(this.progression.stage)});}
     }
   }
   /** Monta a fila de ataque e a contagem de `windup` uma única vez, antes de qualquer pensamento do tique. */

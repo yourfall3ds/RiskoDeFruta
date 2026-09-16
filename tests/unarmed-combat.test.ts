@@ -39,9 +39,9 @@ describe('combate desarmado alternável',()=>{
   it('alterna direita, esquerda, gancho, chute e giro ao encadear',()=>{
     const melee=new UnarmedCombat();melee.toggle();melee.strike();
     const ids:string[]=[melee.step.id];
-    for(let i=0;i<4;i++){runStep(melee,true);ids.push(melee.step.id);}
+    for(let i=0;i<MELEE_TUNING.steps.length-1;i++){runStep(melee,true);ids.push(melee.step.id);}
     expect(ids).toEqual(MELEE_TUNING.steps.map(s=>s.id));
-    expect(melee.heavy).toBe(true); // a quinta etapa é o giro
+    expect(melee.heavy).toBe(true); // a última etapa é o giro
   });
   it('cada etapa ativa causa dano uma única vez por alvo',()=>{
     const melee=new UnarmedCombat();melee.toggle();melee.strike();
@@ -81,7 +81,7 @@ describe('combate desarmado alternável',()=>{
 });
 
 describe('alcance, cone e altura do golpe',()=>{
-  const spin=MELEE_TUNING.steps[4]!,cross=MELEE_TUNING.steps[0]!;
+  const spin=MELEE_TUNING.steps.find(s=>s.id==='spin-kick')!,cross=MELEE_TUNING.steps[0]!;
   const origin={x:0,y:0,z:0};
   it('acerta à frente dentro do alcance',()=>{
     expect(meleeReaches(cross,origin,0,{x:0,y:0,z:2})).toBe(true);

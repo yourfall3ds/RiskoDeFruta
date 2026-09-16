@@ -101,7 +101,7 @@ for (const spec of manifest.clips) {
       shoulderSpan: at('LeftArm').subtract(at('RightArm')).length(),
       effector: null,
     };
-    const striking = spec.id.startsWith('right') || spec.id === 'uppercut' ? 'Right' : 'Left';
+    const striking = spec.id.startsWith('right') || spec.id === 'uppercut' || spec.id === 'spin-kick' ? 'Right' : 'Left';
     row.effector = at(striking + (spec.id.includes('kick') ? 'ToeBase' : 'Hand'));
     frames.push(row);
   }
@@ -165,6 +165,10 @@ for (const spec of manifest.clips) {
   // not, and neither is a clip whose declared contact lands nowhere near the reach.
   const contact = frames[spec.contactFrame - 1];
   const axis = contact.effector.subtract(contact.hips);
+  // Forward strikes are measured toward their target on the horizontal plane. A high guard
+  // is not an early hit merely because its hand is further above the pelvis. Uppercuts retain
+  // the vertical component because their upward reach is the actual strike direction.
+  if(spec.id !== 'uppercut')axis.y=0;
   const along = axis.length() > 1e-6 ? axis.normalize() : new Vector3(0, 0, 1);
   const projection = frames.map(f => Vector3.Dot(f.effector.subtract(f.hips), along));
   const peak = projection.indexOf(Math.max(...projection)) + 1;

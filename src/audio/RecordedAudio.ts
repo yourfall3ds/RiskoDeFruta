@@ -4,7 +4,7 @@ import {
  ENEMY_AUDIO_BOSS_RATE,enemyAudioEventSpec,enemyAudioGroup,enemyAudioLoudness,isEnemyAudioEvent,isEnemyAudioKind,
  type EnemyAudioEvent,type EnemyAudioKind,
 } from './EnemyAudioCatalog';
-/** Downloaded CC0 recordings only: no oscillators, generated noise or synthetic fallback. */
+/** Recorded assets from the licensed library and the user's supplied combat project. */
 
 export interface WeaponAudioOptions {
  /** `null` desliga as substituições do estúdio (testes/servidor). Padrão: painel do usuário. */
@@ -72,15 +72,16 @@ export class WeaponAudio {
 
  update(_dt:number,_intensity=0):void {}
 
- private play(group:string,volume=1,rate=1,pan=0,gap=.05,delay=0):void {
+ private play(group:string,volume=1,rate=1,pan=0,gap=.05,delay=0,maxSeconds=Infinity):void {
 
-  const context=this.context,clips=this.buffers.get(group==='player-hit'?'heavy':group==='player-pistol'?'pistol':group);if(!context||context.state!=='running'||!this.active||!this.enabled||!clips?.length||this.voices>=(group==='player-death'?48:group==='player-pistol'?40:group==='player-hit'?32:18))return;
+  const context=this.context,clips=this.buffers.get(group==='player-pistol'?'pistol':group);if(!context||context.state!=='running'||!this.active||!this.enabled||!clips?.length||this.voices>=(group==='player-death'?48:group==='player-pistol'?40:group==='player-hit'?32:18))return;
 
   const last=this.cooldown.get(group)??-10;if(context.currentTime-last<gap)return;this.cooldown.set(group,context.currentTime);
 
   const index=this.sequence.get(group)??0;this.sequence.set(group,index+1);const source=context.createBufferSource(),gain=context.createGain(),stereo=context.createStereoPanner();
 
   source.buffer=clips[index%clips.length]!;source.playbackRate.value=rate;gain.gain.value=volume*(group!=='player-hit'&&context.currentTime<this.duckUntil?(group==='player-pistol'?.65:.35):1);stereo.pan.value=Math.max(-1,Math.min(1,pan));source.connect(gain);gain.connect(stereo);stereo.connect(this.master!);this.voices++;source.start(context.currentTime+delay);source.onended=()=>{this.voices--;source.disconnect();gain.disconnect();stereo.disconnect();};
+  if(Number.isFinite(maxSeconds)&&source.buffer.duration/rate>maxSeconds){const end=context.currentTime+delay+maxSeconds;gain.gain.setValueAtTime(gain.gain.value,end-.15);gain.gain.linearRampToValueAtTime(0,end);source.stop(end);}
 
  }
 
@@ -105,7 +106,7 @@ export class WeaponAudio {
   this.play('player-hit',.95,rate,0,gap);
   if(source==='laser')this.play('charge',.34,1.3,0,gap);
   else if(source==='projectile')this.play('impact',.4,1.1,0,gap);
-  else this.play('heavy',.34,.9,0,gap);
+  else if(source==='environment')this.play('body-ground',.35,1,0,gap);
  }
 
  /**
@@ -116,11 +117,19 @@ export class WeaponAudio {
   if(id==='ricochet_fan'){this.play('impact',.34,1.22,0,.05);this.play('charge',.14,1.35,0,.12);return;}
   if(id==='backflip_barrage'){this.play('impact',.4,.95,0,.05);this.play('heavy',.22,1.05,0,.12);return;}
   if(id==='harvest_storm'){this.play('heavy',.34,1.12,0,.06);this.play('charge',.18,1.5,0,.14);return;}
-  if(id.startsWith('unarmed_')){const heavy=id.endsWith('spin-kick')||id.endsWith('uppercut');this.play('heavy',heavy?.55:.34,heavy?.82:1.02,0,.05);this.play('impact',heavy?.3:.22,1,0,.05);return;}
+  if(id.startsWith('unarmed_')){
+   const group=id.endsWith('spin-kick')?'melee-heavy-kick':id.endsWith('uppercut')?'melee-heavy-punch':id.includes('kick')?'melee-kick':'melee-punch';
+   this.play(group,.5,1,0,.08);return;
+  }
   this.impact();
  }
 
  impact(heavy=false):void {this.play(heavy?'heavy':'impact',heavy?.5:.32,1,0,.08);}
+ /** Air displacement at the active frame; an impact is played separately only after contact. */
+ meleeSwing():void {this.play('melee-swing',.22,1,0,.08);}
+ /** Only real lethal heavy-melee launches; short fade prevents a long flight loop over combat. */
+ meleeLaunch(distance:number):void {if(distance<24)this.play('melee-launch',.32*Math.max(0,1-distance/24),1,0,.65,0,1.1);}
+ bodyGround(strength=1):void {this.play('body-ground',.4*Math.min(1,strength),1,0,.12);}
 
  /**
   * Entrada pela nave. Usa só gravações já licenciadas do manifest — nenhum arquivo novo, nenhum
