@@ -15,12 +15,26 @@ import type {PlayerMotor} from '../player/PlayerMotor';
 import type {CollisionWorld} from '../physics/CollisionWorld';
 import type {WeaponAudio} from '../audio/WeaponAudio';
 import type {Vec3} from '../core/contracts';
+import {FootstepSync} from '../animation/FootstepSync';
 interface Puddle {x:number;y:number;z:number;width:number;depth:number;mesh:Mesh}
 
 /** A small fixed water/ripple budget and distance-triggered recorded footfalls. */
 export class FootingPresentation {
  private crack:Mesh|undefined;private readonly mirror:MirrorTexture;private reflectionClock=0;private readonly puddles:Puddle[]=[];private readonly water:ShaderMaterial;private time=0;private distance=0;private previous:Vec3;private grounded=true;
  private readonly ripples=Array.from({length:8},()=>[0,0,-100,0]);private rippleIndex=0;
+ /** Fonte de altura dos pés; quando ausente, o passo volta ao gatilho por distância percorrida. */
+ footHeights:(()=>{right:number;left:number}|undefined)|undefined;
+ /**
+  * Gancho opcional para calar o passo sem perder o estado do pé: corpo a corpo, entrada da nave,
+  * morte e qualquer pose autoral que mexa nas pernas sem o corpo se deslocar.
+  *
+  * Fica opcional de propósito — quem liga é o dono do `PlayerScene`, e sem ele o comportamento é o
+  * de hoje. O corte por velocidade já silencia o caso comum (golpe parado); isto cobre o golpe em
+  * movimento e o prólogo. Enquanto calado o `FootstepSync` continua vendo as alturas, então ao
+  * voltar o pé já está no estado certo e não inventa um passo de retomada.
+  */
+ suppressSteps:(()=>boolean)|undefined;
+ readonly steps=new FootstepSync();
  private readonly wind:{mesh:Mesh;life:number;direction:Vector3}[]=[];
  constructor(private readonly scene:Scene,private readonly player:PlayerMotor,private readonly world:CollisionWorld,private readonly audio:WeaponAudio){
   this.previous={...player.position};this.mirror=new MirrorTexture('puddle-scene-reflection',256,scene,true);this.mirror.mirrorPlane=new Plane(0,-1,0,.08);this.mirror.refreshRate=3;this.mirror.renderParticles=false;this.mirror.renderList=[];
@@ -46,7 +60,21 @@ export class FootingPresentation {
  update(dt:number):void {
   this.initialize();this.reflectionClock-=dt;if(this.reflectionClock<=0&&this.puddles.length){this.reflectionClock=.5;const nearest=[...this.puddles].sort((a,b)=>Math.hypot(a.x-this.player.position.x,a.z-this.player.position.z)-Math.hypot(b.x-this.player.position.x,b.z-this.player.position.z))[0]!;const h=nearest.y+.045;this.mirror.mirrorPlane=new Plane(0,-1,0,h);this.water.setFloat('planarHeight',h);this.mirror.renderList=Math.hypot(nearest.x-this.player.position.x,nearest.z-this.player.position.z)<18?this.scene.meshes.filter(m=>m.isEnabled()&&m.isVisible&&m.material!==this.water&&!/element-|arcane-|Ground_|Aura|Condenser|ElectricFlares|SpiralAura|dodge-wind|warning|projectile|charged/i.test(m.name)&&m.getTotalVertices()>0):[];}
   this.time+=dt;const p=this.player.position,moved=Math.hypot(p.x-this.previous.x,p.z-this.previous.z);this.previous={...p};
-  if(dt>0&&this.player.grounded&&this.player.dodgeRemaining<=0){this.distance+=Math.min(1,moved);if(this.distance>1.65||!this.grounded){this.distance=0;const surface=this.surface();this.audio.footstep(surface,Math.hypot(this.player.velocity.x,this.player.velocity.z));if(surface==='water')this.splash(p,!this.grounded?1.5:1);}}
+  // Passo pelo contato real do pé. Sem os ossos disponíveis, mantém o gatilho antigo por distância.
+  const heights=this.footHeights?.();
+  const speed=Math.hypot(this.player.velocity.x,this.player.velocity.z);
+  const footfall=()=>{const surface=this.surface();this.audio.footstep(surface,speed);if(surface==='water')this.splash(p,!this.grounded?1.5:1);};
+  if(dt>0){
+   // Teleporte (respawn, troca de região, entrada da nave) não é passada: a altura guardada do
+   // quadro anterior não vale mais e compará-la produziria uma descida inventada.
+   if(moved>2){this.steps.reset();this.distance=0;}
+   // Esquiva e mortal-reverso mexem as pernas sem ser caminhada; calar é diferente de parar de
+   // medir — parar de medir é justamente o que fazia o passo falso ao voltar ao normal.
+   this.steps.muted=this.player.dodgeRemaining>0||this.player.backflipProgress>=0||this.suppressSteps?.()===true;
+   if(heights)this.steps.update(dt,[{side:0,height:heights.right},{side:1,height:heights.left}],this.player.grounded,speed,footfall);
+   else if(this.steps.muted)this.distance=0;
+   else if(this.player.grounded){this.distance+=Math.min(1,moved);if(this.distance>1.65||!this.grounded){this.distance=0;footfall();}}
+  }
   this.grounded=this.player.grounded;
   this.water.setFloat('time',this.time);this.water.setArray4('ripples',this.ripples.flat());this.water.setVector3('eye',this.scene.activeCamera?.position??Vector3.Zero());
   for(const w of this.wind)if(w.life>0){w.life-=dt;w.mesh.setEnabled(w.life>0);w.mesh.visibility=Math.max(0,w.life/.55);w.mesh.position.addInPlace(w.direction.scale(-dt*2));w.mesh.scaling.scaleInPlace(1+dt*1.6);}

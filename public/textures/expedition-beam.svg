@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="1024" viewBox="0 0 128 1024">
+  <defs>
+    <linearGradient id="halo">
+      <stop stop-color="#fff" stop-opacity="0"/>
+      <stop offset=".25" stop-color="#fff" stop-opacity=".035"/>
+      <stop offset=".43" stop-color="#fff" stop-opacity=".2"/>
+      <stop offset=".5" stop-color="#fff" stop-opacity=".52"/>
+      <stop offset=".57" stop-color="#fff" stop-opacity=".2"/>
+      <stop offset=".75" stop-color="#fff" stop-opacity=".035"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="rise" x1="0" y1="1" x2="0" y2="0">
+      <stop stop-color="#fff" stop-opacity=".45"/>
+      <stop offset=".04" stop-color="#fff" stop-opacity=".95"/>
+      <stop offset=".22" stop-color="#fff" stop-opacity=".8"/>
+      <stop offset=".58" stop-color="#fff" stop-opacity=".35"/>
+      <stop offset=".9" stop-color="#fff" stop-opacity=".06"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <mask id="fade"><rect width="128" height="1024" fill="url(#rise)"/></mask>
+  </defs>
+  <g mask="url(#fade)">
+    <rect width="128" height="1024" fill="url(#halo)"/>
+    <rect x="62" width="4" height="1024" fill="#fff" opacity=".58"/>
+  </g>
+</svg>

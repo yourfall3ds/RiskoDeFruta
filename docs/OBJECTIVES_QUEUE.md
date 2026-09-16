@@ -350,3 +350,8 @@ Novos pedidos entram após a entrega de recompensas em andamento; locomoção e 
 ### Contato real durante recuperação — 14/09
 - [x] Corrigir penetração da malha do personagem e das pistolas; orientar pulsos antes do apoio; teste dos modelos reais em 241 momentos e build aprovados.
 - [ ] Revisão visual contínua com armas, câmera e sensação de peso permanece pendente; render do corpo e testes geométricos não substituem gameplay.
+
+### Menu em queda livre — pedido de 15/09
+- [x] Close no personagem, grande e centralizado à direita do painel, na altura do tronco e com o corpo inteiro no quadro; volta suave ao enquadramento da descida em 1,4 s após Jogar.
+- [x] Queda viva em vez de pose pendurada: `FreefallFlutter` (vento nos braços, pernas alternadas, olhar e rolagem) sobre o quadro único do ArrivalDive, mesmo relógio do menu até a descida e desaparecendo perto do chão; 4 testes.
+- [ ] Revisão do usuário da intensidade do movimento e do sinal da flexão do joelho.

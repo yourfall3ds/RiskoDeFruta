@@ -1,0 +1,48 @@
+{
+  "model": "public/models/harvest-chalice.glb",
+  "source": "art/blender/Harvest_Chalice.blend",
+  "script": "scripts/build-harvest-chalice.py",
+  "reference": "public/images/objectives/harvest-chalice-concept.png",
+  "nodes": {
+    "root": "HarvestChalice",
+    "bowl": "ChaliceCrystalBowl",
+    "frame": "ChaliceBrassFrame",
+    "juice": "ChaliceJuice",
+    "droplet": "ChaliceDroplet",
+    "ChaliceRimAnchor": "ChaliceRimAnchor",
+    "ChaliceJuiceFloorAnchor": "ChaliceJuiceFloorAnchor",
+    "ChaliceGlowAnchor": "ChaliceGlowAnchor"
+  },
+  "materials": {
+    "crystal": "Chalice crystal",
+    "brass": "Chalice aged brass",
+    "juice": "Harvest juice"
+  },
+  "height": 1.543,
+  "rimRadius": 0.62,
+  "footRadius": 0.436,
+  "juiceFloor": 0.672,
+  "juiceCeiling": 1.3,
+  "fillLevels": [
+    0.682,
+    0.9246,
+    1.0414,
+    1.1366,
+    1.2213,
+    1.3
+  ],
+  "morphTargets": [
+    "Fill20",
+    "Fill40",
+    "Fill60",
+    "Fill80",
+    "Fill100"
+  ],
+  "triangles": {
+    "ChaliceCrystalBowl": 5488,
+    "ChaliceBrassFrame": 19464,
+    "ChaliceJuice": 1056,
+    "ChaliceDroplet": 360
+  },
+  "totalTriangles": 26368
+}

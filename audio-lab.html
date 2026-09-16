@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#101716" />
+    <title>Estúdio de sons · Mutant Farm</title>
+    <!-- O visual inteiro vem de src/ui/enemy-audio-lab.css (Codex), importado pelo módulo abaixo. -->
+  </head>
+  <body class="audio-lab">
+    <div id="audio-lab"></div>
+    <noscript>Esta página precisa de JavaScript para decodificar e tocar os sons.</noscript>
+    <script type="module">
+      import { EnemyAudioLab } from '/src/ui/EnemyAudioLab.ts';
+      const root = document.getElementById('audio-lab');
+      // Exposto para depuração manual no console; nenhum som toca sozinho ao abrir.
+      if (root) window.enemyAudioLab = EnemyAudioLab.mount(root);
+    </script>
+  </body>
+</html>

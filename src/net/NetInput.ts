@@ -2,7 +2,7 @@ import { schema, t } from '@colyseus/schema';
 import type { InputFrame } from '../input/InputFrame';
 
 /** Bits de `NetInput.buttons`. Intenções, nunca resultados. */
-export const BUTTON = { FIRE: 1, JUMP: 2, DODGE: 4, CHARGE: 8, RELOAD: 16, INTERACT: 32 } as const;
+export const BUTTON = { FIRE: 1, JUMP: 2, DODGE: 4, CHARGE: 8, RELOAD: 16, INTERACT: 32, DASH: 64, STANCE: 128 } as const;
 
 /**
  * Entrada flat por tick (cliente → servidor), compartilhada entre `server/` e o cliente Babylon.
@@ -18,6 +18,10 @@ export function toFrame(input: NetInput): InputFrame {
   const b = input.buttons;
   const frame: InputFrame = { x: input.x, z: input.z, jump: !!(b & BUTTON.JUMP), dodge: !!(b & BUTTON.DODGE), fire: !!(b & BUTTON.FIRE), charging: !!(b & BUTTON.CHARGE) };
   if (b & BUTTON.RELOAD) frame.reload = true;
+  // O duplo toque é detectado no cliente e viaja como intenção. Derivar a borda dos dois lados
+  // divergia quando o servidor perdia o pacote da soltura entre dois ticks.
+  if (b & BUTTON.DASH) frame.dash = true;
+  if (b & BUTTON.STANCE) frame.stance = true;
   if (b & BUTTON.INTERACT) frame.interact = input.interactOption;
   return frame;
 }
@@ -26,6 +30,7 @@ export function toFrame(input: NetInput): InputFrame {
 export function writeInput(target: NetInput, frame: InputFrame, yaw: number, pitch: number, seq: number): void {
   target.x = frame.x; target.z = frame.z; target.yaw = yaw; target.pitch = pitch; target.seq = seq;
   target.buttons = (frame.fire ? BUTTON.FIRE : 0) | (frame.jump ? BUTTON.JUMP : 0) | (frame.dodge ? BUTTON.DODGE : 0)
-    | (frame.charging ? BUTTON.CHARGE : 0) | (frame.reload ? BUTTON.RELOAD : 0) | (frame.interact !== undefined ? BUTTON.INTERACT : 0);
+    | (frame.charging ? BUTTON.CHARGE : 0) | (frame.reload ? BUTTON.RELOAD : 0) | (frame.dash ? BUTTON.DASH : 0)
+    | (frame.stance ? BUTTON.STANCE : 0) | (frame.interact !== undefined ? BUTTON.INTERACT : 0);
   target.interactOption = frame.interact ?? 0;
 }

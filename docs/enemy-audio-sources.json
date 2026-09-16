@@ -1,0 +1,164 @@
+[
+  {
+    "author": "Independent.nu (enviado por qubodup)",
+    "license": "CC0",
+    "kind": "acústica",
+    "url": "https://opengameart.org/content/8-wet-squish-slurp-impacts",
+    "files": [
+      "wet1",
+      "wet2",
+      "wet3",
+      "wet4",
+      "wet5",
+      "wet6",
+      "wet7",
+      "wet8"
+    ],
+    "use": "Base de polpa molhada: nascer, apanhar, morrer e as camadas úmidas de ataque.",
+    "sha256": {
+      "wet1": "6aee77f43f194cb4ec58058644d8a9f7ec3825b4d1bf95db9efacf5a8897c449",
+      "wet2": "164aea403082be4179208644dcd2f77d115c26f4e666c5911ba1e6fd89b0c925",
+      "wet3": "036e610ddbf8767232b3bf084e134dd2d162d913fd3d0880305acbfd9df2ba8e",
+      "wet4": "7b97739eb84703bf9158e909c9edb33731ba9cde7b96a3a21304a67ffbebf6e7",
+      "wet5": "adf9fbbe3d32c61dfd2c66de9aa42e8c8d2b5bbadceb0d4ee6e9298113e3f3f9",
+      "wet6": "7f335807c36ebc2f7c048168a27d51e6f58c222b7d95e91b7916b7f7dbb40bc0",
+      "wet7": "adae57b90523d754a7b0221876d1c3e4c7b90d5ded732af4895c5b8d0489b640",
+      "wet8": "08620cd7dbeaa27cff28a5295846ee9079be7ec6c83725a4af568b9dcc0d045d"
+    }
+  },
+  {
+    "author": "Independent.nu (enviado por qubodup)",
+    "license": "CC0",
+    "kind": "acústica",
+    "url": "https://opengameart.org/content/5-break-crunch-impacts",
+    "files": [
+      "dry1",
+      "dry2",
+      "dry3",
+      "dry4",
+      "dry5"
+    ],
+    "use": "Base de casca/fibra/farelo: estalos, rachaduras de casca e preparo de golpe.",
+    "sha256": {
+      "dry1": "61425b18d41687bbb3d245416bf763fdf69a5907f15236e01493ad7ea01909eb",
+      "dry2": "aad8f01d79d8cdf07cbe4691fee305d63271dc0bf6abc881349dde4669bfaef9",
+      "dry3": "ecbe1d2f3e2347ef2ce8b251f7972f50d764e5156f92a01e6085d261f7f15ee6",
+      "dry4": "effbbbf7876b3fc9f73c3df89cf20bc72932ad4e1f7e8644319a6572fd563581",
+      "dry5": "adc15673d1767a9ca3e73268e2950653722e620dcbe08c6b9582279b9a069cf3"
+    }
+  },
+  {
+    "author": "Julien Matthey",
+    "license": "CC0",
+    "kind": "acústica",
+    "url": "https://opengameart.org/content/fireball-1",
+    "files": [
+      "fire"
+    ],
+    "use": "Sopro do projétil incendiário do tomate (preparo, disparo e chiado final); também aquece a cauda do feixe da cenoura.",
+    "sha256": {
+      "fire": "3992598c814de25c318780e506aeda673a7e410b7b3c4f0793883483ff9766b8"
+    }
+  },
+  {
+    "author": "qubodup",
+    "license": "CC0",
+    "kind": "acústica",
+    "url": "https://opengameart.org/content/swish-bamboo-stick-weapon-swhoshes",
+    "files": [
+      "air3",
+      "air5"
+    ],
+    "use": "Ar texturizado: deslocamento do projétil do tomate e corpo da carga da cenoura.",
+    "sha256": {
+      "air3": "2111003e4c61b8f3589f926f549ffc36094319da7b99238624c7d64e91bddc09",
+      "air5": "f8e711a61eb4d6f271a2ce71ba355148bc6f53628b21292338a27a9b7673cc1e"
+    }
+  },
+  {
+    "author": "GryffDavid",
+    "license": "CC0",
+    "kind": "acústica",
+    "url": "https://freesound.org/people/GryffDavid/sounds/318964/",
+    "files": [
+      "tick0",
+      "tick1",
+      "tick2",
+      "tick3",
+      "tick4",
+      "tick5"
+    ],
+    "use": "Estalos secos de grão do milho (já usado pelo jogo como casing).",
+    "sha256": {
+      "tick0": "ea9532d5e5bc08b4e8b31245bae231c50d4a36b90de0f8585a46134ea4669edd",
+      "tick1": "763ade12ee222eedbeb6a92dd0e3cf80254610ee0702cee68dda58b427953b2d",
+      "tick2": "0ec6590da55d4602e24eb31820decbe81c3fd60958b7bf94b857e7f7bcda1fea",
+      "tick3": "ca1bb734b713ec8b07e9eed6223c6438c0cb58e69ed3afb67c756f64c4e77f8b",
+      "tick4": "dc1f227d55a118ab1c638a6df09bcdf69a5ddd9b8d7d4f7a9df03afe19af0880",
+      "tick5": "50e14319371f641b6912430ee586abd695fd8d062957d65d12c47d69712f8731"
+    }
+  },
+  {
+    "author": "Kenney",
+    "license": "CC0",
+    "kind": "autoral",
+    "url": "https://kenney.nl/assets/sci-fi-sounds",
+    "files": [
+      "field0",
+      "field2",
+      "beamL",
+      "beamL3",
+      "sub"
+    ],
+    "use": "Carga e disparo do feixe da cenoura (só laserLarge, sem a família retrô) e reforço grave do chefe.",
+    "sha256": {
+      "field0": "c2916f2a062c8ddd1aca2826d134fe90847037db31342726ffb0f9097afe339c",
+      "field2": "051b0eafc479695af4ca3607d41fd4be41bae7c21f4f9508d004722b09f1bd63",
+      "beamL": "e678aca631495b7dfef4ac625f0349875ccac81a60f538d530e072241af3e4bd",
+      "beamL3": "3c7b3c9d856ee31fa1b92d29322f6ee472446627381595baeaba2af35c07135f",
+      "sub": "cdda50600a4928f2f1b8371224d53c171ac799c1cf2c30b11999508985250b3b"
+    }
+  },
+  {
+    "author": "Kenney (espelho: ETdoFresh/kenney.nl @45df48c4)",
+    "license": "CC0",
+    "kind": "autoral",
+    "url": "https://raw.githubusercontent.com/ETdoFresh/kenney.nl/45df48c4d45f8716216b1a9e22df0b69cd9f5932/",
+    "files": [
+      "punchH0",
+      "punchH1",
+      "punchM",
+      "knock",
+      "chop"
+    ],
+    "use": "Corpo e soco dos impactos pesados (grupo heavy, chefe, melancia) e o corte seco do golpe da berinjela. Família impactPunch/impactWood/chop — não é o impactSoft_heavy que o usuário recusou.",
+    "sha256": {
+      "punchH0": "b33a8f14068aec24ec69ba85e5e87fdc41228975f6a1a3e44a6e7d6fc3d9f8d8",
+      "punchH1": "f92f5cb6ba4ff2766497292ffd90865654317eeca976f5652e0708dbdcdc0dd9",
+      "punchM": "486988aa2d6440ffc4c62a0e8ccf3c23673ba84424bd4723378d451b7255eb5c",
+      "knock": "1723a9fd25103ed41af06054814e84e65f4a772bac86ab2dc927da93d9592ff5",
+      "chop": "d00c2b3c9fff07e376145c8c8c45c90e5084ec192f6ce0387db233f7b86f1486"
+    }
+  },
+  {
+    "author": "rubberduck",
+    "license": "CC0",
+    "kind": "autoral",
+    "url": "https://opengameart.org/content/75-cc0-breaking-falling-hit-sfx",
+    "files": [
+      "hitDry",
+      "hitWood",
+      "hitRock",
+      "break1",
+      "break2"
+    ],
+    "use": "Batidas e quebras secas, para variar a textura onde a paleta ficaria só de esguicho molhado.",
+    "sha256": {
+      "hitDry": "2afec5267c68aeef3ffc20edd9364f20035b51bb61a0a25e0d4f4ce2eb4b381d",
+      "hitWood": "841caeb101eeaebcb88afed9cd64db0de1b00c7f3b06835daefaabc95b970337",
+      "hitRock": "a9c0d7e562bdcc7619bb100206305ac2300f9bb7e4533bdfbae46da4289fe994",
+      "break1": "ca1807a8008c74472042b8e1cc06ad723e00ff80a603879ebd7c2e5ba08573c4",
+      "break2": "24e84b95c0fc94a1a5fb9e04edcdabbbfed987e787fcbd9c55c4651ced5c37f8"
+    }
+  }
+]

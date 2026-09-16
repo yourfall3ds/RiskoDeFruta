@@ -6,7 +6,7 @@ import { EventBus } from '../src/core/EventBus';
 import type { GameEvents } from '../src/core/contracts';
 import { EMPTY_INPUT } from '../src/input/GameInput';
 import type { InputFrame } from '../src/input/GameInput';
-import { PLAYER_TUNING as tuning } from '../src/player/PlayerTuning';
+import { PLAYER_TUNING as tuning,WALK_SPEED } from '../src/player/PlayerTuning';
 import { PistolCadence } from '../src/combat/PistolCadence';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 const dt=1/60;
@@ -26,7 +26,7 @@ describe('M1 locomotion',()=>{
     const distances:number[]=[];
     for(const input of [{x:0,z:1},{x:1,z:0},{x:0,z:-1},{x:1,z:1}]){
       const {player}=setup();tick(player,180,input);distances.push(Math.hypot(player.position.x,player.position.z));
-      expect(Math.hypot(player.velocity.x,player.velocity.z)).toBeCloseTo(5.4,3);
+      expect(Math.hypot(player.velocity.x,player.velocity.z)).toBeCloseTo(WALK_SPEED,3);
     }
     for(const d of distances)expect(d).toBeCloseTo(distances[0]!,5);
   });
@@ -80,12 +80,12 @@ describe('M1 collision',()=>{
   });
 });
 describe('M1 weapons and art',()=>{
-  it('alternates pistols at 6.7 shots/s while held and never reloads',()=>{
+  it('alternates pistols at 3.3 shots/s while held and never reloads',()=>{
     const cadence=new PistolCadence();const sides:number[]=[];
     for(let i=0;i<600;i++)cadence.update(dt,true,side=>sides.push(side));
-    expect(sides.length).toBe(67);sides.forEach((side,i)=>expect(side).toBe(i%2));
+    expect(sides.length).toBe(33);sides.forEach((side,i)=>expect(side).toBe(i%2));
     for(let i=0;i<600;i++)cadence.update(dt,false,()=>{throw new Error('Released trigger fired');});
-    expect(cadence.shots).toBe(67);
+    expect(cadence.shots).toBe(33);
   });
   it('ships one skinned mesh with useful locomotion and newly authored combat clips',()=>{
     const bytes=readFileSync('public/models/gunslinger.glb');const gltf=JSON.parse(bytes.toString('utf8',20,20+bytes.readUInt32LE(12)));

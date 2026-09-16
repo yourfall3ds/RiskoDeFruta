@@ -1,0 +1,20 @@
+# Trabalho concreto: relevo, pedras e vegetação
+
+Implemente até terminar estes três requisitos autorizados. Não parar após planejamento ou dizer só que não chegou a fazer. É subtarefa da sessão original; Codex dirige e faz QA visual por CUA. Não usar browser, Playwright/Puppeteer, screenshots, stash/reset/commit/push. Não alterar modelos originais públicos: ler/derivar geometria em runtime ou criar novos arquivos com proveniência, preservando os originais. Falta de assets/ e Blender não impede novas malhas procedurais nem leitura dos GLBs públicos.
+
+Leia docs/SESSION_BRIEF_2026-09-15.md, docs/CLAUDE_DELIVERY_2026-09-15.md e docs/VISUAL_FEEDBACK_2026-09-15.md apenas para contexto e estado. Outro Claude corrige StochasticGroundPlugin; não toque no plugin nem nos testes dele. GroundMaterials.ts já integra o material. Outro autor cuida de PlayerScene, animação, debug, HUD e intro: NÃO editar esses arquivos, áudio, UI ou CSS. Você é dono de FarmWorld.ts, world/streaming, CollisionWorld/TriangleGround se necessário, e novos módulos de mundo/relevo/vento e testes pertinentes. APIs de mundo existentes devem continuar compatíveis. Vento/update pode entrar no FarmWorld.update e recursos regionais sem mexer PlayerScene.
+
+## Regra visual existente
+Respeitar `.claude/skills/no-procedural-3d-in-games`: usar modelos GLB reais e derivar/deformar a geometria deles; não criar chão de cubos/cones/peças primitivas fingindo montanhas/pedras. Há modelos públicos completos para ler e adaptar. A falta dos arquivos de origem não impede usar estes modelos.
+
+## Relevo
+O chão das ilhas é localmente plano demais, estradas retas e vegetação em faixas. Construir variação natural jogável de altura, cristas suaves, terraços/afloramentos e caminhos que conectem esses desníveis. Superfície visível e colisão DEVEM coincidir. Não deslocar apenas shader de vértice deixando piso plano. Respeitar portas, pontes, construções, âncoras de loot; mapear exclusões reais. Modificar malhas derivadas do chão e índice de triângulos/nav de forma coerente. Evitar degraus de conexão nas bordas. Começar campo e uma região grande e ampliar solução reutilizável onde seguro, documentando abrangência real.
+
+## Pedras
+Remover/substituir os picos repetidos das bordas e blocos que interceptam estruturas por afloramentos melhores, usando geometria/rochas existentes com distribuição orgânica e variações de forma/escala. Toda pedra sólida deve ter superfície pisável coerente com mesh, deslizar quando íngreme, sem flutuar ou atravessar. Não adicionar collider invisível sob VFX. Pontes/portas/caminhos obrigatórios livres. Não chamar simples rotação aleatória de refatoração concluída.
+
+## Vegetação
+Vento de baixa amplitude por altura (raiz fixa), fase e intensidade variadas, alpha-test/sombreamento correto, copas mais legíveis próximas. Investigar custo do bosque: QA observou2FPS logo após visita rootwood883,31.1,355, antes38FPS nos planaltos com3regiões retidas. Pode incluir aquecimento; não alegar gargalo permanente sem prova. Um Claude read-only está entregando docs/CLAUDE_ROOTWOOD_PERF_REVIEW.md; leia quando existir. Melhorar densidade percebida sem explodir draws/overdraw e sem pop abrupto. Orçamentos razoáveis para RTX3080Ti; não usar16xxde docs antigos. Vento deve ser compatível com instances/materials frozen e não mover troncos inteiros como borracha.
+
+## Validação e entrega
+Testes reais de correspondência altura visual/colisão, continuidade dos caminhos, pedras/degraus/declives e reset/dispose/streaming. Typecheck e testes focados; não refazer toda suíte a cada ajuste (6falhas de assets originais são baseline). Expor dados/nomes para Codex localizar no jogo; documentar posições de exemplo e alterações em docs/CLAUDE_TERRAIN_VEGETATION_DELIVERY.md. Registre progresso breve nesse mesmo doc conforme cada etapa ficar integrada. Não declarar visual aprovado nem medir FPS sem navegador. Persista até os3itens integrados; sinalize limitações específicas que realmente exigem input externo, não falta presumida de ferramenta.

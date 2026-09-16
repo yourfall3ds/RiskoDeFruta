@@ -1,0 +1,1166 @@
+{
+  "note": "Gerado por scripts/prepare-enemy-audio.py. Medidas tiradas do .ogg já codificado.",
+  "sampleRate": 44100,
+  "assets": {
+    "eggplant-spawn-0.ogg": {
+      "seconds": 0.52,
+      "peak": 0.8608,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 7250,
+      "sha256": "d2f90cb49b2b81b042e32b9847175f7cc6a5d348afdfb89f8c592be3376ea474",
+      "group": "enemy-eggplant-spawn",
+      "sources": [
+        "wet4"
+      ]
+    },
+    "eggplant-spawn-1.ogg": {
+      "seconds": 0.46,
+      "peak": 0.8499,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 8361,
+      "sha256": "25285635d8c102db69dfb094b057d0df1297d2a1b49e43c4909556a0327530bc",
+      "group": "enemy-eggplant-spawn",
+      "sources": [
+        "dry2",
+        "wet3"
+      ]
+    },
+    "eggplant-strain-0.ogg": {
+      "seconds": 0.38,
+      "peak": 0.8228,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 7257,
+      "sha256": "a0f3c74cf553dd07adafc1b80fa3b244a4fd094d90f533d5236da8eaf6904d20",
+      "group": "enemy-eggplant-growl",
+      "sources": [
+        "dry2"
+      ]
+    },
+    "eggplant-strain-1.ogg": {
+      "seconds": 0.34,
+      "peak": 0.8076,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 5931,
+      "sha256": "992cdbcc9112a3290695555b2f51f8346ff0d708f0094e40258f32e21bae36b1",
+      "group": "enemy-eggplant-growl",
+      "sources": [
+        "dry5"
+      ]
+    },
+    "eggplant-attack-0.ogg": {
+      "seconds": 0.178,
+      "peak": 0.925,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 5458,
+      "sha256": "cbfaa95a38bb9a2d7670b1ba86f782148afb572a3c555ed908c2639c9388b2cd",
+      "group": "enemy-eggplant-attack",
+      "sources": [
+        "chop",
+        "dry4",
+        "wet7"
+      ]
+    },
+    "eggplant-attack-1.ogg": {
+      "seconds": 0.168,
+      "peak": 0.8609,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 5378,
+      "sha256": "1b947c742ad07ad68198c3d7d5b1fd8d014a1b97e96273ce6d1dc0dcd3a84660",
+      "group": "enemy-eggplant-attack",
+      "sources": [
+        "chop",
+        "dry3",
+        "wet8"
+      ]
+    },
+    "eggplant-hurt-0.ogg": {
+      "seconds": 0.17,
+      "peak": 0.6909,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 5688,
+      "sha256": "d79cbab4489d98074e47ddbef74dbcc8d179d0e4d80c5162f6099cf6330254ee",
+      "group": "enemy-eggplant-hurt",
+      "sources": [
+        "wet7"
+      ]
+    },
+    "eggplant-hurt-1.ogg": {
+      "seconds": 0.15,
+      "peak": 0.6438,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 5361,
+      "sha256": "b832228189dce2fd168a41df58cdce0b28445f9863d2e8b51f332d8dbd9020d1",
+      "group": "enemy-eggplant-hurt",
+      "sources": [
+        "wet6"
+      ]
+    },
+    "eggplant-death-0.ogg": {
+      "seconds": 0.56,
+      "peak": 0.8786,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 8791,
+      "sha256": "54cc53010eb44bce7e517b2706671d324bd12e7f8dafe655ffa903e3cac0ab63",
+      "group": "enemy-eggplant-death",
+      "sources": [
+        "dry1",
+        "wet1"
+      ]
+    },
+    "eggplant-death-1.ogg": {
+      "seconds": 0.54,
+      "peak": 0.9249,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 7892,
+      "sha256": "add997701ea910be0ec20b4e7de5711cd9cede8a1509e8cb5522adf6f330eca9",
+      "group": "enemy-eggplant-death",
+      "sources": [
+        "dry5",
+        "wet3"
+      ]
+    },
+    "eggplant-impact-0.ogg": {
+      "seconds": 0.2071,
+      "peak": 0.8435,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 4846,
+      "sha256": "72afff58e351a312a4119664b026a9ea098a13e534b7df136e7aab19b8cb3ddd",
+      "group": "enemy-eggplant-heavy",
+      "sources": [
+        "hitWood",
+        "wet3"
+      ]
+    },
+    "eggplant-impact-1.ogg": {
+      "seconds": 0.19,
+      "peak": 0.7865,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 5104,
+      "sha256": "810be49659a7d09c74484221ebb1fa00d345bd6299b850f7bb63e045172ea5be",
+      "group": "enemy-eggplant-heavy",
+      "sources": [
+        "hitDry",
+        "wet4"
+      ]
+    },
+    "corn-spawn-0.ogg": {
+      "seconds": 0.46,
+      "peak": 0.8813,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 9600,
+      "sha256": "fd1498a4e5b582785f6542b59a1fa11b7d193ff8d2a80c3dab77d4eefe685343",
+      "group": "enemy-corn-spawn",
+      "sources": [
+        "dry5",
+        "tick1"
+      ]
+    },
+    "corn-spawn-1.ogg": {
+      "seconds": 0.44,
+      "peak": 0.8404,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 9655,
+      "sha256": "1a910c99e4b62e3bd984f76fbadcb0c4f1f3653ac4a9f30dfb91b55e268611df",
+      "group": "enemy-corn-spawn",
+      "sources": [
+        "dry2",
+        "tick3"
+      ]
+    },
+    "corn-rattle-0.ogg": {
+      "seconds": 0.34,
+      "peak": 0.6977,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 7723,
+      "sha256": "fca03590aa0fba9f8bb7e0477eeae682ed98df0d14d2d9e663025e8632a511d5",
+      "group": "enemy-corn-growl",
+      "sources": [
+        "dry4",
+        "tick0",
+        "tick4"
+      ]
+    },
+    "corn-rattle-1.ogg": {
+      "seconds": 0.32,
+      "peak": 0.6938,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 7629,
+      "sha256": "c040fca6e31f7f4c8eb4dd661ee90fa4cceb2a98c48f101690bafcb1fce2a38a",
+      "group": "enemy-corn-growl",
+      "sources": [
+        "dry3",
+        "tick2",
+        "tick5"
+      ]
+    },
+    "corn-attack-0.ogg": {
+      "seconds": 0.22,
+      "peak": 0.8374,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 6747,
+      "sha256": "d5cf5ebc7f1b71bc70bf7b1f4eec9b2455c2aee55a6a1c587ac8badde7746105",
+      "group": "enemy-corn-attack",
+      "sources": [
+        "dry4",
+        "tick5"
+      ]
+    },
+    "corn-attack-1.ogg": {
+      "seconds": 0.2,
+      "peak": 0.9313,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 6363,
+      "sha256": "3f93162a38e21d6341ef48c2b09dbee103b7378814ff63f8f082f5026443a8bf",
+      "group": "enemy-corn-attack",
+      "sources": [
+        "dry3",
+        "tick0"
+      ]
+    },
+    "corn-hurt-0.ogg": {
+      "seconds": 0.15,
+      "peak": 0.6622,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 5542,
+      "sha256": "cbf4830635968a40a1a12d8c06f49f32d5e83734c2a7cf47356afbd09efe95a6",
+      "group": "enemy-corn-hurt",
+      "sources": [
+        "dry3"
+      ]
+    },
+    "corn-hurt-1.ogg": {
+      "seconds": 0.14,
+      "peak": 0.6732,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 5749,
+      "sha256": "68a8971aba03436982b510d638475e458375baa0704046f3a25fe3132fa9e4d1",
+      "group": "enemy-corn-hurt",
+      "sources": [
+        "dry4"
+      ]
+    },
+    "corn-death-0.ogg": {
+      "seconds": 0.62,
+      "peak": 0.8852,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 10211,
+      "sha256": "11847bf0c29c169d384087c90bcb01e255f4fe317f1efb8ee95ecf8e6b1c45b4",
+      "group": "enemy-corn-death",
+      "sources": [
+        "break1",
+        "dry5",
+        "tick2"
+      ]
+    },
+    "corn-death-1.ogg": {
+      "seconds": 0.58,
+      "peak": 0.9451,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 11450,
+      "sha256": "863b8f906789b219f0f01ecabbe6cbb203f2517d2f4079fc5b8b804a9ae690e6",
+      "group": "enemy-corn-death",
+      "sources": [
+        "break2",
+        "dry2",
+        "tick4"
+      ]
+    },
+    "corn-shot-0.ogg": {
+      "seconds": 0.16,
+      "peak": 0.7594,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 5729,
+      "sha256": "9a496d7ab7a0425f910da629fbb2fce03e77862d34ca4845193274d6208aaddf",
+      "group": "enemy-corn-pistol",
+      "sources": [
+        "dry4",
+        "tick2"
+      ]
+    },
+    "corn-shot-1.ogg": {
+      "seconds": 0.15,
+      "peak": 0.7142,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 5825,
+      "sha256": "ead054117e1aa81d2b4eda1f20f3323b1c888b756a1de6f96c8dc6f0c3e6f63a",
+      "group": "enemy-corn-pistol",
+      "sources": [
+        "dry3",
+        "tick5"
+      ]
+    },
+    "watermelon-spawn-0.ogg": {
+      "seconds": 0.74,
+      "peak": 0.8367,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 7145,
+      "sha256": "5d639a91145785358a6c0429a75480df1daf966f23302f5c80371c3fb26b096a",
+      "group": "enemy-watermelon-spawn",
+      "sources": [
+        "wet5"
+      ]
+    },
+    "watermelon-spawn-1.ogg": {
+      "seconds": 0.7,
+      "peak": 0.8351,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 7077,
+      "sha256": "99a7e012ee0038aa660faa49636677ad9492fc9f96e1a646500619d307e8730c",
+      "group": "enemy-watermelon-spawn",
+      "sources": [
+        "wet2"
+      ]
+    },
+    "watermelon-strain-0.ogg": {
+      "seconds": 0.54,
+      "peak": 0.8181,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 7144,
+      "sha256": "c8943167b2090202c6865b7cb3adb18cb5ad2c68628e36bf119843a591a036f6",
+      "group": "enemy-watermelon-growl",
+      "sources": [
+        "dry1"
+      ]
+    },
+    "watermelon-strain-1.ogg": {
+      "seconds": 0.5,
+      "peak": 0.7877,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 6997,
+      "sha256": "9338ebfbc598628e5db3b14623ddc0632cc07b318dcc1f685eb978bd07122f5e",
+      "group": "enemy-watermelon-growl",
+      "sources": [
+        "dry2"
+      ]
+    },
+    "watermelon-attack-0.ogg": {
+      "seconds": 0.39,
+      "peak": 0.937,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 6318,
+      "sha256": "17c787e446149b7accba080c3012381e5771ceec6c22bd687f7bb5c04efd33ac",
+      "group": "enemy-watermelon-attack",
+      "sources": [
+        "dry4",
+        "punchM",
+        "wet2"
+      ]
+    },
+    "watermelon-attack-1.ogg": {
+      "seconds": 0.37,
+      "peak": 0.8978,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 5995,
+      "sha256": "ab7192dbd92d0c7a2173e2313808aa7741e0f689ca6cb90064ebd3fb493ffa61",
+      "group": "enemy-watermelon-attack",
+      "sources": [
+        "dry3",
+        "punchH1",
+        "wet4"
+      ]
+    },
+    "watermelon-hurt-0.ogg": {
+      "seconds": 0.22,
+      "peak": 0.7636,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 4677,
+      "sha256": "f98807641117bea4ec412b0528962147878928d1fe737387438f0a692289b69a",
+      "group": "enemy-watermelon-hurt",
+      "sources": [
+        "punchM",
+        "wet4"
+      ]
+    },
+    "watermelon-hurt-1.ogg": {
+      "seconds": 0.2,
+      "peak": 0.763,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 4704,
+      "sha256": "8793dad2a8ec2b8797e825b2cd923c3f0dc660b40199b6bf28e37d25bee73188",
+      "group": "enemy-watermelon-hurt",
+      "sources": [
+        "punchH1",
+        "wet3"
+      ]
+    },
+    "watermelon-death-0.ogg": {
+      "seconds": 0.62,
+      "peak": 0.9205,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 7995,
+      "sha256": "7ee6e82f37d2de7b90d648a4ed2536fd35a7bb908e04ba00432fa9dcfe357c50",
+      "group": "enemy-watermelon-death",
+      "sources": [
+        "dry3",
+        "wet1"
+      ]
+    },
+    "watermelon-death-1.ogg": {
+      "seconds": 0.58,
+      "peak": 0.9406,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 7488,
+      "sha256": "d34109f49c60c8f4a74e5a29e36179d02f179caaf24f8ad80b3357391e07d5a7",
+      "group": "enemy-watermelon-death",
+      "sources": [
+        "dry1",
+        "wet5"
+      ]
+    },
+    "watermelon-impact-0.ogg": {
+      "seconds": 0.3,
+      "peak": 0.875,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 6047,
+      "sha256": "e1420b1158f3ca073554f9abe0bc868d06dad544247465c799138110ed745cf8",
+      "group": "enemy-watermelon-heavy",
+      "sources": [
+        "break1",
+        "dry4",
+        "punchH0"
+      ]
+    },
+    "watermelon-impact-1.ogg": {
+      "seconds": 0.28,
+      "peak": 0.8848,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 6385,
+      "sha256": "d935ec06a7cad7ef1f1d3f681f01e1544c8dde54d8ebcbc0ad2f15304809fded",
+      "group": "enemy-watermelon-heavy",
+      "sources": [
+        "break2",
+        "dry3",
+        "punchH1"
+      ]
+    },
+    "tomato-spawn-0.ogg": {
+      "seconds": 0.29,
+      "peak": 0.8322,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 6757,
+      "sha256": "6ef493f5413ae18a437ca42b9d3e5b090d78ac634f15ec0c8e6b6e6d14ef3725",
+      "group": "enemy-tomato-spawn",
+      "sources": [
+        "air3",
+        "wet6"
+      ]
+    },
+    "tomato-spawn-1.ogg": {
+      "seconds": 0.27,
+      "peak": 0.7909,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 6650,
+      "sha256": "9aa3b51c0f99b17d1b9d0f648f491aed091e3d3d1340724a2e990b38fcd0696e",
+      "group": "enemy-tomato-spawn",
+      "sources": [
+        "air5",
+        "wet8"
+      ]
+    },
+    "tomato-ignite-0.ogg": {
+      "seconds": 0.42,
+      "peak": 0.795,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 6553,
+      "sha256": "cf09c064c95731f561fce6c89b282c95619f86fef077470e0ff251dc501af3e4",
+      "group": "enemy-tomato-growl",
+      "sources": [
+        "fire"
+      ]
+    },
+    "tomato-ignite-1.ogg": {
+      "seconds": 0.38,
+      "peak": 0.808,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 6333,
+      "sha256": "876f8b98f2fd92403031d47923bda2d100caa5b5b45b03ec43fc455d26f95ff6",
+      "group": "enemy-tomato-growl",
+      "sources": [
+        "fire"
+      ]
+    },
+    "tomato-attack-0.ogg": {
+      "seconds": 0.58,
+      "peak": 0.8934,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 9011,
+      "sha256": "763082b95b15126c1a54bb63c60c74ea68d4f25115d778893643b82bf5c89c75",
+      "group": "enemy-tomato-attack",
+      "sources": [
+        "fire",
+        "wet7"
+      ]
+    },
+    "tomato-attack-1.ogg": {
+      "seconds": 0.54,
+      "peak": 0.9049,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 8856,
+      "sha256": "3a23067cd8a466197ba13308a62571776cb6eaaaf26dbc1aadd45c207f5c5ffc",
+      "group": "enemy-tomato-attack",
+      "sources": [
+        "fire",
+        "wet6"
+      ]
+    },
+    "tomato-hurt-0.ogg": {
+      "seconds": 0.18,
+      "peak": 0.6747,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 5852,
+      "sha256": "000e5509ee5207bde7142314185b1af72f7917feeb266ce8352722335004cf31",
+      "group": "enemy-tomato-hurt",
+      "sources": [
+        "wet8"
+      ]
+    },
+    "tomato-hurt-1.ogg": {
+      "seconds": 0.16,
+      "peak": 0.7084,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 5701,
+      "sha256": "4c92fef1af10e3dd551b4e83abcfd17ffb7b623ecada135023a54b7bfe1671e4",
+      "group": "enemy-tomato-hurt",
+      "sources": [
+        "wet7"
+      ]
+    },
+    "tomato-death-0.ogg": {
+      "seconds": 0.58,
+      "peak": 0.8332,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 8629,
+      "sha256": "2dfb9c88d535b9142590ae5504864a0043601c7e2947b4e3d25e984dc81f2890",
+      "group": "enemy-tomato-death",
+      "sources": [
+        "fire",
+        "wet1"
+      ]
+    },
+    "tomato-death-1.ogg": {
+      "seconds": 0.55,
+      "peak": 0.908,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 8142,
+      "sha256": "def6644b1f95ec47a965b577089983fe67ef75602ee6b50574ddfa23b9e60233",
+      "group": "enemy-tomato-death",
+      "sources": [
+        "fire",
+        "wet3"
+      ]
+    },
+    "tomato-whoosh-0.ogg": {
+      "seconds": 0.3,
+      "peak": 0.8416,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 6167,
+      "sha256": "c5e035fdf77485872c710e0174d764035dab8d1f8d25d2ec95a59858463c784f",
+      "group": "enemy-tomato-swish",
+      "sources": [
+        "air3",
+        "fire"
+      ]
+    },
+    "tomato-whoosh-1.ogg": {
+      "seconds": 0.28,
+      "peak": 0.821,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 6071,
+      "sha256": "4c8621b940cdb971e0b3d3cb7836f8142818c4d18ce3757bc3521e9c9fc76270",
+      "group": "enemy-tomato-swish",
+      "sources": [
+        "air5",
+        "fire"
+      ]
+    },
+    "carrot-spawn-0.ogg": {
+      "seconds": 0.46,
+      "peak": 0.7856,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 7009,
+      "sha256": "b5f035ebfcf376d20ff4806874853d8f4424bdef0ff932ea318fd771b7a7a2fc",
+      "group": "enemy-carrot-spawn",
+      "sources": [
+        "dry2",
+        "wet4"
+      ]
+    },
+    "carrot-spawn-1.ogg": {
+      "seconds": 0.43,
+      "peak": 0.812,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 6182,
+      "sha256": "40c265b4f1ca11091dc1b03d172a94c93531769ef95a256438b49dce70fce683",
+      "group": "enemy-carrot-spawn",
+      "sources": [
+        "dry5",
+        "wet3"
+      ]
+    },
+    "carrot-charge-0.ogg": {
+      "seconds": 0.62,
+      "peak": 0.8187,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 9084,
+      "sha256": "fda9b59346cd0fb21060044ab3cfca51d833d62eccd60e620f90e339a9ba74b7",
+      "group": "enemy-carrot-growl",
+      "sources": [
+        "air3",
+        "beamL",
+        "field2"
+      ]
+    },
+    "carrot-charge-1.ogg": {
+      "seconds": 0.57,
+      "peak": 0.8227,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 8518,
+      "sha256": "401e0bdf9e969acf98739f4c44fcb757ea0918e8e34767e2ec0e9c3f864a5823",
+      "group": "enemy-carrot-growl",
+      "sources": [
+        "air5",
+        "beamL3",
+        "field0"
+      ]
+    },
+    "carrot-beam-0.ogg": {
+      "seconds": 0.46,
+      "peak": 0.9174,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 7459,
+      "sha256": "05e601b28970ee6220ae643b9071402f6c19068fcc5f77a7b2cadc60a1732f97",
+      "group": "enemy-carrot-attack",
+      "sources": [
+        "air3",
+        "beamL",
+        "fire"
+      ]
+    },
+    "carrot-beam-1.ogg": {
+      "seconds": 0.44,
+      "peak": 0.9201,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 7396,
+      "sha256": "ff97b41f1121460dafb8027c9aff68574becc30e89daa691e4395461eb0b4fce",
+      "group": "enemy-carrot-attack",
+      "sources": [
+        "air5",
+        "beamL3",
+        "fire"
+      ]
+    },
+    "carrot-hurt-0.ogg": {
+      "seconds": 0.16,
+      "peak": 0.6489,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 5873,
+      "sha256": "fba62906938d4fd77e48f117d622e598b45714b87a97b69a5090a6fe930dfd9b",
+      "group": "enemy-carrot-hurt",
+      "sources": [
+        "dry3"
+      ]
+    },
+    "carrot-hurt-1.ogg": {
+      "seconds": 0.15,
+      "peak": 0.6888,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 5505,
+      "sha256": "5c6a16e0ef220cf58cbf8aadd7286548638e8cb6ec2888419af8b5ee11c0005c",
+      "group": "enemy-carrot-hurt",
+      "sources": [
+        "dry5"
+      ]
+    },
+    "carrot-death-0.ogg": {
+      "seconds": 0.54,
+      "peak": 0.8403,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 9064,
+      "sha256": "a63c495f5ae9f7ad6c160a5c8a5e43dc0f73ba3bf31d29927749754802a8e09d",
+      "group": "enemy-carrot-death",
+      "sources": [
+        "chop",
+        "dry1",
+        "wet3"
+      ]
+    },
+    "carrot-death-1.ogg": {
+      "seconds": 0.5,
+      "peak": 0.8703,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 9566,
+      "sha256": "70cc125d7032c1d0118ce6e18e7f4ab8c6ede5846a17efaeeed8af9a1fc81c8f",
+      "group": "enemy-carrot-death",
+      "sources": [
+        "chop",
+        "dry2",
+        "wet4"
+      ]
+    },
+    "carrot-coil-0.ogg": {
+      "seconds": 0.44,
+      "peak": 0.8284,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 7623,
+      "sha256": "1c09339ac3f1dd316cf72d42558c8d503866739f5400cbab571e6361a4a26f34",
+      "group": "enemy-carrot-charge",
+      "sources": [
+        "beamL",
+        "field2"
+      ]
+    },
+    "carrot-coil-1.ogg": {
+      "seconds": 0.41,
+      "peak": 0.8003,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 7268,
+      "sha256": "d6c250c7884d764770f5873f0c347962810c978f93228b6cac12c21041a5e434",
+      "group": "enemy-carrot-charge",
+      "sources": [
+        "beamL3",
+        "field0"
+      ]
+    },
+    "boss-spawn-0.ogg": {
+      "seconds": 0.8,
+      "peak": 0.8842,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 7133,
+      "sha256": "a54ac0ac4b7f8ad7e484006e3be5c6c8e1d6c017a8839db6a56cbbaa182cf5ca",
+      "group": "enemy-boss-spawn",
+      "sources": [
+        "dry3",
+        "punchH0",
+        "sub",
+        "wet5"
+      ]
+    },
+    "boss-spawn-1.ogg": {
+      "seconds": 0.76,
+      "peak": 0.9133,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 7332,
+      "sha256": "50112d96bda1a5a10ae4926d294f2fb92d239969ab8138381dc3c88128b0d355",
+      "group": "enemy-boss-spawn",
+      "sources": [
+        "dry1",
+        "punchH1",
+        "sub",
+        "wet2"
+      ]
+    },
+    "boss-strain-0.ogg": {
+      "seconds": 0.66,
+      "peak": 0.7972,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 7033,
+      "sha256": "10cdd4dad94a7c885ac62317f3d6ffb588e65c71613a997c690d27a404324521",
+      "group": "enemy-boss-growl",
+      "sources": [
+        "dry1"
+      ]
+    },
+    "boss-strain-1.ogg": {
+      "seconds": 0.62,
+      "peak": 0.8351,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 6036,
+      "sha256": "538c230818d65b4f1cc83573bf192e1bb5ceea47f96fbe44810415a539e78232",
+      "group": "enemy-boss-growl",
+      "sources": [
+        "dry5"
+      ]
+    },
+    "boss-attack-0.ogg": {
+      "seconds": 0.612,
+      "peak": 0.9465,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 7097,
+      "sha256": "cd044344c84a027aa52b1853c02e427e49a4f5d6b98564df4cf26482b20db2ba",
+      "group": "enemy-boss-attack",
+      "sources": [
+        "dry4",
+        "punchH0",
+        "sub",
+        "wet2"
+      ]
+    },
+    "boss-attack-1.ogg": {
+      "seconds": 0.572,
+      "peak": 0.9195,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 6956,
+      "sha256": "ff5ab1408a97887ccace85f3823ac20c04ec1528ccf949d7f601d5bc3becc899",
+      "group": "enemy-boss-attack",
+      "sources": [
+        "dry3",
+        "punchH1",
+        "sub",
+        "wet5"
+      ]
+    },
+    "boss-hurt-0.ogg": {
+      "seconds": 0.28,
+      "peak": 0.7388,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 4778,
+      "sha256": "e5c392552e6494e7e2c341aa01b111447fb6b2976c1be2bdcd260a55ddba8d01",
+      "group": "enemy-boss-hurt",
+      "sources": [
+        "punchM",
+        "wet4"
+      ]
+    },
+    "boss-hurt-1.ogg": {
+      "seconds": 0.26,
+      "peak": 0.7883,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 4859,
+      "sha256": "f6e59e481cf2bdf1eab36cef5311ca2ea29a44e0692c1d479c213fb645140172",
+      "group": "enemy-boss-hurt",
+      "sources": [
+        "punchH1",
+        "wet3"
+      ]
+    },
+    "boss-death-0.ogg": {
+      "seconds": 0.87,
+      "peak": 0.9179,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 8539,
+      "sha256": "42fff5c081d191089ad564f988d56ec5faf253dc4e88ea3cde8555da5f7ea67a",
+      "group": "enemy-boss-death",
+      "sources": [
+        "dry5",
+        "punchH0",
+        "sub",
+        "wet1"
+      ]
+    },
+    "boss-death-1.ogg": {
+      "seconds": 0.83,
+      "peak": 0.915,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 8406,
+      "sha256": "4cff6648c0de162580de827cce667607afc4331e732fc8091575e3d186bd453e",
+      "group": "enemy-boss-death",
+      "sources": [
+        "dry3",
+        "punchH1",
+        "sub",
+        "wet5"
+      ]
+    },
+    "boss-impact-0.ogg": {
+      "seconds": 0.42,
+      "peak": 0.9175,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 5426,
+      "sha256": "bacf8ff20d2268ddbd5d3609037eb82763a4463ff282faa7a2f80746ced70b48",
+      "group": "enemy-boss-heavy",
+      "sources": [
+        "punchH0",
+        "sub",
+        "wet2"
+      ]
+    },
+    "boss-impact-1.ogg": {
+      "seconds": 0.4,
+      "peak": 0.9232,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 5107,
+      "sha256": "d67181701ed9a1f28ba87e872266efdeb5ff949cb1700eecf2be5dcb6d555bdb",
+      "group": "enemy-boss-heavy",
+      "sources": [
+        "punchH1",
+        "sub",
+        "wet5"
+      ]
+    },
+    "common-strain-0.ogg": {
+      "seconds": 0.4,
+      "peak": 0.7481,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 7379,
+      "sha256": "2c0c38804ff345934cdc989729fd163adc5fd7e0b750d1c46c4a2da5df5867ab",
+      "group": "growl",
+      "sources": [
+        "dry2"
+      ]
+    },
+    "common-strain-1.ogg": {
+      "seconds": 0.36,
+      "peak": 0.7866,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 6419,
+      "sha256": "7bd6d83abe92223b9af95e28a8920fa50f9e377991c8fa86e239553396651d93",
+      "group": "growl",
+      "sources": [
+        "dry5"
+      ]
+    },
+    "common-strain-2.ogg": {
+      "seconds": 0.34,
+      "peak": 0.8562,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 7065,
+      "sha256": "97394ff72a008ea606779f457012b7e8aa843efd1108435afda673ad6b34b217",
+      "group": "growl",
+      "sources": [
+        "dry1"
+      ]
+    },
+    "common-attack-0.ogg": {
+      "seconds": 0.228,
+      "peak": 0.8884,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 6307,
+      "sha256": "443b86641b99ae204db5b23f497f7384f1b2f4688bd8c6cefff28ffaf8b68c26",
+      "group": "attack",
+      "sources": [
+        "chop",
+        "dry4"
+      ]
+    },
+    "common-attack-1.ogg": {
+      "seconds": 0.22,
+      "peak": 0.8591,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 6031,
+      "sha256": "a29cc15e2e6525f59c933bc9759be116b7c5e0467f768fc28039f32e80adbb81",
+      "group": "attack",
+      "sources": [
+        "dry3",
+        "wet8"
+      ]
+    },
+    "common-attack-2.ogg": {
+      "seconds": 0.2,
+      "peak": 0.8653,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 5662,
+      "sha256": "5fcd4b1d73e4e7f4bdb7459d877818dd645a0c6ded646f982bf3a8ef8e87d5b1",
+      "group": "attack",
+      "sources": [
+        "hitDry",
+        "wet6"
+      ]
+    },
+    "common-hurt-0.ogg": {
+      "seconds": 0.17,
+      "peak": 0.7423,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 5523,
+      "sha256": "15f5cd5b9b4a357c3b49cc1d8d22bc9bda5eb2c7bacafb076a680ae792ab836f",
+      "group": "hurt",
+      "sources": [
+        "wet7"
+      ]
+    },
+    "common-hurt-1.ogg": {
+      "seconds": 0.16,
+      "peak": 0.732,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 5019,
+      "sha256": "011a7ef6aa990c520fb7d8f4a971efe75868c2542db08fb2040c698e6a04fe44",
+      "group": "hurt",
+      "sources": [
+        "hitDry"
+      ]
+    },
+    "common-hurt-2.ogg": {
+      "seconds": 0.15,
+      "peak": 0.7323,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 4587,
+      "sha256": "9b430a7df23bdc8fdc5a1a7f3ebb9b744892f720f39010c9c6ed8d4ecb50fe7e",
+      "group": "hurt",
+      "sources": [
+        "hitWood"
+      ]
+    },
+    "common-death-0.ogg": {
+      "seconds": 0.56,
+      "peak": 0.9135,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 8466,
+      "sha256": "1d86a5f6f3669e6add301f0f47de44b3b7d242c4adb50b668fe48f868622c930",
+      "group": "death",
+      "sources": [
+        "dry1",
+        "wet1"
+      ]
+    },
+    "common-death-1.ogg": {
+      "seconds": 0.52,
+      "peak": 0.9131,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 8286,
+      "sha256": "49e1e5c89f606f04f295ba46441e85ae5574915bad3f751fd1bbdbbcca4c7b4f",
+      "group": "death",
+      "sources": [
+        "dry3",
+        "wet5"
+      ]
+    },
+    "common-spawn-0.ogg": {
+      "seconds": 0.5,
+      "peak": 0.8465,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 6973,
+      "sha256": "6fe5f994e0d92860600ac14214c7c60a2324a4fc17991530e80b0dd7d3037e67",
+      "group": "spawn",
+      "sources": [
+        "wet4"
+      ]
+    },
+    "common-spawn-1.ogg": {
+      "seconds": 0.46,
+      "peak": 0.9207,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 6803,
+      "sha256": "53402706b307969a04fece7ec4b44732037c0451fc5da60700b85e71fe5da32b",
+      "group": "spawn",
+      "sources": [
+        "wet2"
+      ]
+    },
+    "common-heavy-0.ogg": {
+      "seconds": 0.34,
+      "peak": 0.8823,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 5733,
+      "sha256": "b0790a84ec51c788868260565d6de49d819ca9eb5279de26d0d43fa658f598ec",
+      "group": "heavy",
+      "sources": [
+        "dry4",
+        "punchH0"
+      ]
+    },
+    "common-heavy-1.ogg": {
+      "seconds": 0.3,
+      "peak": 0.8709,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 5140,
+      "sha256": "56fcc0e1dea4b329d05930f5681c0bc8ead18a18f9276a9c03272c5d39cd04b8",
+      "group": "heavy",
+      "sources": [
+        "hitWood",
+        "punchH1"
+      ]
+    },
+    "common-heavy-2.ogg": {
+      "seconds": 0.28,
+      "peak": 0.9168,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 5114,
+      "sha256": "4789db0a6e47da71c19177003665392896b4c09e38cda8321b18ba42ec783e48",
+      "group": "heavy",
+      "sources": [
+        "punchM",
+        "wet2"
+      ]
+    },
+    "common-heavy-3.ogg": {
+      "seconds": 0.26,
+      "peak": 0.8801,
+      "rate": 44100,
+      "channels": 1,
+      "bytes": 4896,
+      "sha256": "6f39f98020d49ca4173b463e745a5abd7d3c01b13891582d558fe8c0e7873525",
+      "group": "heavy",
+      "sources": [
+        "hitRock",
+        "knock"
+      ]
+    }
+  }
+}

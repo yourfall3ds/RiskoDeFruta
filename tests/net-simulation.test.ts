@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import {SPRINT_SPEED} from '../src/player/PlayerTuning';
 import { readFileSync, existsSync } from 'node:fs';
 import { FarmSimulation, EMPTY_INPUT, type CollisionData } from '../server/FarmSimulation';
 
@@ -53,7 +54,7 @@ describe('simulação autoritativa da fazenda', () => {
     const sim = await make('coop-c');
     sim.addPlayer('a');
     sim.applyInput('a', { frame: { ...EMPTY_INPUT, fire: true }, yaw: 0, pitch: 0, seq: 1 });
-    run(sim, 60 * 9); // 6,7 tiros/s × 9 s > 50
+    run(sim, 60 * 17); // 3,3 tiros/s × 17 s > 50
     let p = sim.snapshot().players[0]!;
     expect(p.ammo).toBe(0); expect(p.reloading).toBe(false);
     sim.applyInput('a', { frame: { ...EMPTY_INPUT, reload: true }, yaw: 0, pitch: 0, seq: 2 });
@@ -108,5 +109,5 @@ it('recarrega no servidor sem bloquear corrida nem salto',async()=>{
  sim.applyInput('a',{frame:{...EMPTY_INPUT,z:1,dodge:true},yaw:0,pitch:0,seq:2});run(sim,60);
  const before=sim.snapshot().players[0]!;
  sim.applyInput('a',{frame:{...EMPTY_INPUT,z:1,reload:true,jump:true,fire:true},yaw:0,pitch:0,seq:3});run(sim,30);
- const during=sim.snapshot().players[0]!;expect(during.reloading).toBe(true);expect(during.z-before.z).toBeGreaterThan(3.5);expect(during.y-before.y).toBeGreaterThan(1);expect(during.ammo).toBe(before.ammo);
+ const during=sim.snapshot().players[0]!;expect(during.reloading).toBe(true);expect(during.z-before.z).toBeGreaterThan(SPRINT_SPEED*.5*.9);expect(during.y-before.y).toBeGreaterThan(1);expect(during.ammo).toBe(before.ammo);
 });

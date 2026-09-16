@@ -1,4 +1,5 @@
 import {it,expect} from 'vitest';
+import {WALK_SPEED} from '../src/player/PlayerTuning';
 import {readFileSync} from 'node:fs';
 import {CollisionWorld} from '../src/physics/CollisionWorld';
 import {PlayerMotor} from '../src/player/PlayerMotor';
@@ -12,7 +13,7 @@ const data=JSON.parse(readFileSync('public/models/solar-frontier-collision.json'
 function world(){const root=new CollisionWorld(),region=new CollisionWorld();region.setGeometry(data.positions,data.indices);region.boxes.push(...data.boxes);region.prepareRaycasts();root.attachRegion('frontier',region);return root;}
 it.each([0,1,2,3,4,5,6,7])('crosses real frontier bridge %i in both directions without falling or passing through the landing',index=>{
  const w=world(),link=data.walkableLinks[Math.floor(index/2)],a=index%2?link.b:link.a,b=index%2?link.a:link.b,p=new PlayerMotor(w,new EventBus(),{...a}),yaw=Math.atan2(b.x-a.x,b.z-a.z),distance=Math.hypot(b.x-a.x,b.z-a.z);
- for(let i=0;i<Math.ceil(distance/5.4*60)+90;i++){if(Math.hypot(p.position.x-b.x,p.position.z-b.z)<.25)break;p.fixedUpdate(1/60,{...EMPTY_INPUT,z:1},yaw);}
+ for(let i=0;i<Math.ceil(distance/WALK_SPEED*60)+90;i++){if(Math.hypot(p.position.x-b.x,p.position.z-b.z)<.25)break;p.fixedUpdate(1/60,{...EMPTY_INPUT,z:1},yaw);}
  expect(Math.hypot(p.position.x-b.x,p.position.z-b.z)).toBeLessThan(.4);expect(p.position.y).toBeCloseTo(b.y,0);expect(p.respawns).toBe(0);
 });
 it('frontier loot rests on authored terrain and does not overlap permanent structures',()=>{

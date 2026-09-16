@@ -1,10 +1,13 @@
 export type { InputFrame } from './InputFrame';
 export { EMPTY_INPUT } from './InputFrame';
 import type { InputFrame } from './InputFrame';
+import { DoubleTap } from './DoubleTap';
 
 export class GameInput {
   private readonly held = new Set<string>();
+  private readonly taps = new DoubleTap();
   private reload=false;
+  private stance=false;
   private jump = false;
   private dodge = false;
   private interaction:number|undefined;
@@ -28,6 +31,7 @@ export class GameInput {
       if (!e.repeat && e.code.startsWith('Shift')) this.dodge = true;
       if(!e.repeat&&e.code==='KeyR')this.reload=true;
       if(!e.repeat&&e.code==='KeyE')this.interaction=0;
+      if(!e.repeat&&e.code==='KeyV')this.stance=true;
     }, { signal });
     window.addEventListener('keyup', e => this.held.delete(e.code), { signal });
     window.addEventListener('blur', () => this.clear(), { signal });
@@ -57,14 +61,16 @@ export class GameInput {
     try { await this.canvas.requestPointerLock(); } catch { this.onActive(true); }
   }
   read(): InputFrame {
-    const frame = {
-      x: Number(this.held.has('KeyD')) - Number(this.held.has('KeyA')),
-      z: Number(this.held.has('KeyW')) - Number(this.held.has('KeyS')),
-      reload:this.reload,jump: this.jump, dodge: this.dodge, fire: (this.primary||this.primaryPressed) && this.active, charging: this.secondary && this.active,interact:this.interaction,
+    const x = Number(this.held.has('KeyD')) - Number(this.held.has('KeyA'));
+    const z = Number(this.held.has('KeyW')) - Number(this.held.has('KeyS'));
+    const frame: InputFrame = {
+      x, z,
+      reload:this.reload,stance:this.stance,jump: this.jump, dodge: this.dodge, fire: (this.primary||this.primaryPressed) && this.active, charging: this.secondary && this.active,
+      dash: this.taps.read(x, z), interact:this.interaction,
     };
-    this.reload=false;this.jump = false; this.dodge = false;this.primaryPressed=false;this.interaction=undefined;
+    this.reload=false;this.stance=false;this.jump = false; this.dodge = false;this.primaryPressed=false;this.interaction=undefined;
     return frame;
   }
-  clear(): void { this.cancelVersion++;this.held.clear(); this.reload=false;this.jump = false; this.dodge = false; this.primary = false;this.primaryPressed=false; this.secondary = false; this.drag = false;this.interaction=undefined; }
+  clear(): void { this.cancelVersion++;this.held.clear(); this.reload=false;this.stance=false;this.jump = false; this.dodge = false; this.primary = false;this.primaryPressed=false; this.secondary = false; this.drag = false;this.interaction=undefined;this.taps.clear(); }
   dispose(): void { this.clear(); if (this.locked) document.exitPointerLock(); this.controller.abort(); }
 }

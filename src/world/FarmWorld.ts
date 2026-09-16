@@ -10,6 +10,7 @@ import type {AssetContainer} from '@babylonjs/core/assetContainer';
 import {DetailVisibility,type WorldDetail} from './DetailVisibility';
 import { ImportMeshAsync } from '@babylonjs/core/Loading/sceneLoader';
 import { PBRMaterial } from '@babylonjs/core/Materials/PBR/pbrMaterial';
+import { applyStochasticGround } from './materials/GroundMaterials';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { PointLight } from '@babylonjs/core/Lights/pointLight';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
@@ -26,16 +27,39 @@ import { Texture } from '@babylonjs/core/Materials/Textures/texture';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData';
 import { enableRagdollPhysics,ensureRagdollPhysics,addRagdollTerrain,activeRagdollPositions } from '../physics/RagdollWorld';
-
-interface CityCollisionData {positions:number[];indices:number[];boxes:BoxCollider[];surfaces:GroundSurface[];solidPositions:number[];solidIndices:number[];walkableLinks:CollisionWorld['walkableLinks']}
-interface CityResource {container:AssetContainer;data:CityCollisionData;readonly hidden:number;update(dt:number,viewer:Vec3):void;activate():void;dispose():void}
+import { sculptRegion,isSculptedRegion,type SculptedRegion,type OutcropShape } from './terrain/WorldTerrain';
+import { TerrainPresentation } from './terrain/TerrainPresentation';
+import { FoliageWind,hasFoliageWind } from './materials/FoliageMaterials';
 
 /**
- * Peças que não projetam sombra. São grupos numerosos e pequenos — 108 pedras de borda,
- * 96 forrações de terreno, 108 frutas no chão — cujo custo por projetor não se paga:
- * o SSAO já entrega o contato. Copas e troncos continuam projetando.
+ * Geometria da rocha escaneada usada pelos afloramentos, buscada uma única vez por sessão.
+ * É o mesmo arquivo que o servidor lê do disco, então pedra visível e pedra pisável são idênticas.
  */
-export const SHADOW_EXEMPT = /grass|fern|coast_land|harvest\s+(tomato|watermelon)/i;
+let outcropShape:Promise<OutcropShape|undefined>|undefined;
+function loadOutcropShape():Promise<OutcropShape|undefined> {
+  outcropShape??=fetch('/models/outcrop-rocks.json')
+    .then(response=>response.ok?response.json() as Promise<OutcropShape>:undefined)
+    .catch(()=>undefined);
+  return outcropShape;
+}
+
+interface CityCollisionData {positions:number[];indices:number[];boxes:BoxCollider[];surfaces:GroundSurface[];solidPositions:number[];solidIndices:number[];walkableLinks:CollisionWorld['walkableLinks']}
+interface CityResource {container:AssetContainer;data:CityCollisionData;relief:SculptedRegion|undefined;readonly hidden:number;update(dt:number,viewer:Vec3):void;activate():void;dispose():void}
+
+/**
+ * Peças que não projetam sombra. Reexportado de `NearbyShadowCasters`, que é quem aplica a regra:
+ * a cópia divergente que existia aqui fazia o teste de orçamento cobrir um comportamento que o
+ * runtime não tinha.
+ */
+export {SHADOW_EXEMPT} from '../rendering/NearbyShadowCasters';
+
+/**
+ * Alcance, em metros, dentro do qual um ragdoll ainda retém a região onde caiu.
+ *
+ * Fora disso o corpo continua existindo; ele só deixa de segurar a residência da região. O valor é
+ * folgado o bastante para cobrir um combate inteiro em volta do jogador.
+ */
+export const RAGDOLL_HOLD_RANGE=70;
 
 /** Authored Blender composition with local photogrammetry and PBR assets. */
 export class FarmWorld {
@@ -53,6 +77,10 @@ export class FarmWorld {
   private disposed=false;private details:DetailVisibility|undefined;
   get hiddenDetails():number{return (this.details?.hidden??0)+this.regions.readyIds.reduce((n,id)=>n+(this.regions.get(id)?.hidden??0),0);}
   private waterfalls:Waterfalls|undefined;private alien:AlienWorld|undefined;
+  /** Relevo esculpido do campo inicial: mesmos triângulos na colisão e na malha desenhada. */
+  private relief:SculptedRegion|undefined;private terrain:TerrainPresentation|undefined;private wind:FoliageWind|undefined;
+  /** Altura do relevo esculpido do campo, ou undefined fora dele. Exposto para QA e diagnóstico. */
+  sculptedHeightAt(x:number,z:number):number|undefined{return this.relief?.terrain?.heightAt(x,z);}
   constructor(private readonly scene:Scene,readonly collision:CollisionWorld,private readonly shadows:ShadowGenerator,private readonly spatialStreaming=true){
     this.distant=new DistantRegions(scene);
     this.passages=new RegionPassages(scene,collision);this.passages.update(0,[]);
@@ -60,11 +88,19 @@ export class FarmWorld {
       if(!FARM_REGIONS.some(region=>region.id===request.id))throw Error('Unknown world region: '+request.id);
       const response=await fetch(`/models/${request.id}-collision.json`,{signal});if(!response.ok)throw Error('Falha na colisão da cidade agrícola');
       const data=await response.json() as CityCollisionData,physics=new CollisionWorld();
+      // Relevo e afloramentos entram na MALHA da região antes de qualquer índice ser construído,
+      // então colisão, raios, ragdoll e a malha desenhada saem todos dos mesmos triângulos.
+      const relief=isSculptedRegion(request.id)?sculptRegion(request.id,data,await loadOutcropShape()):undefined;
+      signal.throwIfAborted();
       physics.boxes.push(...data.boxes);physics.surfaces.push(...data.surfaces);physics.walkableLinks.push(...data.walkableLinks);
       physics.setGeometry(data.positions,data.indices);physics.setRecoveryVolumes(data.solidPositions,data.solidIndices);await physics.prepareRaycastsAsync();
       signal.throwIfAborted();await ensureRagdollPhysics(scene);signal.throwIfAborted();
-      const container=await LoadAssetContainerAsync(`/models/${request.id}.glb`,scene);let release:(()=>void)|undefined,releaseTerrain:(()=>void)|undefined,presentation:RegionPresentation|undefined;
-      return{container,data,get hidden(){return presentation?.hidden??0;},update:(dt,viewer)=>presentation?.update(dt,viewer),activate:()=>{releaseTerrain=addRagdollTerrain(scene,request.id,data);release=collision.attachRegion(request.id,physics);container.addAllToScene();presentation=new RegionPresentation(scene,container.meshes,shadows,request.id);this.distant.update([...this.regions.readyIds,request.id]);},dispose:()=>{presentation?.dispose();release?.();releaseTerrain?.();container.dispose();this.distant.update(this.regions.readyIds.filter(id=>id!==request.id));}};
+      const container=await LoadAssetContainerAsync(`/models/${request.id}.glb`,scene);let release:(()=>void)|undefined,releaseTerrain:(()=>void)|undefined,presentation:RegionPresentation|undefined,terrain:TerrainPresentation|undefined;
+      return{container,data,relief,get hidden(){return presentation?.hidden??0;},update:(dt,viewer)=>presentation?.update(dt,viewer),activate:()=>{releaseTerrain=addRagdollTerrain(scene,request.id,data);release=collision.attachRegion(request.id,physics);container.addAllToScene();
+       // Antes de `RegionPresentation`: é ela que congela as matrizes de mundo, e a vegetação ainda
+       // precisa subir para a cota nova.
+       if(relief)terrain=new TerrainPresentation(scene,relief,container.meshes);
+       presentation=new RegionPresentation(scene,container.meshes,shadows,request.id);this.distant.update([...this.regions.readyIds,request.id]);},dispose:()=>{terrain?.dispose();presentation?.dispose();release?.();releaseTerrain?.();container.dispose();this.distant.update(this.regions.readyIds.filter(id=>id!==request.id));}};
     },{baseDelay:2,maxDelay:30});
   }
   async load():Promise<void> {
@@ -81,16 +117,22 @@ export class FarmWorld {
       const geometryResponse=await fetch('/models/world-collision-mesh.json');if(!geometryResponse.ok)throw new Error('Falha na colisão das peças do cenário');
       const geometry=await geometryResponse.json() as {positions:number[];indices:number[];boxes:BoxCollider[]};if(this.disposed)return;
       const solidResponse=await fetch('/models/solid-island-collision.json');if(!solidResponse.ok)throw Error('Falha no volume das ilhas');const solid=await solidResponse.json() as typeof geometry;const offset=geometry.positions.length/3;for(const value of solid.positions)geometry.positions.push(value);for(const index of solid.indices)geometry.indices.push(index+offset);geometry.boxes.push(...solid.boxes);
-      this.collision.boxes.push(...geometry.boxes);this.collision.setGeometry(geometry.positions,geometry.indices);await this.collision.prepareRaycastsAsync();if(this.disposed)return;this.collision.setRecoveryVolumes(solid.positions,solid.indices);
+      this.collision.boxes.push(...geometry.boxes);
+      // Relevo do campo inicial: acrescenta os triângulos esculpidos ANTES do índice de colisão.
+      // `geometry.boxes` já traz as caixas do cenário e dos volumes sólidos, que são a fonte das
+      // exclusões — a mesma lista que o servidor monta em `mergeCollision`.
+      this.relief=sculptRegion('base',{positions:geometry.positions,indices:geometry.indices,boxes:[...data.boxes,...geometry.boxes]});
+      this.collision.setGeometry(geometry.positions,geometry.indices);await this.collision.prepareRaycastsAsync();if(this.disposed)return;this.collision.setRecoveryVolumes(solid.positions,solid.indices);
       await enableRagdollPhysics(this.scene,geometry);if(this.disposed)return;
       const tint=WORLD_MATERIAL_TINT;
       for(const material of this.scene.materials)if(material instanceof PBRMaterial&&tint[material.name]){material.albedoColor=Color3.FromHexString(tint[material.name]!);material.roughness=.82;}
       const track=this.scene.materials.find(m=>m.name==='Sunlit farm track');if(track instanceof PBRMaterial){track.metallicTexture=new Texture('/textures/brown_mud_02/arm.jpg',this.scene);track.useRoughnessFromMetallicTextureAlpha=false;track.useRoughnessFromMetallicTextureGreen=true;track.useAmbientOcclusionFromMetallicTextureRed=true;track.roughness=.68;track.metallic=0;}
+      applyStochasticGround(this.scene.materials);
       for(const material of this.scene.materials)if(material instanceof PBRMaterial&&material.albedoTexture)material.albedoTexture.anisotropicFilteringLevel=8;
-      for(const material of this.scene.materials)if(material instanceof PBRMaterial&&/fern|grass|tree/.test(material.name)){
-        material.twoSidedLighting=true;
-        if(material.albedoTexture?.hasAlpha){material.transparencyMode=PBRMaterial.PBRMATERIAL_ALPHATEST;material.alphaCutOff=.4;}
-      }
+      // Alpha-test, iluminação de dois lados e vento de raiz fixa, na mesma passagem.
+      this.wind=new FoliageWind(this.scene.materials);
+      // Vegetação sobe e trilha reconforma antes do congelamento das matrizes, logo abaixo.
+      if(this.relief)this.terrain=new TerrainPresentation(this.scene,this.relief,imported.meshes);
       for(const mesh of imported.meshes){mesh.receiveShadows=true;mesh.isPickable=!/fern|grass|tree/i.test(mesh.name);mesh.computeWorldMatrix(true);
         // includeDescendants=false: sem isso o __root__ do glTF arrasta os 862 nós e fura o filtro.
         mesh.freezeWorldMatrix();}
@@ -105,7 +147,10 @@ export class FarmWorld {
       for(const x of [-4,4]){const light=new PointLight('barn-lantern',new Vector3(x,8.8,27.9),this.scene);light.diffuse=new Color3(1,.48,.12);light.intensity=2.3;light.range=7;}
       const emblem=new StandardMaterial('farm-painted-emblem',this.scene);emblem.diffuseTexture=new Texture('/ui/farm-mark.svg',this.scene);emblem.diffuseTexture.hasAlpha=true;emblem.useAlphaFromDiffuseTexture=true;emblem.backFaceCulling=false;emblem.specularColor=Color3.Black();
       for(const [x,y,z,size] of [[0,13.5,28.84,2.7],[9,13,33.23,1.6],[-8,14,36.63,1.3]] as const){const mark=CreatePlane('farm-leaf-insignia',{size},this.scene);mark.position.set(x,y,z);mark.material=emblem;mark.isPickable=false;mark.freezeWorldMatrix();}
-      const staticMaterials=new Set(imported.meshes.map(mesh=>mesh.material));this.scene.onAfterRenderObservable.addOnce(()=>{for(const material of staticMaterials)material?.freeze();});
+      // Materiais com vento NÃO entram no congelamento: material congelado não refaz o bind, e o
+      // tempo do vento nunca chegaria à GPU — a vegetação travaria numa pose torta.
+      const staticMaterials=new Set(imported.meshes.map(mesh=>mesh.material).filter(material=>!hasFoliageWind(material)));
+      this.scene.onAfterRenderObservable.addOnce(()=>{for(const material of staticMaterials)material?.freeze();});
       this.waterfalls=new Waterfalls(this.scene);this.alien=new AlienWorld(this.scene,this.collision);await this.alien.load();this.ready=true;
     }catch(error){if(!this.disposed)this.error=error instanceof Error?error.message:'Falha no cenário';}
   }
@@ -118,16 +163,39 @@ export class FarmWorld {
     try{await this.regions.settled();return !this.disposed&&this.regions.readyIds.includes(id);}finally{this.requestedVisits.delete(id);}
   }
   get regionStatus():string{return 'Prontas: '+this.regions.readyIds.join(', ')+' · Retidas: '+this.regions.retainedIds.join(', ')+' · Carregando: '+this.regions.loadingCount+this.regions.errors.map(e=>' · '+e.id+': falha '+e.attempts+' / nova tentativa '+Math.ceil(e.retryIn??0)+'s').join('');}
+  /**
+   * Resumo do relevo esculpido residente, para o QA localizar no jogo o que foi gerado.
+   * Formato: `campo 1540 tri · highland-farms 16228 tri, 46 afloramentos, 36859 tri de pedra antiga removidos`.
+   */
+  get reliefStatus():string{
+    const parts:string[]=[];
+    const describe=(label:string,relief:SculptedRegion|undefined)=>{
+      if(!relief)return;
+      const pieces=[`${relief.terrain?.triangles??0} tri`];
+      if(relief.placements.length)pieces.push(`${relief.placements.length} afloramentos`);
+      if(relief.carvedTriangles)pieces.push(`${relief.carvedTriangles} tri de pedra antiga removidos`);
+      parts.push(`${label} ${pieces.join(', ')}`);
+    };
+    describe('campo',this.relief);
+    for(const id of this.regions.readyIds)describe(id,this.regions.get(id)?.relief);
+    return parts.length?parts.join(' · '):'sem relevo esculpido residente';
+  }
   fixedUpdate(dt:number,player:PlayerMotor):void {
     this.alien?.fixedUpdate(dt,player);
     const occupied=new Set(this.collision.regionIdsAt(player.position,.4));
     for(const actor of this.collision.playerBodies.values())if(actor.active())for(const id of this.collision.regionIdsAt(actor.position,actor.radius))occupied.add(id);
-    for(const position of activeRagdollPositions(this.scene))for(const id of this.collision.regionIdsAt(position,3))occupied.add(id);
+    // Só ragdoll PERTO do jogador retém região. Um corpo esquecido num distrito anterior prendia a
+    // região dele em detalhe cheio por tempo indefinido e consumia o orçamento de residência antes
+    // das regiões espaciais — o mecanismo por trás das "3 regiões retidas" vistas no QA do bosque.
+    for(const position of activeRagdollPositions(this.scene)){
+      if(Math.hypot(position.x-player.position.x,position.z-player.position.z)>RAGDOLL_HOLD_RANGE)continue;
+      for(const id of this.collision.regionIdsAt(position,3))occupied.add(id);
+    }
     for(const id of occupied)if(!this.heldRegions.has(id)&&this.regions.readyIds.includes(id))this.heldRegions.set(id,this.regions.retain(id));
     for(const [id,release] of this.heldRegions)if(!occupied.has(id)){release();this.heldRegions.delete(id);}
     if(this.ready){this.requestNearby(player.position);this.regions.update(dt);this.passages.update(dt,this.regions.readyIds,this.regions.errors);}
   }
-  update(dt:number):void {const camera=this.scene.activeCamera;if(camera){this.distant.updateView(dt,camera.globalPosition);this.details?.update(dt,camera.globalPosition);this.baseCasters?.update(dt,camera.globalPosition);for(const id of this.regions.readyIds)this.regions.get(id)?.update(dt,camera.globalPosition);}this.waterfalls?.update(dt);this.alien?.update(dt);}
-  dispose():void {this.disposed=true;this.baseCasters?.dispose();this.details?.restore();this.passages.dispose();this.distant.dispose();this.regions.dispose();for(const release of this.heldRegions.values())release();this.heldRegions.clear();this.alien?.dispose();}
+  update(dt:number):void {this.wind?.update(dt);const camera=this.scene.activeCamera;if(camera){this.distant.updateView(dt,camera.globalPosition);this.details?.update(dt,camera.globalPosition);this.baseCasters?.update(dt,camera.globalPosition);for(const id of this.regions.readyIds)this.regions.get(id)?.update(dt,camera.globalPosition);}this.waterfalls?.update(dt);this.alien?.update(dt);}
+  dispose():void {this.disposed=true;this.terrain?.dispose();this.terrain=undefined;this.wind?.dispose();this.wind=undefined;this.baseCasters?.dispose();this.details?.restore();this.passages.dispose();this.distant.dispose();this.regions.dispose();for(const release of this.heldRegions.values())release();this.heldRegions.clear();this.alien?.dispose();}
 }
 

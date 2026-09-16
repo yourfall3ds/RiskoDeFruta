@@ -1,4 +1,5 @@
 import { CreateBox } from '@babylonjs/core/Meshes/Builders/boxBuilder';
+import {applyStochasticGround} from './materials/GroundMaterials';
 import { CreateCylinder } from '@babylonjs/core/Meshes/Builders/cylinderBuilder';
 import { CreateSphere } from '@babylonjs/core/Meshes/Builders/sphereBuilder';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
@@ -28,7 +29,7 @@ export class TrainingYard {
     const grass=this.material('vegetation','#666d38',1,0);
     const random=rng.stream('scene');
     const soilMap=(name:string,gammaSpace:boolean)=>{const texture=new Texture(`/textures/brown_mud_leaves_01/${name}.jpg`,scene);texture.uScale=12;texture.vScale=12;texture.gammaSpace=gammaSpace;texture.anisotropicFilteringLevel=8;return texture;};
-    earth.albedoTexture=soilMap('Diffuse',true);earth.bumpTexture=soilMap('nor_gl',false);
+    earth.albedoTexture=soilMap('Diffuse',true);earth.bumpTexture=soilMap('nor_gl',false);applyStochasticGround([earth]);
     earth.metallicTexture=soilMap('arm',false);earth.metallic=1;
     earth.useAmbientOcclusionFromMetallicTextureRed=true;earth.useRoughnessFromMetallicTextureGreen=true;
     earth.useRoughnessFromMetallicTextureAlpha=false;earth.useMetallnessFromMetallicTextureBlue=true;

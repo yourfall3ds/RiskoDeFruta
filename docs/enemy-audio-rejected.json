@@ -1,0 +1,91 @@
+{
+  "note": "sha256 do material recusado pelo usuário; nenhum grupo ativo do manifest pode apontar para um arquivo com estes hashes.",
+  "hashes": {
+    "3ef89b6606becb83f812309bb210c5298befc5817eeed3fb919e11539437e8e6": [
+      "enemy-voice-beast-growl-1.wav",
+      "growl-0.wav"
+    ],
+    "9d768ff573f1702807d032973fac0a5da595b44e443eccd4424543953154dc0c": [
+      "enemy-voice-beast-growl-2.wav",
+      "growl-1.wav"
+    ],
+    "bbad5a2588d4fc80934538f1e5c44b20f6903cd1129d4072e6ab20a4847724df": [
+      "enemy-voice-beast-growl-3.wav",
+      "growl-2.wav"
+    ],
+    "cb7df4826c4415fd6b7830906f03be5abb108988798e4381fdad21b43348c739": [
+      "enemy-voice-beast-growl-4.wav",
+      "growl-3.wav"
+    ],
+    "b236686bf2c63fd469bdab299b8d3804bea2b005d3f7cd54be9518e1576c8d6a": [
+      "enemy-voice-beast-growl-5.wav"
+    ],
+    "7b79a0325749b03154697569a9edf06029e52090ae9905c5f86b43a866d5bde0": [
+      "enemy-voice-beast-growl.wav",
+      "spawn-1.wav"
+    ],
+    "555e4171416bc92914579d3f4b3ebb559b44d09999528c89a9cd68e64139ff98": [
+      "enemy-voice-demon-call-one-voice.wav",
+      "spawn-0.wav"
+    ],
+    "b3a369c24ad093b5d1925f2ae416b8a82e47a16d938a70282bec8285468f33a2": [
+      "enemy-voice-demon-call.wav"
+    ],
+    "b9abe7767feca1f40dde579ad1e55f511ba5ba184e05a36fa275f98f512da9b6": [
+      "enemy-voice-demon-growl.wav"
+    ],
+    "2c75efd9d7b3ef05612b4912740655032c89e1bbc8d197312469bf754177a178": [
+      "enemy-voice-dieing-beast.wav",
+      "death-0.wav"
+    ],
+    "13ef33dc074a2dc9566d12e59fe5f05ed6c3c70b683671ea7c287c08bc62cc47": [
+      "enemy-voice-dieing-pixie.wav",
+      "death-1.wav"
+    ],
+    "a2f832820b890d91acdbacae4eae94825f44a11b1fd560d938767f38db4f7b2a": [
+      "enemy-voice-pixie.wav"
+    ],
+    "d93302e35b870ba5ddc64fe6b35181ad9199153ef38e0615349d294437dc0ebb": [
+      "enemy-voice-spirit-shout.wav"
+    ],
+    "eb59d437330ded12c012162c899a992cffd5579edc9006ef7ded0f4fd97fb5d5": [
+      "enemy-voice-yucky-beast-1.wav",
+      "attack-0.wav"
+    ],
+    "165054ace564ebad05ca40488a56d2eb39532bfaecaff34324acc8384f9fa73d": [
+      "enemy-voice-yucky-beast-2.wav",
+      "attack-1.wav"
+    ],
+    "5f5d4f39ca264c1bedd784d9a9273de9a085bffbdbc0fd214feec4918a8d7a64": [
+      "enemy-voice-yucky-beast-3.wav",
+      "attack-2.wav"
+    ],
+    "4c3e8b2769300ffdb6337b5e82919dcf2b3f6f55829d1714a06fe176779954bc": [
+      "enemy-voice-yucky-beast-4.wav",
+      "hurt-0.wav"
+    ],
+    "3bacbf172502ae8ed3543ceb12649ea6fa095d7ab4ba8152816749658efd4717": [
+      "enemy-voice-yucky-beast-5.wav",
+      "hurt-1.wav"
+    ],
+    "f7f3092b0d94c891e369df362c1968f0c11355b5bb877c18a43d133030328bd8": [
+      "enemy-voice-yucky-beast-6.wav",
+      "hurt-2.wav"
+    ],
+    "81b038c99595e55e36e7fd36f490f91bea2aa800666b50b3a27a86b4c2850f6b": [
+      "enemy-voice-yucky-beast.wav"
+    ],
+    "49e7ca88743fca974bb8676ea138b751cfd8f9033b5e7af8736c2a215d6edbc1": [
+      "heavy-0.ogg"
+    ],
+    "4d0096364ba9e46119d2ff6df493fdc101bd2e1efae061da5e5f77a53b3fdcb6": [
+      "heavy-1.ogg"
+    ],
+    "d130ae541951243d3f6ed963d0057450a445ffe117fbf9a084d34eb1635cb563": [
+      "heavy-2.ogg"
+    ],
+    "d00286a2dc62ee5cb4d42bf56120e7050a855f69e655fc1294410aadd337eba3": [
+      "heavy-3.ogg"
+    ]
+  }
+}

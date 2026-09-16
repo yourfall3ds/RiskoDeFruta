@@ -1,4 +1,6 @@
 import {waveRewardSite} from './WaveRewardSite';
+import {resolveRewardPlacement,type RewardSource} from './RewardAnchor';
+import type {Vec3} from '../core/contracts';
 import {DistrictContracts} from './DistrictContracts';
 import {CITY_CHESTS,cityChestColliders,FRONTIER_CHESTS,frontierChestColliders,HIGHLAND_CHESTS,highlandChestColliders,ROOTWOOD_CHESTS,rootwoodChestColliders} from '../world/ExplorationSites';
 import type {BoxCollider} from '../physics/CollisionWorld';
@@ -62,12 +64,20 @@ export class RunInteractables {
   }catch(error){this.error=String(error);}}
   private lid(entry:Interactable,progress:number):void{for(const clip of entry.openClips??[])for(const track of clip.targetedAnimations){const value=track.animation.evaluate(clip.from+(clip.to-clip.from)*progress);if(value instanceof Quaternion)track.target.rotationQuaternion=value.clone();else if(value instanceof Vector3)track.target.position.copyFrom(value);}}
   update(dt:number,riftReady:boolean):void {this.rewardRetry=Math.max(0,this.rewardRetry-dt);for(const e of this.entries)if(e.used&&(e.opening??0)<1){e.opening=Math.min(1,(e.opening??0)+dt/ .8);this.lid(e,e.opening);if(e.opening>=.4&&e.loot&&!e.ejected){this.drops.eject(e.loot,{x:e.x,y:e.y,z:e.z},this.player.position);e.ejected=true;}}this.drops.update(dt);this.time+=dt;this.portal.setFloat('time',this.time);this.messageTime=Math.max(0,this.messageTime-dt);this.nearest=this.entries.filter(e=>!e.used&&Math.hypot(e.x-this.player.position.x,e.z-this.player.position.z)<3&&Math.abs(e.y-this.player.position.y)<2).sort((a,b)=>Math.hypot(a.x-this.player.position.x,a.z-this.player.position.z)-Math.hypot(b.x-this.player.position.x,b.z-this.player.position.z))[0];this.rift.setEnabled(riftReady);this.riftLight.intensity=riftReady?3:0;if(riftReady){this.rift.rotation.z=this.time*.16;this.rift.scaling.setAll(1+Math.sin(this.time*2)*.025);}}
-  deliverWaveReward(rng:RandomStream):boolean {
+  /**
+   * A recompensa cai onde morreu o monstro que concluiu o evento; se aquele ponto não tiver piso
+   * seguro (morte no ar, em beirada), escorrega para o anel seguro mais próximo. Sem abate válido
+   * — evento concluído só por tempo — usa a âncora do objetivo e, por último, o campo mais próximo.
+   * Nada disso exige eliminar todos os inimigos.
+   */
+  deliverWaveReward(rng:RandomStream,anchors:{position:Vec3|undefined;source:RewardSource}[]=[]):boolean {
     if(this.rewardRetry>0)return false;
-    const site=waveRewardSite(this.world,this.player.position);if(!site){this.rewardRetry=1;return false;}
+    const placement=resolveRewardPlacement(this.world,anchors);
+    const site=placement?{name:placement.source==='kill'?'Onde a praga caiu':'Área do objetivo',position:placement.position}:waveRewardSite(this.world,this.player.position);
+    if(!site){this.rewardRetry=1;return false;}
     const item=this.run.randomItem(rng);
     this.drops.eject(item,site.position,{x:site.position.x,y:site.position.y,z:site.position.z+1}).waveField=site.name;
-    this.message='ONDA CONCLUÍDA · '+site.name+' · recolha '+item.name+' no chão';this.messageTime=7;
+    this.message='RECOMPENSA · '+site.name+' · recolha '+item.name+' no chão';this.messageTime=7;
     return true;
   }
   reset():void {this.rewardRetry=0;this.contracts.reset();this.drops.clear();this.nearest=undefined;this.messageTime=0;for(const e of this.entries){e.used=false;e.opening=0;delete e.loot;e.ejected=false;this.lid(e,0);e.cost=Math.round((e.kind==='altar'?25:e.kind==='shop'?45:30)*(1+(this.run.stage-1)*.3));}this.rift.setEnabled(false);}

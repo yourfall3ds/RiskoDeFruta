@@ -1,0 +1,60 @@
+:root{color-scheme:dark}
+body.audio-lab{margin:0;overflow:auto;background:#101716;color:#e7ede5;font-family:Inter,Segoe UI,system-ui,sans-serif;min-height:100vh;background-image:radial-gradient(ellipse at 8% 0,#34402b55,transparent 48%)}
+.audio-lab *{box-sizing:border-box}
+.audio-lab button,.audio-lab input,.audio-lab select{font:inherit}
+.audio-lab button{cursor:pointer;color:#e6e9df;border:1px solid #526256;background:#27352b;padding:10px 14px;border-radius:6px;font-size:12px;line-height:1.3;transition:background .15s,border-color .15s}
+.audio-lab button:hover:not(:disabled){background:#354934;border-color:#90a27d}
+.audio-lab button:disabled{cursor:wait;opacity:.5}
+.audio-lab button:focus-visible,.audio-lab input:focus-visible,.audio-lab a:focus-visible{outline:2px solid #e9be6e;outline-offset:4px}
+.audio-lab a{color:#e9c789;text-underline-offset:4px}
+.audio-lab input[type=range]{accent-color:#c2d79b;width:128px;max-width:100%}
+.audio-lab input[type=checkbox]{accent-color:#d9bc7d;width:16px;height:16px}
+.audio-lab input[type=file]{max-width:100%;width:280px;padding:0;background:transparent;border:0;border-radius:0;font-size:11px;color:#bec8b9}
+.audio-lab input[type=file]::file-selector-button{border:1px solid #526256;border-radius:5px;padding:8px 10px;background:#27352b;color:#e6e9df;margin-right:10px;cursor:pointer}
+.audio-lab-shell{display:block;max-width:1260px;margin:0 auto;padding:32px 40px 64px}
+.audio-lab-header{position:relative;padding-bottom:28px;border-bottom:1px solid #74816a40;margin-bottom:28px}
+.audio-lab-header .audio-lab-kicker{display:block;margin:0 0 16px;color:#d7bb81;font-size:10px;text-transform:uppercase;font-weight:650;letter-spacing:.19em}
+.audio-lab-header h1{margin:0;color:#f1edda;max-width:760px;font-size:clamp(30px,4vw,46px);line-height:1.13;letter-spacing:-.04em;font-weight:720}
+.audio-lab-header p{color:#abb8a7;font-size:14px;line-height:1.65;max-width:720px;margin:15px 0 20px}
+.audio-lab-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.audio-lab-toolbar>button:first-child{color:#f2cdad;border-color:#9c745e;background:#3b2e25}
+.audio-lab-toolbar a{margin-left:auto;font-size:12px}
+.audio-lab-layout{display:grid;grid-template-columns:190px minmax(0,1fr);gap:30px;align-items:start}
+.audio-species{position:sticky;top:22px;display:flex;flex-direction:column;gap:6px}
+.audio-species button{text-align:left;padding:14px 16px;background:transparent;border-color:transparent;border-radius:5px;color:#aebaa9;font-size:13px}
+.audio-species button[aria-pressed=true],.audio-species button.active{background:#c1d99e14;border-color:#c1d99e55;box-shadow:inset 3px 0 #cad6a1;color:#f0e9d3;font-weight:650}
+.audio-species>h2,.audio-species>small{color:#8f9f89;font-size:10px;letter-spacing:.12em;text-transform:uppercase;margin:0 0 8px;padding:0 16px}
+.audio-species-heading{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:4px 16px;padding-bottom:20px}.audio-species-heading h2{grid-column:1;grid-row:1}.audio-species-heading>p{grid-column:1;grid-row:2}.audio-species-heading>button{grid-column:2;grid-row:1/3}
+.audio-species-heading h2{font-size:25px;letter-spacing:-.025em;margin:0;color:#f0eddc}
+.audio-species-heading p{font-size:12px;line-height:1.5;color:#a9b6a3;margin:6px 0 0}
+.audio-species-heading button{font-size:11px;background:transparent;color:#b6c1b0;border-color:#74816a40}
+.audio-events{display:block;min-width:0}
+.audio-event-card{display:block;border:1px solid #75846638;border-radius:8px;padding:22px;background:linear-gradient(125deg,#20302380,#19221b80);margin-bottom:14px;min-width:0}
+.audio-event-card h3{color:#ece9d6;font-size:16px;margin:0 0 7px;font-weight:620}
+.audio-event-card>p,.audio-event-status{font-size:11px;line-height:1.6;color:#98ad94;margin:0 0 15px;overflow-wrap:anywhere}
+.audio-event-card[data-muted=true],.audio-event-card.is-muted{background:#1c201d;border-color:#66705c2b}
+.audio-event-card[data-muted=true] .audio-variants,.audio-event-card.is-muted .audio-variants{opacity:.55}
+.audio-variants{display:grid;gap:6px;margin:14px 0 18px;max-height:248px;overflow:auto;scrollbar-width:thin;scrollbar-color:#65765b #1b251f}
+.audio-variant{display:flex;align-items:center;gap:12px;padding:7px 9px;background:#090f0c42;border:1px solid #59704f22;border-radius:4px;min-width:0}
+.audio-variant button{flex-shrink:0;min-width:65px;font-size:11px;padding:7px 10px;color:#e8d9ab;background:#4b503126;border-color:#8e916543}
+.audio-variant>span,.audio-variant code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:10px;color:#a8b5a2;overflow-wrap:anywhere;line-height:1.5;min-width:0}
+.audio-variant audio{max-width:100%;height:30px}
+.audio-event-controls{display:grid;grid-template-columns:auto auto auto minmax(150px,1fr) auto;gap:12px;align-items:center;padding-top:14px;border-top:1px solid #73826630}.audio-event-volume{justify-self:end}.audio-event-replace{grid-column:1/5;min-width:0}.audio-event-controls>button:last-child{grid-column:5}
+.audio-event-controls label{display:flex;gap:8px;align-items:center;color:#c4cfbb;font-size:11px;line-height:1.4}
+.audio-event-controls label:has(input[type=range]){gap:9px;flex-wrap:wrap}
+.audio-event-controls output{color:#e0cf9f;min-width:32px;font-variant-numeric:tabular-nums;font-size:11px}
+.audio-event-controls button{font-size:11px;padding:8px 11px}
+.audio-event-controls button:last-child{color:#a8b5a2;background:transparent;border-color:#67795a38}
+.audio-lab-status{font-size:12px;line-height:1.6;color:#b7ceac;background:transparent;padding:0;border-radius:0;margin:14px 0 22px;min-height:20px;overflow-wrap:anywhere}
+.audio-lab-status:empty{min-height:0;margin:0}
+.audio-lab-error{font-size:12px;line-height:1.55;color:#ffcfb5;background:#6d352b42;border-left:2px solid #dc9d78;padding:12px 16px;margin:14px 0;overflow-wrap:anywhere}
+.audio-lab-error:empty{display:none}
+.audio-lab [hidden]{display:none!important}
+.audio-species button[aria-pressed=true]{outline:none}.audio-species button:focus-visible{outline:2px solid #e9be6e;outline-offset:4px}.audio-species button small{display:block;font-size:10px;font-weight:400;line-height:1.5;margin-top:3px}
+.audio-lab dialog{border:1px solid #6d805c;background:#18221c;color:#e7ede5;border-radius:10px;padding:26px;max-width:min(520px,90vw)}
+.audio-lab dialog::backdrop{background:#070c09b8}
+@media(min-width:1440px){.audio-lab-shell{padding-top:58px}.audio-lab-layout{gap:40px}}
+@media(max-width:1000px){.audio-event-controls{display:flex;flex-wrap:wrap}.audio-event-replace{flex-basis:100%}}
+@media(max-width:900px){.audio-lab-shell{padding:30px 24px 48px}.audio-lab-layout{grid-template-columns:150px minmax(0,1fr);gap:20px}.audio-event-card{padding:18px}.audio-species button{padding:12px}}
+@media(max-width:650px){.audio-lab-shell{padding:24px 16px 40px}.audio-lab-header{padding-bottom:22px;margin-bottom:20px}.audio-lab-header h1{font-size:32px}.audio-lab-header p{font-size:13px}.audio-lab-layout{display:block}.audio-species{position:static;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin-bottom:26px}.audio-species button{text-align:center;padding:11px 4px;font-size:11px;border-color:#697b5833}.audio-species>h2,.audio-species>small{grid-column:1/-1;padding:0}.audio-species-heading h2{font-size:23px}.audio-species-heading{gap:10px}.audio-species-heading button{padding:8px;max-width:130px}.audio-event-card{padding:16px}.audio-event-controls{gap:12px}.audio-lab-toolbar a{margin-left:0}.audio-variant{gap:8px}.audio-variant>span{font-size:9px}}
+@media(prefers-reduced-motion:reduce){.audio-lab *{transition:none!important}}

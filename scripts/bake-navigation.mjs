@@ -1,6 +1,7 @@
 import {cityChestColliders,frontierChestColliders,FRONTIER_CHESTS,highlandChestColliders,HIGHLAND_CHESTS,ROOTWOOD_CHESTS,rootwoodChestColliders} from '../src/world/ExplorationSites.ts';
 import fs from 'node:fs';
 import {TacticalNavigation} from '../src/ai/TacticalNavigation.ts';
+import {sculptRegion} from '../src/world/terrain/WorldTerrain.ts';
 import {exportNavMesh} from '@recast-navigation/core';
 const authored=JSON.parse(fs.readFileSync('public/models/farm-collision.json'));
 const geometry=JSON.parse(fs.readFileSync('public/models/world-collision-mesh.json'));
@@ -9,6 +10,26 @@ const city=JSON.parse(fs.readFileSync('public/models/farm-city-collision.json'))
 const frontier=JSON.parse(fs.readFileSync('public/models/solar-frontier-collision.json'));
 const highlands=JSON.parse(fs.readFileSync('public/models/highland-farms-collision.json'));
 const rootwood=JSON.parse(fs.readFileSync('public/models/rootwood-collision.json'));
+// Relevo esculpido: o navmesh precisa ser assado sobre a MESMA superfície que o jogador pisa, senão
+// os agentes andariam na cota antiga, por baixo do terraço. É a mesma chamada que o cliente
+// (`FarmWorld`) e o servidor (`mergeCollision`) fazem ao carregar cada região.
+const outcrops=fs.existsSync('public/models/outcrop-rocks.json')?JSON.parse(fs.readFileSync('public/models/outcrop-rocks.json')):undefined;
+for(const [id,region] of [['solar-frontier',frontier],['highland-farms',highlands],['rootwood',rootwood]]){
+ const sculpted=sculptRegion(id,region,outcrops);
+ if(!sculpted.terrain&&!sculpted.outcrops.length)continue;
+ const parts=[...(sculpted.terrain?[sculpted.terrain.collisionGeometry()]:[]),...sculpted.outcrops.map(group=>group.geometry)];
+ let added=0;
+ for(const part of parts){
+  const offset=region.navPositions.length/3;
+  for(const value of part.positions)region.navPositions.push(value);
+  for(const index of part.indices)region.navIndices.push(index+offset);
+  added+=part.indices.length/3;
+ }
+ console.log('NAV RELEVO',id,added,'triângulos');
+}
+// Campo inicial: o relevo entra na própria malha do cenário, que é o que o recast rasteriza.
+const baseRelief=sculptRegion('base',{positions:geometry.positions,indices:geometry.indices,boxes:[...authored.boxes,...geometry.boxes]});
+if(baseRelief.terrain)console.log('NAV RELEVO base',baseRelief.terrain.triangles,'triângulos');
 const nav=await TacticalNavigation.create({geometry,walkableLinks:[...city.walkableLinks,...frontier.walkableLinks,...highlands.walkableLinks,...rootwood.walkableLinks],navigationPatches:[{positions:rootwood.navPositions,indices:rootwood.navIndices},{positions:frontier.navPositions,indices:frontier.navIndices},{positions:highlands.navPositions,indices:highlands.navIndices}],surfaces:authored.surfaces,boxes:[...authored.boxes,...geometry.boxes,...frontier.boxes,...highlands.boxes,...rootwood.boxes,...cityChestColliders(),...frontierChestColliders(),...highlandChestColliders(),...rootwoodChestColliders()]});
 const cases=[['barn',{x:2,y:0,z:-16},{x:0,y:5,z:30}],['west bridge',{x:0,y:0,z:0},{x:-44,y:0,z:0}],['east bridge',{x:0,y:0,z:8},{x:44,y:2,z:8}]];
 cases.push(['city access',{x:44,y:2,z:8},{x:100,y:2,z:8}],['northern farm',{x:100,y:2,z:25},{x:105,y:12,z:57}],['market',{x:119,y:2,z:18},{x:150,y:7,z:40}]);

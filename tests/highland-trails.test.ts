@@ -1,4 +1,5 @@
 import {it,expect} from 'vitest';
+import {WALK_SPEED} from '../src/player/PlayerTuning';
 import {readFileSync} from 'node:fs';
 import {CollisionWorld} from '../src/physics/CollisionWorld';
 import {PlayerMotor} from '../src/player/PlayerMotor';
@@ -12,7 +13,7 @@ it.each(trails)('walks the authored route $name in both directions without jumpi
   const first=points[0]!,p=new PlayerMotor(w,new EventBus(),{x:first[0]!,y:w.groundAt(first[0]!,first[1]!,100),z:first[1]!});
   for(const dest of points.slice(1)){
    const distance=Math.hypot(p.position.x-dest[0]!,p.position.z-dest[1]!);
-   for(let i=0;i<Math.ceil(distance/3*60)+180;i++){
+   for(let i=0;i<Math.ceil(distance/(WALK_SPEED*.56)*60)+300;i++){
     if(Math.hypot(p.position.x-dest[0]!,p.position.z-dest[1]!)<.25)break;
     p.fixedUpdate(1/60,{...EMPTY_INPUT,z:1},Math.atan2(dest[0]!-p.position.x,dest[1]!-p.position.z));
    }

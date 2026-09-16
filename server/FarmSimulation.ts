@@ -13,6 +13,7 @@ import { PistolMagazine } from '../src/combat/PistolMagazine';
 import { SkillTimeline, type SkillTier } from '../src/combat/SkillTimeline';
 import { RunProgression } from '../src/run/RunProgression';
 import { IslandFerry } from '../src/world/IslandFerry';
+import { worldTerrain, sculptRegion, type OutcropShape } from '../src/world/terrain/WorldTerrain';
 import { EMPTY_INPUT, type InputFrame } from '../src/input/InputFrame';
 export { EMPTY_INPUT };
 
@@ -24,7 +25,11 @@ export interface CollisionData {
   solid: { positions: number[]; indices: number[]; boxes: BoxCollider[] };
   /** Cidade agrícola (`farm-city-collision.json`), opcional: superfícies, malha, caixas e volumes sólidos próprios. */
   regions?: NonNullable<CollisionData['city']>[];
-  city?: { id?:string; positions: number[]; indices: number[]; boxes: BoxCollider[]; surfaces: GroundSurface[]; solidPositions: number[]; solidIndices: number[] };
+  // `walkableLinks` é parte do contrato aqui porque as exclusões de relevo saem das pontes: sem ele
+  // o servidor esculpiria um terreno diferente do cliente e empurraria o jogador na cabeceira.
+  city?: { id?:string; positions: number[]; indices: number[]; boxes: BoxCollider[]; surfaces: GroundSurface[]; solidPositions: number[]; solidIndices: number[]; walkableLinks?: { a: Vec3; b: Vec3; width: number }[] };
+  /** Rocha escaneada dos afloramentos (`outcrop-rocks.json`); sem ela a região fica só com o relevo. */
+  outcrops?: OutcropShape;
 }
 
 /** Anexa (positions, indices) a um bloco de triângulos, deslocando os índices como `FarmWorld.load`. */
@@ -37,16 +42,27 @@ function appendTriangles(target: { positions: number[]; indices: number[] }, pos
 /**
  * Funde cenário + volumes sólidos (+ cidade, se houver) na mesma ordem e com os mesmos deslocamentos de
  * `FarmWorld.load`, para o servidor colidir exatamente com o que o cliente vê.
+ *
+ * O relevo esculpido entra aqui pelo mesmo `worldTerrain` que o cliente usa: mesmos dados de entrada,
+ * mesmos triângulos de saída. Sem isso o servidor autoritativo empurraria o jogador de volta para o
+ * piso plano antigo a cada correção.
  */
-export function mergeCollision(mesh: CollisionData['mesh'], solid: CollisionData['solid'], city?: CollisionData['city'], regions:NonNullable<CollisionData['city']>[]=[]): { mesh: CollisionData['mesh']; solid: CollisionData['solid']; surfaces: GroundSurface[] } {
+export function mergeCollision(mesh: CollisionData['mesh'], solid: CollisionData['solid'], city?: CollisionData['city'], regions:NonNullable<CollisionData['city']>[]=[], authoredBoxes: readonly BoxCollider[] = [], outcrops?: OutcropShape): { mesh: CollisionData['mesh']; solid: CollisionData['solid']; surfaces: GroundSurface[] } {
   const merged = { positions: [...mesh.positions], indices: [...mesh.indices], boxes: [...mesh.boxes, ...solid.boxes] };
   appendTriangles(merged, solid.positions, solid.indices);
   const volumes = { positions: [...solid.positions], indices: [...solid.indices], boxes: solid.boxes };
   const surfaces: GroundSurface[] = [];
   for(const region of [...(city?[city]:[]),...regions]) {
-    appendTriangles(merged, region.positions, region.indices); merged.boxes.push(...region.boxes);
+    // A região é esculpida na SUA cópia antes de entrar na malha comum, exatamente como o cliente
+    // faz no carregador de região: pedra aposentada sai, afloramento e relevo entram.
+    const sculpted = { positions: region.positions, indices: region.indices, boxes: region.boxes, walkableLinks: region.walkableLinks ?? [] };
+    if (region.id) sculptRegion(region.id, sculpted, outcrops);
+    appendTriangles(merged, sculpted.positions, sculpted.indices); merged.boxes.push(...region.boxes);
     appendTriangles(volumes, region.solidPositions, region.solidIndices); surfaces.push(...region.surfaces);
   }
+  // As mesmas caixas que o cliente tem em mãos ao montar o campo: autoradas + cenário + volumes sólidos.
+  const base = worldTerrain('base', { boxes: [...authoredBoxes, ...mesh.boxes, ...solid.boxes] });
+  if (base) { const geometry = base.collisionGeometry(); appendTriangles(merged, geometry.positions, geometry.indices); }
   return { mesh: merged, solid: volumes, surfaces };
 }
 
@@ -88,7 +104,7 @@ export class FarmSimulation {
 
   constructor(readonly seed: string, data: CollisionData) {
     this.rng = new RunRNG(seed);
-    const merged = mergeCollision(data.mesh, data.solid, data.city, data.regions);
+    const merged = mergeCollision(data.mesh, data.solid, data.city, data.regions, data.boxes, data.outcrops);
     this.collision.boxes.push(...data.boxes, ...merged.mesh.boxes);
     if(data.city)this.collision.movingBoxes.push(...cityChestColliders());
     if(data.regions?.length)this.collision.movingBoxes.push(...frontierChestColliders());
@@ -139,6 +155,8 @@ export class FarmSimulation {
       const m = player.motor;
       m.maxHP = stats.maxHP; m.moveMultiplier = stats.moveSpeed; m.jumpMultiplier = stats.jump; m.extraJumps = stats.extraJumps; m.rechargeMultiplier = stats.dodgeRecharge;
       m.armor = stats.armor; m.regeneration = stats.regeneration; player.cadence.rateMultiplier = stats.attackSpeed; player.mp.speedMultiplier = 1 + (stats.mp - 1) * .5;
+      // Sem estes dois, o cliente corria mais rápido que o servidor e sofria snap-back contínuo.
+      m.sprintMultiplier = stats.sprintSpeed; player.mp.setMaxCharges(stats.skillCharges);
       const input = player.input;
       if (input.reload) player.magazine.request();
       player.magazine.update(dt);

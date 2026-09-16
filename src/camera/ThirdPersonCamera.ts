@@ -16,6 +16,15 @@ export class ThirdPersonCamera {
   private initialized=false;private readonly closeHidden:AbstractMesh[]=[];
   shake: number = t.shake;
   preferredDistance: number = t.distance;
+  /** Antecipação suave na direção do movimento; não desloca a mira, só o pivô de enquadramento. */
+  private readonly lead=Vector3.Zero();
+  private fovBlend=0;
+  /** 0..1 — quanto do FOV extra de corrida está aplicado; alimentado por `setSprint`. */
+  sprintBlendTarget=0;
+  private baseFov:number=t.fov;
+  setSprint(sprinting:boolean):void {this.sprintBlendTarget=sprinting?1:0;}
+  /** Ajuste de diagnóstico; a abertura de corrida continua somando sobre este valor. */
+  setFovDegrees(degrees:number):void {this.baseFov=degrees*Math.PI/180;}
   constructor(private readonly scene: Scene,private readonly world: CollisionWorld) {
     this.camera=new FreeCamera('player-camera',Vector3.Zero(),scene);
     this.camera.minZ=t.near;this.camera.maxZ=1200;this.camera.fov=t.fov;
@@ -39,12 +48,22 @@ export class ThirdPersonCamera {
   }
   impulse(strength: number): void {this.kick=Math.min(.05,this.kick+strength*this.shake);}
   hurt(strength:number,side:number):void {this.hurtKick=Math.min(.13,this.hurtKick+strength*this.shake);this.hurtSide=side<0?-1:1;}
-  update(position: Vec3,yaw: number,pitch: number,dt: number): void {
+  update(position: Vec3,yaw: number,pitch: number,dt: number,velocity?: Vec3): void {
     for(const mesh of this.closeHidden)mesh.isVisible=true;this.closeHidden.length=0;
-    const factor=this.initialized?1-Math.exp(-Math.min(dt,.1)/t.smoothing):1;
-    this.pivot.x+=(position.x-this.pivot.x)*factor;
+    const step=Math.min(dt,.1);
+    const factor=this.initialized?1-Math.exp(-step/t.smoothing):1;
+    // Look-ahead moderado: a câmera abre espaço à frente do deslocamento e volta ao parar.
+    const planar=velocity?Math.hypot(velocity.x,velocity.z):0;
+    const leadFactor=this.initialized?1-Math.exp(-step/t.lookAheadSmoothing):1;
+    const wanted=planar>.6?Math.min(1,planar/8)*t.lookAheadMeters:0;
+    this.lead.x+=((velocity&&planar>.6?velocity.x/planar*wanted:0)-this.lead.x)*leadFactor;
+    this.lead.z+=((velocity&&planar>.6?velocity.z/planar*wanted:0)-this.lead.z)*leadFactor;
+    this.pivot.x+=(position.x+this.lead.x-this.pivot.x)*factor;
     this.pivot.y+=(position.y+t.pivotHeight-this.pivot.y)*factor;
-    this.pivot.z+=(position.z-this.pivot.z)*factor;
+    this.pivot.z+=(position.z+this.lead.z-this.pivot.z)*factor;
+    // Abertura de FOV na corrida, contínua nos dois sentidos e independente da taxa de quadros.
+    this.fovBlend+=(this.sprintBlendTarget-this.fovBlend)*(this.initialized?1-Math.exp(-step/t.fovSmoothing):1);
+    this.camera.fov=this.baseFov+this.fovBlend*t.sprintFovDegrees*Math.PI/180;
     this.forward.set(Math.sin(yaw)*Math.cos(pitch),-Math.sin(pitch),Math.cos(yaw)*Math.cos(pitch));
     // Keep the reference's left-third composition even in the narrow app preview.
     const aspect=this.camera.getEngine().getAspectRatio(this.camera);

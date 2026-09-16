@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Fixture · custo de DOM do HUD de combate</title>
+<link rel="stylesheet" href="/src/style.css">
+<style>
+ html,body{margin:0;height:100%;background:#0a1016;font-family:system-ui,sans-serif;color:#e9f0ea}
+ /* Fundo neutro só para o HUD ter contraste: a fixture não desenha cena 3D. */
+ #backdrop{position:fixed;inset:0;background:repeating-linear-gradient(135deg,#132029 0 38px,#16242e 38px 76px)}
+ #panel{position:fixed;left:0;bottom:0;z-index:99;width:100%;box-sizing:border-box;padding:10px 14px;
+  background:#050d12f2;border-top:1px solid #4d6b74;display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:8px 18px;font-size:11px;pointer-events:auto}
+ #panel label{display:grid;grid-template-columns:1fr auto;gap:2px 8px;align-items:center}
+ #panel input[type=range]{grid-column:span 2;accent-color:#c9b079}
+ #panel output{color:#e9c681;font-variant-numeric:tabular-nums}
+ #panel .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+ #panel button{font:inherit;padding:4px 10px;background:#16303b;color:#e9f0ea;border:1px solid #6f939c;border-radius:4px;cursor:pointer}
+ #readout{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:4px 18px;
+  border-top:1px solid #2b444e;padding-top:8px;font-variant-numeric:tabular-nums}
+ #readout b{color:#9de9cd;font-size:15px;display:block}
+ #note{grid-column:1/-1;color:#9fb3ae;line-height:1.5;font-size:10px}
+</style>
+</head>
+<body>
+<div id="backdrop"></div>
+
+<section id="panel">
+ <label>Pragas vivas <output id="out-enemies"></output><input id="enemies" type="range" min="0" max="40" step="1" value="20"></label>
+ <label>Vida das pragas <output id="out-health"></output><input id="health" type="range" min="0" max="100" step="1" value="100"></label>
+ <label>Giro da câmera <output id="out-yaw"></output><input id="yaw" type="range" min="-60" max="60" step="1" value="0"></label>
+ <label>Números de dano <output id="out-labels"></output><input id="labels" type="range" min="0" max="32" step="1" value="6"></label>
+ <label>Baús no campo <output id="out-supplies"></output><input id="supplies" type="range" min="0" max="12" step="1" value="4"></label>
+ <label>Itens no inventário <output id="out-items"></output><input id="items" type="range" min="0" max="16" step="1" value="3"></label>
+ <div class="row">
+  <label style="grid-template-columns:auto auto"><input id="animate" type="checkbox" checked> Animar (órbita determinística)</label>
+  <label style="grid-template-columns:auto auto"><input id="expedition" type="checkbox"> Expedição</label>
+  <label style="grid-template-columns:auto auto"><input id="horde" type="checkbox"> Modo horda</label>
+  <label style="grid-template-columns:auto auto"><input id="boss" type="checkbox"> Praga Alfa</label>
+ </div>
+ <div class="row">
+  <button id="step">1 atualização</button>
+  <button id="reset">Zerar contadores</button>
+  <button id="retry">Simular morte + retry</button>
+ </div>
+ <div id="readout">
+  <span>Atualizações de HUD/s<b id="r-rate">0</b></span>
+  <span>Mutações de DOM/s<b id="r-mut">0</b></span>
+  <span>Mutações acumuladas<b id="r-total">0</b></span>
+  <span>Nós dentro de #run-hud<b id="r-nodes">0</b></span>
+  <span>Barras visíveis<b id="r-bars">0</b></span>
+ </div>
+ <p id="note">
+  Determinístico: nenhuma posição usa <code>Math.random</code>; com “Animar” desligado o estado só muda quando você mexe num controle ou clica em “1 atualização”.
+  <b>“Nós dentro de #run-hud” é a métrica central</b>: com o pool de marcadores ele sobe até o pico de marcadores simultâneos e para — se voltar a crescer a cada atualização, o pool regrediu.
+  “Mutações de DOM/s” vem de um <code>MutationObserver</code> com <code>childList</code>+<code>attributes</code>+<code>characterData</code> em subárvore.
+  Isto <b>não é FPS</b>: não há cena 3D, layout de terreno, shadow map nem GPU aqui. Para FPS, use o jogo.
+  Servido pelo Vite: <code>npm run dev</code> e abra <code>/docs/hud-perf-fixture.html</code>.
+ </p>
+</section>
+
+<script type="module">
+import {Vector3,Matrix} from '@babylonjs/core/Maths/math.vector';
+import {Viewport} from '@babylonjs/core/Maths/math.viewport';
+import {RunHUD} from '/src/ui/CombatHUD.ts';
+import {RunProgression,ITEMS} from '/src/run/RunProgression.ts';
+import {EventBus} from '/src/core/EventBus.ts';
+
+const WIDTH=()=>window.innerWidth,HEIGHT=()=>window.innerHeight;
+const EYE=new Vector3(0,1.6,-12);
+
+/** Câmera com a matemática real do Babylon, sem engine: a fixture não abre cena 3D. */
+const camera={
+ position:EYE,viewport:new Viewport(0,0,1,1),yaw:0,
+ _transform:Matrix.Identity(),
+ _forward(){return new Vector3(Math.sin(this.yaw),0,Math.cos(this.yaw));},
+ getForwardRay(){return {direction:this._forward()};},
+ getTransformationMatrix(){
+  const view=Matrix.LookAtLH(this.position,this.position.add(this._forward()),Vector3.Up());
+  view.multiplyToRef(Matrix.PerspectiveFovLH(.8,WIDTH()/HEIGHT(),.1,400),this._transform);
+  return this._transform;
+ },
+ getEngine(){return {getRenderWidth:WIDTH,getRenderHeight:HEIGHT};},
+};
+
+const KINDS=['eggplant','corn','watermelon','tomato','carrot'];
+const VARIANTS=['normal','golden','giant','charged'];
+/** Leque fixo à frente da câmera: mesmo índice ⇒ mesma posição, sempre. */
+function makeActor(i){
+ const position=new Vector3(-6+(i%7)*2,0,2+Math.floor(i/7)*3.4);
+ return {
+  active:true,kind:KINDS[i%5],variant:VARIANTS[i%4],position,root:{position},
+  body:{getBoundingInfo:()=>({boundingBox:{maximumWorld:{y:1.7}}})},
+  health:{current:60,maximum:60,dead:false},healthTrail:60,hit:0,
+ };
+}
+
+const director={state:1,hordeMode:false,wave:3,intermission:0,time:0,waveQuota:14,spawned:6,completedWaves:2};
+const swarm={director,count:0,populationCap:40,kills:37,boss:undefined,bossHP:0,bossMaxHP:900,bossDeadTime:-1,labels:[],actors:[]};
+const interact={
+ entries:[],nearest:undefined,nearestLoot:undefined,atRift:false,message:'Baú aberto · recolha o item quando cair',messageTime:0,
+ districtContract:{contract:{name:'Rota do celeiro velho'},target:{x:18,z:24},completed:1,total:3,opened:2,required:4,distance:26.5},
+ waveRewardGuide:undefined,
+};
+
+const TOTEM_NAMES=['Silo norte','Poço das estufas','Curral leste','Moinho quebrado'];
+const totems=TOTEM_NAMES.map((name,index)=>({
+ site:{index,name,position:{x:-24+index*16,y:0,z:18+index*7},chargeSeconds:35},
+ charged:index<2?35:index===2?12:0,
+ state:index<2?'complete':index===2?'charging':'idle',
+}));
+const expedition={
+ objectives:{
+  planned:false,phase:'totems',bossSpawned:false,completed:2,total:4,totems,message:'',messageTime:0,
+  get current(){return totems.find(t=>t.state==='charging');},
+  interactable:()=>undefined,
+  nearestPending:()=>({totem:totems[2],distance:18}),
+ },
+ resonance:{level:2,chargeMultiplier:1.35,nextAction:['shot','melee'],decayProgress:.4},
+ mp:{maxCharges:3,charges:2,chargeSecondsLeft:6.2},
+ player:{x:0,y:0,z:-12},
+ weather:{label:'GAROA · VENTO LESTE'},
+};
+
+const run=new RunProgression(new EventBus());
+const hud=new RunHUD();
+hud.setVisible(true);
+
+const root=document.getElementById('run-hud');
+let mutations=0,total=0,updates=0;
+new MutationObserver(list=>{mutations+=list.length;total+=list.length;}).observe(root,{childList:true,attributes:true,characterData:true,subtree:true});
+
+const el=id=>document.getElementById(id);
+const value=id=>Number(el(id).value);
+
+function syncInventory(count){
+ run.inventory.clear();
+ for(let i=0;i<count;i++)run.inventory.set(ITEMS[i*7%ITEMS.length].id,1+i%3);
+ run.stats=run.computeStats();
+}
+
+let lastItems=-1;
+function applyControls(){
+ const enemies=value('enemies'),health=value('health');
+ while(swarm.actors.length<enemies)swarm.actors.push(makeActor(swarm.actors.length));
+ swarm.actors.length=enemies;
+ swarm.count=enemies;
+ swarm.actors.forEach((a,i)=>{a.health.current=Math.max(1,60*health/100*(1-(i%5)*.07));a.healthTrail=Math.min(60,a.health.current+7);a.hit=i%4===0?.2:0;});
+ camera.yaw=value('yaw')*Math.PI/180;
+
+ swarm.labels.length=0;
+ for(let i=0;i<value('labels');i++)swarm.labels.push({position:{x:-4+(i%8),y:1.8,z:4+Math.floor(i/8)*2.5},amount:7+i*3,crit:i%4===0,time:.7-(i%5)*.1});
+
+ interact.entries.length=0;
+ for(let i=0;i<value('supplies');i++)interact.entries.push({x:-8+i*2.6,y:0,z:7+(i%3)*4,cost:25+i*5,used:false});
+
+ const items=value('items');
+ if(items!==lastItems){lastItems=items;syncInventory(items);}
+
+ director.hordeMode=el('horde').checked;
+ expedition.objectives.planned=el('expedition').checked;
+ if(el('boss').checked){swarm.boss=swarm.actors[0]??makeActor(0);swarm.bossHP=900*health/100;}
+ else {swarm.boss=undefined;swarm.bossHP=0;}
+ interact.messageTime=el('horde').checked?4:0;
+ interact.waveRewardGuide=el('horde').checked
+  ?{drop:{item:{name:'Célula de descarga'},landing:{x:6,y:0,z:14},waveField:'CAMPO SUL'},distance:19.3}
+  :undefined;
+
+ el('out-enemies').value=enemies;el('out-health').value=health+'%';el('out-yaw').value=value('yaw')+'°';
+ el('out-labels').value=value('labels');el('out-supplies').value=value('supplies');el('out-items').value=items;
+}
+
+/** Um passo de HUD: .105 s de tempo de run, o menor que atravessa o portão interno de .1 s. */
+function step(){
+ applyControls();
+ run.time+=.105;director.time+=.105;
+ if(el('animate').checked){
+  // Órbita determinística: tudo derivado de run.time, nada de Math.random.
+  const t=run.time;
+  swarm.actors.forEach((a,i)=>{a.position.x=(-6+(i%7)*2)+Math.sin(t*.8+i)*.9;a.position.z=(2+Math.floor(i/7)*3.4)+Math.cos(t*.6+i)*.7;});
+  for(const l of swarm.labels)l.time=.7-((t*.6+l.amount)%.7);
+ }
+ run.credits=120+Math.floor(run.time);
+ run.xp=Math.floor(run.time*3)%run.nextLevelXP;
+ hud.update(run,swarm,interact,camera,expedition.objectives.planned?expedition:undefined);
+ updates++;
+}
+
+el('step').addEventListener('click',step);
+el('reset').addEventListener('click',()=>{total=0;mutations=0;updates=0;el('r-total').textContent='0';});
+el('retry').addEventListener('click',()=>{
+ hud.setVisible(false);
+ setTimeout(()=>{run.reset();director.time=0;swarm.kills=0;hud.setVisible(true);step();},400);
+});
+for(const input of document.querySelectorAll('#panel input'))input.addEventListener('input',step);
+
+let secondClock=performance.now();
+function frame(){
+ if(el('animate').checked)step();
+ const now=performance.now();
+ if(now-secondClock>=1000){
+  el('r-rate').textContent=String(updates);
+  el('r-mut').textContent=String(mutations);
+  el('r-total').textContent=String(total);
+  el('r-nodes').textContent=String(root.querySelectorAll('*').length);
+  el('r-bars').textContent=String([...root.querySelectorAll('.enemy-health')].filter(b=>b.style.display!=='none').length);
+  mutations=0;updates=0;secondClock=now;
+ }
+ requestAnimationFrame(frame);
+}
+step();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

@@ -1,4 +1,5 @@
 import {it,expect} from 'vitest';
+import {WALK_SPEED} from '../src/player/PlayerTuning';
 import {readFileSync} from 'node:fs';
 import {CollisionWorld} from '../src/physics/CollisionWorld';
 import {PlayerMotor} from '../src/player/PlayerMotor';
@@ -9,7 +10,7 @@ const data=JSON.parse(readFileSync('public/models/highland-farms-collision.json'
 function world(){const w=new CollisionWorld();for(const file of ['solar-frontier-collision.json','highland-farms-collision.json']){const d=JSON.parse(readFileSync('public/models/'+file,'utf8')),r=new CollisionWorld();r.boxes.push(...d.boxes);r.setGeometry(d.positions,d.indices);r.setRecoveryVolumes(d.solidPositions,d.solidIndices);r.prepareRaycasts();w.attachRegion(file,r);}return w;}
 it.each([0,1,2,3,4,5,6,7,8,9,10,11])('physically crosses highland bridge direction %i without falling or clipping',index=>{
  const w=world(),link=data.walkableLinks[Math.floor(index/2)],a=index%2?link.b:link.a,b=index%2?link.a:link.b,player=new PlayerMotor(w,new EventBus(),{...a}),yaw=Math.atan2(b.x-a.x,b.z-a.z),distance=Math.hypot(b.x-a.x,b.z-a.z);
- for(let i=0;i<Math.ceil(distance/5.4*60)+120;i++){if(Math.hypot(player.position.x-b.x,player.position.z-b.z)<.25)break;player.fixedUpdate(1/60,{...EMPTY_INPUT,z:1},yaw);}
+ for(let i=0;i<Math.ceil(distance/WALK_SPEED*60)+120;i++){if(Math.hypot(player.position.x-b.x,player.position.z-b.z)<.25)break;player.fixedUpdate(1/60,{...EMPTY_INPUT,z:1},yaw);}
  expect(Math.hypot(player.position.x-b.x,player.position.z-b.z)).toBeLessThan(.5);expect(Math.abs(player.position.y-b.y)).toBeLessThan(.4);expect(player.respawns).toBe(0);
 });
 it('highland rewards sit on solid terrain with accessible floor beside every chest',()=>{

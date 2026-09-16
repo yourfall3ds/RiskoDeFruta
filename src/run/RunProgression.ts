@@ -2,12 +2,14 @@ import type { EventBus } from '../core/EventBus';
 import type { GameEvents } from '../core/contracts';
 import type { RandomStream } from '../core/RunRNG';
 
-export interface RunStats { maxHP:number; damage:number; attackSpeed:number; moveSpeed:number; jump:number; extraJumps:number; dodgeRecharge:number; crit:number; armor:number; regeneration:number; mp:number }
+export interface RunStats { maxHP:number; damage:number; attackSpeed:number; moveSpeed:number; sprintSpeed:number; jump:number; extraJumps:number; dodgeRecharge:number; crit:number; armor:number; regeneration:number; mp:number; skillCharges:number }
 export interface ItemDefinition { id:string; name:string; description:string; icon:number; rarity:'common'|'uncommon'; stat?:keyof RunStats; value?:number; hook?:'burn'|'harvest'|'blast' }
 export const ITEMS:readonly ItemDefinition[]=[
   {id:'pruner',name:'Podador de aço',description:'+15% de dano por unidade.',icon:0,rarity:'common',stat:'damage',value:.15},
-  {id:'battery',name:'Célula de descarga',description:'+12% de cadência por unidade.',icon:12,rarity:'common',stat:'attackSpeed',value:.12},
-  {id:'boot',name:'Botas de lavoura',description:'+10% de velocidade por unidade.',icon:3,rarity:'common',stat:'moveSpeed',value:.1},
+  {id:'battery',name:'Célula de descarga',description:'+12% de cadência de disparo por unidade.',icon:12,rarity:'common',stat:'attackSpeed',value:.12},
+  {id:'boot',name:'Botas de lavoura',description:'+10% de caminhada e corrida por unidade.',icon:3,rarity:'common',stat:'moveSpeed',value:.1},
+  {id:'turbine',name:'Turbina de campo',description:'+12% somente na corrida por unidade.',icon:46,rarity:'common',stat:'sprintSpeed',value:.12},
+  {id:'reservoir',name:'Reservatório de surto',description:'+1 carga de especial por unidade. A carga permite emendar uma continuação na janela final e recarrega sozinha.',icon:71,rarity:'uncommon',stat:'skillCharges',value:1},
   {id:'watch',name:'Relógio de campo',description:'Esquiva recarrega 15% mais rápido por unidade.',icon:9,rarity:'common',stat:'dodgeRecharge',value:.15},
   {id:'feather',name:'Pena orbital',description:'+1 pulo aéreo por unidade. Os pulos recarregam ao tocar o chão.',icon:4,rarity:'common',stat:'extraJumps',value:1},
   {id:'goggles',name:'Mira de precisão',description:'+8% de crítico, com retornos decrescentes.',icon:1,rarity:'common',stat:'crit',value:.08},
@@ -104,7 +106,7 @@ export class RunProgression {
   reset():void {this.inventory.clear();this.stage=1;this.level=1;this.xp=0;this.credits=0;this.totalKills=0;this.time=0;this.stats=this.computeStats();}
   get nextLevelXP():number{return Math.round(45*Math.pow(this.level,1.35));}
   computeStats():RunStats {
-    const stats:RunStats={maxHP:130+(this.level-1)*12,damage:1+(this.level-1)*.045,attackSpeed:1,moveSpeed:1,jump:1,extraJumps:0,dodgeRecharge:1,crit:0,armor:0,regeneration:1,mp:1};
+    const stats:RunStats={maxHP:130+(this.level-1)*12,damage:1+(this.level-1)*.045,attackSpeed:1,moveSpeed:1,sprintSpeed:1,jump:1,extraJumps:0,dodgeRecharge:1,crit:0,armor:0,regeneration:1,mp:1,skillCharges:0};
     for(const item of ITEMS){const count=this.inventory?.get(item.id)??0;if(item.stat&&item.value)stats[item.stat]+=item.value*count;}
     stats.crit=stats.crit/(1+stats.crit);return stats;
   }

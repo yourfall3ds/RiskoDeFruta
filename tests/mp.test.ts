@@ -8,7 +8,7 @@ import { CreateBox } from '@babylonjs/core/Meshes/Builders/boxBuilder';
 import { EventBus } from '../src/core/EventBus';
 import { RunRNG } from '../src/core/RunRNG';
 import type { GameEvents } from '../src/core/contracts';
-import { MPCharge } from '../src/combat/MPCharge';
+import { MPCharge,MP_HIT_GAIN } from '../src/combat/MPCharge';
 import { DualPistols } from '../src/combat/DualPistols';
 import type { CharacterVisual } from '../src/animation/CharacterVisual';
 import type { ThirdPersonCamera } from '../src/camera/ThirdPersonCamera';
@@ -63,19 +63,21 @@ it.each([1,2,3] as const)('skill %i follows the supplied voice action duration',
 it.each([1,2,3] as const)('skill %i discards queued emissions after a frame stall beyond the voice end',tier=>{const r=setup(false,true);let clock=0;try{r.weapons.releaseSkill(tier,true,2.2,()=>clock);r.weapons.fixedUpdate(1/60,false);const before=r.weapons.skillShots;clock=3.5;for(let i=0;i<90;i++)r.weapons.fixedUpdate(1/60,false);expect(r.weapons.skillShots).toBe(before);expect(r.weapons.stormRemaining).toBe(0);}finally{r.dispose();}});
 
 
-it('MP regenerates slowly, rewards confirmed player hits and never exceeds its reserve',()=>{
+it('MP não regenera sozinho, só premia acerto confirmado e nunca passa da reserva',()=>{
  const events=new EventBus<GameEvents>(),mp=new MPCharge(events);mp.current=0;
- for(let i=0;i<600;i++)mp.update(1/60,false);expect(mp.current).toBeCloseTo(18);
- const hit:GameEvents['DamageDealt']={attackerId:1,victimId:200,sourceId:'pistol',attackId:'test',baseDamage:12,finalDamage:12,crit:false,procCoefficient:1,procChainDepth:0,damageTags:['bullet'],hitPosition:{x:0,y:1,z:0},hitNormal:{x:0,y:0,z:-1},forceDirection:{x:0,y:0,z:1},forceMagnitude:2};
- events.emit('DamageDealt',hit);expect(mp.current).toBeCloseTo(21.5);
- events.emit('DamageDealt',{...hit,attackerId:200,victimId:1});expect(mp.current).toBeCloseTo(21.5);
- events.emit('DamageDealt',{...hit,finalDamage:0});expect(mp.current).toBeCloseTo(21.5);
- events.emit('DamageDealt',{...hit,damageTags:['skill']});expect(mp.current).toBeCloseTo(21.7);
+ for(let i=0;i<600;i++)mp.update(1/60,false);expect(mp.current).toBe(0);
+ const hit:GameEvents['EnemyHit']={attackerId:1,victimId:200,sourceId:'dual_pistols',attackId:'right',baseDamage:12,finalDamage:12,crit:false,procCoefficient:1,procChainDepth:0,damageTags:['bullet'],hitPosition:{x:0,y:1,z:0},hitNormal:{x:0,y:0,z:-1},forceDirection:{x:0,y:0,z:1},forceMagnitude:2};
+ events.emit('DamageDealt',hit);expect(mp.current).toBe(0);           // intenção de dano não é confirmação
+ events.emit('EnemyHit',hit);expect(mp.current).toBe(MP_HIT_GAIN);    // dano aplicado de verdade
+ events.emit('EnemyHit',{...hit,attackerId:200,victimId:1});expect(mp.current).toBe(MP_HIT_GAIN);
+ events.emit('EnemyHit',{...hit,finalDamage:0});expect(mp.current).toBe(MP_HIT_GAIN);
+ events.emit('EnemyHit',{...hit,damageTags:['bullet','skill']});expect(mp.current).toBe(MP_HIT_GAIN);
  mp.gain(200);expect(mp.current).toBe(100);mp.gain(NaN);expect(mp.current).toBe(100);
 });
 it('an unaffordable skill stays locked and release deducts only the affordable tier',()=>{
  const mp=new MPCharge(new EventBus<GameEvents>());mp.current=0;mp.update(2.6,true);expect(mp.update(0,false)).toBe(0);
- mp.current=30;mp.update(2.6,true);expect(mp.tier).toBe(1);expect(mp.update(0,false)).toBe(1);expect(mp.current).toBeCloseTo(9.68);
+ // Sem regeneração passiva, segurar a carga por 2,6 s não adiciona nada: 30 − 25 = 5.
+ mp.current=30;mp.update(2.6,true);expect(mp.tier).toBe(1);expect(mp.update(0,false)).toBe(1);expect(mp.current).toBeCloseTo(5);
 });
 
 it('barrage tolerance cannot reach an enemy immediately behind thin cover',()=>{const r=setup(true);try{for(const target of r.targets){target.mesh.position.z=5;target.mesh.computeWorldMatrix(true);}r.weapons.releaseSkill(2);for(let i=0;i<150;i++){r.weapons.fixedUpdate(1/60,false);r.weapons.updatePose(1/60);}expect(r.targets.map(t=>t.hits)).toEqual([0,0]);}finally{r.dispose();}});

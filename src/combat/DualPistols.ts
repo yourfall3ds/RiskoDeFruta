@@ -46,6 +46,8 @@ export class DualPistols {
   lastSide: 0 | 1=0;
   stormRemaining=0;
   skillShots=0;
+  /** Pistolas guardadas durante o combate desarmado: somem das mãos e não disparam. */
+  holstered=false;
   private actionClock:(()=>number)|undefined;private actionDuration=0;private fanTotal=10;private barrageTotal=14;private fanInterval=.055;private barrageInterval=.6/14;
   private stormClock=0;
   private stormTarget=0;private barrageIndex=14;private barrageClock=0;private barrageDirection=Vector3.Forward();private fanIndex=10;private fanClock=0;private fanDirection=Vector3.Forward();readonly fan:RicochetFan;
@@ -82,7 +84,8 @@ export class DualPistols {
     for(let side=0;side<2;side++) {
       this.recoil[side]=Math.max(0,this.recoil[side]!-dt);
       const root=this.weapons[side]!;const hand=this.visual.hands[side];
-      root.setEnabled(this.visual.ready);
+      root.setEnabled(this.visual.ready&&!this.holstered);
+      if(this.holstered){this.reloadMagazines[side]!.setEnabled(false);this.flashLights[side]!.intensity=0;continue;}
       const grip=this.visual.grips?.[side];
       const intensity=this.recoil[side]!/t.recoilSeconds;
       this.flashLights[side]!.intensity=intensity>.6?(intensity-.6)*4:0;
@@ -115,18 +118,40 @@ export class DualPistols {
     if(this.magazine.ammo===0&&!this.magazine.reloading)this.requestReload();
     this.cadence.update(dt,fire&&!this.magazine.reloading&&this.magazine.ammo>0&&this.visual.ready&&this.barrageIndex>=this.barrageTotal&&this.stormRemaining<=0&&this.fanIndex>=this.fanTotal,side=>this.shoot(side));
     if(this.actionClock&&this.actionClock()>=this.actionDuration){this.fanIndex=this.fanTotal;this.barrageIndex=this.barrageTotal;this.stormRemaining=0;}
-    if(this.fanIndex<this.fanTotal){this.fanClock-=dt;if(this.actionClock)this.fanClock=this.fanIndex*this.fanInterval-this.actionClock();if(this.fanClock<=0){this.launchFanBullet(this.fanIndex++);this.fanClock+=this.fanInterval;}}this.fan.update(dt);
-    if(this.barrageIndex<this.barrageTotal){this.barrageClock-=dt;if(this.actionClock)this.barrageClock=this.barrageIndex*this.barrageInterval-this.actionClock();if(this.barrageClock<=0){const i=this.barrageIndex++,angle=(i/(this.barrageTotal-1)-.5)*.75,dir=this.barrageDirection.clone();dir.x=this.barrageDirection.x*Math.cos(angle)+this.barrageDirection.z*Math.sin(angle);dir.z=this.barrageDirection.z*Math.cos(angle)-this.barrageDirection.x*Math.sin(angle);this.skillRay((i%2) as 0|1,dir,'backflip_barrage',24,false);this.barrageClock+=this.barrageInterval;}}
+    // MP I e MP II: cada NOVO disparo copia a mira atual.
+    // Interpolar vetores por lerp normalizado NÃO resolve giro de 180°: com direções antipodais o
+    // resultado degenera e a sequência continuava saindo para o lado inicial. Balas já em voo
+    // conservam a própria trajetória; só o próximo tiro muda de direção.
+    if(this.fanIndex<this.fanTotal){
+      this.fanDirection.copyFrom(this.camera.forward);
+      this.fanClock-=dt;if(this.actionClock)this.fanClock=this.fanIndex*this.fanInterval-this.actionClock();
+      if(this.fanClock<=0){this.launchFanBullet(this.fanIndex++);this.fanClock+=this.fanInterval;}
+    }
+    this.fan.update(dt);
+    if(this.barrageIndex<this.barrageTotal){
+      this.barrageDirection.copyFrom(this.camera.forward);
+      this.barrageClock-=dt;if(this.actionClock)this.barrageClock=this.barrageIndex*this.barrageInterval-this.actionClock();
+      if(this.barrageClock<=0){const i=this.barrageIndex++,angle=(i/Math.max(1,this.barrageTotal-1)-.5)*.75,dir=this.barrageDirection.clone();dir.x=this.barrageDirection.x*Math.cos(angle)+this.barrageDirection.z*Math.sin(angle);dir.z=this.barrageDirection.z*Math.cos(angle)-this.barrageDirection.x*Math.sin(angle);dir.normalize();this.skillRay((i%2) as 0|1,dir,'backflip_barrage',24,false);this.barrageClock+=this.barrageInterval;}
+    }
 
     if(this.stormRemaining<=0)return;
     this.stormRemaining=this.actionClock?Math.max(0,this.actionDuration-this.actionClock()):Math.max(0,this.stormRemaining-dt);this.stormClock-=dt;
     if(this.stormClock>0)return;this.stormClock+=1/20;
     const origin=this.visual.position.add(new Vector3(0,1.3,0));
-    const candidates=this.yard.targets.filter(target=>{const offset=target.mesh.getBoundingInfo().boundingBox.centerWorld.subtract(origin);return target.mesh.isPickable&&offset.length()<60&&Vector3.Dot(offset.normalize(),this.camera.forward)>.35;});
-    if(!candidates.length)return;
+    const side=(this.skillShots%2) as 0|1;
+    // MP III: só alvos com alcance, ângulo e linha de visão reais entram no rodízio.
+    const candidates=this.yard.targets.filter(target=>{
+      if(!target.mesh.isPickable||!target.mesh.isEnabled())return false;
+      const centre=target.mesh.getBoundingInfo().boundingBox.centerWorld,offset=centre.subtract(origin),distance=offset.length();
+      if(distance>60||Vector3.Dot(offset.normalizeToNew(),this.camera.forward)<=.35)return false;
+      const cover=this.worldPick(new Ray(origin,offset.normalizeToNew(),distance-.35));
+      return !cover?.hit;
+    });
+    // Sem alvo válido a tempestade continua disparando para a frente — nunca fica em silêncio.
+    if(!candidates.length){this.skillRay(side,this.camera.forward.clone(),'harvest_storm',18,false);return;}
     const target=candidates[this.stormTarget++%candidates.length]!;
-    const aimPosition=target.mesh.getBoundingInfo().boundingBox.centerWorld;this.visual.stormAim((this.skillShots%2) as 0|1,aimPosition);
-    this.skillRay((this.skillShots%2) as 0|1,aimPosition.subtract(origin).normalize(),'harvest_storm',18,false,aimPosition);
+    const aimPosition=target.mesh.getBoundingInfo().boundingBox.centerWorld;this.visual.stormAim(side,aimPosition);
+    this.skillRay(side,aimPosition.subtract(origin).normalize(),'harvest_storm',18,false,aimPosition);
   }
   releaseSkill(tier: Exclude<MPTier,0>,prepared=false,duration?:number,clock?:()=>number): void {
     this.fanIndex=this.fanTotal;this.barrageIndex=this.barrageTotal;this.stormRemaining=0;this.actionClock=clock;this.actionDuration=duration??0;this.visual.release();
@@ -175,6 +200,8 @@ export class DualPistols {
   private damageTarget(target:TrainingTarget,hit:Vector3,dir:Vector3,damage:number,id:string): void {
     const context:DamageContext={attackerId:1,victimId:target.id,sourceId:id,attackId:id,baseDamage:damage,finalDamage:damage,crit:false,procCoefficient:id==='ricochet_fan'?.3:1,procChainDepth:0,damageTags:['bullet','skill'],hitPosition:{x:hit.x,y:hit.y,z:hit.z},hitNormal:{x:-dir.x,y:-dir.y,z:-dir.z},forceDirection:{x:dir.x,y:dir.y,z:dir.z},forceMagnitude:5};
     this.events.emit('DamageDealt',context);target.onHit?.(context);target.hits++;this.hits++;this.hitTime=.12;target.ring?.scaling.setAll(1.15);this.effects.impact(hit,dir.negate());
+    // Impacto audível por habilidade: o som do disparo não substitui o do acerto.
+    this.audio.skillImpact?.(id);
   }
   private shoot(side: 0 | 1): void {
     if(!this.magazine.consume())return;

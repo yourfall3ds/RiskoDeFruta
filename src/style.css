@@ -47,7 +47,7 @@ button:focus-visible { outline: 2px solid #a6dbe3; outline-offset: 3px; }
 .run-active .field-brand,.run-active .field-objective,.run-active .field-diagnostic{display:none}
 #run-hud{position:fixed;inset:0;pointer-events:none;color:#fff4d9;text-shadow:0 2px 3px #0009;font-family:system-ui,sans-serif;z-index:2}#run-hud[hidden]{display:none}
 .run-inventory{position:absolute;top:24px;left:24px;display:flex;gap:6px;max-width:35%;flex-wrap:wrap}.run-inventory>div{position:relative;width:52px;height:52px;background:#041322d9;border:1px solid #7cafbd;border-radius:6px}.item-icon{display:inline-block;width:48px;height:48px;background-image:url('/ui/item-atlas.png');background-size:600% 500%;vertical-align:middle}.run-inventory b{position:absolute;right:3px;bottom:0;font-size:12px}
-.run-clock{position:absolute;right:24px;top:24px;text-align:right;display:grid;gap:5px}.run-clock b{font-size:24px;background:#061829dd;border:1px solid #78929c;padding:5px 18px;border-radius:5px}.run-clock span{font-size:10px;font-weight:800}.run-clock strong{color:#ffd576;font-size:13px}
+.run-clock{position:absolute;right:24px;top:24px;text-align:right;display:grid;gap:5px}.run-clock b{font-size:24px;background:#061829dd;border:1px solid #78929c;padding:5px 18px;border-radius:5px}.run-clock span{font-size:10px;font-weight:800}.run-clock strong{color:#ffd576;font-size:13px}.run-clock .run-weather{font-size:9px;font-style:normal;font-weight:600;letter-spacing:.1em;color:#c3d3d5;text-transform:uppercase;text-shadow:0 1px 4px #061829}
 .run-mission{position:absolute;left:50%;top:28px;transform:translateX(-50%);font-weight:800;font-size:16px;text-align:center;letter-spacing:.7px;max-width:45%}
 .run-boss{position:absolute;left:32%;right:32%;top:85px;text-align:center;font-size:12px;font-weight:800}.run-boss>div{height:11px;background:#121c2a;border:1px solid #040b14;border-radius:3px;margin:5px}.run-boss i{display:block;background:linear-gradient(#e85732,#ae241b);height:100%;transition:width .1s}.run-boss small{font-size:10px}
 .run-xp{position:absolute;left:32px;bottom:17px;width:255px;font-size:10px;font-weight:700}.run-xp>div{height:5px;background:#142526;margin-top:5px}.run-xp i{display:block;height:100%;background:#e9ca66;transition:width .2s}
@@ -127,3 +127,54 @@ button:focus-visible { outline: 2px solid #a6dbe3; outline-offset: 3px; }
 .play-gate.live-flight{background:transparent}.play-gate.live-flight .loading-film{opacity:0;transition:opacity .5s}
 body.arrival-in-progress #player-hud>:not(.play-gate),body.arrival-in-progress #run-hud{visibility:hidden}
 body.game-menu-open.arrival-in-progress #game{visibility:visible}
+
+/* Expedition report: keep the final 3D pose visible behind the result. */
+body.game-menu-open:has(.play-gate.defeated) #game{visibility:visible}
+.play-gate.defeated{display:block;padding:0;background:linear-gradient(90deg,#07131780,transparent 48%,#08131785),linear-gradient(0deg,#061014ed,transparent 52%);color:#f3ead6;isolation:isolate}
+.play-gate.defeated::after{background:linear-gradient(180deg,#07101490,transparent 35%);z-index:-1}
+.play-gate.defeated .gate-card{left:5%;top:7%;width:47%;max-width:560px}
+.play-gate.defeated .gate-card .eyebrow{color:#efab88;letter-spacing:.25em;font-size:10px}
+.play-gate.defeated .gate-card h1{font-size:clamp(32px,4vw,58px);color:#fff0dc;font-weight:650;letter-spacing:-.045em;margin:18px 0 14px}
+.play-gate.defeated .gate-card p{color:#d3d6c9;font-size:12px;max-width:340px;line-height:1.65}
+.play-gate.defeated .gate-card>small,.play-gate.defeated .game-options{display:none}
+.play-gate.defeated .start-play{min-width:0;width:220px;margin-top:12px;padding:15px 20px;background:#e9c68e;border:1px solid #ffe4b8;border-radius:0;color:#172321;letter-spacing:.12em;font-size:11px}
+.play-gate.defeated .start-play:hover{background:#ffe3b6}
+.play-gate.defeated .return-menu{width:220px;margin-top:9px;background:#08171b70;border:1px solid #d0d6c740;border-radius:0;font-size:10px;letter-spacing:.1em;padding:12px}
+.play-gate.defeated .return-menu:hover{border-color:#d0d6c7a0;background:#152728}
+.play-gate.defeated button:focus-visible{outline:2px solid #a9e7d7;outline-offset:4px}
+.play-gate.defeated .defeat-items{position:absolute;right:5%;top:8%;margin:0;width:32%;max-height:48vh;padding:20px 22px;box-sizing:border-box;overflow:auto;background:#0c1b20b3;border:1px solid #e4d6b52b;border-top:2px solid #d3b786;backdrop-filter:blur(7px)}
+.defeat-items h2{font-size:12px;font-weight:600;letter-spacing:.2em;margin:0 0 8px}.defeat-items p{font-size:11px;line-height:1.6;color:#bbc9c1;margin:0 0 16px}
+.defeat-items>div{display:grid;grid-template-columns:1fr;gap:7px}.defeat-items article{background:#e1e6d407;border-bottom:1px solid #e1e6d414;padding:7px 0;font-size:11px}.defeat-items article span{line-height:1.4}.defeat-items article b{font-size:12px;font-variant-numeric:tabular-nums}.defeat-items .item-icon{width:35px;height:35px}
+.defeat-report{position:absolute;left:5%;right:5%;bottom:7%;z-index:2;border-top:1px solid #e1d9bb50;padding-top:20px;display:grid;grid-template-columns:minmax(190px,1fr) 3fr;gap:40px}
+.defeat-score span{display:block;font-size:9px;letter-spacing:.18em;color:#d2c9ae}.defeat-score strong{display:block;font-size:clamp(36px,4.8vw,64px);font-weight:500;line-height:1.2;color:#f5d392;font-variant-numeric:tabular-nums;letter-spacing:-.04em}
+.defeat-report dl{margin:0;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:clamp(10px,1.5vw,20px);align-items:end}.defeat-report dt{font-size:9px;letter-spacing:.12em;line-height:1.5;min-height:3em;color:#b5c6bd}.defeat-report dd{margin:10px 0 0;font-size:27px;font-weight:500;color:#f2ebdc;font-variant-numeric:tabular-nums}
+.enemy-health{width:76px}.enemy-health>span,.enemy-health>small{display:none}.enemy-health>div{height:5px;border:1px solid #170e0ed9;border-radius:1px;background:#231718b3}.enemy-health i{background:#e66d52}.run-boss>span,.run-boss>small{display:none}
+.defeat-items:focus-visible{outline:2px solid #a9e7d7;outline-offset:4px}.run-hostiles{grid-template-columns:1fr auto}.run-hostiles>b{white-space:nowrap;font-size:22px;align-self:center}
+@media(max-width:900px){.defeat-report{gap:20px;grid-template-columns:1fr}.defeat-score strong{font-size:38px}.defeat-report dl{gap:10px}.defeat-report dd{font-size:22px}.play-gate.defeated .defeat-items{width:37%;max-height:43vh}.play-gate.defeated .gate-card h1{font-size:34px}}
+@media(max-width:600px),(max-height:580px){.play-gate.defeated{padding:28px 6%;overflow-y:auto}.play-gate.defeated .gate-card{position:relative;left:auto;top:auto;width:100%;max-width:none}.play-gate.defeated .gate-card p{display:block}.play-gate.defeated .defeat-items{position:relative;right:auto;top:auto;width:100%;margin:28px 0 0;max-height:220px}.defeat-report{position:relative;left:auto;right:auto;bottom:auto;margin-top:28px;padding-bottom:20px}.defeat-report dl{grid-template-columns:repeat(3,1fr);gap:20px}.play-gate.defeated .gate-card h1{font-size:36px}}
+@media(prefers-reduced-motion:no-preference){.play-gate.defeated .gate-card,.play-gate.defeated .defeat-report,.play-gate.defeated .defeat-items{animation:report-appear .55s ease-out both}@keyframes report-appear{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}}
+
+/* Expedition route: objective progress gets priority over the old population quota. */
+#debug .debug-studio{display:block;margin:12px 0;padding:10px 12px;border:1px solid #a9bc8470;border-radius:5px;background:#71804424;color:#e2eac9;font:600 12px/1.5 system-ui,sans-serif;text-decoration:none}#debug .debug-studio:hover{background:#8a9c5538}#debug .debug-studio:focus-visible{outline:2px solid #ebc986;outline-offset:3px}
+.run-inventory{display:grid;grid-template-columns:repeat(7,38px);gap:4px;width:max-content;max-width:none;max-height:80px;overflow:visible}.run-inventory>div{box-sizing:border-box;width:38px;height:38px;border-radius:4px}.run-inventory .item-icon{width:36px;height:36px}.run-inventory b{font-size:10px;line-height:1.2;text-shadow:0 1px 3px #000}.run-inventory .inventory-more{grid-column:span 2;padding:4px;font-size:8px;line-height:1.5;letter-spacing:.03em;box-sizing:border-box}
+@media(max-width:900px),(max-height:580px){.run-inventory{top:15px;left:12px;grid-template-columns:repeat(7,28px);gap:3px;max-height:60px}.run-inventory>div{width:28px;height:28px}.run-inventory .item-icon{width:26px;height:26px}.run-inventory b{font-size:8px}.run-inventory .inventory-more{font-size:7px;padding:2px}.stats-hint{left:12px;top:86px}}
+.expedition-route{position:absolute;left:22px;top:148px;width:252px;padding:14px;background:linear-gradient(90deg,#08191fe8,#08191f91);border-left:2px solid #dabb80;box-sizing:border-box}
+.expedition-route[hidden],.harvest-resonance[hidden]{display:none}
+.expedition-route>small{display:block;color:#ecd6a8;font-size:9px;letter-spacing:.17em;font-weight:650;margin-bottom:10px}
+.expedition-route ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.expedition-route li{position:relative;display:grid;grid-template-columns:22px minmax(0,1fr) auto;align-items:center;gap:8px;min-height:41px;padding:5px 7px;overflow:hidden;box-sizing:border-box;background:#c5dcc706;border:1px solid #b6c9bf1b}
+.expedition-route li>b{display:grid;place-items:center;font-size:12px;color:#d7c6a0;border:1px solid #c5ba9a4a;width:20px;height:24px}
+.expedition-route li>span{font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#ebe8d7;line-height:1.4}
+.expedition-route li small{display:block;font-size:8px;font-weight:400;letter-spacing:.04em;color:#a8bfb5;margin-top:2px}
+.expedition-route li>em{font-size:9px;font-style:normal;color:#cbd9c8;white-space:nowrap;font-variant-numeric:tabular-nums}
+.expedition-route li>i{position:absolute;left:0;bottom:0;height:2px;background:#72ddba;transition:width .15s linear}
+.expedition-route .totem-target{border-color:#cdb58270;background:#cbb77d13}.expedition-route .totem-charging{border-color:#70d9ad85}.expedition-route .totem-charging>b{color:#9de9cd;border-color:#70d9ad85}.expedition-route .totem-complete{opacity:.52}.expedition-route .totem-complete>b{color:#91cbb1}
+.route-hint{display:block;font-size:10px;line-height:1.55;color:#b3c8bb;margin-top:10px}
+.harvest-resonance{position:absolute;right:24px;bottom:185px;width:210px;padding:12px 14px;box-sizing:border-box;background:linear-gradient(270deg,#0b1a20d9,#0b1a2066);border-right:2px solid #79bba9}
+.harvest-resonance>small{display:block;color:#b7d7c9;font-size:8px;letter-spacing:.14em}.harvest-resonance>div{display:flex;gap:5px;margin:9px 0}.harvest-resonance>div i{height:4px;flex:1;background:#8bafa22b}.harvest-resonance>div i.lit{background:#88e0be;box-shadow:0 0 6px #8ce9bf35}.harvest-resonance>span{font-size:9px;line-height:1.5;display:block;color:#b8c8be}.harvest-resonance .skill-charges{border-top:1px solid #b5d0c12e;margin-top:8px;padding-top:8px;color:#f0d6a2}
+#run-hud:has(.expedition-route:not([hidden])) .district-contract{top:445px;width:252px;box-sizing:border-box;border-left-color:#73877e;opacity:.82;padding:10px 14px}
+#run-hud:has(.expedition-route:not([hidden])) .district-contract>b{font-size:12px}
+#run-hud:has(.expedition-route:not([hidden])) .run-hostiles{display:none}
+@media(max-height:760px){.expedition-route{top:128px;padding:10px 12px}.expedition-route li{min-height:36px}.route-hint{font-size:9px;margin-top:7px}#run-hud:has(.expedition-route:not([hidden])) .district-contract{top:392px;padding:8px 12px}.district-contract>span{font-size:10px}.district-contract>small{font-size:8px}}
+@media(max-width:900px){.expedition-route{left:12px;width:218px}.expedition-route li{gap:5px;padding-inline:4px}.expedition-route li>span{font-size:10px}.expedition-route li>em{font-size:8px}.harvest-resonance{right:12px;width:185px;bottom:177px}#run-hud:has(.expedition-route:not([hidden])) .district-contract{left:auto;right:12px;top:128px;width:185px}.route-hint{max-width:190px}}
+@media(max-height:580px){.stats-hint{top:76px;font-size:8px;line-height:12px}.expedition-route{top:95px}.expedition-route li{min-height:32px}.expedition-route>small{margin-bottom:6px}.route-hint{display:none}.harvest-resonance{bottom:148px;padding:8px 10px}.harvest-resonance>span:not(.skill-charges){display:none}#run-hud:has(.expedition-route:not([hidden])) .district-contract{display:none}}

@@ -43,10 +43,10 @@
     "/audio/foley/impact-3.ogg"
   ],
   "heavy": [
-    "/audio/foley/heavy-0.ogg",
-    "/audio/foley/heavy-1.ogg",
-    "/audio/foley/heavy-2.ogg",
-    "/audio/foley/heavy-3.ogg"
+    "/audio/enemies/common-heavy-0.ogg",
+    "/audio/enemies/common-heavy-1.ogg",
+    "/audio/enemies/common-heavy-2.ogg",
+    "/audio/enemies/common-heavy-3.ogg"
   ],
   "charge": [
     "/audio/foley/charge-0.ogg",
@@ -55,28 +55,27 @@
     "/audio/foley/charge-3.ogg"
   ],
   "growl": [
-    "/audio/foley/growl-0.wav",
-    "/audio/foley/growl-1.wav",
-    "/audio/foley/growl-2.wav",
-    "/audio/foley/growl-3.wav"
+    "/audio/enemies/common-strain-0.ogg",
+    "/audio/enemies/common-strain-1.ogg",
+    "/audio/enemies/common-strain-2.ogg"
   ],
   "attack": [
-    "/audio/foley/attack-0.wav",
-    "/audio/foley/attack-1.wav",
-    "/audio/foley/attack-2.wav"
+    "/audio/enemies/common-attack-0.ogg",
+    "/audio/enemies/common-attack-1.ogg",
+    "/audio/enemies/common-attack-2.ogg"
   ],
   "death": [
-    "/audio/foley/death-0.wav",
-    "/audio/foley/death-1.wav"
+    "/audio/enemies/common-death-0.ogg",
+    "/audio/enemies/common-death-1.ogg"
   ],
   "spawn": [
-    "/audio/foley/spawn-0.wav",
-    "/audio/foley/spawn-1.wav"
+    "/audio/enemies/common-spawn-0.ogg",
+    "/audio/enemies/common-spawn-1.ogg"
   ],
   "hurt": [
-    "/audio/foley/hurt-0.wav",
-    "/audio/foley/hurt-1.wav",
-    "/audio/foley/hurt-2.wav"
+    "/audio/enemies/common-hurt-0.ogg",
+    "/audio/enemies/common-hurt-1.ogg",
+    "/audio/enemies/common-hurt-2.ogg"
   ],
   "pistol": [
     "/audio/pistol-1.wav",
@@ -105,99 +104,124 @@
     "/audio/foley/reload.wav"
   ],
   "enemy-eggplant-growl": [
-    "/audio/foley/enemy-voice-beast-growl-1.wav",
-    "/audio/foley/enemy-voice-beast-growl-2.wav"
+    "/audio/enemies/eggplant-strain-0.ogg",
+    "/audio/enemies/eggplant-strain-1.ogg"
   ],
   "enemy-eggplant-attack": [
-    "/audio/foley/enemy-voice-yucky-beast-1.wav",
-    "/audio/foley/enemy-voice-yucky-beast-2.wav"
+    "/audio/enemies/eggplant-attack-0.ogg",
+    "/audio/enemies/eggplant-attack-1.ogg"
   ],
   "enemy-eggplant-hurt": [
-    "/audio/foley/enemy-voice-yucky-beast-4.wav",
-    "/audio/foley/enemy-voice-yucky-beast-5.wav"
+    "/audio/enemies/eggplant-hurt-0.ogg",
+    "/audio/enemies/eggplant-hurt-1.ogg"
   ],
   "enemy-eggplant-death": [
-    "/audio/foley/enemy-voice-dieing-beast.wav"
+    "/audio/enemies/eggplant-death-0.ogg",
+    "/audio/enemies/eggplant-death-1.ogg"
   ],
   "enemy-eggplant-spawn": [
-    "/audio/foley/enemy-voice-beast-growl.wav"
+    "/audio/enemies/eggplant-spawn-0.ogg",
+    "/audio/enemies/eggplant-spawn-1.ogg"
   ],
   "enemy-corn-growl": [
-    "/audio/foley/enemy-voice-beast-growl-5.wav"
+    "/audio/enemies/corn-rattle-0.ogg",
+    "/audio/enemies/corn-rattle-1.ogg"
   ],
   "enemy-corn-attack": [
-    "/audio/foley/enemy-voice-yucky-beast-3.wav"
+    "/audio/enemies/corn-attack-0.ogg",
+    "/audio/enemies/corn-attack-1.ogg"
   ],
   "enemy-corn-hurt": [
-    "/audio/foley/enemy-voice-yucky-beast-6.wav"
+    "/audio/enemies/corn-hurt-0.ogg",
+    "/audio/enemies/corn-hurt-1.ogg"
   ],
   "enemy-corn-death": [
-    "/audio/foley/enemy-voice-dieing-pixie.wav"
+    "/audio/enemies/corn-death-0.ogg",
+    "/audio/enemies/corn-death-1.ogg"
   ],
   "enemy-corn-spawn": [
-    "/audio/foley/enemy-voice-spirit-shout.wav"
+    "/audio/enemies/corn-spawn-0.ogg",
+    "/audio/enemies/corn-spawn-1.ogg"
   ],
   "enemy-carrot-growl": [
-    "/audio/foley/enemy-voice-pixie.wav"
+    "/audio/enemies/carrot-charge-0.ogg",
+    "/audio/enemies/carrot-charge-1.ogg"
   ],
   "enemy-carrot-attack": [
-    "/audio/foley/enemy-voice-spirit-shout.wav"
+    "/audio/enemies/carrot-beam-0.ogg",
+    "/audio/enemies/carrot-beam-1.ogg"
   ],
   "enemy-carrot-hurt": [
-    "/audio/foley/enemy-voice-yucky-beast-5.wav"
+    "/audio/enemies/carrot-hurt-0.ogg",
+    "/audio/enemies/carrot-hurt-1.ogg"
   ],
   "enemy-carrot-death": [
-    "/audio/foley/enemy-voice-dieing-pixie.wav"
+    "/audio/enemies/carrot-death-0.ogg",
+    "/audio/enemies/carrot-death-1.ogg"
   ],
   "enemy-carrot-spawn": [
-    "/audio/foley/enemy-voice-pixie.wav"
+    "/audio/enemies/carrot-spawn-0.ogg",
+    "/audio/enemies/carrot-spawn-1.ogg"
   ],
   "enemy-watermelon-growl": [
-    "/audio/foley/enemy-voice-demon-growl.wav"
+    "/audio/enemies/watermelon-strain-0.ogg",
+    "/audio/enemies/watermelon-strain-1.ogg"
   ],
   "enemy-watermelon-attack": [
-    "/audio/foley/enemy-voice-yucky-beast.wav",
-    "/audio/foley/enemy-voice-yucky-beast-2.wav"
+    "/audio/enemies/watermelon-attack-0.ogg",
+    "/audio/enemies/watermelon-attack-1.ogg"
   ],
   "enemy-watermelon-hurt": [
-    "/audio/foley/enemy-voice-beast-growl-4.wav"
+    "/audio/enemies/watermelon-hurt-0.ogg",
+    "/audio/enemies/watermelon-hurt-1.ogg"
   ],
   "enemy-watermelon-death": [
-    "/audio/foley/enemy-voice-dieing-beast.wav"
+    "/audio/enemies/watermelon-death-0.ogg",
+    "/audio/enemies/watermelon-death-1.ogg"
   ],
   "enemy-watermelon-spawn": [
-    "/audio/foley/enemy-voice-beast-growl-3.wav"
+    "/audio/enemies/watermelon-spawn-0.ogg",
+    "/audio/enemies/watermelon-spawn-1.ogg"
   ],
   "enemy-tomato-growl": [
-    "/audio/foley/enemy-voice-beast-growl-5.wav"
+    "/audio/enemies/tomato-ignite-0.ogg",
+    "/audio/enemies/tomato-ignite-1.ogg"
   ],
   "enemy-tomato-attack": [
-    "/audio/foley/enemy-voice-demon-call-one-voice.wav"
+    "/audio/enemies/tomato-attack-0.ogg",
+    "/audio/enemies/tomato-attack-1.ogg"
   ],
   "enemy-tomato-hurt": [
-    "/audio/foley/enemy-voice-yucky-beast-6.wav"
+    "/audio/enemies/tomato-hurt-0.ogg",
+    "/audio/enemies/tomato-hurt-1.ogg"
   ],
   "enemy-tomato-death": [
-    "/audio/foley/enemy-voice-dieing-pixie.wav"
+    "/audio/enemies/tomato-death-0.ogg",
+    "/audio/enemies/tomato-death-1.ogg"
   ],
   "enemy-tomato-spawn": [
-    "/audio/foley/enemy-voice-demon-call-one-voice.wav"
+    "/audio/enemies/tomato-spawn-0.ogg",
+    "/audio/enemies/tomato-spawn-1.ogg"
   ],
   "enemy-boss-growl": [
-    "/audio/foley/enemy-voice-demon-growl.wav",
-    "/audio/foley/enemy-voice-beast-growl-3.wav"
+    "/audio/enemies/boss-strain-0.ogg",
+    "/audio/enemies/boss-strain-1.ogg"
   ],
   "enemy-boss-attack": [
-    "/audio/foley/enemy-voice-demon-call.wav"
+    "/audio/enemies/boss-attack-0.ogg",
+    "/audio/enemies/boss-attack-1.ogg"
   ],
   "enemy-boss-hurt": [
-    "/audio/foley/enemy-voice-beast-growl-4.wav"
+    "/audio/enemies/boss-hurt-0.ogg",
+    "/audio/enemies/boss-hurt-1.ogg"
   ],
   "enemy-boss-death": [
-    "/audio/foley/enemy-voice-dieing-beast.wav"
+    "/audio/enemies/boss-death-0.ogg",
+    "/audio/enemies/boss-death-1.ogg"
   ],
   "enemy-boss-spawn": [
-    "/audio/foley/enemy-voice-demon-call.wav"
+    "/audio/enemies/boss-spawn-0.ogg",
+    "/audio/enemies/boss-spawn-1.ogg"
   ],
   "enemy-earth-impact": [
     "/audio/foley/impactMining_000.ogg"
@@ -207,5 +231,32 @@
   ],
   "player-death": [
     "/audio/foley/player-death-scream.wav"
+  ],
+  "rain": [
+    "/audio/weather/rain-ylmir-01.ogg"
+  ],
+  "enemy-eggplant-heavy": [
+    "/audio/enemies/eggplant-impact-0.ogg",
+    "/audio/enemies/eggplant-impact-1.ogg"
+  ],
+  "enemy-corn-pistol": [
+    "/audio/enemies/corn-shot-0.ogg",
+    "/audio/enemies/corn-shot-1.ogg"
+  ],
+  "enemy-watermelon-heavy": [
+    "/audio/enemies/watermelon-impact-0.ogg",
+    "/audio/enemies/watermelon-impact-1.ogg"
+  ],
+  "enemy-tomato-swish": [
+    "/audio/enemies/tomato-whoosh-0.ogg",
+    "/audio/enemies/tomato-whoosh-1.ogg"
+  ],
+  "enemy-carrot-charge": [
+    "/audio/enemies/carrot-coil-0.ogg",
+    "/audio/enemies/carrot-coil-1.ogg"
+  ],
+  "enemy-boss-heavy": [
+    "/audio/enemies/boss-impact-0.ogg",
+    "/audio/enemies/boss-impact-1.ogg"
   ]
 }

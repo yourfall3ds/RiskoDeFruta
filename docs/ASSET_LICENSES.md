@@ -38,3 +38,53 @@ Amostras locais CC0; fontes e autores detalhados em [foley-sources.json](foley-s
 Baú articulado, volumes geológicos, ilha móvel e discos voadores foram modelados localmente no Blender e usam texturas PBR já existentes do acervo Poly Haven CC0. Os cinco inimigos originais fornecidos pelo usuário preservam malhas, materiais, imagens e skins; ver original-enemy-integrity.json.
 
 - **Grito do personagem na morte**: HaelDB, [Male Grunt/Yelling sounds](https://opengameart.org/content/male-gruntyelling-sounds), CC0. Original `yelling sounds/1yell11.wav`, copiado sem alteração para `public/audio/foley/player-death-scream.wav`; velocidade de reprodução 0,95 em runtime.
+
+## Nave de inserção (deck de entrada)
+
+`public/models/dropship-deck.glb` é **geometria autoral deste projeto**, gerada por
+`scripts/build-dropship-deck.py` (Blender, mesmo pipeline de `build-farm-world.py` e
+`build-alien-world.py`). Nenhum serviço externo de geração foi usado e nenhum asset original
+foi alterado.
+
+Mapas PBR aplicados, todos Poly Haven CC0 já presentes no repositório e já listados em
+[WORLD_PRESENTATION.md](WORLD_PRESENTATION.md):
+
+- Corrugated Iron: https://polyhaven.com/a/corrugated_iron — chapa e frisos do deck
+- Rusty Painted Metal: https://polyhaven.com/a/rusty_painted_metal — casco, estrutura, corrimão
+
+Usamos **apenas os mapas de normal (`nor_gl`) e de AO/rugosidade/metalicidade (`arm`)**. Os mapas de
+cor (`Diffuse`) foram retirados na revisão de 15/09: a cor marrom deles fazia o casco parecer
+madeira listrada. A cor agora é tinta chapada (`baseColorFactor`) em grafite e oliva, e os mapas
+entram só como relevo e desgaste.
+
+Os mapas são reduzidos para 1K dentro do script antes da exportação, porque o asset carrega
+**antes** do botão Jogar. O GLB final tem ~1,16 MB e 26.984 vértices.
+
+## Afloramentos de rocha (relevo)
+
+`public/models/outcrop-rocks.json` é **arquivo derivado**, extraído por
+`scripts/extract-outcrop-rock.mjs` da geometria escaneada `coast_land_rocks_02` que já estava
+embarcada em `public/models/highland-farms.glb`. Nenhum modelo original foi alterado: o script
+apenas LÊ o GLB e grava um JSON novo com posições normalizadas (X/Z centrados, base em Y=0,
+extensão 1 em cada eixo), UVs e índices — 899 triângulos, 870 vértices.
+
+A licença é a mesma do scan de origem, já listada em
+[WORLD_PRESENTATION.md](WORLD_PRESENTATION.md) (Poly Haven, CC0). O JSON carrega o bloco
+`provenance` com arquivo de origem, nó, material e script, para a cadeia ficar auditável dentro do
+próprio asset.
+
+Existe para o **servidor autoritativo**, que não carrega GLB: cliente e servidor precisam gerar a
+MESMA colisão de afloramento, e um JSON pequeno lido pelos dois lados é o que garante isso.
+
+## Atlas de chuva
+
+`public/textures/weather/rain-streaks.png`, `rain-splash.png` e `rain-haze.png` são **gerados
+offline** por `scripts/build-rain-atlas.py` (numpy dentro do Blender), que é a fonte editável.
+
+**Não são fotografia nem gravação, e não afirmamos que sejam.** São desenho por código: dezesseis
+rastros com comprimento, espessura, ondulação e encordoamento sorteados; um flipbook de coroa de
+respingo; e um véu de hastes fracas. RGB branco, forma no alfa. Sem dependência externa, sem
+serviço de geração e sem licença de terceiros envolvida — a autoria é deste projeto.
+
+O áudio de chuva continua sendo a gravação licenciada já registrada em
+[licenses/rain-ylmir.md](licenses/rain-ylmir.md); nada novo foi gravado.

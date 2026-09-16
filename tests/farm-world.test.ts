@@ -1,4 +1,5 @@
 import { describe,it,expect } from 'vitest';
+import {WALK_SPEED} from '../src/player/PlayerTuning';
 import { readFileSync } from 'node:fs';
 import { CollisionWorld } from '../src/physics/CollisionWorld';
 import { PlayerMotor } from '../src/player/PlayerMotor';
@@ -13,7 +14,7 @@ describe('farm traversal',()=>{
   it('walks from spawn up the rising path into the open barn doorway',()=>{
     const data=JSON.parse(readFileSync('public/models/farm-collision.json','utf8'));const world=new CollisionWorld();world.boxes.push(...data.boxes);world.surfaces.push(...data.surfaces);const actual=JSON.parse(readFileSync('public/models/world-collision-mesh.json','utf8'));world.boxes.push(...actual.boxes);world.setGeometry(actual.positions,actual.indices);
     const player=new PlayerMotor(world,new EventBus(),{x:0,y:0,z:-10});
-    for(let tick=0;tick<485;tick++)player.fixedUpdate(1/60,{...EMPTY_INPUT,z:1},0);
+    for(let tick=0;tick<Math.ceil(43.6/WALK_SPEED*60)+90;tick++)player.fixedUpdate(1/60,{...EMPTY_INPUT,z:1},0);
     expect(player.position.z).toBeGreaterThan(29);expect(player.position.y).toBeCloseTo(5,1);expect(player.respawns).toBe(0);
   });
   it('has real island edges instead of an invisible rectangular floor',()=>{

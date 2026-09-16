@@ -27,6 +27,7 @@ export function navigationGeometry(world:CollisionWorld):{positions:number[];ind
 export class TacticalNavigation {
   readonly crowd:Crowd;readonly query:NavMeshQuery;private agents=new Map<number,CrowdAgent>();private playerAgent:CrowdAgent|undefined;private readonly slots=new Map<number,{rank:number;ranged:boolean}>();private readonly goals=new Map<number,Vec3>();
   private residency:NavigationTileResidency|undefined;private residencyClock=0;private residencyPosition:Vec3|undefined;
+  private readonly takenRanks:boolean[]=[];
   private constructor(private readonly mesh:NavMesh){this.query=new NavMeshQuery(mesh,{maxNodes:8192});this.query.defaultQueryHalfExtents={x:2,y:3,z:2};this.crowd=new Crowd(mesh,{maxAgents:162,maxAgentRadius:3});}
   static async create(world:CollisionWorld,baked=false):Promise<TacticalNavigation>{
     initialization??=init();await initialization;
@@ -59,8 +60,21 @@ export class TacticalNavigation {
   reachable(p:Vec3,target:Vec3):boolean {const nearest=this.closest(p);if(!nearest||Math.hypot(p.x-nearest.x,p.z-nearest.z)>1.4)return false;const path=this.query.computePath(nearest,target,{maxPathPolys:2048,maxStraightPathPoints:2048});return path.success&&path.path.length>0&&Math.hypot(path.path.at(-1)!.x-target.x,path.path.at(-1)!.z-target.z)<3;}
   add(id:number,p:Vec3,radius:number,speed:number):boolean {this.remove(id);const nearest=this.closest(p);if(!nearest)return false;const agent=this.crowd.addAgent(nearest,{radius,height:1.8,maxSpeed:speed,maxAcceleration:16,collisionQueryRange:radius*10,pathOptimizationRange:12,separationWeight:3.5,updateFlags:31,obstacleAvoidanceType:0});if(agent.state()===0){this.crowd.removeAgent(agent);return false;}this.agents.set(id,agent);return true;}
   remove(id:number):void {const agent=this.agents.get(id);if(agent)this.crowd.removeAgent(agent);this.agents.delete(id);this.slots.delete(id);this.goals.delete(id);}
+  /**
+   * Menor sector livre da classe, sem montar lista/`Set` novos a cada chamada. `target` roda uma vez
+   * por ator por tique, então as três listas intermediárias de antes eram O(agentes) de lixo por ator.
+   * Só interessam ranks abaixo do total de ocupantes — acima disso o primeiro buraco já apareceu.
+   */
+  private freeRank(id:number,ranged:boolean):number {
+    const taken=this.takenRanks,limit=this.slots.size+1;
+    if(taken.length<limit)taken.length=limit;
+    taken.fill(false,0,limit);
+    this.slots.forEach((slot,other)=>{if(other!==id&&slot.ranged===ranged&&slot.rank>=0&&slot.rank<limit)taken[slot.rank]=true;});
+    let free=0;while(free<limit&&taken[free])free++;
+    return free;
+  }
   /** Each attacker owns a sector. Further ranks wait outside the inner attack circle. */
-  target(id:number,player:Vec3,rank:number,ranged:boolean,speed:number):void {const a=this.agents.get(id);if(!a)return;const occupied=new Set([...this.slots.entries()].filter(([other,s])=>other!==id&&s.ranged===ranged).map(([,s])=>s.rank));let free=0;while(occupied.has(free))free++;const previous=this.slots.get(id);rank=previous?Math.min(previous.rank,free):free;this.slots.set(id,{rank,ranged});const slots=ranged?10:7,ring=Math.floor(rank/slots),angle=(rank%slots)/slots*Math.PI*2+(ranged?.31:0),radius=ranged?9+ring*2.1:2.0+ring*1.6;
+  target(id:number,player:Vec3,rank:number,ranged:boolean,speed:number):void {const a=this.agents.get(id);if(!a)return;const free=this.freeRank(id,ranged);const previous=this.slots.get(id);rank=previous?Math.min(previous.rank,free):free;this.slots.set(id,{rank,ranged});const slots=ranged?10:7,ring=Math.floor(rank/slots),angle=(rank%slots)/slots*Math.PI*2+(ranged?.31:0),radius=ranged?9+ring*2.1:2.0+ring*1.6;
     const wanted={x:player.x+Math.sin(angle)*radius,y:player.y,z:player.z+Math.cos(angle)*radius},near=this.closest(wanted);a.updateFlags=31;a.maxAcceleration=16;a.maxSpeed=speed;const goal=this.goals.get(id);if(goal&&Math.hypot(goal.x-wanted.x,goal.z-wanted.z)<.6)return;this.goals.set(id,wanted);if(near)a.requestMoveTarget(near);else a.requestMoveTarget(this.closest(player)??player);
   }
   velocity(id:number,velocity:Vec3,maxSpeed:number,committed=false):void {const a=this.agents.get(id);if(a){this.goals.delete(id);a.updateFlags=committed?0:31;a.maxAcceleration=committed?45:16;a.maxSpeed=maxSpeed;a.requestMoveVelocity(velocity);}}

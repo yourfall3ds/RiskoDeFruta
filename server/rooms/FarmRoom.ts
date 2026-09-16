@@ -21,6 +21,9 @@ export function loadCollision(root = process.cwd()): CollisionData {
   // Cidade agrícola: opcional, espelha FarmWorld.load quando o JSON existe.
   if (existsSync(path('farm-city-collision.json'))) data.city = read('farm-city-collision.json') as NonNullable<CollisionData['city']>;
   data.regions=['solar-frontier-collision.json','highland-farms-collision.json','rootwood-collision.json'].filter(name=>existsSync(path(name))).map(name=>({...read(name) as NonNullable<CollisionData['city']>,id:name.replace('-collision.json','')}));
+  // Rocha dos afloramentos: o MESMO arquivo que o cliente busca por fetch, para a colisão do
+  // servidor ter exatamente as pedras que o jogador vê.
+  if (existsSync(path('outcrop-rocks.json'))) data.outcrops = read('outcrop-rocks.json') as NonNullable<CollisionData['outcrops']>;
   return data;
 }
 

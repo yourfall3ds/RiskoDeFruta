@@ -5,7 +5,8 @@ import type { Vec3 } from '../core/contracts';
 import {StaticRayIndex,type RayIndexSnapshot} from './StaticRayIndex';
 import {Vector3} from '@babylonjs/core/Maths/math.vector';
 import type {Ray} from '@babylonjs/core/Culling/ray';
-import { TriangleGround } from './TriangleGround';
+import { TriangleGround,type GroundSample } from './TriangleGround';
+export type { GroundSample } from './TriangleGround';
 export interface BoxCollider { id: string; min: Vec3; max: Vec3 }
 export interface GroundSurface { id: string; x: number; z: number; width: number; depth: number; height: number; slopeX?: number; slopeZ?: number; ellipse?:boolean }
 export interface SweepHit { time: number; normal: Vec3; collider: BoxCollider }
@@ -90,14 +91,43 @@ export class CollisionWorld {
     }
     return height;
   }
+  /**
+   * Superfície real mais alta sob o ponto, sem descartar inclinações acima do limite jogável.
+   * `groundAt` continua respondendo apenas o piso caminhável; este método existe para o
+   * deslizamento controlado e para checar se um topo sólido coincide com a malha.
+   */
+  surfaceAt(x:number,z:number,maxHeight=Infinity):GroundSample|undefined {
+    let best=this.triangles?.sample(x,z,maxHeight);
+    const consider=(sample:GroundSample|undefined)=>{if(sample&&(!best||sample.height>best.height))best=sample;};
+    for(const world of this.nearbyRegions(x,z))consider(world.surfaceAt(x,z,maxHeight));
+    for(const s of this.surfaces){
+      if(Math.abs(x-s.x)>s.width/2||Math.abs(z-s.z)>s.depth/2)continue;
+      if(s.ellipse&&((x-s.x)/(s.width/2))**2+((z-s.z)/(s.depth/2))**2>1)continue;
+      const y=s.height+(x-s.x)*(s.slopeX??0)+(z-s.z)*(s.slopeZ??0);if(y>maxHeight+1e-5)continue;
+      const sx=s.slopeX??0,sz=s.slopeZ??0,length=Math.hypot(sx,1,sz);
+      consider({height:y,normal:{x:-sx/length,y:1/length,z:-sz/length},slopeDegrees:Math.atan(Math.hypot(sx,sz))*180/Math.PI});
+    }
+    for(const b of this.nearbyBoxes(x,z,0)){
+      if(b.id.startsWith('moving-'))continue;
+      if(x>=b.min.x&&x<=b.max.x&&z>=b.min.z&&z<=b.max.z&&b.max.y<=maxHeight+1e-5)consider({height:b.max.y,normal:{x:0,y:1,z:0},slopeDegrees:0});
+    }
+    return best;
+  }
   sweepSphere(origin: Vec3,delta: Vec3,radius: number,mesh=false): SweepHit | undefined {
     let closest: SweepHit | undefined;
     for(const box of this.nearbyBoxes(origin.x+delta.x*.5,origin.z+delta.z*.5,Math.max(Math.abs(delta.x),Math.abs(delta.z))*.5+radius)) {const hit=sweepBox(origin,delta,box,radius);if(hit && (!closest || hit.time<closest.time))closest=hit;}
     if(mesh){const hit=this.meshSweep(new Vector3(origin.x,origin.y-radius,origin.z),new Vector3(delta.x,delta.y,delta.z),radius,radius*2);if(hit&&(!closest||hit.time<closest.time))closest=hit;}
     return closest;
   }
-  /** Continuous full-height sweep for airborne movement, with sliding instead of wall penetration. */
-  moveAirborne(position:Vec3,delta:Vec3,radius:number,height:number):boolean {
+  /**
+   * Continuous full-height sweep for airborne movement, with sliding instead of wall penetration.
+   *
+   * Devolve `true` só quando o contato é piso ou teto DE VERDADE. Uma face íngreme tem normal com
+   * componente vertical pequena, mas não sustenta: tratá-la como contato vertical zerava a queda e
+   * deixava o corpo pairando na beira do penhasco. `supportNormalY` é o cosseno da inclinação
+   * máxima caminhável — acima dela é piso, abaixo é parede.
+   */
+  moveAirborne(position:Vec3,delta:Vec3,radius:number,height:number,supportNormalY=Math.cos(50*Math.PI/180)):boolean {
     const remaining={...delta};let verticalHit=false;
     for(let iteration=0;iteration<4;iteration++){
       let nearest:{time:number;normal:Vec3}|undefined;
@@ -111,7 +141,8 @@ export class CollisionWorld {
       const advance=Math.max(0,nearest.time-.0001);position.x+=remaining.x*advance;position.y+=remaining.y*advance;position.z+=remaining.z*advance;
       const left=1-advance;remaining.x*=left;remaining.y*=left;remaining.z*=left;
       const dot=remaining.x*nearest.normal.x+remaining.y*nearest.normal.y+remaining.z*nearest.normal.z;
-      remaining.x-=dot*nearest.normal.x;remaining.y-=dot*nearest.normal.y;remaining.z-=dot*nearest.normal.z;if(nearest.normal.y)verticalHit=true;
+      remaining.x-=dot*nearest.normal.x;remaining.y-=dot*nearest.normal.y;remaining.z-=dot*nearest.normal.z;
+      if(nearest.normal.y>=supportNormalY||nearest.normal.y<=-.2)verticalHit=true;
     }return verticalHit;
   }
   constrainPlayer(origin:Vec3,delta:Vec3,radius:number,height:number):Vec3 {

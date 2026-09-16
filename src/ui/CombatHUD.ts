@@ -6,38 +6,276 @@ import type {RunInteractables} from '../run/RunInteractables';
 import {ENEMY_AFFIXES} from '../enemies/EnemyAffixes';
 import {ENEMIES} from '../run/MonsterDirector';
 import {perkIcon} from './PerkIcons';
+import type {ExpeditionObjectives} from '../run/ExpeditionObjectives';
+import type {HarvestResonance} from '../run/HarvestResonance';
+import type {MPCharge} from '../combat/MPCharge';
+import type {WeatherCycle} from '../world/WeatherCycle';
+
+const COMPASS=['↑','↗','→','↘','↓','↙','←','↖'] as const;
+const bearingArrow=(from:{x:number;z:number},to:{x:number;z:number},heading:number)=>COMPASS[Math.round(((Math.atan2(to.x-from.x,to.z-from.z)*180/Math.PI-heading+720)%360)/45)%8]!;
+const clock=(seconds:number)=>`${String(Math.floor(seconds/60)).padStart(2,'0')}:${String(Math.floor(seconds%60)).padStart(2,'0')}`;
+
+/** Cadência do HUD: PlayerScene chama `update` todo frame, só ~10 atualizações por segundo passam. */
+const UPDATE_PERIOD=.1;
+/** Teto de barras simultâneas e raio de exibição, em metros — comportamento preservado. */
+const NEARBY_BARS=12,NEARBY_RANGE=28;
+/** `Vector3.Project` precisa de uma matriz de mundo; a identidade nunca muda e não é escrita. */
+const IDENTITY=Matrix.Identity();
+/**
+ * Percentuais com duas casas.
+ *
+ * Posições e larguras vêm de projeção e de vida em ponto flutuante: sem arredondar, ruído na
+ * última casa reescreveria `style` a cada atualização sem mover um pixel sequer. Duas casas valem
+ * 0,01% da tela (menos de meio pixel em 4K) e 0,01% de uma barra de 118px — invisível.
+ */
+const pct=(value:number)=>`${Math.round(value*100)/100}%`;
+
+type StyleProp='width'|'left'|'top'|'opacity'|'display';
+/** Escreve `style` só quando o valor muda; ler é barato, invalidar layout à toa não é. */
+const css=(node:HTMLElement,prop:StyleProp,value:string):void=>{if(node.style[prop]!==value)node.style[prop]=value;};
+const text=(node:HTMLElement,value:string):void=>{if(node.textContent!==value)node.textContent=value;};
+const attr=(node:HTMLElement,name:string,value:string):void=>{if(node.getAttribute(name)!==value)node.setAttribute(name,value);};
+const shown=(node:HTMLElement,visible:boolean):void=>{if(node.hidden===visible)node.hidden=!visible;};
+const classes=(node:HTMLElement,value:string):void=>{if(node.className!==value)node.className=value;};
+
+/**
+ * Painel de HTML que lembra o que já escreveu.
+ *
+ * O HUD reconstrói o mesmo texto dezenas de vezes por segundo (relógio parado, missão parada,
+ * contrato parado). Atribuir `innerHTML` idêntico ainda destrói e reconstrói a subárvore, então a
+ * comparação de string troca um parse de HTML por uma comparação de string.
+ */
+class HtmlSlot {
+ private written:string|undefined;
+ constructor(readonly node:HTMLElement){}
+ /** `true` quando o DOM foi realmente tocado. */
+ set(html:string):boolean {if(html===this.written)return false;this.written=html;this.node.innerHTML=html;return true;}
+}
+
+interface Marker {root:HTMLElement}
+/**
+ * Pool de marcadores projetados na tela: números de dano, barras de vida e caixas de suprimento.
+ *
+ * Antes cada atualização recriava essas subárvores inteiras por `innerHTML` — com 12 barras são
+ * ~48 nós destruídos e recriados 10 vezes por segundo. Aqui os nós ficam presos ao container e só
+ * mudam posição, opacidade, largura e rótulo; os que sobram vão para `display:none` e voltam a ser
+ * usados no quadro seguinte. O pool para no pico real de marcadores simultâneos — `swarm.labels`
+ * tem teto 32, as barras têm teto `NEARBY_BARS` e os suprimentos param no número de baús do
+ * estágio — então ele não cresce indefinidamente.
+ */
+class MarkerPool<T extends Marker> {
+ private readonly entries:T[]=[];private live=0;
+ constructor(private readonly host:HTMLElement,private readonly build:()=>T){}
+ /** Quantos nós o pool já criou — o teste de vazamento observa exatamente isto. */
+ get size():number {return this.entries.length;}
+ begin():void {this.live=0;}
+ take():T {
+  const reused=this.entries[this.live++];
+  if(reused){css(reused.root,'display','');return reused;}
+  const made=this.build();this.entries.push(made);this.host.append(made.root);return made;
+ }
+ end():void {for(let i=this.live;i<this.entries.length;i++)css(this.entries[i]!.root,'display','none');}
+}
+
+interface BarMarker extends Marker {trail:HTMLElement;fill:HTMLElement}
+interface SupplyMarker extends Marker {cost:HTMLElement}
+
+/** Só a barra: nome e números ficam no rótulo acessível, nunca desenhados sobre a cena. */
+function buildBar():BarMarker {
+ const root=document.createElement('div'),track=document.createElement('div');
+ const trail=document.createElement('i'),fill=document.createElement('i');
+ trail.className='health-trail';track.append(trail,fill);root.append(track);root.setAttribute('role','img');
+ return {root,trail,fill};
+}
+function buildLabel():Marker {return {root:document.createElement('b')};}
+function buildSupply():SupplyMarker {
+ const root=document.createElement('b'),cost=document.createElement('small');
+ root.textContent='◈';root.append(cost);
+ return {root,cost};
+}
+
+type SwarmActor=EnemySwarm['actors'][number];
+
+/**
+ * Texto do painel TAB, pelo MODO realmente ativo.
+ *
+ * O texto anterior era fixo e prometia “chefes a cada cinco ondas” mesmo numa expedição que não
+ * tem ondas — informação falsa para quem lê o painel durante a run.
+ */
+export function modeBrief(expedition:boolean,hordeMode:boolean):string {
+ const base='Abata pragas para ganhar XP e créditos. Abra baús e combine melhorias. ';
+ if(expedition)return base+'Ative os quatro marcos e permaneça vivo na área de cada um: sair pausa a carga, não apaga, e concluir não depende de eliminar as pragas. Com os quatro prontos, derrote a Praga Alfa e atravesse a fenda.';
+ if(hordeMode)return base+'Vença cada horda e recolha o item que cai no campo. A cada cinco ondas, enfrente uma Praga Alfa.';
+ return base+'Contenha a infestação até a Praga Alfa aparecer, derrote-a e atravesse a fenda para avançar de estágio.';
+}
 
 export class RunHUD {
- private readonly element=document.createElement('div');private readonly controls=new AbortController();private inventoryKey='';private lastUpdate=-1;
+ private readonly element=document.createElement('div');private readonly controls=new AbortController();private inventoryKey='';private lastUpdate=-1;private statsKey='';
+ // Referências resolvidas uma vez: `querySelector` por atualização percorria o HUD inteiro a cada painel.
+ private readonly inventory:HtmlSlot;private readonly bearing:HtmlSlot;private readonly clockPanel:HtmlSlot;private readonly mission:HtmlSlot;
+ private readonly contract:HtmlSlot;private readonly hostiles:HtmlSlot;private readonly interact:HtmlSlot;private readonly toast:HtmlSlot;
+ private readonly statsPanel:HtmlSlot;private readonly route:HtmlSlot;private readonly meter:HtmlSlot;
+ private readonly xpText:HTMLElement;private readonly xpFill:HTMLElement;
+ private readonly bossBox:HTMLElement;private readonly bossFill:HTMLElement;private readonly bossText:HTMLElement;
+ private readonly interactBox:HTMLElement;private readonly routeBox:HTMLElement;private readonly meterBox:HTMLElement;
+ private readonly bars:MarkerPool<BarMarker>;private readonly damage:MarkerPool<Marker>;private readonly supplies:MarkerPool<SupplyMarker>;
+ private decay='';
+ // Seleção das barras próximas sem `filter`/`sort` por atualização: buffers reaproveitados.
+ private readonly nearby:SwarmActor[]=[];private readonly nearbyKeys:number[]=[];
+ private readonly world=new Vector3();private readonly screen=new Vector3();
  constructor(){
-  this.element.id='run-hud';this.element.innerHTML='<div class="run-inventory"></div><div class="run-clock"></div><div class="run-mission"></div><aside class="district-contract"></aside><div class="run-boss" hidden><span>PRAGA ALFA</span><div><i></i></div><small></small></div><div class="run-xp"><span></span><div><i></i></div></div><div class="run-hostiles"></div><div class="run-interact" hidden></div><div class="run-toast"></div><div class="damage-labels"></div><div class="run-bearing"></div><div class="world-supplies"></div><div class="enemy-health-bars"></div><aside class="run-stats" hidden></aside><small class="stats-hint">TAB · ATRIBUTOS</small>';document.body.append(this.element);
-  window.addEventListener('keydown',event=>{if(event.code==='Tab'&&!this.element.hidden){event.preventDefault();const panel=this.element.querySelector('.run-stats') as HTMLElement;panel.hidden=!panel.hidden;}},{signal:this.controls.signal});
+  this.element.id='run-hud';this.element.innerHTML='<div class="run-inventory"></div><div class="run-clock"></div><div class="run-mission"></div><aside class="expedition-route" hidden></aside><div class="harvest-resonance" hidden></div><aside class="district-contract"></aside><div class="run-boss" hidden><span>PRAGA ALFA</span><div><i></i></div><small></small></div><div class="run-xp"><span></span><div><i></i></div></div><div class="run-hostiles"></div><div class="run-interact" hidden></div><div class="run-toast"></div><div class="damage-labels"></div><div class="run-bearing"></div><div class="world-supplies"></div><div class="enemy-health-bars"></div><aside class="run-stats" hidden></aside><small class="stats-hint">TAB · ATRIBUTOS</small>';document.body.append(this.element);
+  const pick=(selector:string):HTMLElement=>this.element.querySelector(selector) as HTMLElement;
+  this.inventory=new HtmlSlot(pick('.run-inventory'));this.bearing=new HtmlSlot(pick('.run-bearing'));this.clockPanel=new HtmlSlot(pick('.run-clock'));
+  this.mission=new HtmlSlot(pick('.run-mission'));this.contract=new HtmlSlot(pick('.district-contract'));this.hostiles=new HtmlSlot(pick('.run-hostiles'));
+  this.toast=new HtmlSlot(pick('.run-toast'));this.statsPanel=new HtmlSlot(pick('.run-stats'));
+  this.interactBox=pick('.run-interact');this.interact=new HtmlSlot(this.interactBox);
+  this.routeBox=pick('.expedition-route');this.route=new HtmlSlot(this.routeBox);
+  this.meterBox=pick('.harvest-resonance');this.meter=new HtmlSlot(this.meterBox);
+  const xp=pick('.run-xp');this.xpText=xp.querySelector('span') as HTMLElement;this.xpFill=xp.querySelector('i') as HTMLElement;
+  this.bossBox=pick('.run-boss');this.bossFill=this.bossBox.querySelector('i') as HTMLElement;this.bossText=this.bossBox.querySelector('small') as HTMLElement;
+  this.bars=new MarkerPool(pick('.enemy-health-bars'),buildBar);
+  this.damage=new MarkerPool(pick('.damage-labels'),buildLabel);
+  this.supplies=new MarkerPool(pick('.world-supplies'),buildSupply);
+  window.addEventListener('keydown',event=>{if(event.code==='Tab'&&!this.element.hidden){event.preventDefault();const panel=this.statsPanel.node;panel.hidden=!panel.hidden;}},{signal:this.controls.signal});
 
  }
  setVisible(visible:boolean):void {this.element.hidden=!visible;document.getElementById('player-hud')?.classList.toggle('run-active',visible);}
- private html(selector:string,text:string):void {this.element.querySelector(selector)!.innerHTML=text;}
- update(run:RunProgression,swarm:EnemySwarm,interact:RunInteractables,camera:Camera):void {
-  if(run.time>=this.lastUpdate&&run.time-this.lastUpdate<.1)return;this.lastUpdate=run.time;
-  const key=[...run.inventory].join();if(key!==this.inventoryKey){this.inventoryKey=key;this.html('.run-inventory',[...run.inventory].slice(0,12).map(([id,count])=>{const item=ITEMS.find(x=>x.id===id)!;return `<div title="${item.name}: ${item.description}"><i class="item-icon" style='${perkIcon(item.icon)}'></i><b>×${count}</b></div>`;}).join('')+(run.inventory.size>12?'<small class=inventory-more>+'+(run.inventory.size-12)+' ITENS · TAB</small>':''));}
+ /** Nós já criados pelos três pools de marcadores. Exposto para o teste de vazamento de DOM. */
+ get pooledMarkers():number {return this.bars.size+this.damage.size+this.supplies.size;}
+ /**
+  * `camera` orienta apenas a seta da bússola. Toda distância e todo alcance de interação usam
+  * `player`, senão o marco “acende” pela posição da câmera, que fica metros atrás do corpo.
+  */
+ update(run:RunProgression,swarm:EnemySwarm,interact:RunInteractables,camera:Camera,expedition?:{objectives:ExpeditionObjectives;resonance:HarvestResonance;mp:MPCharge;player:{x:number;y:number;z:number};weather?:WeatherCycle}):void {
+  if(run.time>=this.lastUpdate&&run.time-this.lastUpdate<UPDATE_PERIOD)return;this.lastUpdate=run.time;
+  const key=[...run.inventory].join();if(key!==this.inventoryKey){this.inventoryKey=key;this.inventory.set([...run.inventory].slice(0,12).map(([id,count])=>{const item=ITEMS.find(x=>x.id===id)!;return `<div title="${item.name}: ${item.description}"><i class="item-icon" style='${perkIcon(item.icon)}'></i><b>×${count}</b></div>`;}).join('')+(run.inventory.size>12?'<small class=inventory-more>+'+(run.inventory.size-12)+' ITENS · TAB</small>':''));}
   const f=camera.getForwardRay().direction,heading=(Math.atan2(f.x,f.z)*180/Math.PI+360)%360,seconds=Math.floor(run.time);
-  this.html('.run-bearing',`${['N','NE','L','SE','S','SO','O','NO'][Math.round(heading/45)%8]} · ${Math.round(heading)}°`);
-  this.html('.run-clock',`<b>◷ ${String(Math.floor(seconds/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}</b><span>ESTÁGIO ${run.stage} · ${['NORMAL','CRESCENTE','DIFÍCIL','CAÓTICA','PRAGA ALFA','FENDA'][swarm.director.state]}</span><strong>◈ ${run.credits} CRÉDITOS</strong>`);
-  this.html('.run-mission',swarm.director.hordeMode?(swarm.director.intermission>0?'PRÓXIMA HORDA EM '+Math.ceil(swarm.director.intermission)+' s':swarm.director.wave%5===0?'ELIMINE O CHEFE E SUA HORDA':'SOBREVIVA À HORDA '+swarm.director.wave):swarm.bossDeadTime>=5?'ENTRE NA FENDA · CELEIRO':swarm.bossDeadTime>=0?'PRAGA ALFA DERROTADA':swarm.boss?'ELIMINE A PRAGA ALFA':['LOCALIZE A PRAGA ALFA','CONTENHA A INFESTAÇÃO','SOBREVIVA AO SURTO','RESISTA À COLHEITA FINAL','A PRAGA ALFA SE APROXIMA'][swarm.director.state]??'');
-  const contract=interact.districtContract,contractDirection=contract?['↑','↗','→','↘','↓','↙','←','↖'][Math.round(((Math.atan2(contract.target.x-camera.position.x,contract.target.z-camera.position.z)*180/Math.PI-heading+720)%360)/45)%8]:'';this.html('.district-contract',contract?`<small>EXPLORAÇÃO OPCIONAL · ${contract.completed}/${contract.total}</small><b>${contract.contract.name}</b><span>Abra baús diferentes · ${contract.opened}/${contract.required}</span><small>${contractDirection} ${Math.round(contract.distance)} m até o baú · recompensa: item aleatório no chão</small>`:'<small>EXPLORAÇÃO</small><b>Rotas de abastecimento concluídas</b><span>Todos os contratos deste estágio recuperados.</span>');
+  this.bearing.set(`${['N','NE','L','SE','S','SO','O','NO'][Math.round(heading/45)%8]} · ${Math.round(heading)}°`);
+  this.clockPanel.set(`<b>◷ ${String(Math.floor(seconds/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}</b><span>ESTÁGIO ${run.stage} · ${['NORMAL','CRESCENTE','DIFÍCIL','CAÓTICA','PRAGA ALFA','FENDA'][swarm.director.state]}</span><strong>◈ ${run.credits} CRÉDITOS</strong><em class="run-weather">${expedition?.weather?.label??''}</em>`);
+  this.renderExpedition(expedition,camera,heading);
+  this.mission.set(expedition?.objectives.planned?this.expeditionMission(expedition.objectives):swarm.director.hordeMode?(swarm.director.intermission>0?'PRÓXIMA HORDA EM '+Math.ceil(swarm.director.intermission)+' s':swarm.director.wave%5===0?'ELIMINE O CHEFE E SUA HORDA':'SOBREVIVA À HORDA '+swarm.director.wave):swarm.bossDeadTime>=5?'ENTRE NA FENDA · CELEIRO':swarm.bossDeadTime>=0?'PRAGA ALFA DERROTADA':swarm.boss?'ELIMINE A PRAGA ALFA':['LOCALIZE A PRAGA ALFA','CONTENHA A INFESTAÇÃO','SOBREVIVA AO SURTO','RESISTA À COLHEITA FINAL','A PRAGA ALFA SE APROXIMA'][swarm.director.state]??'');
+  const contract=interact.districtContract,contractDirection=contract?COMPASS[Math.round(((Math.atan2(contract.target.x-camera.position.x,contract.target.z-camera.position.z)*180/Math.PI-heading+720)%360)/45)%8]:'';
   const reward=interact.waveRewardGuide;
-  if(reward){const target=reward.drop.landing,direction=['↑','↗','→','↘','↓','↙','←','↖'][Math.round(((Math.atan2(target.x-camera.position.x,target.z-camera.position.z)*180/Math.PI-heading+720)%360)/45)%8];this.element.querySelector('.district-contract')!.insertAdjacentHTML('beforeend',`<span class="wave-reward-guide"><b>◈ RECOMPENSA DA HORDA</b><br>${reward.drop.item.name}<br><small>${reward.drop.waveField} · ${direction} ${Math.round(reward.distance)} m · [E] recolher</small></span>`);}
-  this.html('.run-xp span',`NV. ${run.level} · ${run.xp} / ${run.nextLevelXP} XP`);(this.element.querySelector('.run-xp i') as HTMLElement).style.width=`${run.xp/run.nextLevelXP*100}%`;
-  this.html('.run-hostiles',`<span>ONDA ${swarm.director.hordeMode?swarm.director.wave:Math.floor(swarm.director.time/36)+1}</span><b>${swarm.count} / ${swarm.populationCap}</b><small>${swarm.kills} abatidos · ${swarm.director.hordeMode?(swarm.director.intermission>0?(swarm.director.completedWaves>0?'RECOLHA O ITEM · PREPARE-SE':'PREPARE-SE'):Math.max(0,swarm.director.waveQuota-swarm.director.spawned)+' por nascer'):(swarm.director.time%36>27?'REAGRUPE-SE':'HORDA ATIVA')}</small>`);
-  const boss=this.element.querySelector('.run-boss') as HTMLElement;boss.hidden=!swarm.boss||swarm.bossHP<=0;(boss.querySelector('i') as HTMLElement).style.width=`${swarm.bossHP/swarm.bossMaxHP*100}%`;boss.querySelector('small')!.textContent=`${Math.ceil(swarm.bossHP)} / ${swarm.bossMaxHP}`;
-  const entry=interact.nearest,loot=interact.nearestLoot,box=this.element.querySelector('.run-interact') as HTMLElement;box.hidden=!entry&&!loot&&!(swarm.bossDeadTime>=5&&interact.atRift);
-  box.innerHTML=swarm.bossDeadTime>=5&&interact.atRift?'<b>[E] ATRAVESSAR A FENDA</b><span>Créditos restantes viram XP.</span>':loot?`<b><i class="item-icon" style='${perkIcon(loot.item.icon)}'></i>${loot.item.name}</b><span>${loot.item.description}</span><span>[E] Recolher item</span>`:entry?`<b>${entry.name} · ◈ ${entry.cost}</b><span>[E] ${entry.kind==='altar'?'Oferecer créditos · 58% de chance':'Abrir · item aleatório'}</span>`:'';
-  this.html('.run-toast',interact.messageTime>0?interact.message:'');
-  const stats=run.stats;this.html('.run-stats',`<h2>EXTERMINADOR · NÍVEL ${run.level}</h2><p>Abata pragas para ganhar XP e créditos. Abra baús e combine melhorias. Derrote a Praga Alfa avance nas hordas. Chefes a cada cinco ondas.</p><dl>${[['Vida máxima',stats.maxHP.toFixed(0)],['Dano',`${Math.round(stats.damage*100)}%`],['Cadência',`${Math.round(stats.attackSpeed*100)}%`],['Armadura',stats.armor.toFixed(0)],['Crítico',`${Math.round(stats.crit*100)}%`],['Velocidade',`${Math.round(stats.moveSpeed*100)}%`],['Altura do salto',`${Math.round(stats.jump*100)}%`],['Pulos aéreos',String(stats.extraJumps)],['Recarga da esquiva',`${Math.round(stats.dodgeRecharge*100)}%`],['Regeneração',`${stats.regeneration.toFixed(1)} HP/s`],['Poder de habilidade',`${Math.round(stats.mp*100)}%`]].map(([label,value])=>`<dt>${label}</dt><dd>${value}</dd>`).join('')}</dl><small>Dourado: defesa e ouro · Gigante: atributos ×3 · Luminoso: dano e ataque extra</small><div class=inventory-detail>${[...run.inventory].map(([id,count])=>{const item=ITEMS.find(i=>i.id===id)!;return `<div title="${item.description}"><i class=item-icon style='${perkIcon(item.icon)}'></i><span>${item.name}<small>×${count} · ${item.description}</small></span></div>`;}).join('')}</div>`);
-  const engine=camera.getEngine(),width=engine.getRenderWidth(),height=engine.getRenderHeight(),viewport=camera.viewport.toGlobal(width,height);
-  const project=(p:Vector3)=>Vector3.Project(p,Matrix.Identity(),camera.getTransformationMatrix(),viewport),visible=(p:Vector3)=>p.z>=0&&p.z<=1&&p.x>=0&&p.x<=width&&p.y>=0&&p.y<=height;
-  this.html('.damage-labels',swarm.labels.map(l=>{const p=project(new Vector3(l.position.x,l.position.y+(1-l.time)*.8,l.position.z));return visible(p)?`<b class="${l.crit?'crit':''}" style="left:${p.x/width*100}%;top:${p.y/height*100}%;opacity:${Math.min(1,l.time*3)}">${l.amount}${l.crit?'!':''}</b>`:'';}).join(''));
-  this.html('.enemy-health-bars',swarm.actors.filter(a=>a.active&&!a.health.dead&&Math.hypot(a.root.position.x-camera.position.x,a.root.position.z-camera.position.z)<28).sort((a,b)=>Vector3.DistanceSquared(a.root.position,camera.position)-Vector3.DistanceSquared(b.root.position,camera.position)).slice(0,12).map(a=>{const p=project(new Vector3(a.root.position.x,a.body.getBoundingInfo().boundingBox.maximumWorld.y+.22,a.root.position.z)),name=`${ENEMIES[a.kind].name} ${ENEMY_AFFIXES[a.variant].label}`;return visible(p)?`<div class="enemy-health ${a.hit>0?'damaged':''}" style="left:${p.x/width*100}%;top:${p.y/height*100}%" aria-label="${name}: ${Math.ceil(a.health.current)} de ${a.health.maximum} de vida"><span>${name}</span><div><i class="health-trail" style="width:${a.healthTrail/a.health.maximum*100}%"></i><i style="width:${a.health.current/a.health.maximum*100}%"></i></div><small>${Math.ceil(a.health.current)} / ${a.health.maximum}</small></div>`:'';}).join(''));
-  this.html('.world-supplies',interact.entries.filter(e=>!e.used).map(e=>{const d=Math.hypot(e.x-camera.position.x,e.z-camera.position.z),p=project(new Vector3(e.x,e.y+1.8,e.z));return d<35&&d>3&&visible(p)?`<b style="left:${p.x/width*100}%;top:${p.y/height*100}%;opacity:${Math.min(1,(35-d)/10)}">◈<small>${e.cost}</small></b>`:'';}).join(''));
+  // A dica da recompensa é o último filho do contrato; concatenar aqui dá o mesmo DOM que o
+  // `insertAdjacentHTML('beforeend')` anterior e mantém o painel inteiro sob uma única comparação.
+  const rewardHint=reward?`<span class="wave-reward-guide"><b>◈ RECOMPENSA DA HORDA</b><br>${reward.drop.item.name}<br><small>${reward.drop.waveField} · ${COMPASS[Math.round(((Math.atan2(reward.drop.landing.x-camera.position.x,reward.drop.landing.z-camera.position.z)*180/Math.PI-heading+720)%360)/45)%8]} ${Math.round(reward.distance)} m · [E] recolher</small></span>`:'';
+  this.contract.set((contract?`<small>EXPLORAÇÃO OPCIONAL · ${contract.completed}/${contract.total}</small><b>${contract.contract.name}</b><span>Abra baús diferentes · ${contract.opened}/${contract.required}</span><small>${contractDirection} ${Math.round(contract.distance)} m até o baú · recompensa: item aleatório no chão</small>`:'<small>EXPLORAÇÃO</small><b>Rotas de abastecimento concluídas</b><span>Todos os contratos deste estágio recuperados.</span>')+rewardHint);
+  text(this.xpText,`NV. ${run.level} · ${run.xp} / ${run.nextLevelXP} XP`);css(this.xpFill,'width',pct(run.xp/run.nextLevelXP*100));
+  this.hostiles.set(`<span>ONDA ${swarm.director.hordeMode?swarm.director.wave:Math.floor(swarm.director.time/36)+1}</span><b>${swarm.count} / ${swarm.populationCap}</b><small>${swarm.kills} abatidos · ${swarm.director.hordeMode?(swarm.director.intermission>0?(swarm.director.completedWaves>0?'RECOLHA O ITEM · PREPARE-SE':'PREPARE-SE'):Math.max(0,swarm.director.waveQuota-swarm.director.spawned)+' por nascer'):(swarm.director.time%36>27?'REAGRUPE-SE':'HORDA ATIVA')}</small>`);
+  shown(this.bossBox,Boolean(swarm.boss)&&swarm.bossHP>0);css(this.bossFill,'width',pct(swarm.bossHP/swarm.bossMaxHP*100));text(this.bossText,`${Math.ceil(swarm.bossHP)} / ${swarm.bossMaxHP}`);
+  const entry=interact.nearest,loot=interact.nearestLoot;
+  const totem=expedition?.objectives.interactable(expedition.player);
+  const riftOpen=expedition?.objectives.planned?expedition.objectives.phase==='rift':swarm.bossDeadTime>=5;
+  shown(this.interactBox,Boolean(entry||loot||totem||(riftOpen&&interact.atRift)));
+  this.interact.set(riftOpen&&interact.atRift?'<b>[E] ATRAVESSAR A FENDA</b><span>Créditos restantes viram XP.</span>':totem?`<b>[E] ATIVAR MARCO ${totem.site.index+1} · ${totem.site.name}</b><span>Permaneça vivo na área por ${totem.site.chargeSeconds} s. Sair pausa a carga.</span>`:loot?`<b><i class="item-icon" style='${perkIcon(loot.item.icon)}'></i>${loot.item.name}</b><span>${loot.item.description}</span><span>[E] Recolher item</span>`:entry?`<b>${entry.name} · ◈ ${entry.cost}</b><span>[E] ${entry.kind==='altar'?'Oferecer créditos · 58% de chance':'Abrir · item aleatório'}</span>`:'');
+  this.toast.set(interact.messageTime>0?interact.message:'');
+  this.renderStats(run,Boolean(expedition?.objectives.planned),swarm.director.hordeMode);
+  const engine=camera.getEngine(),width=engine.getRenderWidth(),height=engine.getRenderHeight(),viewport=camera.viewport.toGlobal(width,height),transform=camera.getTransformationMatrix();
+  const project=(x:number,y:number,z:number):boolean=>{
+   Vector3.ProjectToRef(this.world.set(x,y,z),IDENTITY,transform,viewport,this.screen);
+   const p=this.screen;return p.z>=0&&p.z<=1&&p.x>=0&&p.x<=width&&p.y>=0&&p.y<=height;
+  };
+  this.damage.begin();
+  for(const l of swarm.labels){
+   if(!project(l.position.x,l.position.y+(1-l.time)*.8,l.position.z))continue;
+   const marker=this.damage.take();
+   classes(marker.root,l.crit?'crit':'');
+   css(marker.root,'left',pct(this.screen.x/width*100));css(marker.root,'top',pct(this.screen.y/height*100));
+   css(marker.root,'opacity',String(Math.round(Math.min(1,l.time*3)*100)/100));
+   text(marker.root,`${l.amount}${l.crit?'!':''}`);
+  }
+  this.damage.end();
+  const near=this.selectNearby(swarm,camera);
+  this.bars.begin();
+  for(let i=0;i<near;i++){
+   const a=this.nearby[i]!;
+   if(!project(a.root.position.x,a.body.getBoundingInfo().boundingBox.maximumWorld.y+.22,a.root.position.z))continue;
+   const marker=this.bars.take();
+   classes(marker.root,`enemy-health variant-${a.variant}${a.hit>0?' damaged':''}`);
+   css(marker.root,'left',pct(this.screen.x/width*100));css(marker.root,'top',pct(this.screen.y/height*100));
+   css(marker.trail,'width',pct(a.healthTrail/a.health.maximum*100));css(marker.fill,'width',pct(a.health.current/a.health.maximum*100));
+   attr(marker.root,'aria-label',`${ENEMIES[a.kind].name} ${ENEMY_AFFIXES[a.variant].label}: ${Math.ceil(a.health.current)} de ${a.health.maximum} de vida`);
+  }
+  this.bars.end();
+  this.supplies.begin();
+  for(const e of interact.entries){
+   if(e.used)continue;
+   const d=Math.hypot(e.x-camera.position.x,e.z-camera.position.z);
+   if(d>=35||d<=3||!project(e.x,e.y+1.8,e.z))continue;
+   const marker=this.supplies.take();
+   css(marker.root,'left',pct(this.screen.x/width*100));css(marker.root,'top',pct(this.screen.y/height*100));
+   css(marker.root,'opacity',String(Math.round(Math.min(1,(35-d)/10)*100)/100));
+   text(marker.cost,String(e.cost));
+  }
+  this.supplies.end();
+ }
+ /**
+  * As `NEARBY_BARS` pragas vivas mais próximas, ordenadas como antes (distância 3D à câmera,
+  * recorte 2D em `NEARBY_RANGE`), mas por inserção num buffer fixo.
+  *
+  * O `filter().sort()` anterior alocava um array por atualização e recalculava `DistanceSquared`
+  * dentro do comparador — O(n log n) distâncias para ficar com doze. Aqui cada ator é medido uma
+  * única vez.
+  */
+ private selectNearby(swarm:EnemySwarm,camera:Camera):number {
+  const actors=this.nearby,keys=this.nearbyKeys,eye=camera.position;let count=0;
+  for(const a of swarm.actors){
+   if(!a.active||a.health.dead)continue;
+   const dx=a.root.position.x-eye.x,dz=a.root.position.z-eye.z;
+   if(dx*dx+dz*dz>=NEARBY_RANGE*NEARBY_RANGE)continue;
+   const dy=a.root.position.y-eye.y,key=dx*dx+dy*dy+dz*dz;
+   if(count===NEARBY_BARS&&key>=keys[NEARBY_BARS-1]!)continue;
+   let i=Math.min(count,NEARBY_BARS-1);
+   for(;i>0&&keys[i-1]!>key;i--){actors[i]=actors[i-1]!;keys[i]=keys[i-1]!;}
+   actors[i]=a;keys[i]=key;
+   if(count<NEARBY_BARS)count++;
+  }
+  return count;
+ }
+ /**
+  * Painel TAB. Refazê-lo custa uma busca em `ITEMS` por item do inventário mais um `innerHTML`
+  * grande, então ele só é reconstruído quando nível, atributos, modo ou inventário mudam — e não
+  * dez vezes por segundo enquanto nada muda.
+  */
+ private renderStats(run:RunProgression,expedition:boolean,hordeMode:boolean):void {
+  const stats=run.stats,brief=modeBrief(expedition,hordeMode);
+  const rows:readonly (readonly [string,string])[]=[['Vida máxima',stats.maxHP.toFixed(0)],['Dano',`${Math.round(stats.damage*100)}%`],['Cadência',`${Math.round(stats.attackSpeed*100)}%`],['Armadura',stats.armor.toFixed(0)],['Crítico',`${Math.round(stats.crit*100)}%`],['Velocidade',`${Math.round(stats.moveSpeed*100)}%`],['Altura do salto',`${Math.round(stats.jump*100)}%`],['Pulos aéreos',String(stats.extraJumps)],['Recarga da esquiva',`${Math.round(stats.dodgeRecharge*100)}%`],['Regeneração',`${stats.regeneration.toFixed(1)} HP/s`],['Poder de habilidade',`${Math.round(stats.mp*100)}%`]];
+  const key=`${run.level}|${this.inventoryKey}|${expedition?'e':hordeMode?'h':'c'}|${rows.map(row=>row[1]).join('·')}`;
+  if(key===this.statsKey)return;this.statsKey=key;
+  // Copy do MODO em curso: o texto antigo prometia chefe a cada cinco ondas mesmo na expedição.
+  this.statsPanel.set(`<h2>EXTERMINADOR · NÍVEL ${run.level}</h2><p>${brief}</p><dl>${rows.map(([label,value])=>`<dt>${label}</dt><dd>${value}</dd>`).join('')}</dl><small>Dourado: defesa e ouro · Gigante: atributos ×3 · Luminoso: dano e ataque extra</small><div class=inventory-detail>${[...run.inventory].map(([id,count])=>{const item=ITEMS.find(i=>i.id===id)!;return `<div title="${item.description}"><i class=item-icon style='${perkIcon(item.icon)}'></i><span>${item.name}<small>×${count} · ${item.description}</small></span></div>`;}).join('')}</div>`);
+ }
+ private expeditionMission(objectives:ExpeditionObjectives):string {
+  if(objectives.phase==='rift')return 'ENTRE NA FENDA · CELEIRO';
+  if(objectives.phase==='boss')return objectives.bossSpawned?'ELIMINE A PRAGA ALFA':'A PRAGA ALFA SE APROXIMA';
+  const current=objectives.current;
+  if(current?.state==='charging')return `MANTENHA-SE NO MARCO ${current.site.index+1} · ${clock(Math.max(0,current.site.chargeSeconds-current.charged))}`;
+  if(current?.state==='paused')return `MARCO ${current.site.index+1} PAUSADO · volte à área`;
+  return `ATIVE UM MARCO · ${objectives.completed}/${objectives.total} CONCLUÍDOS`;
+ }
+ /** Rota e distância dos quatro marcos, carga em curso e nível de ressonância. */
+ private renderExpedition(expedition:{objectives:ExpeditionObjectives;resonance:HarvestResonance;mp:MPCharge;player:{x:number;y:number;z:number};weather?:WeatherCycle}|undefined,camera:Camera,heading:number):void {
+  const objectives=expedition?.objectives;
+  shown(this.routeBox,Boolean(objectives?.planned));shown(this.meterBox,Boolean(objectives?.planned));
+  if(!expedition||!objectives?.planned)return;
+  const player=expedition.player,eye=camera.position,pending=objectives.nearestPending(player);
+  const marks=objectives.totems.map(totem=>{
+   const distance=Math.hypot(totem.site.position.x-player.x,totem.site.position.z-player.z);
+   const percent=Math.round(totem.charged/totem.site.chargeSeconds*100);
+   const label=totem.state==='complete'?'CONCLUÍDO':totem.state==='charging'?`${percent}% · ${clock(totem.site.chargeSeconds-totem.charged)}`:totem.charged>0?`PAUSADO ${percent}%`:`${totem.site.chargeSeconds} s`;
+   return `<li class="totem-${totem.state}${pending?.totem===totem?' totem-target':''}"><b>${totem.site.index+1}</b><span>${totem.site.name}<small>${label}</small></span><em>${bearingArrow(eye,totem.site.position,heading)} ${Math.round(distance)} m</em><i style="width:${Math.min(100,percent)}%"></i></li>`;
+  }).join('');
+  const header=objectives.phase==='rift'?'FENDA ABERTA':objectives.phase==='boss'?'ÚLTIMO EVENTO · PRAGA ALFA':`EXPEDIÇÃO · ${objectives.completed}/${objectives.total} MARCOS`;
+  const footer=objectives.messageTime>0?objectives.message:objectives.interactable(player)?'[E] ATIVAR ESTE MARCO':'Permanecer vivo na área carrega o marco. Sair pausa, não apaga.';
+  this.route.set(`<small>${header}</small><ul>${marks}</ul><span class="route-hint">${footer}</span>`);
+  const resonance=expedition.resonance;
+  const charges=expedition.mp.maxCharges
+   ?`<span class="skill-charges">ESPECIAL ${expedition.mp.charges}/${expedition.mp.maxCharges}${expedition.mp.charges<expedition.mp.maxCharges?` · +1 em ${Math.ceil(expedition.mp.chargeSecondsLeft)} s`:' · PRONTA'}</span>`
+   :'';
+  this.meter.set(`<small>RESSONÂNCIA DA COLHEITA</small><div>${[0,1,2].map(i=>`<i class="${resonance.level>i?'lit':''}"></i>`).join('')}</div><span>${resonance.level?`+${Math.round((resonance.chargeMultiplier-1)*100)}% na carga · alterne ${resonance.nextAction.map(a=>a==='shot'?'tiro':a==='melee'?'golpe':'ar').join(' ou ')}`:'Alterne tiro, golpe e ação aérea'}</span>${charges}`);
+  const decay=String(Math.round(resonance.decayProgress*1000)/1000);
+  if(decay!==this.decay){this.decay=decay;this.meterBox.style.setProperty('--resonance-decay',decay);}
  }
  dispose():void {this.controls.abort();this.element.remove();}
 }

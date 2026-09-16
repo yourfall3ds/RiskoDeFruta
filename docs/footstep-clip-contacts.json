@@ -1,0 +1,557 @@
+{
+ "model": "public/models/gunslinger.glb",
+ "reference": {
+  "repo": "https://github.com/dropecho/unity_footstep",
+  "commit": "2e3620087499c86b45b83811739f9a7e0db5d7c0",
+  "license": "MIT © 2023 Benjamin Van Treese — docs/licenses/unity_footstep-LICENSE.md"
+ },
+ "thresholds": {
+  "contactHeight": 0.048,
+  "liftHeight": 0.095,
+  "minIntervalSeconds": 0.09,
+  "minSpeed": 0.5,
+  "descentTolerance": 0.03
+ },
+ "margins": {
+  "worstLiftPeak": 0.1573,
+  "liftMargin": 0.0623,
+  "worstContactFloor": 0.0368,
+  "contactMargin": 0.0112
+ },
+ "quiet": {
+  "idle": 0,
+  "airborne": 0
+ },
+ "firstStepAfterStartSeconds": 0.083,
+ "rows": [
+  {
+   "id": "walk-forward",
+   "gait": "walk",
+   "heading": "forward",
+   "speed": 2.6,
+   "liftPeak": {
+    "right": 0.1733,
+    "left": 0.178
+   },
+   "contactFloor": {
+    "right": 0.0236,
+    "left": 0.019
+   },
+   "contacts": 11,
+   "perSecond": 2.75,
+   "alternation": 1,
+   "crowded": 0,
+   "gapSeconds": {
+    "min": 0.333,
+    "max": 0.367
+   },
+   "sides": [
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    1
+   ]
+  },
+  {
+   "id": "walk-backward",
+   "gait": "walk",
+   "heading": "backward",
+   "speed": 2.6,
+   "liftPeak": {
+    "right": 0.1569,
+    "left": 0.1575
+   },
+   "contactFloor": {
+    "right": 0.0368,
+    "left": 0.0374
+   },
+   "contacts": 8,
+   "perSecond": 2,
+   "alternation": 1,
+   "crowded": 0,
+   "gapSeconds": {
+    "min": 0.45,
+    "max": 0.467
+   },
+   "sides": [
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0
+   ]
+  },
+  {
+   "id": "walk-left",
+   "gait": "walk",
+   "heading": "left",
+   "speed": 2.6,
+   "liftPeak": {
+    "right": 0.1569,
+    "left": 0.1575
+   },
+   "contactFloor": {
+    "right": 0.0367,
+    "left": 0.0374
+   },
+   "contacts": 8,
+   "perSecond": 2,
+   "alternation": 1,
+   "crowded": 0,
+   "gapSeconds": {
+    "min": 0.367,
+    "max": 0.55
+   },
+   "sides": [
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0
+   ]
+  },
+  {
+   "id": "walk-right",
+   "gait": "walk",
+   "heading": "right",
+   "speed": 2.6,
+   "liftPeak": {
+    "right": 0.1569,
+    "left": 0.1574
+   },
+   "contactFloor": {
+    "right": 0.0366,
+    "left": 0.0375
+   },
+   "contacts": 8,
+   "perSecond": 2,
+   "alternation": 1,
+   "crowded": 0,
+   "gapSeconds": {
+    "min": 0.383,
+    "max": 0.55
+   },
+   "sides": [
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0
+   ]
+  },
+  {
+   "id": "walk-forward-left",
+   "gait": "walk",
+   "heading": "forward-left",
+   "speed": 2.6,
+   "liftPeak": {
+    "right": 0.0693,
+    "left": 0.076
+   },
+   "contactFloor": {
+    "right": 0.0153,
+    "left": 0.0167
+   },
+   "contacts": 0,
+   "perSecond": 0,
+   "alternation": 0,
+   "crowded": 0,
+   "gapSeconds": {
+    "min": null,
+    "max": null
+   },
+   "sides": []
+  },
+  {
+   "id": "walk-forward-right",
+   "gait": "walk",
+   "heading": "forward-right",
+   "speed": 2.6,
+   "liftPeak": {
+    "right": 0.0733,
+    "left": 0.0728
+   },
+   "contactFloor": {
+    "right": 0.0227,
+    "left": 0.0121
+   },
+   "contacts": 0,
+   "perSecond": 0,
+   "alternation": 0,
+   "crowded": 0,
+   "gapSeconds": {
+    "min": null,
+    "max": null
+   },
+   "sides": []
+  },
+  {
+   "id": "walk-backward-left",
+   "gait": "walk",
+   "heading": "backward-left",
+   "speed": 2.6,
+   "liftPeak": {
+    "right": 0.1568,
+    "left": 0.1574
+   },
+   "contactFloor": {
+    "right": 0.0281,
+    "left": 0.0308
+   },
+   "contacts": 8,
+   "perSecond": 2,
+   "alternation": 1,
+   "crowded": 0,
+   "gapSeconds": {
+    "min": 0.4,
+    "max": 0.533
+   },
+   "sides": [
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0
+   ]
+  },
+  {
+   "id": "walk-backward-right",
+   "gait": "walk",
+   "heading": "backward-right",
+   "speed": 2.6,
+   "liftPeak": {
+    "right": 0.1568,
+    "left": 0.1573
+   },
+   "contactFloor": {
+    "right": 0.0287,
+    "left": 0.0291
+   },
+   "contacts": 8,
+   "perSecond": 2,
+   "alternation": 1,
+   "crowded": 0,
+   "gapSeconds": {
+    "min": 0.417,
+    "max": 0.517
+   },
+   "sides": [
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0
+   ]
+  },
+  {
+   "id": "run-forward",
+   "gait": "run",
+   "heading": "forward",
+   "speed": 7.5,
+   "liftPeak": {
+    "right": 0.7079,
+    "left": 0.793
+   },
+   "contactFloor": {
+    "right": 0.0008,
+    "left": 0.0001
+   },
+   "contacts": 13,
+   "perSecond": 3.25,
+   "alternation": 1,
+   "crowded": 0,
+   "gapSeconds": {
+    "min": 0.3,
+    "max": 0.3
+   },
+   "sides": [
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    1
+   ]
+  },
+  {
+   "id": "run-backward",
+   "gait": "run",
+   "heading": "backward",
+   "speed": 7.5,
+   "liftPeak": {
+    "right": 0.2368,
+    "left": 0.2375
+   },
+   "contactFloor": {
+    "right": 0.0367,
+    "left": 0.0372
+   },
+   "contacts": 9,
+   "perSecond": 2.25,
+   "alternation": 1,
+   "crowded": 0,
+   "gapSeconds": {
+    "min": 0.417,
+    "max": 0.433
+   },
+   "sides": [
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    1
+   ]
+  },
+  {
+   "id": "run-left",
+   "gait": "run",
+   "heading": "left",
+   "speed": 7.5,
+   "liftPeak": {
+    "right": 0.2368,
+    "left": 0.2375
+   },
+   "contactFloor": {
+    "right": 0.0365,
+    "left": 0.0372
+   },
+   "contacts": 9,
+   "perSecond": 2.25,
+   "alternation": 1,
+   "crowded": 0,
+   "gapSeconds": {
+    "min": 0.367,
+    "max": 0.5
+   },
+   "sides": [
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    1
+   ]
+  },
+  {
+   "id": "run-right",
+   "gait": "run",
+   "heading": "right",
+   "speed": 7.5,
+   "liftPeak": {
+    "right": 0.2368,
+    "left": 0.2375
+   },
+   "contactFloor": {
+    "right": 0.0367,
+    "left": 0.0369
+   },
+   "contacts": 9,
+   "perSecond": 2.25,
+   "alternation": 1,
+   "crowded": 0,
+   "gapSeconds": {
+    "min": 0.367,
+    "max": 0.5
+   },
+   "sides": [
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    1
+   ]
+  },
+  {
+   "id": "run-forward-left",
+   "gait": "run",
+   "heading": "forward-left",
+   "speed": 7.5,
+   "liftPeak": {
+    "right": 0.2936,
+    "left": 0.3214
+   },
+   "contactFloor": {
+    "right": 0.0042,
+    "left": -0.0123
+   },
+   "contacts": 13,
+   "perSecond": 3.25,
+   "alternation": 1,
+   "crowded": 0,
+   "gapSeconds": {
+    "min": 0.217,
+    "max": 0.383
+   },
+   "sides": [
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    1
+   ]
+  },
+  {
+   "id": "run-forward-right",
+   "gait": "run",
+   "heading": "forward-right",
+   "speed": 7.5,
+   "liftPeak": {
+    "right": 0.2863,
+    "left": 0.3226
+   },
+   "contactFloor": {
+    "right": -0.0153,
+    "left": 0.0053
+   },
+   "contacts": 14,
+   "perSecond": 3.5,
+   "alternation": 1,
+   "crowded": 0,
+   "gapSeconds": {
+    "min": 0.2,
+    "max": 0.4
+   },
+   "sides": [
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0
+   ]
+  },
+  {
+   "id": "run-backward-left",
+   "gait": "run",
+   "heading": "backward-left",
+   "speed": 7.5,
+   "liftPeak": {
+    "right": 0.2367,
+    "left": 0.2374
+   },
+   "contactFloor": {
+    "right": 0.0228,
+    "left": 0.0277
+   },
+   "contacts": 9,
+   "perSecond": 2.25,
+   "alternation": 1,
+   "crowded": 0,
+   "gapSeconds": {
+    "min": 0.333,
+    "max": 0.533
+   },
+   "sides": [
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    1
+   ]
+  },
+  {
+   "id": "run-backward-right",
+   "gait": "run",
+   "heading": "backward-right",
+   "speed": 7.5,
+   "liftPeak": {
+    "right": 0.2367,
+    "left": 0.2374
+   },
+   "contactFloor": {
+    "right": 0.0265,
+    "left": 0.0238
+   },
+   "contacts": 9,
+   "perSecond": 2.25,
+   "alternation": 1,
+   "crowded": 0,
+   "gapSeconds": {
+    "min": 0.367,
+    "max": 0.5
+   },
+   "sides": [
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    1
+   ]
+  }
+ ],
+ "problems": [],
+ "contentWarnings": [
+  "walk-forward-left: nenhum passo em 4 s de locomoção",
+  "walk-forward-left: só 0 passos/s — cadência baixa demais para walk",
+  "walk-forward-left: os pés não alternam (0% de trocas)",
+  "walk-forward-left: pico de 0.076 m não passa do rearme (0.095 m)",
+  "walk-forward-right: nenhum passo em 4 s de locomoção",
+  "walk-forward-right: só 0 passos/s — cadência baixa demais para walk",
+  "walk-forward-right: os pés não alternam (0% de trocas)",
+  "walk-forward-right: pico de 0.0733 m não passa do rearme (0.095 m)"
+ ]
+}

@@ -1,4 +1,4 @@
-import type {AttemptSummary} from '../run/AttemptSummary';
+import {attemptScore,type AttemptSummary} from '../run/AttemptSummary';
 import {perkIcon} from './PerkIcons';
 import {DamageFeedback} from './DamageFeedback';
 import type {DamageContext} from '../core/contracts';
@@ -7,6 +7,8 @@ import type { DualPistols } from '../combat/DualPistols';
 import type { MPCharge } from '../combat/MPCharge';
 import type { EnemyReview } from '../game/EnemyReview';
 import { createSeed } from '../core/RunRNG';
+/** Rótulos do detalhamento da pontuação, no `title` do bloco de score. */
+const SCORE_LABEL={kills:'abate'} as const;
 export class PlayerHUD {
   readonly element=document.createElement('div');
   private readonly gate: HTMLElement;
@@ -17,7 +19,13 @@ export class PlayerHUD {
   private readonly button: HTMLButtonElement;
   private readonly damage=new DamageFeedback();
   private readonly gateKey:(event:KeyboardEvent)=>void;private entered=false;private dead=false;private playActive=false;
-  constructor(private readonly start: () => void,private readonly farm=false,settings?:{volume:(value:number)=>void;quality:(balanced:boolean)=>void}) {
+  /** Controle acessível de pular a entrada; a cena liga o callback. */
+  private readonly skipButton:HTMLButtonElement;
+  onSkipIntro:(()=>void)|undefined;
+  /** Texto de objetivo publicado pela cena; vazio devolve o rótulo padrão do modo. */
+  private objective='';
+  setObjective(text:string):void {this.objective=text;}
+  constructor(private readonly start: () => void,private readonly farm=false,settings?:{volume:(value:number)=>void;quality:(balanced:boolean)=>void},private readonly mode:'expedition'|'horde'|'classic'='expedition') {
     this.element.id='player-hud';
     this.element.innerHTML=`<div class="field-brand"><span class="eyebrow">AGRO / EXTERMINATION DIVISION</span><strong>GUNSLINGER <span>01</span></strong></div>
       <div class="field-objective"><span>CAMPO DE TREINAMENTO</span><b>Calibre suas pistolas</b></div>
@@ -32,14 +40,50 @@ export class PlayerHUD {
     this.gate=this.element.querySelector('.play-gate')!;this.hp=this.element.querySelector('.hp-value')!;
     this.charges=this.element.querySelector('.dodge-charges')!;this.crosshair=this.element.querySelector('.crosshair')!;
     this.diagnostic=this.element.querySelector('.field-diagnostic')!;this.button=this.element.querySelector('.start-play')!;
-    this.button.onclick=()=>{this.setActive(true);start();};this.gateKey=event=>{if(event.code==='Enter'&&!this.button.disabled&&!this.gate.hidden){event.preventDefault();this.button.click();}};window.addEventListener('keydown',this.gateKey);
-    if(farm){this.element.classList.add('farm-hud');this.element.querySelector('.field-objective span')!.textContent='EXPLORE A FAZENDA';this.element.querySelector('.gate-card .eyebrow')!.textContent='MUTANT FARM / ILHAS SUSPENSAS';this.element.querySelector('h1')!.innerHTML='A colheita<br>se revoltou.';this.element.querySelector('.gate-card p')!.textContent='Sobreviva a hordas cada vez mais fortes. Ao vencer cada onda, recolha no centro um item aleatório para acumular poder. A cada cinco ondas, enfrente uma Praga Alfa.';this.element.querySelector('.controls')!.insertAdjacentHTML('beforeend','<span><kbd>DIREITO</kbd> Carregar habilidade</span><span><kbd>E</kbd> Abrir / recolher</span>');}
+    // Pular a entrada: botão real (clicável, focável por Tab, com rótulo) e atalho de teclado.
+    // Fica em `document.body`, NÃO dentro de `#player-hud`: o HUD é `pointer-events:none` e some
+    // inteiro sob `body.arrival-in-progress`, que é exatamente quando este controle precisa existir.
+    this.skipButton=document.createElement('button');
+    this.skipButton.className='intro-skip';this.skipButton.type='button';this.skipButton.hidden=true;
+    this.skipButton.innerHTML='PULAR ENTRADA <kbd>ENTER</kbd>';
+    this.skipButton.setAttribute('aria-label','Pular a entrada cinematográfica');
+    document.body.append(this.skipButton);
+    // Estilo é do Codex. Enquanto `.intro-skip` não tiver regra, um posicionamento mínimo mantém o
+    // controle utilizável; havendo regra própria, nada é sobrescrito.
+    if(typeof getComputedStyle==='function'&&getComputedStyle(this.skipButton).position==='static')
+      this.skipButton.style.cssText='position:fixed;right:28px;bottom:28px;z-index:120;padding:10px 16px;font:inherit;font-size:11px;letter-spacing:.14em;color:#fff1ce;background:#0c1c28cc;border:1px solid #e4d6aa55;cursor:pointer';
+    this.skipButton.onclick=()=>{this.skipIntro(false);this.onSkipIntro?.();};
+    this.button.onclick=()=>{this.setActive(true);start();};
+    this.gateKey=event=>{
+      if(event.code!=='Enter'&&event.code!=='NumpadEnter')return;
+      // Durante a entrada o Enter pula; no portão ele joga. Os dois estados nunca coexistem.
+      if(!this.skipButton.hidden){event.preventDefault();this.skipButton.click();return;}
+      if(!this.button.disabled&&!this.gate.hidden){event.preventDefault();this.button.click();}
+    };window.addEventListener('keydown',this.gateKey);
+    if(farm){this.element.classList.add('farm-hud');
+      this.element.querySelector('.field-objective span')!.textContent=mode==='expedition'?'EXPEDIÇÃO':'EXPLORE A FAZENDA';
+      this.element.querySelector('.gate-card .eyebrow')!.textContent='MUTANT FARM / ILHAS SUSPENSAS';
+      this.element.querySelector('h1')!.innerHTML='A colheita<br>se revoltou.';
+      // Texto do modo realmente ativo. O antigo prometia item no centro e chefe a cada cinco ondas.
+      this.element.querySelector('.gate-card p')!.textContent=mode==='expedition'
+        ?'Ative os quatro marcos da expedição e permaneça vivo na área de cada um até carregá-lo. Sair pausa a carga, não apaga. As pragas nunca param de chegar: concluir não depende de eliminar todas. Com os quatro marcos prontos, derrote a Praga Alfa e atravesse a fenda.'
+        :mode==='horde'
+        ?'Sobreviva a hordas cada vez mais fortes. Ao vencer cada onda, recolha o item que cai no campo para acumular poder. A cada cinco ondas, enfrente uma Praga Alfa.'
+        :'Contenha a infestação até a Praga Alfa aparecer, derrote-a e atravesse a fenda para avançar de estágio.';
+      this.element.querySelector('.controls')!.insertAdjacentHTML('beforeend','<span><kbd>DIREITO</kbd> Carregar habilidade</span><span><kbd>E</kbd> Ativar marco / abrir / recolher</span><span><kbd>W A S D</kbd> ×2 Arrancada</span><span><kbd>V</kbd> Corpo a corpo</span>');
+    }
     if(farm)this.element.insertAdjacentHTML('beforeend','<div class="class-sigil"><img src="/ui/farm-mark.svg" alt="Divisão agrícola"></div><div class="weapon-readout"><span>PISTOLAS DUPLAS</span><b>50 / 50</b><small>R · RECARREGAR</small></div>');
     const options=document.createElement('div');options.className='game-options';options.innerHTML='<label>Som <input aria-label="Volume do som" type="range" min="0" max="100" value="55"></label>';
     options.querySelector<HTMLInputElement>('input[type=range]')!.oninput=e=>settings?.volume(Number((e.target as HTMLInputElement).value)/100);this.element.querySelector('.gate-card')!.append(options);
     const quality=document.createElement('label');quality.innerHTML='Visual <select aria-label="Qualidade visual"><option value="high">Alta · sombras e oclusão</option><option value="balanced">Equilibrada · mais fluidez</option></select>';quality.querySelector('select')!.onchange=e=>settings?.quality((e.target as HTMLSelectElement).value==='balanced');options.append(quality);
     const fresh=document.createElement('button');fresh.className='new-expedition';fresh.textContent='NOVA EXPEDIÇÃO';fresh.onclick=()=>{const url=new URL(location.href);url.searchParams.set('seed',createSeed());location.assign(url);};options.append(fresh);
     this.element.querySelector('.mp-meter')!.setAttribute('title','Segure o botão direito e solte: I · Leque ricocheteante (0,6 s), II · Barragem com mortal (1,4 s), III · Tempestade da colheita (2,6 s).');
+  }
+  /** Mostra ou esconde o controle de pular. Esconder também tira o foco do botão. */
+  skipIntro(visible:boolean):void {
+    if(this.skipButton.hidden===!visible)return;
+    this.skipButton.hidden=!visible;
+    if(!visible&&document.activeElement===this.skipButton)this.skipButton.blur();
   }
   liveFlightMenu(active:boolean,flight:boolean):void {this.gate.classList.toggle('live-flight',active||flight);document.body.classList.toggle('arrival-in-progress',active||flight);if(active)this.gate.querySelector<HTMLVideoElement>('video')?.pause();}
   arrivalReveal(active:boolean,reveal:number):void {
@@ -48,25 +92,58 @@ export class PlayerHUD {
     else if(this.gate.classList.contains('launching')){this.gate.classList.remove('launching');this.gate.style.removeProperty('opacity');this.gate.hidden=this.playActive&&!this.dead;this.gate.querySelector<HTMLVideoElement>('video')?.pause();}
   }
   hit(context:DamageContext,yaw:number,hp:number,maxHP:number):void {this.damage.hit(context.finalDamage,Math.min(1,(hp+context.finalDamage)/maxHP),context.forceDirection,yaw);}
-  loading(done:number,total:number,label:string):void {const progress=this.element.querySelector('.loading-progress')!;(progress.querySelector('i') as HTMLElement).style.width=Math.floor(done/total*100)+'%';progress.querySelector('b')!.textContent=Math.floor(done/total*100)+'%';progress.querySelector('.loading-stage')!.textContent=label;this.gate.classList.add('loading');}
-  ready(): void {this.loading(1,1,'ROTA PRONTA · EQUIPAMENTO PRONTO');this.gate.classList.remove('loading');this.button.disabled=false;this.button.textContent='PRESS START · JOGAR' ;this.diagnostic.textContent=this.farm?'Siga o caminho até o celeiro':'Pista pronta · Carregador de 50 balas';}
-  fatalReaction(active:boolean,progress=0):void {this.element.classList.toggle('fatal-reaction',active);this.element.style.setProperty('--fatal-flash',String(Math.max(0,1-progress*14)));if(active){this.gate.hidden=true;this.button.disabled=true;}}
+  /** `true` depois de `ready()`: a barra não volta se um carregamento tardio chamar `loading`. */
+  private loaded=false;
+  loading(done:number,total:number,label:string):void {if(this.loaded)return;const progress=this.element.querySelector('.loading-progress') as HTMLElement;progress.hidden=false;(progress.querySelector('i') as HTMLElement).style.width=Math.floor(done/total*100)+'%';progress.querySelector('b')!.textContent=Math.floor(done/total*100)+'%';progress.querySelector('.loading-stage')!.textContent=label;this.gate.classList.add('loading');}
+  ready(): void {this.loading(1,1,'ROTA PRONTA · EQUIPAMENTO PRONTO');this.gate.classList.remove('loading');
+    // A barra terminada continuava desenhada a 100% por cima do menu pronto. `.loading` só escondia
+    // os controles; o próprio bloco de progresso nunca saía.
+    (this.element.querySelector('.loading-progress') as HTMLElement).hidden=true;this.loaded=true;
+    this.button.disabled=false;this.button.textContent='PRESS START · JOGAR' ;this.diagnostic.textContent=this.farm?(this.mode==='expedition'?'Rota da expedição pronta · quatro marcos no mapa':'Siga o caminho até o celeiro'):'Pista pronta · Carregador de 50 balas';}
+  fatalReaction(active:boolean,progress=0):void {this.element.classList.toggle('fatal-reaction',active);this.element.style.setProperty('--fatal-flash',String(Math.max(0,1-progress*14)));if(active){this.skipIntro(false);this.gate.hidden=true;this.button.disabled=true;}}
   defeated(summary:AttemptSummary,retry?:()=>void): void {
-    this.fatalReaction(false);this.dead=true;this.gate.hidden=false;this.gate.classList.remove('loading');this.gate.classList.add('defeated');document.body.classList.add('game-menu-open');
+    this.skipIntro(false);this.fatalReaction(false);this.dead=true;this.gate.hidden=false;this.gate.classList.remove('loading');this.gate.classList.add('defeated');document.body.classList.add('game-menu-open');
     this.gate.querySelector<HTMLVideoElement>('video')?.pause();this.element.querySelector('.gate-card .eyebrow')!.textContent='EXPEDIÇÃO ENCERRADA';
-    this.element.querySelector('h1')!.textContent='VOCÊ MORREU';
-    this.element.querySelector('.gate-card p')!.textContent=`Horda ${summary.wave} · ${summary.completedWaves} hordas vencidas · ${summary.kills} pragas abatidas · ${Math.floor(summary.time/60)} min ${Math.floor(summary.time%60)} s · Nível ${summary.level} · ${summary.credits} créditos restantes.`;
+    this.element.querySelector('h1')!.textContent='A última colheita.';
+    const objectives=summary.objectives,expedition=objectives.mode==='expedition';
+    const reached=expedition
+      ?objectives.bossDefeated?'fenda atravessada'
+        :objectives.phase==='rift'?'fenda aberta'
+        :objectives.phase==='boss'?'diante da Praga Alfa'
+        :`${objectives.completed??0} de ${objectives.total??0} marcos`
+      :objectives.mode==='horde'?`horda ${summary.wave}`
+      :objectives.bossDefeated?'Praga Alfa derrotada':'infestação em curso';
+    this.element.querySelector('.gate-card p')!.textContent=`Você caiu. Sua história ficou no campo. Estágio ${summary.stage} · Nível ${summary.level} · ${reached}.`;
+    this.gate.querySelector('.defeat-report')?.remove();
+    const itemCount=summary.items.reduce((total,item)=>total+item.count,0);
+    // Pontuação por marco efetivo da expedição; o modo horda legado continua somando hordas.
+    const score=attemptScore(summary);
+    const number=(value:number)=>value.toLocaleString('pt-BR');
+    const milestones=expedition?`${objectives.completed??0} / ${objectives.total??0}`:number(summary.completedWaves);
+    const rows:[string,string][]=[
+      ['TEMPO VIVO',`${String(Math.floor(summary.time/60)).padStart(2,'0')}:${String(Math.floor(summary.time%60)).padStart(2,'0')}`],
+      ['PRAGAS ABATIDAS',number(summary.kills)],
+      ['ITENS COLETADOS',number(itemCount)],
+      [score.progressLabel,milestones],
+      ['ESTÁGIO ALCANÇADO',number(summary.stage)],
+      ['CRÉDITOS RESTANTES',number(summary.credits)],
+    ];
+    const report=document.createElement('section');report.className='defeat-report';report.setAttribute('aria-label','Relatório da partida');
+    const breakdown=[`${SCORE_LABEL.kills} ${number(score.kills)}`,`${expedition?'marco':'horda'} ${number(score.progress)}`,`item ${number(score.items)}`,`tempo ${number(score.time)}`]
+      .concat(score.boss?[`Praga Alfa ${number(score.boss)}`]:[]).concat(score.stage?[`estágios ${number(score.stage)}`]:[]).join(' · ');
+    report.innerHTML=`<div class="defeat-score" title="${breakdown}"><span>PONTUAÇÃO DA EXPEDIÇÃO</span><strong>${number(score.total)}</strong></div><dl>${rows.map(([label,value])=>`<div><dt>${label}</dt><dd>${value}</dd></div>`).join('')}</dl>`;
+    this.gate.append(report);
     this.gate.querySelector('.defeat-items')?.remove();
-    const items=document.createElement('section');items.className='defeat-items';items.setAttribute('aria-label','Itens da tentativa');
+    const items=document.createElement('section');items.className='defeat-items';items.tabIndex=0;items.setAttribute('aria-label','Itens da tentativa');
     items.innerHTML='<h2>SUA COLHEITA</h2><p>Melhorias coletadas nesta tentativa</p><div>'+summary.items.map(item=>`<article><i class="item-icon" style='${perkIcon(item.icon)}'></i><span>${item.name}</span><b>×${item.count}</b></article>`).join('')+'</div>'+(summary.items.length?'':'<p>Nenhum item coletado. Abra baús e recolha as recompensas das hordas para ganhar poder.</p>');this.gate.append(items);
     this.button.disabled=false;this.button.textContent='RENASCER';
     this.gate.querySelector('.return-menu')?.remove();const menu=document.createElement('button');menu.className='return-menu';menu.textContent='VOLTAR AO MENU';this.button.after(menu);
     const leave=(play:boolean)=>{
       if(!retry){location.reload();return;}
-      retry();this.dead=false;this.entered=false;this.gate.classList.remove('defeated');items.remove();menu.remove();
+      retry();this.dead=false;this.entered=false;this.gate.classList.remove('defeated');items.remove();menu.remove();report.remove();
       this.damage.flash=0;this.damage.hold=0;this.damage.amount=0;this.damage.trail=1;
       this.element.querySelector('.gate-card .eyebrow')!.textContent='MUTANT FARM / ILHAS SUSPENSAS';this.element.querySelector('h1')!.textContent='A colheita se revoltou.';
-      this.element.querySelector('.gate-card p')!.textContent='Sobreviva às hordas, recolha itens e explore os campos.';
+      this.element.querySelector('.gate-card p')!.textContent=this.mode==='expedition'?'Ative os quatro marcos, sobreviva na área de cada um e derrote a Praga Alfa.':'Sobreviva às hordas, recolha itens e explore os campos.';
       this.button.textContent='PRESS START · JOGAR';this.button.onclick=()=>{this.setActive(true);this.start();};this.setActive(play);if(play)this.start();
     };
     this.button.onclick=()=>leave(true);menu.onclick=()=>leave(false);
@@ -89,12 +166,12 @@ export class PlayerHUD {
     this.charges.textContent='◆ '.repeat(player.charges)+'◇ '.repeat(2-player.charges);
     this.crosshair.classList.toggle('hit',pistols.hitTime>0);
     const distance=Math.hypot(player.position.x,player.position.z-29);
-    this.element.querySelector('.field-objective b')!.textContent=this.farm?(distance<5?'Celeiro alcançado':`Chegue ao celeiro · ${Math.round(distance)} m`):`${enemies.count} espécimes · ${enemies.kills} abatidos`;
+    this.element.querySelector('.field-objective b')!.textContent=this.objective||(this.farm?(distance<5?'Celeiro alcançado':`Chegue ao celeiro · ${Math.round(distance)} m`):`${enemies.count} espécimes · ${enemies.kills} abatidos`);
     this.element.querySelector('.field-objective')!.setAttribute('title',`${enemies.status}${this.farm?'':' · Espécimes de treino voltam após 8 segundos.'}`);
     this.element.querySelectorAll('.mp-meter i').forEach((segment,index)=>segment.classList.toggle('charged',mp.tier>index));
     this.element.querySelector('.mp-meter small')!.textContent=pistols.stormRemaining>0?'TEMPESTADE DA COLHEITA':mp.held&&mp.current<25?'MP INSUFICIENTE':mp.held?['CARREGANDO','LEQUE RICOCHETEANTE','BARRAGEM COM MORTAL','TEMPESTADE DA COLHEITA'][mp.tier]!:'SEGURE BOTÃO DIREITO';
     if(error){this.diagnostic.textContent=`Falha ao carregar personagem: ${error}`;this.button.textContent='Recarregue a página para tentar novamente';}
     else if(pistols.cadence.shots+pistols.skillShots>0)this.diagnostic.textContent=`${pistols.hits} acertos · ${pistols.cadence.shots+pistols.skillShots} disparos · ${mp.releases} habilidades`;
   }
-  dispose(): void {window.removeEventListener('keydown',this.gateKey);document.body.classList.remove('game-menu-open','arrival-in-progress');this.element.remove();}
+  dispose(): void {window.removeEventListener('keydown',this.gateKey);this.onSkipIntro=undefined;this.skipButton.remove();document.body.classList.remove('game-menu-open','arrival-in-progress');this.element.remove();}
 }

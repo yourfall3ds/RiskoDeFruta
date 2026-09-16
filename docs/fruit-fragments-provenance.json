@@ -1,0 +1,667 @@
+{
+ "gerado_por": "scripts/build-fruit-fragments.py",
+ "saida": "public/models/fruit-fragments.glb",
+ "originais_alterados": false,
+ "textura_px": 512,
+ "teto_triangulos": 320,
+ "familias": {
+  "melon": {
+   "modelo": "original-watermelon",
+   "sha256_origem": "8d4053adf214ced10bfd78886a9a195626c347248555cb3c46d87623f6af240d",
+   "escala_inimigo": 1.35,
+   "relevo": true,
+   "rugosidade_corte": 0.46,
+   "cores_srgb": {
+    "polpa": "#d0374d",
+    "borda": "#cfdfa2",
+    "semente": "#1d150f"
+   },
+   "pecas": [
+    {
+     "peca": "frag-melon-shell-0",
+     "papel": "shell",
+     "variante": 0,
+     "partes": 2,
+     "triangulos": 104,
+     "tamanho_m": [
+      0.3762,
+      0.3476,
+      0.0987
+     ],
+     "origem": "recorte de original-watermelon"
+    },
+    {
+     "peca": "frag-melon-pulp-0",
+     "papel": "pulp",
+     "variante": 0,
+     "partes": 1,
+     "triangulos": 60,
+     "tamanho_m": [
+      0.1844,
+      0.294,
+      0.1673
+     ],
+     "origem": "recorte de original-watermelon"
+    },
+    {
+     "peca": "frag-melon-seed-0",
+     "papel": "seed",
+     "variante": 0,
+     "partes": 1,
+     "triangulos": 80,
+     "tamanho_m": [
+      0.0187,
+      0.0559,
+      0.0113
+     ],
+     "origem": "modelada"
+    },
+    {
+     "peca": "frag-melon-shell-1",
+     "papel": "shell",
+     "variante": 1,
+     "partes": 2,
+     "triangulos": 96,
+     "tamanho_m": [
+      0.259,
+      0.1813,
+      0.1331
+     ],
+     "origem": "recorte de original-watermelon"
+    },
+    {
+     "peca": "frag-melon-pulp-1",
+     "papel": "pulp",
+     "variante": 1,
+     "partes": 1,
+     "triangulos": 94,
+     "tamanho_m": [
+      0.3014,
+      0.4014,
+      0.1811
+     ],
+     "origem": "recorte de original-watermelon"
+    },
+    {
+     "peca": "frag-melon-seed-1",
+     "papel": "seed",
+     "variante": 1,
+     "partes": 1,
+     "triangulos": 80,
+     "tamanho_m": [
+      0.0188,
+      0.0589,
+      0.0125
+     ],
+     "origem": "modelada"
+    },
+    {
+     "peca": "frag-melon-shell-2",
+     "papel": "shell",
+     "variante": 2,
+     "partes": 2,
+     "triangulos": 88,
+     "tamanho_m": [
+      0.3566,
+      0.2516,
+      0.091
+     ],
+     "origem": "recorte de original-watermelon"
+    },
+    {
+     "peca": "frag-melon-pulp-2",
+     "papel": "pulp",
+     "variante": 2,
+     "partes": 1,
+     "triangulos": 76,
+     "tamanho_m": [
+      0.2976,
+      0.2482,
+      0.1797
+     ],
+     "origem": "recorte de original-watermelon"
+    },
+    {
+     "peca": "frag-melon-seed-2",
+     "papel": "seed",
+     "variante": 2,
+     "partes": 1,
+     "triangulos": 80,
+     "tamanho_m": [
+      0.0196,
+      0.057,
+      0.0121
+     ],
+     "origem": "modelada"
+    }
+   ]
+  },
+  "berry": {
+   "modelo": "original-tomato",
+   "sha256_origem": "c5e65076a5088427eee865550f1179ee442cadbdf314fd0a1575f8776ac497c7",
+   "escala_inimigo": 1.25,
+   "relevo": true,
+   "rugosidade_corte": 0.34,
+   "cores_srgb": {
+    "polpa": "#d9584a",
+    "borda": "#eec0a8",
+    "semente": "#cdb570"
+   },
+   "pecas": [
+    {
+     "peca": "frag-berry-shell-0",
+     "papel": "shell",
+     "variante": 0,
+     "partes": 2,
+     "triangulos": 156,
+     "tamanho_m": [
+      0.2856,
+      0.2963,
+      0.2289
+     ],
+     "origem": "recorte de original-tomato"
+    },
+    {
+     "peca": "frag-berry-pulp-0",
+     "papel": "pulp",
+     "variante": 0,
+     "partes": 1,
+     "triangulos": 108,
+     "tamanho_m": [
+      0.306,
+      0.2674,
+      0.1831
+     ],
+     "origem": "recorte de original-tomato"
+    },
+    {
+     "peca": "frag-berry-seed-0",
+     "papel": "seed",
+     "variante": 0,
+     "partes": 1,
+     "triangulos": 80,
+     "tamanho_m": [
+      0.015,
+      0.0328,
+      0.0085
+     ],
+     "origem": "modelada"
+    },
+    {
+     "peca": "frag-berry-shell-1",
+     "papel": "shell",
+     "variante": 1,
+     "partes": 2,
+     "triangulos": 160,
+     "tamanho_m": [
+      0.1481,
+      0.3068,
+      0.0976
+     ],
+     "origem": "recorte de original-tomato"
+    },
+    {
+     "peca": "frag-berry-pulp-1",
+     "papel": "pulp",
+     "variante": 1,
+     "partes": 1,
+     "triangulos": 108,
+     "tamanho_m": [
+      0.2691,
+      0.2565,
+      0.1444
+     ],
+     "origem": "recorte de original-tomato"
+    },
+    {
+     "peca": "frag-berry-seed-1",
+     "papel": "seed",
+     "variante": 1,
+     "partes": 1,
+     "triangulos": 80,
+     "tamanho_m": [
+      0.0151,
+      0.0345,
+      0.0094
+     ],
+     "origem": "modelada"
+    },
+    {
+     "peca": "frag-berry-shell-2",
+     "papel": "shell",
+     "variante": 2,
+     "partes": 2,
+     "triangulos": 112,
+     "tamanho_m": [
+      0.2703,
+      0.2089,
+      0.1134
+     ],
+     "origem": "recorte de original-tomato"
+    },
+    {
+     "peca": "frag-berry-pulp-2",
+     "papel": "pulp",
+     "variante": 2,
+     "partes": 1,
+     "triangulos": 124,
+     "tamanho_m": [
+      0.2943,
+      0.2911,
+      0.1745
+     ],
+     "origem": "recorte de original-tomato"
+    },
+    {
+     "peca": "frag-berry-seed-2",
+     "papel": "seed",
+     "variante": 2,
+     "partes": 1,
+     "triangulos": 80,
+     "tamanho_m": [
+      0.0157,
+      0.0334,
+      0.0091
+     ],
+     "origem": "modelada"
+    }
+   ]
+  },
+  "bulb": {
+   "modelo": "original-eggplant",
+   "sha256_origem": "c1f12f45c3cb359027f9d244703c4c0d4778a19144cdeac8182f82bb9954e232",
+   "escala_inimigo": 1.2,
+   "relevo": false,
+   "rugosidade_corte": 0.58,
+   "cores_srgb": {
+    "polpa": "#e7d9ba",
+    "borda": "#ddcfae",
+    "semente": "#6d5e35"
+   },
+   "pecas": [
+    {
+     "peca": "frag-bulb-shell-0",
+     "papel": "shell",
+     "variante": 0,
+     "partes": 2,
+     "triangulos": 180,
+     "tamanho_m": [
+      0.2215,
+      0.2266,
+      0.0956
+     ],
+     "origem": "recorte de original-eggplant"
+    },
+    {
+     "peca": "frag-bulb-pulp-0",
+     "papel": "pulp",
+     "variante": 0,
+     "partes": 1,
+     "triangulos": 148,
+     "tamanho_m": [
+      0.2168,
+      0.2779,
+      0.1674
+     ],
+     "origem": "recorte de original-eggplant"
+    },
+    {
+     "peca": "frag-bulb-seed-0",
+     "papel": "seed",
+     "variante": 0,
+     "partes": 1,
+     "triangulos": 80,
+     "tamanho_m": [
+      0.0131,
+      0.0347,
+      0.0076
+     ],
+     "origem": "modelada"
+    },
+    {
+     "peca": "frag-bulb-shell-1",
+     "papel": "shell",
+     "variante": 1,
+     "partes": 2,
+     "triangulos": 196,
+     "tamanho_m": [
+      0.1671,
+      0.1412,
+      0.09
+     ],
+     "origem": "recorte de original-eggplant"
+    },
+    {
+     "peca": "frag-bulb-pulp-1",
+     "papel": "pulp",
+     "variante": 1,
+     "partes": 1,
+     "triangulos": 148,
+     "tamanho_m": [
+      0.1481,
+      0.1214,
+      0.1167
+     ],
+     "origem": "recorte de original-eggplant"
+    },
+    {
+     "peca": "frag-bulb-seed-1",
+     "papel": "seed",
+     "variante": 1,
+     "partes": 1,
+     "triangulos": 80,
+     "tamanho_m": [
+      0.0132,
+      0.0366,
+      0.0083
+     ],
+     "origem": "modelada"
+    },
+    {
+     "peca": "frag-bulb-shell-2",
+     "papel": "shell",
+     "variante": 2,
+     "partes": 2,
+     "triangulos": 220,
+     "tamanho_m": [
+      0.1799,
+      0.1599,
+      0.0776
+     ],
+     "origem": "recorte de original-eggplant"
+    },
+    {
+     "peca": "frag-bulb-pulp-2",
+     "papel": "pulp",
+     "variante": 2,
+     "partes": 1,
+     "triangulos": 160,
+     "tamanho_m": [
+      0.1734,
+      0.1263,
+      0.0998
+     ],
+     "origem": "recorte de original-eggplant"
+    },
+    {
+     "peca": "frag-bulb-seed-2",
+     "papel": "seed",
+     "variante": 2,
+     "partes": 1,
+     "triangulos": 80,
+     "tamanho_m": [
+      0.0137,
+      0.0353,
+      0.0081
+     ],
+     "origem": "modelada"
+    }
+   ]
+  },
+  "cob": {
+   "modelo": "original-corn",
+   "sha256_origem": "fc2df1eb2028ef1a6d75dbb17d71556daa556d93e318fef2173231406fb351cf",
+   "escala_inimigo": 1.3,
+   "relevo": false,
+   "rugosidade_corte": 0.62,
+   "cores_srgb": {
+    "polpa": "#e8cf7a",
+    "borda": "#ded0a0",
+    "semente": "#e2ab33"
+   },
+   "pecas": [
+    {
+     "peca": "frag-cob-shell-0",
+     "papel": "shell",
+     "variante": 0,
+     "partes": 2,
+     "triangulos": 224,
+     "tamanho_m": [
+      0.1721,
+      0.1676,
+      0.1412
+     ],
+     "origem": "recorte de original-corn"
+    },
+    {
+     "peca": "frag-cob-pulp-0",
+     "papel": "pulp",
+     "variante": 0,
+     "partes": 1,
+     "triangulos": 196,
+     "tamanho_m": [
+      0.1779,
+      0.2094,
+      0.1013
+     ],
+     "origem": "recorte de original-corn"
+    },
+    {
+     "peca": "frag-cob-seed-0",
+     "papel": "seed",
+     "variante": 0,
+     "partes": 2,
+     "triangulos": 56,
+     "tamanho_m": [
+      0.0998,
+      0.0991,
+      0.0729
+     ],
+     "origem": "recorte de original-corn"
+    },
+    {
+     "peca": "frag-cob-shell-1",
+     "papel": "shell",
+     "variante": 1,
+     "partes": 2,
+     "triangulos": 240,
+     "tamanho_m": [
+      0.1954,
+      0.2631,
+      0.0997
+     ],
+     "origem": "recorte de original-corn"
+    },
+    {
+     "peca": "frag-cob-pulp-1",
+     "papel": "pulp",
+     "variante": 1,
+     "partes": 1,
+     "triangulos": 192,
+     "tamanho_m": [
+      0.2186,
+      0.1425,
+      0.1227
+     ],
+     "origem": "recorte de original-corn"
+    },
+    {
+     "peca": "frag-cob-seed-1",
+     "papel": "seed",
+     "variante": 1,
+     "partes": 2,
+     "triangulos": 44,
+     "tamanho_m": [
+      0.0762,
+      0.0829,
+      0.0268
+     ],
+     "origem": "recorte de original-corn"
+    },
+    {
+     "peca": "frag-cob-shell-2",
+     "papel": "shell",
+     "variante": 2,
+     "partes": 2,
+     "triangulos": 224,
+     "tamanho_m": [
+      0.2691,
+      0.1613,
+      0.1388
+     ],
+     "origem": "recorte de original-corn"
+    },
+    {
+     "peca": "frag-cob-pulp-2",
+     "papel": "pulp",
+     "variante": 2,
+     "partes": 1,
+     "triangulos": 176,
+     "tamanho_m": [
+      0.1527,
+      0.1444,
+      0.0765
+     ],
+     "origem": "recorte de original-corn"
+    },
+    {
+     "peca": "frag-cob-seed-2",
+     "papel": "seed",
+     "variante": 2,
+     "partes": 2,
+     "triangulos": 44,
+     "tamanho_m": [
+      0.1019,
+      0.0869,
+      0.0323
+     ],
+     "origem": "recorte de original-corn"
+    }
+   ]
+  },
+  "root": {
+   "modelo": "original-carrot",
+   "sha256_origem": "da547c57a1ed777358457ad9f8f5c51e750c81ded5fd77639003d52f93bbcd45",
+   "escala_inimigo": 1.25,
+   "relevo": false,
+   "rugosidade_corte": 0.55,
+   "cores_srgb": {
+    "polpa": "#e79a4e",
+    "borda": "#eec392",
+    "semente": "#dd8f42"
+   },
+   "pecas": [
+    {
+     "peca": "frag-root-shell-0",
+     "papel": "shell",
+     "variante": 0,
+     "partes": 2,
+     "triangulos": 228,
+     "tamanho_m": [
+      0.2442,
+      0.1907,
+      0.1343
+     ],
+     "origem": "recorte de original-carrot"
+    },
+    {
+     "peca": "frag-root-pulp-0",
+     "papel": "pulp",
+     "variante": 0,
+     "partes": 1,
+     "triangulos": 160,
+     "tamanho_m": [
+      0.183,
+      0.1616,
+      0.1053
+     ],
+     "origem": "recorte de original-carrot"
+    },
+    {
+     "peca": "frag-root-seed-0",
+     "papel": "seed",
+     "variante": 0,
+     "partes": 2,
+     "triangulos": 44,
+     "tamanho_m": [
+      0.0682,
+      0.0856,
+      0.0304
+     ],
+     "origem": "recorte de original-carrot"
+    },
+    {
+     "peca": "frag-root-shell-1",
+     "papel": "shell",
+     "variante": 1,
+     "partes": 2,
+     "triangulos": 240,
+     "tamanho_m": [
+      0.1936,
+      0.1549,
+      0.1335
+     ],
+     "origem": "recorte de original-carrot"
+    },
+    {
+     "peca": "frag-root-pulp-1",
+     "papel": "pulp",
+     "variante": 1,
+     "partes": 1,
+     "triangulos": 168,
+     "tamanho_m": [
+      0.1821,
+      0.1619,
+      0.1314
+     ],
+     "origem": "recorte de original-carrot"
+    },
+    {
+     "peca": "frag-root-seed-1",
+     "papel": "seed",
+     "variante": 1,
+     "partes": 2,
+     "triangulos": 40,
+     "tamanho_m": [
+      0.0699,
+      0.0821,
+      0.037
+     ],
+     "origem": "recorte de original-carrot"
+    },
+    {
+     "peca": "frag-root-shell-2",
+     "papel": "shell",
+     "variante": 2,
+     "partes": 2,
+     "triangulos": 212,
+     "tamanho_m": [
+      0.169,
+      0.1839,
+      0.0604
+     ],
+     "origem": "recorte de original-carrot"
+    },
+    {
+     "peca": "frag-root-pulp-2",
+     "papel": "pulp",
+     "variante": 2,
+     "partes": 1,
+     "triangulos": 188,
+     "tamanho_m": [
+      0.1396,
+      0.1785,
+      0.0985
+     ],
+     "origem": "recorte de original-carrot"
+    },
+    {
+     "peca": "frag-root-seed-2",
+     "papel": "seed",
+     "variante": 2,
+     "partes": 2,
+     "triangulos": 44,
+     "tamanho_m": [
+      0.0755,
+      0.0812,
+      0.0289
+     ],
+     "origem": "recorte de original-carrot"
+    }
+   ]
+  }
+ },
+ "bytes": 733496,
+ "pecas": 45,
+ "objetos": 66
+}
