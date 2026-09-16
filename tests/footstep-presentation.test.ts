@@ -11,7 +11,7 @@ import {PlayerMotor} from '../src/player/PlayerMotor';
 import {CollisionWorld} from '../src/physics/CollisionWorld';
 import {EventBus} from '../src/core/EventBus';
 import type {GameEvents} from '../src/core/contracts';
-import type {WeaponAudio} from '../src/audio/WeaponAudio';
+import type {WeaponAudio} from '../src/audio/RecordedAudio';
 
 const DT=1/60;
 /** Passada sintética com a forma do rig: sobe acima do rearme, desce até o platô de apoio. */

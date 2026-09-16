@@ -19,9 +19,34 @@ it('does not advance or reward when spawning fails or enemies remain',()=>{const
 it('fires exactly 50 rounds, blocks during reload and fills only at the catch',()=>{const m=new PistolMagazine();for(let i=0;i<50;i++)expect(m.consume()).toBe(true);expect(m.consume()).toBe(false);expect(m.request()).toBe(true);m.update(1);expect(m.consume()).toBe(false);expect(m.ammo).toBe(0);m.update(.35);expect(m.ammo).toBe(50);expect(m.reloading).toBe(false);expect(m.request()).toBe(false);m.consume();m.request();m.update(1);m.cancel();expect(m.ammo).toBe(49);});
 it.each([1,2,3] as const)('skill %i releases once at its audio cue and pauses without drift',tier=>{const timeline=new SkillTimeline(),release=vi.fn();timeline.start(tier);timeline.update(SKILL_CUES[tier].release-.001,release);expect(release).not.toHaveBeenCalled();for(let i=0;i<60;i++)timeline.update(timeline.elapsed,release);expect(release).not.toHaveBeenCalled();expect(timeline.start(tier)).toBe(false);timeline.update(SKILL_CUES[tier].release,release);timeline.update(9,release);expect(release).toHaveBeenCalledExactlyOnceWith(tier);expect(timeline.active).toBe(false);});
 it('selects backsteps and strafes relative to facing, blending diagonals',()=>{expect(directionalLocomotion(0,-3,0).primary).toBe('WalkBackward');expect(directionalLocomotion(-3,0,0).primary).toBe('StrafeLeft');expect(directionalLocomotion(3,0,0).primary).toBe('StrafeRight');expect(directionalLocomotion(-8,0,Math.PI/2).primary).toBe('RunBackward');expect(directionalLocomotion(3,-3,0).weight).toBeCloseTo(.5);});
-// `art/processed/` fica fora do Git, então a pele de antes da autoria direcional é conferida pelas
-// assinaturas de docs/gunslinger-skin-baseline.json: as animações novas não podem alterar malha nem texturas.
-it('authored movement, preparations and reload keep the supplied skin and textures',()=>{const glb=(file:string)=>{const b=readFileSync(file);return JSON.parse(b.toString('utf8',20,20+b.readUInt32LE(12)));},baseline=JSON.parse(readFileSync('docs/gunslinger-skin-baseline.json','utf8')),after=glb('public/models/gunslinger.glb');const sha=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');for(const key of ['meshes','skins','images','materials','textures'])expect(sha(after[key]),`seção ${key} do gunslinger`).toBe(baseline.sectionsSHA256[key]);for(const name of baseline.authoredAnimations as string[]){const a=after.animations.find((a:{name:string})=>a.name===name);expect(a,`animação ${name}`).toBeTruthy();for(const s of a.samplers)expect(after.accessors[s.input].count).toBe(baseline.authoredSampleCount);}});
+// `art/processed/` fica fora do Git, então a fonte anterior à autoria é conferida pelas assinaturas de
+// docs/gunslinger-skin-baseline.json. O invariante do projeto é: a malha, a pele e as texturas fornecidas
+// são preservadas e só as animações são editadas. Acrescentar clipes ou morph targets é permitido;
+// mexer na geometria base, na pele, nos materiais ou nas imagens não é.
+it('authored movement, preparations and reload keep the supplied skin and textures',()=>{
+ const b=readFileSync('public/models/gunslinger.glb'),after=JSON.parse(b.toString('utf8',20,20+b.readUInt32LE(12)));
+ const baseline=JSON.parse(readFileSync('docs/gunslinger-skin-baseline.json','utf8'));
+ const sha=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
+ for(const key of ['skins','images','materials','textures'])expect(sha(after[key]),`seção ${key} do gunslinger`).toBe(baseline.sectionsSHA256[key]);
+ expect(after.meshes).toHaveLength(baseline.baseGeometry.length);
+ baseline.baseGeometry.forEach((mesh:{name:string;primitives:{attributes:Record<string,number>;indices:number;material:number;vertices:number;indexCount:number}[]},index:number)=>{
+  const actual=after.meshes[index];
+  expect(actual.name,`nome da malha ${index}`).toBe(mesh.name);
+  expect(actual.primitives,`primitivas da malha ${mesh.name}`).toHaveLength(mesh.primitives.length);
+  mesh.primitives.forEach((primitive,slot)=>{
+   const current=actual.primitives[slot];
+   expect(current.attributes,`atributos de ${mesh.name}[${slot}]`).toEqual(primitive.attributes);
+   expect(current.indices).toBe(primitive.indices);expect(current.material).toBe(primitive.material);
+   expect(after.accessors[current.attributes['POSITION']].count,`vértices de ${mesh.name}[${slot}]`).toBe(primitive.vertices);
+   expect(after.accessors[current.indices].count,`índices de ${mesh.name}[${slot}]`).toBe(primitive.indexCount);
+  });
+ });
+ for(const name of baseline.authoredAnimations as string[]){
+  const clip=after.animations.find((a:{name:string})=>a.name===name);
+  expect(clip,`animação ${name}`).toBeTruthy();
+  for(const s of clip.samplers)expect(after.accessors[s.input].count,`amostras de ${name}`).toBe(baseline.authoredSampleCount);
+ }
+});
 
 it.each([1,2,3] as const)('skill %i ends at vocal cutoff even when the file has a longer tail',tier=>{const t=new SkillTimeline(),release=vi.fn();t.start(tier,6.034);const end=SKILL_CUES[tier].voiceEnd;expect(t.duration).toBe(end);t.update(1.5,release);expect(t.closeVisible).toBe(false);t.update(end-.001,release);expect(t.active).toBe(true);t.update(end,release);expect(t.active).toBe(false);expect(t.actionProgress).toBe(1);expect(release).toHaveBeenCalledTimes(1);});
 it('replaces enemies retired for performance instead of counting them as defeated',()=>{const d=new MonsterDirector(new RunRNG('retire').stream('director'),1,50,true);d.intermission=0;d.spawned=d.waveQuota;d.retireLivingEnemy();for(let i=0;i<100;i++)d.update(.1,0,0,()=>false,12);expect(d.completedWaves).toBe(0);expect(d.spawned).toBe(d.waveQuota-1);let spawned=0;d.update(1,0,0,()=>{spawned++;return true;},12);expect(spawned).toBe(1);d.update(.1,0,1,()=>false,12);expect(d.completedWaves).toBe(0);d.update(.1,1,0,()=>false,12);expect(d.completedWaves).toBe(1);});
