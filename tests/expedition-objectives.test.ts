@@ -1,6 +1,6 @@
 import {describe,it,expect} from 'vitest';
 import {CollisionWorld} from '../src/physics/CollisionWorld';
-import {ExpeditionObjectives,planExpedition,findTotemSite,isOpenGround,TOTEM_CHARGE_SECONDS,TOTEM_RADIUS,BOSS_RECOVERY_SECONDS,type TotemAnchor} from '../src/run/ExpeditionObjectives';
+import {ExpeditionObjectives,planExpedition,findTotemSite,isOpenGround,CHALICE_JUICE_TARGETS,TOTEM_RADIUS,BOSS_RECOVERY_SECONDS,type TotemAnchor} from '../src/run/ExpeditionObjectives';
 import {HarvestResonance,RESONANCE_MAX,RESONANCE_DECAY_SECONDS} from '../src/run/HarvestResonance';
 
 /** Duas praças largas, uma ponte estreita entre elas e uma ilhota curta. */
@@ -33,7 +33,7 @@ describe('colocação dos totens',()=>{
     const sites=planExpedition(world(),anchors,{x:0,y:0,z:-20},()=>true);
     expect(sites).toHaveLength(2); // só as duas praças validam nesta maquete
     expect(sites.map(s=>s.id)).toEqual(['a','b']);
-    expect(sites.map(s=>s.chargeSeconds)).toEqual([TOTEM_CHARGE_SECONDS[0],TOTEM_CHARGE_SECONDS[1]]);
+    expect(sites.map(s=>s.juiceTarget)).toEqual([CHALICE_JUICE_TARGETS[0],CHALICE_JUICE_TARGETS[1]]);
     expect(Math.hypot(sites[0]!.position.x-sites[1]!.position.x,sites[0]!.position.z-sites[1]!.position.z)).toBeGreaterThan(TOTEM_RADIUS*2.2);
   });
   it('descarta destino sem rota mesmo com piso válido',()=>{
@@ -42,48 +42,82 @@ describe('colocação dos totens',()=>{
   });
 });
 
-describe('carga por permanência',()=>{
+let harvestSequence=0;
+function collect(o:ExpeditionObjectives,count:number,at:{x:number;y:number;z:number},alive=true):void{
+ for(let i=0;i<count;i++)o.harvest({sequence:++harvestSequence,kind:'carrot',position:at},at,alive);
+}
+describe('cálice por abates reais',()=>{
   const sites=planExpedition(world(),anchors,{x:0,y:0,z:-20},()=>true);
   const make=()=>{const o=new ExpeditionObjectives();o.setSites(sites);return o;};
   const run=(o:ExpeditionObjectives,seconds:number,p:{x:number;y:number;z:number},alive=true)=>{for(let i=0;i<seconds*60;i++)o.update(1/60,p,alive);};
 
-  it('exige E dentro da área e carrega pelo tempo pedido',()=>{
+  it('credits each combat death once, including different deaths of a pooled actor',()=>{
+    const o=make(),at=sites[0]!.position;o.activate(at);
+    const kill={sequence:++harvestSequence,kind:'watermelon',position:at};
+    expect(o.harvest(kill,at,true)?.amount).toBe(4);
+    expect(o.harvest(kill,at,true)).toBeUndefined();
+    expect(o.harvest({...kill,sequence:++harvestSequence},at,true)?.amount).toBe(4);
+    expect(o.current!.charged).toBe(8);
+  });
+  it('rejects distant deaths and kills while the player is outside, without banking them for later',()=>{
+    const o=make(),at=sites[0]!.position;o.activate(at);
+    const far={x:at.x+100,y:at.y,z:at.z};
+    const distant={sequence:++harvestSequence,kind:'watermelon',position:far};
+    expect(o.harvest(distant,at,true)).toBeUndefined();
+    const outside={sequence:++harvestSequence,kind:'watermelon',position:at};
+    expect(o.harvest(outside,far,true)).toBeUndefined();
+    expect(o.harvest(outside,at,true)).toBeUndefined();
+    expect(o.current!.charged).toBe(0);
+  });
+  it('completes on a decisive kill, clamps overflow and keeps that exact reward position',()=>{
+    const o=make(),at=sites[0]!.position;o.activate(at);collect(o,39,at);
+    const decisive={x:at.x+6,y:at.y+1,z:at.z};
+    const result=o.harvest({sequence:++harvestSequence,kind:'watermelon',position:decisive},at,true);
+    expect(result).toEqual({index:0,amount:1,complete:true});
+    expect(o.totems[0]!.charged).toBe(40);
+    expect(o.nextRewardPosition).toEqual(decisive);
+    expect(o.rewardsPending).toBe(1);
+    expect(o.harvest({sequence:++harvestSequence,kind:'watermelon',position:at},at,true)).toBeUndefined();
+    o.takeReward();expect(o.nextRewardPosition).toBeUndefined();
+  });
+
+  it('requires activation and kills; waiting alone never fills the cup',()=>{
     const o=make(),at=sites[0]!.position;
     expect(o.activate({x:60,y:0,z:0})).toBeUndefined();
     expect(o.activate(at)).toBeDefined();
     run(o,10,at);
-    expect(o.current!.charged).toBeCloseTo(10,1);
+    expect(o.current!.charged).toBe(0);
     expect(o.current!.state).toBe('charging');
-    run(o,TOTEM_CHARGE_SECONDS[0]-10+1,at);
+    collect(o,CHALICE_JUICE_TARGETS[0],at);
     expect(o.completed).toBe(1);
     expect(o.rewardsPending).toBe(1);
     expect(o.activeIndex).toBe(-1);
   });
   it('sair pausa a carga sem apagá-la e voltar retoma de onde parou',()=>{
     const o=make(),at=sites[0]!.position,away={x:at.x+60,y:0,z:at.z};
-    o.activate(at);run(o,12,at);
+    o.activate(at);collect(o,12,at);
     const held=o.totems[0]!.charged;
     run(o,20,away);
     expect(o.totems[0]!.state).toBe('paused');
     expect(o.totems[0]!.charged).toBeCloseTo(held,3);
-    run(o,5,at);
+    run(o,5,at);collect(o,5,at);
     expect(o.totems[0]!.charged).toBeCloseTo(held+5,1);
   });
   it('morrer pausa a carga, não zera',()=>{
-    const o=make(),at=sites[0]!.position;o.activate(at);run(o,8,at);
-    const held=o.totems[0]!.charged;run(o,10,at,false);
+    const o=make(),at=sites[0]!.position;o.activate(at);collect(o,8,at);
+    const held=o.totems[0]!.charged;run(o,10,at,false);collect(o,10,at,false);
     expect(o.totems[0]!.charged).toBeCloseTo(held,3);
   });
   it('ativar outro marco pausa o anterior preservando o progresso',()=>{
     const o=make(),first=sites[0]!.position,second=sites[1]!.position;
-    o.activate(first);run(o,9,first);
+    o.activate(first);collect(o,9,first);
     o.activate(second);
     expect(o.totems[0]!.state).toBe('paused');
     expect(o.totems[0]!.charged).toBeCloseTo(9,1);
     expect(o.current!.site.id).toBe(sites[1]!.id);
   });
   it('a ressonância acelera a carga sem ser necessária',()=>{
-    const o=make(),at=sites[0]!.position;o.chargeMultiplier=1.36;o.activate(at);run(o,10,at);
+    const o=make(),at=sites[0]!.position;o.chargeMultiplier=1.36;o.activate(at);run(o,10,at);collect(o,10,at);
     expect(o.current!.charged).toBeCloseTo(13.6,1);
   });
 });
@@ -92,7 +126,7 @@ describe('chefe e fenda',()=>{
   const sites=planExpedition(world(),anchors,{x:0,y:0,z:-20},()=>true);
   function completed():ExpeditionObjectives {
     const o=new ExpeditionObjectives();o.setSites(sites);
-    for(const totem of o.totems){o.activate(totem.site.position);for(let i=0;i<(totem.site.chargeSeconds+1)*60;i++)o.update(1/60,totem.site.position,true);}
+    for(const totem of o.totems){o.activate(totem.site.position);collect(o,totem.site.juiceTarget,totem.site.position);}
     return o;
   }
   it('entra na fase do chefe só depois dos marcos e abre a fenda ao derrotá-lo',()=>{

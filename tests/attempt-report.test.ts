@@ -47,7 +47,8 @@ it('keeps the legacy horde mode scoring untouched',()=>{
 
 it('writes TAB copy for the mode that is actually running',()=>{
  const expedition=modeBrief(true,false),horde=modeBrief(false,true),classic=modeBrief(false,false);
- expect(expedition).toContain('marcos');
+ expect(expedition).toContain('cálices');
+ expect(expedition).toContain('suco');
  expect(expedition).toContain('Praga Alfa');
  // Nada de prometer chefe a cada cinco ondas fora do modo horda.
  expect(expedition).not.toContain('cinco ondas');

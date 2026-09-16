@@ -180,7 +180,16 @@ export class CharacterVisual {
     // `applyFlutter` multiplicava a mesma junta quadro após quadro — o braço girava sem limite.
     const lower=(bone:string)=>!aiming||this.meleePose!==undefined||name==='Dodge'||flipping||!upper(bone);
     this.machine.sample(name,progress,dt,lower,clipName);
-    if(name===locomotion.primary&&locomotion.weight>0){const second=this.clips.get(locomotion.secondary);if(second)this.sample(second,progress,lower,locomotion.weight);}
+    if(name===locomotion.primary&&locomotion.weight>0){
+      const second=this.clips.get(locomotion.secondary);
+      if(second){
+        // Walk and strafe were authored with different stride cycles. Blending their legs at
+        // equal normalized time cancels foot lift on diagonals. Keep the dominant support cycle
+        // intact; only blend the upper body until phase-aligned directional clips are authored.
+        const sameCycle=Math.abs((second.to-second.from)-frames)<.01;
+        this.sample(second,progress,bone=>lower(bone)&&(sameCycle||/^(Spine|Head|Neck|(?:Left|Right)(?:Shoulder|Arm|ForeArm|Hand|WeaponGrip))/.test(bone)),locomotion.weight);
+      }
+    }
     if(this.meleePose){
       // O clipe de locomoção já foi amostrado acima: estes ângulos entram POR CIMA dele, então as
       // pernas continuam andando enquanto o tronco, o quadril e os braços executam o golpe.

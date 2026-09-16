@@ -27,6 +27,8 @@ export interface SculptedRegion {
  placements:readonly OutcropPlacement[];
  /** Instâncias antigas aposentadas: a colisão delas já saiu; o visual precisa sumir junto. */
  retired:readonly OrientedVolume[];
+ /** Exact authored node names retired by the initial-island collision bake plan. */
+ retiredNames?:readonly string[];
  carvedTriangles:number;
  offsetAt(x:number,z:number):number;
 }

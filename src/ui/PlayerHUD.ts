@@ -66,7 +66,7 @@ export class PlayerHUD {
       this.element.querySelector('h1')!.innerHTML='A colheita<br>se revoltou.';
       // Texto do modo realmente ativo. O antigo prometia item no centro e chefe a cada cinco ondas.
       this.element.querySelector('.gate-card p')!.textContent=mode==='expedition'
-        ?'Ative os quatro marcos da expedição e permaneça vivo na área de cada um até carregá-lo. Sair pausa a carga, não apaga. As pragas nunca param de chegar: concluir não depende de eliminar todas. Com os quatro marcos prontos, derrote a Praga Alfa e atravesse a fenda.'
+        ?'Ative os quatro cálices da expedição e elimine frutas próximas para enchê-los de suco. Sair da área preserva o suco coletado. As pragas nunca param de chegar: concluir não depende de eliminar todas. Com os quatro marcos prontos, derrote a Praga Alfa e atravesse a fenda.'
         :mode==='horde'
         ?'Sobreviva a hordas cada vez mais fortes. Ao vencer cada onda, recolha o item que cai no campo para acumular poder. A cada cinco ondas, enfrente uma Praga Alfa.'
         :'Contenha a infestação até a Praga Alfa aparecer, derrote-a e atravesse a fenda para avançar de estágio.';
@@ -143,7 +143,7 @@ export class PlayerHUD {
       retry();this.dead=false;this.entered=false;this.gate.classList.remove('defeated');items.remove();menu.remove();report.remove();
       this.damage.flash=0;this.damage.hold=0;this.damage.amount=0;this.damage.trail=1;
       this.element.querySelector('.gate-card .eyebrow')!.textContent='MUTANT FARM / ILHAS SUSPENSAS';this.element.querySelector('h1')!.textContent='A colheita se revoltou.';
-      this.element.querySelector('.gate-card p')!.textContent=this.mode==='expedition'?'Ative os quatro marcos, sobreviva na área de cada um e derrote a Praga Alfa.':'Sobreviva às hordas, recolha itens e explore os campos.';
+      this.element.querySelector('.gate-card p')!.textContent=this.mode==='expedition'?'Explore as ilhas, ative os quatro cálices e encha-os com o suco das frutas derrotadas. Depois, enfrente a Praga Alfa.':'Sobreviva às hordas, recolha itens e explore os campos.';
       this.button.textContent='PRESS START · JOGAR';this.button.onclick=()=>{this.setActive(true);this.start();};this.setActive(play);if(play)this.start();
     };
     this.button.onclick=()=>leave(true);menu.onclick=()=>leave(false);

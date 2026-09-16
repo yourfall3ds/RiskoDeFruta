@@ -7,6 +7,23 @@ import { FarmNavigation } from '../src/ai/FarmNavigation';
 import { CollisionWorld } from '../src/physics/CollisionWorld';
 import { readFileSync } from 'node:fs';
 describe('run progression',()=>{
+  it('opens expeditions gently, replenishes one at a time, and respects the early live cap',()=>{
+    for(const seed of ['gentle-a','gentle-b','gentle-c']){
+      const director=new MonsterDirector(new RunRNG(seed).stream('director'),1,50,'expedition');
+      let alive=0,first=Infinity;const types:string[]=[];
+      for(let tick=0;tick<30*60;tick++){
+        let arrivals=0;
+        director.update(1/60,0,alive,kind=>{alive++;arrivals++;first=Math.min(first,tick/60);types.push(kind);return true;});
+        expect(arrivals).toBeLessThanOrEqual(1);
+        expect(alive).toBeLessThanOrEqual(3);
+      }
+      expect(first).toBeGreaterThanOrEqual(5.9);expect(first).toBeLessThan(6.1);
+      expect(alive).toBe(3);expect(types).not.toContain('watermelon');expect(types).not.toContain('tomato');
+      director.pressure=1;
+      for(let tick=0;tick<30*60;tick++)director.update(1/60,0,alive,()=>{alive++;return true;},7);
+      expect(alive).toBeGreaterThan(3);expect(alive).toBeLessThanOrEqual(7);
+    }
+  });
   it('preserves existing item balance and diminishing critical returns',()=>{const run=new RunProgression(new EventBus());
     // 90 PNGs continuam cobertos; os dois itens de 15/09 (corrida e carga de especial) reaproveitam ícones existentes.
     expect(ITEMS).toHaveLength(92);expect(new Set(ITEMS.map(i=>i.icon)).size).toBe(90);

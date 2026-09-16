@@ -29,6 +29,7 @@ import { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData';
 import { enableRagdollPhysics,ensureRagdollPhysics,addRagdollTerrain,activeRagdollPositions } from '../physics/RagdollWorld';
 import { sculptRegion,isSculptedRegion,type SculptedRegion,type OutcropShape } from './terrain/WorldTerrain';
 import { TerrainPresentation } from './terrain/TerrainPresentation';
+import {applyInitialRockFix,type InitialRockFix} from './terrain/InitialRocks';
 import { FoliageWind,hasFoliageWind } from './materials/FoliageMaterials';
 
 /**
@@ -116,12 +117,21 @@ export class FarmWorld {
       for(const resource of loadedRegions)this.collision.walkableLinks.push(...resource.data.walkableLinks);this.collision.boxes.push(...data.boxes);this.collision.surfaces.push(...data.surfaces);
       const geometryResponse=await fetch('/models/world-collision-mesh.json');if(!geometryResponse.ok)throw new Error('Falha na colisão das peças do cenário');
       const geometry=await geometryResponse.json() as {positions:number[];indices:number[];boxes:BoxCollider[]};if(this.disposed)return;
+      const rockPlanResponse=await fetch('/models/initial-rock-fix.json');
+      if(!rockPlanResponse.ok)throw Error('Falha no plano das pedras do campo');
+      const rockShape=await loadOutcropShape();
+      if(!rockShape)throw Error('Falha na geometria das pedras do campo');
+      const rocks=applyInitialRockFix(geometry,await rockPlanResponse.json() as InitialRockFix,rockShape);
       const solidResponse=await fetch('/models/solid-island-collision.json');if(!solidResponse.ok)throw Error('Falha no volume das ilhas');const solid=await solidResponse.json() as typeof geometry;const offset=geometry.positions.length/3;for(const value of solid.positions)geometry.positions.push(value);for(const index of solid.indices)geometry.indices.push(index+offset);geometry.boxes.push(...solid.boxes);
       this.collision.boxes.push(...geometry.boxes);
       // Relevo do campo inicial: acrescenta os triângulos esculpidos ANTES do índice de colisão.
       // `geometry.boxes` já traz as caixas do cenário e dos volumes sólidos, que são a fonte das
       // exclusões — a mesma lista que o servidor monta em `mergeCollision`.
       this.relief=sculptRegion('base',{positions:geometry.positions,indices:geometry.indices,boxes:[...data.boxes,...geometry.boxes]});
+      this.relief.retiredNames=rocks.hidden;
+      this.relief.carvedTriangles+=rocks.removedTriangles;
+      this.relief.placements=rocks.placements;
+      if(rocks.geometry)this.relief.outcrops=[{id:'initial-island-rocks',geometry:rocks.geometry}];
       this.collision.setGeometry(geometry.positions,geometry.indices);await this.collision.prepareRaycastsAsync();if(this.disposed)return;this.collision.setRecoveryVolumes(solid.positions,solid.indices);
       await enableRagdollPhysics(this.scene,geometry);if(this.disposed)return;
       const tint=WORLD_MATERIAL_TINT;

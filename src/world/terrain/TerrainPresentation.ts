@@ -79,12 +79,13 @@ export class TerrainPresentation {
   * pedra atravessável. As duas coisas andam juntas, a partir da MESMA lista de volumes.
   */
  private retire(nodes:readonly AbstractMesh[]):void {
-  if(!this.relief.retired.length)return;
+  if(!this.relief.retired.length&&!this.relief.retiredNames?.length)return;
+  const names=new Set(this.relief.retiredNames);
   for(const node of nodes){
    if(!node.getTotalVertices()||!node.isVisible)continue;
    node.computeWorldMatrix(true);
    const position=node.getAbsolutePosition();
-   if(!this.relief.retired.some(volume=>within(volume,position.x,position.y,position.z)))continue;
+   if(!names.has(node.name)&&!this.relief.retired.some(volume=>within(volume,position.x,position.y,position.z)))continue;
    node.isVisible=false;this.retiredNodes.push(node);
   }
  }

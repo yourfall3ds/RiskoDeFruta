@@ -111,11 +111,13 @@ describe('diretor perto do jogador',()=>{
     const count=(pressure:number)=>{
       const d=new MonsterDirector(new RunRNG('pressure').stream('director'),1,50,'expedition');
       d.pressure=pressure;let spawned=0;
-      for(let i=0;i<1200;i++)d.update(.1,0,8,()=>{spawned++;return true;},24);
+      // Two survivors stay alive while newly spawned enemies are defeated.
+      // This remains below the gentle opening cap and must never require a full wipe.
+      for(let i=0;i<1200;i++)d.update(.1,0,2,()=>{spawned++;return true;},24);
       return spawned;
     };
     const calm=count(0),tense=count(1);
-    expect(calm).toBeGreaterThan(0); // população 8 > 0 e mesmo assim continua nascendo
+    expect(calm).toBeGreaterThan(0); // população 2 > 0 e mesmo assim continua nascendo
     expect(tense).toBeGreaterThan(calm);
   });
   it('respeita o orçamento real de performance',()=>{

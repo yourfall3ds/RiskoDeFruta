@@ -2,6 +2,7 @@ import {cityChestColliders,frontierChestColliders,FRONTIER_CHESTS,highlandChestC
 import fs from 'node:fs';
 import {TacticalNavigation} from '../src/ai/TacticalNavigation.ts';
 import {sculptRegion} from '../src/world/terrain/WorldTerrain.ts';
+import {applyInitialRockFix} from '../src/world/terrain/InitialRocks.ts';
 import {exportNavMesh} from '@recast-navigation/core';
 const authored=JSON.parse(fs.readFileSync('public/models/farm-collision.json'));
 const geometry=JSON.parse(fs.readFileSync('public/models/world-collision-mesh.json'));
@@ -14,6 +15,9 @@ const rootwood=JSON.parse(fs.readFileSync('public/models/rootwood-collision.json
 // os agentes andariam na cota antiga, por baixo do terraço. É a mesma chamada que o cliente
 // (`FarmWorld`) e o servidor (`mergeCollision`) fazem ao carregar cada região.
 const outcrops=fs.existsSync('public/models/outcrop-rocks.json')?JSON.parse(fs.readFileSync('public/models/outcrop-rocks.json')):undefined;
+const initialRocks=JSON.parse(fs.readFileSync('public/models/initial-rock-fix.json'));
+const rockFix=applyInitialRockFix(geometry,initialRocks,outcrops);
+console.log('NAV INITIAL ROCKS',rockFix.removedInstances,'retired');
 for(const [id,region] of [['solar-frontier',frontier],['highland-farms',highlands],['rootwood',rootwood]]){
  const sculpted=sculptRegion(id,region,outcrops);
  if(!sculpted.terrain&&!sculpted.outcrops.length)continue;

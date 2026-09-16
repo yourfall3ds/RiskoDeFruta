@@ -22,6 +22,7 @@ export class MonsterDirector {
   readonly mode:DirectorMode;
   constructor(private readonly rng:RandomStream,readonly stage=1,readonly cap=50,mode:DirectorMode|boolean='classic'){
     this.mode=mode===true?'horde':mode===false?'classic':mode;
+    if(this.mode==='expedition'){this.credits=3;this.due=6;}
   }
   get hordeMode():boolean{return this.mode==='horde';}
   /** Na expedição o objetivo é o totem; o diretor nunca espera a população zerar. */
@@ -35,18 +36,20 @@ export class MonsterDirector {
     const pressure=Math.max(0,Math.min(1,this.pressure));
     const score=this.time/55+pressure*1.5;
     this.state=(score<1?0:score<1.8?1:score<2.6?2:score<3.4?3:4) as HordeState;
-    this.credits=Math.min(120,this.credits+dt*(1+this.state*1.05+this.stage*.2+pressure*1.8));
+    this.credits=Math.min(120,this.credits+dt*(1+this.state*.85+this.stage*.15+pressure*1.7));
     this.due-=dt;
-    const ceiling=Math.min(this.cap,budget);
+    // Gentle opening while exploring: at most 3 alive in the first 30s, then 5 until 60s.
+    // Activating a chalice raises pressure explicitly; it does not instantly release a pack.
+    const ambientCap=this.time<30?3:this.time<60?5:this.time<120?8:Math.min(20,8+Math.floor((this.time-120)/45)*2);
+    const ceiling=Math.min(this.cap,budget,ambientCap+Math.round(pressure*12));
     if(this.due>0||population>=ceiling)return;
-    this.due=this.rng.range(1.5,2.9)/(1+this.state*.22+pressure*.5);
-    const group=COMPOSITIONS[Math.floor(this.rng.next()*(this.state===0?2:COMPOSITIONS.length))]!;
-    for(const kind of group){
-      const cost=ENEMIES[kind].cost;
-      if(this.credits<cost||population>=ceiling)break;
-      if(spawn(kind)){this.credits-=cost;population++;break;}
-      this.due=.4;break;
-    }
+    this.due=this.rng.range(3.8,5.2)/(1+this.state*.2+pressure*.8);
+    const pool:EnemyKind[]=this.time<20?['eggplant']:this.time<60?['eggplant','eggplant','corn','carrot']:['eggplant','eggplant','corn','carrot','tomato','watermelon'];
+    const affordable=pool.filter(kind=>ENEMIES[kind].cost<=this.credits);
+    if(!affordable.length)return;
+    const kind=this.rng.pick(affordable);
+    if(spawn(kind))this.credits-=ENEMIES[kind].cost;
+    else this.due=.4;
   }
   get waveQuota():number{return 7+this.wave*3;}
   get healthMultiplier():number{return this.hordeMode?Math.pow(1.16,this.wave-1):1;}

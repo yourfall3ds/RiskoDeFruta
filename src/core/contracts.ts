@@ -27,6 +27,7 @@ export interface GameEvents {
   DamageTaken: DamageContext;
   EnemyHit: DamageContext;
   EnemyKilled: DamageContext;
+  FruitHarvested: {sequence:number;entityId:EntityId;kind:string;position:Vec3};
   PlayerHit: DamageContext;
   PlayerKilled: DamageContext;
   SkillUsed: { entityId: EntityId; skillId: string };

@@ -247,6 +247,7 @@ export class PlayerScene implements SceneModule {
 
     // Passos vinculados ao contato real dos pés do clipe dominante.
     this.footing.footHeights=()=>this.visual.footHeights();
+    this.footing.suppressSteps=()=>this.visual.meleePose!==undefined||this.visual.arrivalPose!==undefined||this.visual.deathProgress!==undefined;
 
     this.weatherView=training?undefined:new WeatherPresentation(this.scene);
     // O ambiente de chuva só toca se existir gravação licenciada no manifest (grupo `rain`).
@@ -286,6 +287,11 @@ export class PlayerScene implements SceneModule {
 
     // Lentidão só em finalizações fortes (habilidade ou golpe pesado), com intervalo próprio.
     this.events.on('EnemyKilled',context=>{if(context.attackerId!==1)return;if(context.damageTags.includes('skill')||context.damageTags.includes('melee_heavy'))this.slowMotion.request(true);});
+    this.events.on('FruitHarvested',kill=>{
+      if(this.directorMode!=='expedition')return;
+      const credit=this.objectives.harvest(kill,this.player.position,this.player.hp>0);
+      if(credit)this.expeditionSites?.harvest(credit.index,kill.position,credit.complete);
+    });
 
     this.events.on('PlayerKilled',()=>{if(!this.death.start())return;this.deathFlight.start(this.player.position,this.player.yaw);this.intro.abort();this.meleeReview.exit();this.deathSummary=this.summarize();this.cancelCinematic();this.weapons.cancelSkills();this.started=false;this.player.sprinting=false;this.input.clear();if(document.pointerLockElement)document.exitPointerLock();this.audio.setActive(true);this.audio.fatalImpact();this.camera.hurt(.32,1);this.hud.fatalReaction(true);});
 
@@ -346,7 +352,7 @@ export class PlayerScene implements SceneModule {
       while(this.enemies.director.rewardsPending>0){if(!this.interactables!.deliverWaveReward(this.rewardRng,hordeAnchors))break;this.enemies.director.rewardsPending--;}
       while(this.objectives.rewardsPending>0){
         const totem=this.objectives.totems.filter(t=>t.state==='complete').at(-1)?.site.position;
-        if(!this.interactables!.deliverWaveReward(this.rewardRng,[{position:recentKill,source:'kill' as const},{position:totem,source:'objective' as const}]))break;
+        if(!this.interactables!.deliverWaveReward(this.rewardRng,[{position:this.objectives.nextRewardPosition,source:'kill' as const},{position:totem,source:'objective' as const}]))break;
         this.objectives.takeReward();
       }
       const riftReady=expedition?this.objectives.phase==='rift':this.enemies.bossDeadTime>=5;
@@ -570,7 +576,7 @@ export class PlayerScene implements SceneModule {
     const active=objectives.current;
     const charging=active?.state==='charging';
     // A pressão sobe com o evento: carregar um marco e enfrentar o chefe custam mais que caminhar.
-    swarm.director.pressure=objectives.phase==='boss'?1:charging?.4+.5*(active!.charged/active!.site.chargeSeconds):objectives.completed/Math.max(1,objectives.total)*.3;
+    swarm.director.pressure=objectives.phase==='boss'?1:charging?.4+.5*(active!.charged/active!.site.juiceTarget):objectives.completed/Math.max(1,objectives.total)*.3;
     if(objectives.phase==='boss'&&!objectives.bossDefeated){
       this.bossRequestClock=Math.max(0,this.bossRequestClock-dt);
       if(!objectives.bossSpawned){
@@ -713,6 +719,17 @@ export class PlayerScene implements SceneModule {
     if(name==='ferry'){this.player.resetAt({x:-21,y:0,z:-8});this.input.yaw=-Math.PI/2;this.input.pitch=.10;}
 
     if(name==='review-cliff'){this.player.resetAt({x:9,y:0,z:12});this.input.yaw=-.28;this.input.pitch=-.09;}
+    if(name==='review-east-bridge'){
+      this.intro.abort();this.endMeleeReview();this.cancelCinematic();
+      if(this.enemies instanceof EnemySwarm){this.enemies.nextStage();this.enemies.director.stopped=true;}
+      this.player.resetAt({x:28,y:1,z:8});this.input.yaw=Math.PI/2;this.input.pitch=.02;
+    }
+    if(name==='review-chalice'&&this.objectives.totems[0]){
+      const at=this.objectives.totems[0].site.position;
+      this.intro.abort();this.endMeleeReview();this.cancelCinematic();
+      if(this.enemies instanceof EnemySwarm){this.enemies.nextStage();this.enemies.director.stopped=true;}
+      this.player.resetAt({x:at.x,y:at.y+.2,z:at.z-2.5});this.input.yaw=0;this.input.pitch=.05;
+    }
 
     if(name==='barn')this.player.resetAt({x:0,y:5,z:30.8});
 

@@ -11,8 +11,10 @@ import {Vector3} from '@babylonjs/core/Maths/math.vector';
 import {PointLight} from '@babylonjs/core/Lights/pointLight';
 import {Mesh} from '@babylonjs/core/Meshes/mesh';
 import type {Scene} from '@babylonjs/core/scene';
-import type {CollisionWorld} from '../physics/CollisionWorld';
+import {CollisionWorld} from '../physics/CollisionWorld';
 import type {TotemProgress} from '../run/ExpeditionObjectives';
+import type {Vec3} from '../core/contracts';
+import {HarvestChaliceVisual,CHALICE_NODES} from '../vfx/HarvestChaliceVisual';
 
 /** Linguagem de cor pedida pela direção: âmbar disponível, menta carregando, núcleo escuro concluído. */
 export const TOTEM_COLORS={available:'#ffb23c',charging:'#5ff0c0',paused:'#d8894a',complete:'#2f4a46'} as const;
@@ -48,6 +50,8 @@ interface TotemVisual {
 export class ExpeditionSites {
   private container:AssetContainer|undefined;
   private readonly visuals:TotemVisual[]=[];
+  private readonly chalices:HarvestChaliceVisual[]=[];
+  private readonly releaseCollision:(()=>void)[]=[];
   private disposed=false;
   ready=false;error='';
   private clock=0;
@@ -58,9 +62,40 @@ export class ExpeditionSites {
       const container=await LoadAssetContainerAsync('/models/arcane-skill-ritual.glb',this.scene);
       if(this.disposed){container.dispose();return;}
       this.container=container;
-      for(const totem of totems)this.visuals.push(this.build(totem));
+      for(const totem of totems){
+        this.visuals.push(this.build(totem));
+        const chalice=new HarvestChaliceVisual(this.scene);
+        chalice.place(totem.site.position);this.chalices.push(chalice);
+        // Each cup owns its morph targets; cloned managers would fill all four cups at once.
+        void chalice.load().then(ready=>{
+          if(this.disposed)return;
+          if(ready)this.attachChaliceCollision(chalice,totem.site.index);
+          else this.error=chalice.error;
+        }).catch(error=>{if(!this.disposed)this.error=String(error);});
+      }
       this.ready=true;
     }catch(error){if(!this.disposed)this.error=String(error);}
+  }
+
+  private attachChaliceCollision(chalice:HarvestChaliceVisual,index:number):void {
+    if(!this.world)return;
+    const positions:number[]=[],indices:number[]=[];
+    for(const mesh of chalice.root.getChildMeshes()){
+      if(mesh.name===CHALICE_NODES.juice||mesh.name===CHALICE_NODES.droplet)continue;
+      const vertices=mesh.getVerticesData(VertexBuffer.PositionKind),triangles=mesh.getIndices();
+      if(!vertices||!triangles)continue;
+      const matrix=mesh.computeWorldMatrix(true),offset=positions.length/3,flipped=matrix.determinant()<0;
+      for(let i=0;i<vertices.length;i+=3){const p=Vector3.TransformCoordinates(new Vector3(vertices[i]!,vertices[i+1]!,vertices[i+2]!),matrix);positions.push(p.x,p.y,p.z);}
+      for(let i=0;i<triangles.length;i+=3)indices.push(offset+triangles[i]!,offset+triangles[i+(flipped?2:1)]!,offset+triangles[i+(flipped?1:2)]!);
+    }
+    if(!indices.length)return;
+    const collision=new CollisionWorld();collision.setGeometry(positions,indices);collision.prepareRaycasts();
+    this.releaseCollision.push(this.world.attachRegion('harvest-chalice-'+index,collision));
+  }
+
+  harvest(index:number,from:Vec3,complete:boolean):void{
+    this.chalices[index]?.splash(from);
+    if(complete)this.chalices[index]?.pulse();
   }
 
   /**
@@ -135,13 +170,15 @@ export class ExpeditionSites {
       if(!totem)continue;
       const state=totem.state,color=Color3.FromHexString(TOTEM_COLORS[state]);
       const charging=state==='charging',complete=state==='complete';
-      const progress=totem.charged/totem.site.chargeSeconds;
+      const progress=totem.charged/totem.site.juiceTarget;
+      this.chalices[i]?.setFill(progress);
+      this.chalices[i]?.update(dt);
       visual.beamMaterial.emissiveColor=color;visual.coreMaterial.emissiveColor=color;
       visual.boundaryMaterial.emissiveColor=color;visual.light.diffuse=color;
       const pulse=.5+.5*Math.sin(this.clock*(charging?4.5:1.6));
       // Concluído mantém só luz residual; o feixe some para não competir com os marcos pendentes.
       visual.beamMaterial.alpha=complete?.06:(charging?.3+.26*pulse:.26+.14*pulse);
-      visual.coreMaterial.alpha=complete?.12:(charging?.55+.35*pulse:.45+.2*pulse);
+      visual.coreMaterial.alpha=0;
       visual.boundaryMaterial.alpha=complete?.08:(charging?.42+.3*progress:.3+.08*pulse);
       visual.light.intensity=complete?.5:charging?1.6+1.4*progress:1.2+.5*pulse;
       visual.beam.scaling.y=complete?.2:charging?.72+.5*progress:1;
@@ -157,6 +194,8 @@ export class ExpeditionSites {
   positionOf(index:number):Vector3|undefined {return this.visuals[index]?.root.position;}
   dispose():void{
     this.disposed=true;
+    for(const release of this.releaseCollision)release();this.releaseCollision.length=0;
+    for(const chalice of this.chalices)chalice.dispose();this.chalices.length=0;
     for(const visual of this.visuals){
       visual.light.dispose();visual.beam.dispose();visual.core.dispose();visual.boundary.dispose();
       visual.beamMaterial.dispose();visual.coreMaterial.dispose();visual.boundaryMaterial.dispose();

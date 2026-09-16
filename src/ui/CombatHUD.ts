@@ -13,7 +13,6 @@ import type {WeatherCycle} from '../world/WeatherCycle';
 
 const COMPASS=['↑','↗','→','↘','↓','↙','←','↖'] as const;
 const bearingArrow=(from:{x:number;z:number},to:{x:number;z:number},heading:number)=>COMPASS[Math.round(((Math.atan2(to.x-from.x,to.z-from.z)*180/Math.PI-heading+720)%360)/45)%8]!;
-const clock=(seconds:number)=>`${String(Math.floor(seconds/60)).padStart(2,'0')}:${String(Math.floor(seconds%60)).padStart(2,'0')}`;
 
 /** Cadência do HUD: PlayerScene chama `update` todo frame, só ~10 atualizações por segundo passam. */
 const UPDATE_PERIOD=.1;
@@ -104,7 +103,7 @@ type SwarmActor=EnemySwarm['actors'][number];
  */
 export function modeBrief(expedition:boolean,hordeMode:boolean):string {
  const base='Abata pragas para ganhar XP e créditos. Abra baús e combine melhorias. ';
- if(expedition)return base+'Ative os quatro marcos e permaneça vivo na área de cada um: sair pausa a carga, não apaga, e concluir não depende de eliminar as pragas. Com os quatro prontos, derrote a Praga Alfa e atravesse a fenda.';
+ if(expedition)return base+'Ative os quatro cálices e elimine frutas próximas enquanto estiver na área: o suco das frutas enche cada cálice. Sair preserva o que já foi coletado. Com os quatro prontos, derrote a Praga Alfa e atravesse a fenda.';
  if(hordeMode)return base+'Vença cada horda e recolha o item que cai no campo. A cada cinco ondas, enfrente uma Praga Alfa.';
  return base+'Contenha a infestação até a Praga Alfa aparecer, derrote-a e atravesse a fenda para avançar de estágio.';
 }
@@ -154,7 +153,7 @@ export class RunHUD {
   this.bearing.set(`${['N','NE','L','SE','S','SO','O','NO'][Math.round(heading/45)%8]} · ${Math.round(heading)}°`);
   this.clockPanel.set(`<b>◷ ${String(Math.floor(seconds/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}</b><span>ESTÁGIO ${run.stage} · ${['NORMAL','CRESCENTE','DIFÍCIL','CAÓTICA','PRAGA ALFA','FENDA'][swarm.director.state]}</span><strong>◈ ${run.credits} CRÉDITOS</strong><em class="run-weather">${expedition?.weather?.label??''}</em>`);
   this.renderExpedition(expedition,camera,heading);
-  this.mission.set(expedition?.objectives.planned?this.expeditionMission(expedition.objectives):swarm.director.hordeMode?(swarm.director.intermission>0?'PRÓXIMA HORDA EM '+Math.ceil(swarm.director.intermission)+' s':swarm.director.wave%5===0?'ELIMINE O CHEFE E SUA HORDA':'SOBREVIVA À HORDA '+swarm.director.wave):swarm.bossDeadTime>=5?'ENTRE NA FENDA · CELEIRO':swarm.bossDeadTime>=0?'PRAGA ALFA DERROTADA':swarm.boss?'ELIMINE A PRAGA ALFA':['LOCALIZE A PRAGA ALFA','CONTENHA A INFESTAÇÃO','SOBREVIVA AO SURTO','RESISTA À COLHEITA FINAL','A PRAGA ALFA SE APROXIMA'][swarm.director.state]??'');
+  this.mission.set(expedition?.objectives.planned?this.expeditionMission(expedition.objectives,expedition.player,heading):swarm.director.hordeMode?(swarm.director.intermission>0?'PRÓXIMA HORDA EM '+Math.ceil(swarm.director.intermission)+' s':swarm.director.wave%5===0?'ELIMINE O CHEFE E SUA HORDA':'SOBREVIVA À HORDA '+swarm.director.wave):swarm.bossDeadTime>=5?'ENTRE NA FENDA · CELEIRO':swarm.bossDeadTime>=0?'PRAGA ALFA DERROTADA':swarm.boss?'ELIMINE A PRAGA ALFA':['LOCALIZE A PRAGA ALFA','CONTENHA A INFESTAÇÃO','SOBREVIVA AO SURTO','RESISTA À COLHEITA FINAL','A PRAGA ALFA SE APROXIMA'][swarm.director.state]??'');
   const contract=interact.districtContract,contractDirection=contract?COMPASS[Math.round(((Math.atan2(contract.target.x-camera.position.x,contract.target.z-camera.position.z)*180/Math.PI-heading+720)%360)/45)%8]:'';
   const reward=interact.waveRewardGuide;
   // A dica da recompensa é o último filho do contrato; concatenar aqui dá o mesmo DOM que o
@@ -168,7 +167,7 @@ export class RunHUD {
   const totem=expedition?.objectives.interactable(expedition.player);
   const riftOpen=expedition?.objectives.planned?expedition.objectives.phase==='rift':swarm.bossDeadTime>=5;
   shown(this.interactBox,Boolean(entry||loot||totem||(riftOpen&&interact.atRift)));
-  this.interact.set(riftOpen&&interact.atRift?'<b>[E] ATRAVESSAR A FENDA</b><span>Créditos restantes viram XP.</span>':totem?`<b>[E] ATIVAR MARCO ${totem.site.index+1} · ${totem.site.name}</b><span>Permaneça vivo na área por ${totem.site.chargeSeconds} s. Sair pausa a carga.</span>`:loot?`<b><i class="item-icon" style='${perkIcon(loot.item.icon)}'></i>${loot.item.name}</b><span>${loot.item.description}</span><span>[E] Recolher item</span>`:entry?`<b>${entry.name} · ◈ ${entry.cost}</b><span>[E] ${entry.kind==='altar'?'Oferecer créditos · 58% de chance':'Abrir · item aleatório'}</span>`:'');
+  this.interact.set(riftOpen&&interact.atRift?'<b>[E] ATRAVESSAR A FENDA</b><span>Créditos restantes viram XP.</span>':totem?`<b>[E] ATIVAR MARCO ${totem.site.index+1} · ${totem.site.name}</b><span>Colete ${totem.site.juiceTarget} unidades de suco eliminando frutas próximas. Esperar não enche o cálice.</span>`:loot?`<b><i class="item-icon" style='${perkIcon(loot.item.icon)}'></i>${loot.item.name}</b><span>${loot.item.description}</span><span>[E] Recolher item</span>`:entry?`<b>${entry.name} · ◈ ${entry.cost}</b><span>[E] ${entry.kind==='altar'?'Oferecer créditos · 58% de chance':'Abrir · item aleatório'}</span>`:'');
   this.toast.set(interact.messageTime>0?interact.message:'');
   this.renderStats(run,Boolean(expedition?.objectives.planned),swarm.director.hordeMode);
   const engine=camera.getEngine(),width=engine.getRenderWidth(),height=engine.getRenderHeight(),viewport=camera.viewport.toGlobal(width,height),transform=camera.getTransformationMatrix();
@@ -246,13 +245,18 @@ export class RunHUD {
   // Copy do MODO em curso: o texto antigo prometia chefe a cada cinco ondas mesmo na expedição.
   this.statsPanel.set(`<h2>EXTERMINADOR · NÍVEL ${run.level}</h2><p>${brief}</p><dl>${rows.map(([label,value])=>`<dt>${label}</dt><dd>${value}</dd>`).join('')}</dl><small>Dourado: defesa e ouro · Gigante: atributos ×3 · Luminoso: dano e ataque extra</small><div class=inventory-detail>${[...run.inventory].map(([id,count])=>{const item=ITEMS.find(i=>i.id===id)!;return `<div title="${item.description}"><i class=item-icon style='${perkIcon(item.icon)}'></i><span>${item.name}<small>×${count} · ${item.description}</small></span></div>`;}).join('')}</div>`);
  }
- private expeditionMission(objectives:ExpeditionObjectives):string {
+ private expeditionMission(objectives:ExpeditionObjectives,player:{x:number;y:number;z:number},heading:number):string {
   if(objectives.phase==='rift')return 'ENTRE NA FENDA · CELEIRO';
   if(objectives.phase==='boss')return objectives.bossSpawned?'ELIMINE A PRAGA ALFA':'A PRAGA ALFA SE APROXIMA';
   const current=objectives.current;
-  if(current?.state==='charging')return `MANTENHA-SE NO MARCO ${current.site.index+1} · ${clock(Math.max(0,current.site.chargeSeconds-current.charged))}`;
-  if(current?.state==='paused')return `MARCO ${current.site.index+1} PAUSADO · volte à área`;
-  return `ATIVE UM MARCO · ${objectives.completed}/${objectives.total} CONCLUÍDOS`;
+  if(current?.state==='charging')return `ENCHA O CÁLICE ${current.site.index+1} · ${Math.floor(current.charged)}/${current.site.juiceTarget} SUCO`;
+  if(current?.state==='paused')return `CÁLICE ${current.site.index+1} PAUSADO · volte à área`;
+  const next=objectives.nearestPending(player);
+  if(next){
+   if(objectives.interactable(player))return `[E] ATIVE O CÁLICE · ${next.totem.site.name}`;
+   return `SIGA ${bearingArrow(player,next.totem.site.position,heading)} ${next.totem.site.name} · ${Math.round(next.distance)} m`;
+  }
+  return `EXPLORE AS ILHAS · ${objectives.completed}/${objectives.total} CÁLICES`;
  }
  /** Rota e distância dos quatro marcos, carga em curso e nível de ressonância. */
  private renderExpedition(expedition:{objectives:ExpeditionObjectives;resonance:HarvestResonance;mp:MPCharge;player:{x:number;y:number;z:number};weather?:WeatherCycle}|undefined,camera:Camera,heading:number):void {
@@ -262,12 +266,12 @@ export class RunHUD {
   const player=expedition.player,eye=camera.position,pending=objectives.nearestPending(player);
   const marks=objectives.totems.map(totem=>{
    const distance=Math.hypot(totem.site.position.x-player.x,totem.site.position.z-player.z);
-   const percent=Math.round(totem.charged/totem.site.chargeSeconds*100);
-   const label=totem.state==='complete'?'CONCLUÍDO':totem.state==='charging'?`${percent}% · ${clock(totem.site.chargeSeconds-totem.charged)}`:totem.charged>0?`PAUSADO ${percent}%`:`${totem.site.chargeSeconds} s`;
+   const percent=Math.round(totem.charged/totem.site.juiceTarget*100);
+   const label=totem.state==='complete'?'CHEIO':totem.state==='charging'?`${Math.floor(totem.charged)}/${totem.site.juiceTarget} SUCO · ${percent}%`:totem.charged>0?`PAUSADO ${percent}%`:`${totem.site.juiceTarget} SUCO`;
    return `<li class="totem-${totem.state}${pending?.totem===totem?' totem-target':''}"><b>${totem.site.index+1}</b><span>${totem.site.name}<small>${label}</small></span><em>${bearingArrow(eye,totem.site.position,heading)} ${Math.round(distance)} m</em><i style="width:${Math.min(100,percent)}%"></i></li>`;
   }).join('');
   const header=objectives.phase==='rift'?'FENDA ABERTA':objectives.phase==='boss'?'ÚLTIMO EVENTO · PRAGA ALFA':`EXPEDIÇÃO · ${objectives.completed}/${objectives.total} MARCOS`;
-  const footer=objectives.messageTime>0?objectives.message:objectives.interactable(player)?'[E] ATIVAR ESTE MARCO':'Permanecer vivo na área carrega o marco. Sair pausa, não apaga.';
+  const footer=objectives.messageTime>0?objectives.message:objectives.interactable(player)?'[E] ATIVAR ESTE CÁLICE':objectives.current?'Elimine frutas próximas dentro da área para coletar suco.':'Siga o feixe âmbar. Abra baús no caminho e avance: a dificuldade aumenta com o tempo.';
   this.route.set(`<small>${header}</small><ul>${marks}</ul><span class="route-hint">${footer}</span>`);
   const resonance=expedition.resonance;
   const charges=expedition.mp.maxCharges

@@ -24,6 +24,7 @@ export function loadCollision(root = process.cwd()): CollisionData {
   // Rocha dos afloramentos: o MESMO arquivo que o cliente busca por fetch, para a colisão do
   // servidor ter exatamente as pedras que o jogador vê.
   if (existsSync(path('outcrop-rocks.json'))) data.outcrops = read('outcrop-rocks.json') as NonNullable<CollisionData['outcrops']>;
+  if (existsSync(path('initial-rock-fix.json'))) data.initialRocks = read('initial-rock-fix.json') as NonNullable<CollisionData['initialRocks']>;
   return data;
 }
 

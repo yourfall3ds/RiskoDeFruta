@@ -20,6 +20,7 @@
  *   node scripts/plan-initial-rocks.mjs
  */
 import fs from 'node:fs';
+import {collisionFingerprint} from '../src/world/terrain/InitialRocks.ts';
 
 const SOURCE='public/models/farm-world.glb';
 const TARGET='public/models/initial-rock-fix.json';
@@ -284,7 +285,22 @@ function round(value,factor=1e4){return Math.round(value*factor)/factor;}
 console.log('ofensores:',offenders.length,'· substituições:',replacements.length);
 for(const offender of offenders.slice(0,8))console.log(`  ${offender.name.padEnd(24)} vértices no corredor ${offender.before}`);
 
+// Exact named ranges preserve bridge rails even when they intersect the old rock volumes.
+const collision=JSON.parse(fs.readFileSync('public/models/world-collision-mesh.json','utf8'));
+const bake=JSON.parse(fs.readFileSync('docs/collision-bake.json','utf8'));
+let firstTriangle=0;
+const ranges=new Map();
+for(const [name,triangles] of Object.entries(bake.sources)){
+ ranges.set(name,{firstTriangle,triangles});firstTriangle+=triangles;
+}
+if(firstTriangle!==collision.indices.length/3)throw Error('Collision bake report is stale');
+for(const offender of offenders){
+ const range=ranges.get(offender.name);
+ if(!range)throw Error('Missing baked collision for '+offender.name);
+ Object.assign(offender,range);
+}
 const data={
+ source:{vertices:collision.positions.length/3,triangles:firstTriangle,checksum:collisionFingerprint(collision.positions,collision.indices)},
  provenance:{
   source:SOURCE,script:'scripts/plan-initial-rocks.mjs',
   note:'Plano derivado por leitura. Nenhum modelo original foi alterado. As caixas apagam a colisão '+

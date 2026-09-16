@@ -161,22 +161,34 @@
    "heading": "forward-left",
    "speed": 2.6,
    "liftPeak": {
-    "right": 0.0693,
-    "left": 0.076
+    "right": 0.1733,
+    "left": 0.178
    },
    "contactFloor": {
-    "right": 0.0153,
-    "left": 0.0167
+    "right": 0.0236,
+    "left": 0.019
    },
-   "contacts": 0,
-   "perSecond": 0,
-   "alternation": 0,
+   "contacts": 11,
+   "perSecond": 2.75,
+   "alternation": 1,
    "crowded": 0,
    "gapSeconds": {
-    "min": null,
-    "max": null
+    "min": 0.333,
+    "max": 0.367
    },
-   "sides": []
+   "sides": [
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    1
+   ]
   },
   {
    "id": "walk-forward-right",
@@ -184,22 +196,34 @@
    "heading": "forward-right",
    "speed": 2.6,
    "liftPeak": {
-    "right": 0.0733,
-    "left": 0.0728
+    "right": 0.1733,
+    "left": 0.178
    },
    "contactFloor": {
-    "right": 0.0227,
-    "left": 0.0121
+    "right": 0.0236,
+    "left": 0.019
    },
-   "contacts": 0,
-   "perSecond": 0,
-   "alternation": 0,
+   "contacts": 11,
+   "perSecond": 2.75,
+   "alternation": 1,
    "crowded": 0,
    "gapSeconds": {
-    "min": null,
-    "max": null
+    "min": 0.333,
+    "max": 0.367
    },
-   "sides": []
+   "sides": [
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    1
+   ]
   },
   {
    "id": "walk-backward-left",
@@ -407,20 +431,20 @@
    "heading": "forward-left",
    "speed": 7.5,
    "liftPeak": {
-    "right": 0.2936,
-    "left": 0.3214
+    "right": 0.7079,
+    "left": 0.793
    },
    "contactFloor": {
-    "right": 0.0042,
-    "left": -0.0123
+    "right": 0.0008,
+    "left": 0.0001
    },
    "contacts": 13,
    "perSecond": 3.25,
    "alternation": 1,
    "crowded": 0,
    "gapSeconds": {
-    "min": 0.217,
-    "max": 0.383
+    "min": 0.3,
+    "max": 0.3
    },
    "sides": [
     1,
@@ -444,20 +468,20 @@
    "heading": "forward-right",
    "speed": 7.5,
    "liftPeak": {
-    "right": 0.2863,
-    "left": 0.3226
+    "right": 0.7079,
+    "left": 0.793
    },
    "contactFloor": {
-    "right": -0.0153,
-    "left": 0.0053
+    "right": 0.0008,
+    "left": 0.0001
    },
-   "contacts": 14,
-   "perSecond": 3.5,
+   "contacts": 13,
+   "perSecond": 3.25,
    "alternation": 1,
    "crowded": 0,
    "gapSeconds": {
-    "min": 0.2,
-    "max": 0.4
+    "min": 0.3,
+    "max": 0.3
    },
    "sides": [
     1,
@@ -472,8 +496,7 @@
     0,
     1,
     0,
-    1,
-    0
+    1
    ]
   },
   {
@@ -544,14 +567,5 @@
   }
  ],
  "problems": [],
- "contentWarnings": [
-  "walk-forward-left: nenhum passo em 4 s de locomoção",
-  "walk-forward-left: só 0 passos/s — cadência baixa demais para walk",
-  "walk-forward-left: os pés não alternam (0% de trocas)",
-  "walk-forward-left: pico de 0.076 m não passa do rearme (0.095 m)",
-  "walk-forward-right: nenhum passo em 4 s de locomoção",
-  "walk-forward-right: só 0 passos/s — cadência baixa demais para walk",
-  "walk-forward-right: os pés não alternam (0% de trocas)",
-  "walk-forward-right: pico de 0.0733 m não passa do rearme (0.095 m)"
- ]
+ "contentWarnings": []
 }

@@ -156,6 +156,12 @@ export class HarvestChaliceVisual {
     try {
       const container=await LoadAssetContainerAsync(this.source,scene,this.pluginExtension?{pluginExtension:this.pluginExtension}:undefined);
       if(this.disposed){container.dispose();return false;}
+      // glTF 9.25 raises ALL scene materials to the light count after each import. Clamp in
+      // this microtask, before executeWhenReady can compile 18 light UBOs on a 12-UBO device.
+      for(const material of [...scene.materials,...container.materials]){
+        const lit=material as Material&{maxSimultaneousLights?:number};
+        if(lit.maxSimultaneousLights!==undefined&&lit.maxSimultaneousLights>4){lit.unfreeze();lit.maxSimultaneousLights=4;}
+      }
       this.container=container;
       container.addAllToScene();
       for(const node of [...container.meshes,...container.transformNodes])if(!node.parent)node.parent=this.root;

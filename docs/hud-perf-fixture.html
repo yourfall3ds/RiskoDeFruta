@@ -104,7 +104,7 @@ const interact={
 
 const TOTEM_NAMES=['Silo norte','Poço das estufas','Curral leste','Moinho quebrado'];
 const totems=TOTEM_NAMES.map((name,index)=>({
- site:{index,name,position:{x:-24+index*16,y:0,z:18+index*7},chargeSeconds:35},
+ site:{index,name,position:{x:-24+index*16,y:0,z:18+index*7},juiceTarget:40},
  charged:index<2?35:index===2?12:0,
  state:index<2?'complete':index===2?'charging':'idle',
 }));

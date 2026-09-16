@@ -19,6 +19,29 @@ import type { TrainingTarget } from '../src/world/TrainingYard';
 async function setup(){const engine=new NullEngine(),scene=new Scene(engine),events=new EventBus<GameEvents>(),collision=new CollisionWorld();collision.surfaces.push({id:'field',x:0,z:0,width:100,depth:100,height:0});const player=new PlayerMotor(collision,events,{x:0,y:0,z:0}),run=new RunProgression(events),world={targets:[] as TrainingTarget[],collision};const light=new DirectionalLight('sun',new Vector3(0,-1,0),scene),shadows=new ShadowGenerator(128,light);const swarm=new EnemySwarm(scene,world,events,shadows,player,run,new RunRNG('combat-test'));await swarm.load(async model=>{const c=new AssetContainer(scene),mesh=CreateBox(model,{size:1},scene);c.meshes.push(mesh);c.populateRootNodes();c.removeAllFromScene();return c;});swarm.initialize();swarm.populationCap=50;swarm.benchmark=true;swarm.director.stopped=true;return{engine,scene,events,player,run,swarm,collision,close:()=>{swarm.dispose();scene.dispose();engine.dispose();}};}
 function damage(id:number,amount:number):DamageContext{return{attackerId:1,victimId:id,sourceId:'dual_pistols',attackId:'right',baseDamage:amount,finalDamage:amount,crit:false,procCoefficient:1,procChainDepth:0,damageTags:['bullet'],hitPosition:{x:0,y:1,z:0},hitNormal:{x:0,y:0,z:1},forceDirection:{x:0,y:0,z:1},forceMagnitude:2};}
 describe('live enemy combat',()=>{
+  it('emits one harvest per real death, including same-tick multikills, but none for hits, QA or despawns',async()=>{
+    const t=await setup();
+    try{
+      const harvests:GameEvents['FruitHarvested'][]=[];
+      t.events.on('FruitHarvested',kill=>harvests.push(kill));
+      for(const x of [-5,0,5])t.swarm.spawn('carrot',{x,y:0,z:12},'normal');
+      const [first,second,qa]=t.swarm.actors;
+      first!.target.onHit?.(damage(first!.id,1));expect(harvests).toHaveLength(0);
+      first!.target.onHit?.(damage(first!.id,999999));
+      first!.target.onHit?.(damage(first!.id,999999));
+      second!.target.onHit?.(damage(second!.id,999999));
+      qa!.target.onHit?.({...damage(qa!.id,999999),sourceId:'qa',damageTags:['qa']});
+      expect(harvests).toHaveLength(2);
+      expect(harvests.map(kill=>kill.sequence)).toEqual([1,2]);
+      expect(harvests.map(kill=>kill.entityId)).toEqual([first!.id,second!.id]);
+      expect(harvests[0]!.position).toEqual({x:-5,y:1,z:12});
+      t.swarm.nextStage();expect(harvests).toHaveLength(2);
+      t.swarm.spawn('carrot',{x:3,y:0,z:12},'normal');
+      const recycled=t.swarm.actors.find(a=>a.active&&!a.health.dead)!;
+      recycled.target.onHit?.(damage(recycled.id,999999));
+      expect(harvests).toHaveLength(3);expect(harvests[2]!.sequence).toBe(3);
+    }finally{t.close();}
+  });
   it('admits the boss even when the ordinary population is full without awarding a fake kill',async()=>{const t=await setup();try{for(let i=0;i<50;i++)t.swarm.spawn('eggplant',{x:i%10*3-15,y:0,z:15+Math.floor(i/10)*3});expect(t.swarm.spawn('boss',{x:0,y:0,z:35})).toBe(true);expect(t.swarm.count).toBe(50);expect(t.swarm.boss?.health.dead).toBe(false);expect(t.run.totalKills).toBe(0);expect(t.swarm.scheduler.size).toBe(50);}finally{t.close();}});
   it('copies Babylon vector coordinates into warnings and resolves delayed roots',async()=>{const t=await setup();try{const warning=t.swarm.effects.warning(new Vector3(0,0,0),2,.1,12,7,'root')!;expect(warning.position).toEqual({x:0,y:0,z:0});for(let i=0;i<5;i++)t.swarm.fixedUpdate(1/60);expect(t.player.hp).toBe(130);for(let i=0;i<4;i++)t.swarm.fixedUpdate(1/60);expect(t.player.hp).toBe(118);}finally{t.close();}});
   it('keeps acid damaging for a finite duration and clears it at stage transition',async()=>{const t=await setup();try{t.swarm.effects.warning({x:0,y:0,z:0},2,.1,20,7,'acid');for(let i=0;i<190;i++){t.player.invulnerable=0;t.swarm.fixedUpdate(1/60);}expect(t.player.hp).toBeLessThan(105);expect(t.swarm.effects.warnings.some(w=>w.active&&w.kind==='acid-pool')).toBe(true);t.swarm.nextStage();expect(t.swarm.effects.active).toBe(0);expect(t.swarm.scheduler.size).toBe(0);}finally{t.close();}});

@@ -43,13 +43,12 @@ describe('passos nos clipes reais do gunslinger',()=>{
       expect(rig.clips,`clipe ${clip}`).toContain(clip);
   });
 
-  // Frente, trás e os dois lados, andando e correndo. As diagonais longitudinais entram junto; as
-  // diagonais de ANDAR ficam de fora de propósito (ver o teste de limitação, mais abaixo).
+  // All eight headings, including walking diagonals that previously cancelled foot lift.
   const covered:[Gait,Heading][]=[];
   for(const gait of ['walk','run'] as Gait[])
     for(const heading of ['forward','backward','left','right'] as Heading[])covered.push([gait,heading]);
   for(const heading of ['forward-left','forward-right','backward-left','backward-right'] as Heading[])covered.push(['run',heading]);
-  for(const heading of ['backward-left','backward-right'] as Heading[])covered.push(['walk',heading]);
+  for(const heading of ['forward-left','forward-right','backward-left','backward-right'] as Heading[])covered.push(['walk',heading]);
 
   for(const [gait,heading] of covered){
     it(`${gait} ${heading}: os dois pés alternam, um passo por apoio`,()=>{
@@ -178,16 +177,13 @@ describe('passos nos clipes reais do gunslinger',()=>{
     for(let i=1;i<hits.length;i++)expect(hits[i]!.side).not.toBe(hits[i-1]!.side);
   });
 
-  it('LIMITAÇÃO conhecida: a diagonal de ANDAR quase não levanta o pé, e nada é inventado',()=>{
-    // `CharacterVisual` mistura `Walk` (50 quadros) e `StrafeLeft`/`StrafeRight` (66) com o MESMO
-    // `progress` normalizado: na diagonal os clipes ficam em contrafase e o blend 50/50 cancela a
-    // subida — o pico cai de ~16 cm para ~7 cm, abaixo da respiração do `Idle`. O detector fica
-    // mudo porque o personagem na tela realmente não levanta o pé; forjar um som aqui seria voltar
-    // ao relógio de passos. A correção é de conteúdo, no dono do `CharacterVisual`.
+  it('walking diagonals retain visible support and produce contact-driven footsteps',()=>{
+    // Regression: blending incompatible 50/66-frame support cycles used to cancel foot lift.
+    // The dominant leg cycle now stays intact; audio still follows actual bone contact.
     for(const heading of ['forward-left','forward-right'] as Heading[]){
       const {hits,peak}=drive(velocity(heading,'walk'),GAITS.walk,4);
-      expect(peak,`${heading}: pico do pé`).toBeLessThan(.09);
-      expect(hits,`${heading}: som sem pisada visível`).toHaveLength(0);
+      expect(peak,`${heading}: pico do pé`).toBeGreaterThan(new FootstepSync().liftHeight);
+      expect(hits.length,`${heading}: apoios audíveis`).toBeGreaterThan(6);
     }
     // A MESMA diagonal correndo funciona, porque `Run` tem amplitude de sobra.
     for(const heading of ['forward-left','forward-right'] as Heading[])

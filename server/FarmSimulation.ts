@@ -14,6 +14,7 @@ import { SkillTimeline, type SkillTier } from '../src/combat/SkillTimeline';
 import { RunProgression } from '../src/run/RunProgression';
 import { IslandFerry } from '../src/world/IslandFerry';
 import { worldTerrain, sculptRegion, type OutcropShape } from '../src/world/terrain/WorldTerrain';
+import {applyInitialRockFix,type InitialRockFix} from '../src/world/terrain/InitialRocks';
 import { EMPTY_INPUT, type InputFrame } from '../src/input/InputFrame';
 export { EMPTY_INPUT };
 
@@ -30,6 +31,7 @@ export interface CollisionData {
   city?: { id?:string; positions: number[]; indices: number[]; boxes: BoxCollider[]; surfaces: GroundSurface[]; solidPositions: number[]; solidIndices: number[]; walkableLinks?: { a: Vec3; b: Vec3; width: number }[] };
   /** Rocha escaneada dos afloramentos (`outcrop-rocks.json`); sem ela a região fica só com o relevo. */
   outcrops?: OutcropShape;
+  initialRocks?: InitialRockFix;
 }
 
 /** Anexa (positions, indices) a um bloco de triângulos, deslocando os índices como `FarmWorld.load`. */
@@ -47,8 +49,9 @@ function appendTriangles(target: { positions: number[]; indices: number[] }, pos
  * mesmos triângulos de saída. Sem isso o servidor autoritativo empurraria o jogador de volta para o
  * piso plano antigo a cada correção.
  */
-export function mergeCollision(mesh: CollisionData['mesh'], solid: CollisionData['solid'], city?: CollisionData['city'], regions:NonNullable<CollisionData['city']>[]=[], authoredBoxes: readonly BoxCollider[] = [], outcrops?: OutcropShape): { mesh: CollisionData['mesh']; solid: CollisionData['solid']; surfaces: GroundSurface[] } {
+export function mergeCollision(mesh: CollisionData['mesh'], solid: CollisionData['solid'], city?: CollisionData['city'], regions:NonNullable<CollisionData['city']>[]=[], authoredBoxes: readonly BoxCollider[] = [], outcrops?: OutcropShape, initialRocks?:InitialRockFix): { mesh: CollisionData['mesh']; solid: CollisionData['solid']; surfaces: GroundSurface[] } {
   const merged = { positions: [...mesh.positions], indices: [...mesh.indices], boxes: [...mesh.boxes, ...solid.boxes] };
+  applyInitialRockFix(merged,initialRocks,outcrops);
   appendTriangles(merged, solid.positions, solid.indices);
   const volumes = { positions: [...solid.positions], indices: [...solid.indices], boxes: solid.boxes };
   const surfaces: GroundSurface[] = [];
@@ -104,7 +107,7 @@ export class FarmSimulation {
 
   constructor(readonly seed: string, data: CollisionData) {
     this.rng = new RunRNG(seed);
-    const merged = mergeCollision(data.mesh, data.solid, data.city, data.regions, data.boxes, data.outcrops);
+    const merged = mergeCollision(data.mesh, data.solid, data.city, data.regions, data.boxes, data.outcrops, data.initialRocks);
     this.collision.boxes.push(...data.boxes, ...merged.mesh.boxes);
     if(data.city)this.collision.movingBoxes.push(...cityChestColliders());
     if(data.regions?.length)this.collision.movingBoxes.push(...frontierChestColliders());
