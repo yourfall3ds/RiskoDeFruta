@@ -83,3 +83,5 @@ Disparos e impactos têm sons por modo. Destravar, servo, retirar carregador, in
 A explosão usa `prism-fireball.png`, sprite RGBA gerado com imagegen, com material emissivo, fumaça com a mesma máscara, brasas e fragmentos de carcaça. Os modelos e sprites são exportados pelo Blender, e os efeitos expiram automaticamente.
 
 A oficina oferece quatro assinaturas alienígenas para transformação: pulsos, orgânico, cristal e portal. São frases sintetizadas sem foley metálico ou rampas de motor. O seletor aplica a escolha às três formas e salva a preferência localmente. Ouvir som permite comparar sem animação; Parar som interrompe a prévia. O servo anterior permanece como opção. Recargas e disparos mantêm seus sons próprios. Ver impacto permite inspecionar a explosão diretamente.
+
+A opção Áudio enviado usa a gravação fornecida pelo usuário, Som_2026_09_17_19_22_27_750.mp3, convertida para PCM estéreo sem alterar o tom, com fades de 8 ms nas bordas. O arquivo user-transform.wav é independente do gerador de sons sintéticos.

@@ -1,4 +1,4 @@
-export const TRANSFORM_SOUNDS=['alien-pulse','alien-organic','alien-crystal','alien-portal','tech-servo'] as const;
+export const TRANSFORM_SOUNDS=['user-transform','alien-pulse','alien-organic','alien-crystal','alien-portal','tech-servo'] as const;
 export type TransformSound=typeof TRANSFORM_SOUNDS[number];
 export type PrismSound='assault'|'sniper'|'grenade'|'impact-small'|'impact-ion'|'explosion'|'unlock'|'servo'|'lock'|'eject'|'insert'|'tech-unlock'|'tech-lock'|TransformSound;
 export class PrismWeaponAudio{

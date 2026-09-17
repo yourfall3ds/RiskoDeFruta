@@ -40,7 +40,7 @@ try{
  const shots=await PrismShotPreview.create(scene);
  const audio=new PrismWeaponAudio();await audio.load();
  const soundChoice=document.querySelector<HTMLSelectElement>('#transform-sound')!;
- let transformSound:TransformSound='alien-pulse';
+ let transformSound:TransformSound='user-transform';
  try{const saved=localStorage.getItem('prism-transform-sound');if(TRANSFORM_SOUNDS.includes(saved as TransformSound))transformSound=saved as TransformSound;}catch{}
  soundChoice.value=transformSound;
  soundChoice.onchange=()=>{transformSound=soundChoice.value as TransformSound;audio.stop();try{localStorage.setItem('prism-transform-sound',transformSound);}catch{}};
