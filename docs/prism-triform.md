@@ -61,3 +61,15 @@ Lentes e cilindros usam 96 lados, anéis usam 128, com normais suaves nas parede
 Removidos os filetes decorativos salientes, as duas placas laterais sobrepostas do receptor e as aletas roxas dos tubos telescópicos. Parafusos reposicionados com corpo embutido nas placas de apoio; os demais cristais foram preservados.
 
 O carregador possui pescoço de alimentação, lábios metálicos, contatos e três células energéticas no topo. O receptor tem uma cavidade real recortada, com moldura aberta e guias fixas. Nas três recargas, o carregador sai alinhado antes de inclinar, realinha abaixo da abertura, faz uma pausa curta e trava; o ferrolho rearma depois do encaixe.
+
+## Três disparos na oficina
+
+`scripts/author-prism-shots.py` produz `prism-shots.glb` e a fonte local `PRISM_SHOTS.blend`. O visualizador usa modelos exportados para projéteis, faíscas e ondas de impacto, com limite de 64 efeitos vivos e remoção após o tempo de vida.
+
+- Assault: rajada de três pulsos cianos, com três recuos e impactos pequenos.
+- Sniper: lança de íons rápida e alongada, com impacto concentrado.
+- Lança-granadas: cápsula de plasma girando em arco, explosão ampla e fragmentos luminosos.
+
+Os disparos partem do socket do cano da forma atual. A câmera abre para mostrar a trajetória e volta ao enquadramento da arma ao selecionar uma forma. A câmera lenta afeta projéteis e animações; a pausa congela os efeitos. O controle de posição inspeciona apenas o clipe da arma.
+
+Esta entrega é uma demonstração visual na oficina, sem dano, colisão com inimigos ou áudio novo. A integração ao combate continua separada da autoria dos efeitos.
