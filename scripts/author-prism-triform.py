@@ -35,8 +35,31 @@ steel=mat('04 • brushed silver edges',(.47,.57,.69),.9,.24)
 rubber=mat('05 • textured polymer grip',(.018,.021,.028),.1,.67)
 cyan=mat('06 • cyan reactor',(.001,.28,.72),.25,.27,1.8)
 white=mat('07 • reactor hot centre',(.01,.48,1),.2,.23,3)
-gemmat=mat('08 • energized crystal',(.22,.005,.65),.55,.23,.35)
+gemmat=mat('08 • energized crystal',(.22,.005,.65),.55,.23,1.1)
 etch=mat('09 • pale violet engraving',(.65,.45,.92),.5,.3)
+
+# Image-authored violet metal: keep energy channels separate from the armour.
+armour_image=bpy.data.images.load(str(ROOT/'public/textures/weapons/prism-violet-surreal-basecolor.png'))
+armour_image.pack()
+for material in (purple,violet,gemmat):
+ bs=next(n for n in material.node_tree.nodes if n.type=='BSDF_PRINCIPLED')
+ texture=material.node_tree.nodes.new('ShaderNodeTexImage');texture.image=armour_image
+ texture.label='Violet titanium / amethyst enamel — generated material'
+ material.node_tree.links.new(texture.outputs['Color'],bs.inputs['Base Color'])
+ bs.inputs['Roughness'].default_value=.34 if material==purple else .25
+ bs.inputs['Metallic'].default_value=.68
+
+atlas=bpy.data.images.load(str(ROOT/'public/textures/weapons/prism-material-atlas.png'));atlas.pack()
+atlas_regions={steel:(0,.5),etch:(0,.5),dark:(.5,.5),rubber:(0,0),cyan:(.5,0),white:(.5,0)}
+for material in atlas_regions:
+ bs=next(n for n in material.node_tree.nodes if n.type=='BSDF_PRINCIPLED')
+ texture=material.node_tree.nodes.new('ShaderNodeTexImage');texture.image=atlas
+ material.node_tree.links.new(texture.outputs['Color'],bs.inputs['Base Color'])
+ if material in (cyan,white):
+  material.node_tree.links.new(texture.outputs['Color'],bs.inputs['Emission Color'])
+  bs.inputs['Metallic'].default_value=.05
+  bs.inputs['Roughness'].default_value=.17
+  bs.inputs['Coat Weight'].default_value=.65
 
 def move_collection(obj,col):
  for c in list(obj.users_collection):c.objects.unlink(obj)
@@ -44,6 +67,23 @@ def move_collection(obj,col):
 def finish(obj,name,material,parent=None,bevel=0):
  obj.name=name;move_collection(obj,weapon);all_parts.append(obj)
  if material:obj.data.materials.append(material)
+ if material and obj.type=='MESH':
+  # Per-face box projection preserves scale on narrow plates and bevel edges.
+  uv=obj.data.uv_layers.active or obj.data.uv_layers.new(name='UVMap')
+  uv.name='UVMap'
+  uv.active_render=True
+  for face in obj.data.polygons:
+   axis=max(range(3),key=lambda i:abs(face.normal[i]))
+   axes=[i for i in range(3) if i!=axis]
+   points=[obj.data.vertices[obj.data.loops[i].vertex_index].co for i in face.loop_indices]
+   low=[min(p[a] for p in points) for a in axes]
+   span=[max(max(p[a] for p in points)-low[j],.0001) for j,a in enumerate(axes)]
+   for loop_index in face.loop_indices:
+    co=obj.data.vertices[obj.data.loops[loop_index].vertex_index].co
+    if material in atlas_regions:
+     u,v=atlas_regions[material]
+     uv.data[loop_index].uv=(u+.10+(co[axes[0]]-low[0])/span[0]*.30,v+.10+(co[axes[1]]-low[1])/span[1]*.30)
+    else:uv.data[loop_index].uv=(co[axes[0]]*.48+.37,co[axes[1]]*.48+.23)
  if parent:obj.parent=parent
  if bevel:
   mod=obj.modifiers.new('Machined rounded edges','BEVEL');mod.width=bevel;mod.segments=3
@@ -80,10 +120,11 @@ def line(name,points,r,material,parent=root):
  curve=bpy.data.curves.new(name,'CURVE');curve.dimensions='3D';curve.resolution_u=1;curve.bevel_depth=r;curve.bevel_resolution=2
  spline=curve.splines.new('POLY');spline.points.add(len(points)-1)
  for p,co in zip(spline.points,points):p.co=(*co,1)
- o=bpy.data.objects.new(name,curve);weapon.objects.link(o);finish(o,name,material,parent)
+ o=bpy.data.objects.new(name,curve);weapon.objects.link(o)
  # Mesh assets export consistently without curve-specific runtime support.
+ bpy.ops.object.select_all(action='DESELECT')
  bpy.context.view_layer.objects.active=o;o.select_set(True);bpy.ops.object.convert(target='MESH');o.select_set(False)
- return o
+ return finish(o,name,material,parent)
 def gem(name,loc,size,parent=root):
  x,y,z=loc;sx,sy,sz=size
  vs=[(x,y,z+sz),(x,y,z-sz),(x-sx,y-sy,z),(x+sx,y-sy,z),(x+sx,y+sy,z),(x-sx,y+sy,z)]
@@ -360,7 +401,7 @@ for clip,start,end,source,target in clips:
   if not reload:key(root,frame,(0,0,.025*clearance),(.08*math.sin(math.pi*t),-.025*clearance,0),S)
  # The source material animation is saved in Blender. The exported FX_charge node
  # carries the same envelope to the renderer without a vendor-only glTF extension.
- for material,base_strength in [(cyan,1.8),(white,3.0),(gemmat,.35)]:
+ for material,base_strength in [(cyan,1.8),(white,3.0),(gemmat,1.1)]:
   socket=next(n for n in material.node_tree.nodes if n.type=='BSDF_PRINCIPLED').inputs['Emission Strength']
   for frame in range(start,end+1):
    t=(frame-start)/(end-start);energy=(math.sin(math.pi*t)**.7)*(0.83+.17*math.sin(t*math.tau*3)**2)

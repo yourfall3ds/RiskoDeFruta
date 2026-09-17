@@ -43,3 +43,11 @@ As placas da frente orbitam o eixo do cano: uma volta na transformação, duas n
 `FX_charge.position.x` é o envelope de energia (0–1) exportado junto dos clipes. Na oficina, ele controla emissão e glow; no Blender, os materiais também têm emissão animada. A integração futura ao jogo deve consumir esse envelope para manter o brilho sincronizado. O visualizador inclui câmera lenta de ¼× para inspecionar as peças.
 
 A validação confere poses finais, mais de 360° de órbita nas transformações e mais de 720° nas recargas. As formas estáticas permanecem iguais.
+
+## Acabamento violeta surreal
+
+Textura de cor gerada com imagegen em `public/textures/weapons/prism-violet-surreal-basecolor.png`: metal violeta com desgaste fino e veios de ametista. As placas têm UVs por face; a imagem fica incorporada nos GLBs e empacotada nos arquivos Blender. Metalicidade e rugosidade permanecem parâmetros físicos separados; a imagem não é um mapa de normais.
+
+`public/textures/weapons/prism-material-atlas.png` contém prata escovada, grafite usinado, borracha e líquido energético azul, também gerados com imagegen. Todos os nove materiais têm textura: placas e cristais usam ametista; estrutura e gravuras usam prata; mecanismos usam grafite; empunhadura usa borracha; núcleo, trilhos e célula usam líquido azul. UVs mantêm margem dentro de cada região do atlas.
+
+Núcleo, trilhos, célula e cristais usam materiais emissivos separados da armadura. A oficina intensifica o glow com o envelope de carga durante recargas e transformações e desloca suavemente a textura do líquido, sem afetar o metal. Esse movimento visual não é uma simulação de fluidos; precisa ser conectado também na futura integração ao jogo. Pausar e arrastar a barra permite inspecionar qualquer ponto de cada animação.

@@ -9,10 +9,22 @@ def read(name):
 def values(doc,data,index):
  a=doc['accessors'][index];view=doc['bufferViews'][a['bufferView']]
  offset=view.get('byteOffset',0)+a.get('byteOffset',0)
- components={'SCALAR':1,'VEC3':3,'VEC4':4}[a['type']]
+ components={'SCALAR':1,'VEC2':2,'VEC3':3,'VEC4':4}[a['type']]
  return [struct.unpack_from('<'+'f'*components,data,offset+j*view.get('byteStride',components*4)) for j in range(a['count'])]
 defaults={'translation':[0,0,0],'rotation':[0,0,0,1],'scale':[1,1,1]}
 doc,data=read('prism-triform.glb')
+assert all('baseColorTexture' in m.get('pbrMetallicRoughness',{}) for m in doc['materials'])
+assert all('bufferView' in i for i in doc['images'])
+# UV V is flipped by glTF. Catch primitive defaults and wrong atlas quadrants.
+regions={'03':(.5,0),'04':(0,0),'05':(0,.5),'06':(.5,.5),'07':(.5,.5),'09':(0,0)}
+for mesh in doc['meshes']:
+ for primitive in mesh['primitives']:
+  assert 'TEXCOORD_0' in primitive['attributes'],mesh['name']
+  prefix=doc['materials'][primitive['material']]['name'][:2]
+  if prefix in regions:
+   u,v=regions[prefix]
+   for x,y in values(doc,data,primitive['attributes']['TEXCOORD_0']):
+    assert u+.01<x<u+.49 and v+.01<y<v+.49,(mesh['name'],'UV outside material region',x,y)
 references={p:{n.get('name'):n for n in read('prism-'+p+'.glb')[0]['nodes']} for p in ['assault','sniper','grenade']}
 failures=[];report=[]
 assert len(doc['animations'])==9
