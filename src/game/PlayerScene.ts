@@ -484,7 +484,7 @@ export class PlayerScene implements SceneModule {
 
     this.events.on('LevelUp',()=>{this.audio.charge(3);this.player.hp=Math.min(this.progression.stats.maxHP,this.player.hp+18);if(this.enemies instanceof EnemySwarm)this.enemies.effects.burst(this.player.position,'energy',2);});
 
-    this.events.on('ItemPicked',()=>{this.player.maxHP=this.progression.stats.maxHP;this.audio.charge(2);if(this.enemies instanceof EnemySwarm)this.enemies.effects.burst(this.player.position,'energy',1.5);});
+    this.events.on('ItemPicked',({itemId})=>{this.runHUD?.showItemPickup(itemId);this.player.maxHP=this.progression.stats.maxHP;this.audio.charge(2);if(this.enemies instanceof EnemySwarm)this.enemies.effects.burst(this.player.position,'energy',1.5);});
 
     // O timbre do dano recebido segue a origem real do golpe, para o jogador identificar o que o acertou.
     this.events.on('PlayerHit',context=>{
@@ -1513,7 +1513,7 @@ export class PlayerScene implements SceneModule {
     // O clone volta a ficar escondido e o rig vivo reaparece — sem realocar nada.
     this.playerRagdoll.reset();this.visual.root.setEnabled(true);
     if(this.yard instanceof PlanetWorld)this.yard.restoreScenery();
-    this.cancelCinematic();this.progression.reset();this.weapons.resetAttempt();this.visual.resetAttempt();this.mp.cancel();this.mp.current=this.mp.maximum;this.mp.releases=0;this.mp.speedMultiplier=1;
+    this.cancelCinematic();this.runHUD?.clearItemPickups();this.progression.reset();this.weapons.resetAttempt();this.visual.resetAttempt();this.mp.cancel();this.mp.current=this.mp.maximum;this.mp.releases=0;this.mp.speedMultiplier=1;
     if(this.enemies instanceof EnemySwarm)this.enemies.nextStage();this.interactables?.reset();this.objectives.reset();this.resonance.reset();this.slowMotion.reset();this.weather.reset();this.unarmed.resetAttempt();this.weapons.holstered=false;this.bossRequestClock=0;
     // A viagem volta ao zero e o estágio 1 é replanejado: nada de herdar a partida do estágio onde
     // a tentativa terminou.

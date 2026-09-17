@@ -1,3 +1,4 @@
+import {ItemPickupNotice} from './ItemPickupNotice';
 import {Vector3,Matrix} from '@babylonjs/core/Maths/math.vector';
 import type {Camera} from '@babylonjs/core/Cameras/camera';
 import type {EnemySwarm} from '../game/EnemySwarm';
@@ -122,6 +123,9 @@ export class RunHUD {
  private readonly bossBox:HTMLElement;private readonly bossFill:HTMLElement;private readonly bossText:HTMLElement;
  private readonly interactBox:HTMLElement;private readonly routeBox:HTMLElement;private readonly meterBox:HTMLElement;
  private readonly bars:MarkerPool<BarMarker>;private readonly damage:MarkerPool<Marker>;private readonly supplies:MarkerPool<SupplyMarker>;
+ private readonly pickup:ItemPickupNotice;
+ showItemPickup(id:string):void {this.pickup.show(id);}
+ clearItemPickups():void {this.pickup.clear();}
  private decay='';
  // Seleção das barras próximas sem `filter`/`sort` por atualização: buffers reaproveitados.
  private readonly nearby:SwarmActor[]=[];private readonly nearbyKeys:number[]=[];
@@ -136,6 +140,7 @@ export class RunHUD {
  useSurface(surface:EnemySurface|undefined):void {this.surfaceOverride=radialSurfaceOf(surface);}
  constructor(){
   this.element.id='run-hud';this.element.innerHTML='<div class="run-inventory"></div><div class="run-clock"></div><div class="run-mission"></div><aside class="expedition-route" hidden></aside><div class="harvest-resonance" hidden></div><aside class="district-contract"></aside><div class="run-boss" hidden><span>PRAGA ALFA</span><div><i></i></div><small></small></div><div class="run-xp"><span></span><div><i></i></div></div><div class="run-hostiles"></div><div class="run-interact" hidden></div><div class="run-toast"></div><div class="damage-labels"></div><div class="run-bearing"></div><div class="world-supplies"></div><div class="enemy-health-bars"></div><aside class="run-stats" hidden></aside><small class="stats-hint">TAB · MAPA E ATRIBUTOS</small>';document.body.append(this.element);
+  this.pickup=new ItemPickupNotice(this.element);
   const pick=(selector:string):HTMLElement=>this.element.querySelector(selector) as HTMLElement;
   this.inventory=new HtmlSlot(pick('.run-inventory'));this.bearing=new HtmlSlot(pick('.run-bearing'));this.clockPanel=new HtmlSlot(pick('.run-clock'));
   this.mission=new HtmlSlot(pick('.run-mission'));this.contract=new HtmlSlot(pick('.district-contract'));this.hostiles=new HtmlSlot(pick('.run-hostiles'));
@@ -373,5 +378,5 @@ export class RunHUD {
   const decay=String(Math.round(resonance.decayProgress*1000)/1000);
   if(decay!==this.decay){this.decay=decay;this.meterBox.style.setProperty('--resonance-decay',decay);}
  }
- dispose():void {this.controls.abort();this.element.remove();}
+ dispose():void {this.pickup.dispose();this.controls.abort();this.element.remove();}
 }

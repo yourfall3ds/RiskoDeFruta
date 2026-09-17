@@ -198,3 +198,9 @@ body.game-menu-open:has(.play-gate.defeated) #game{visibility:visible}
 @media(max-width:900px){.stage-journey{top:16%;padding:13px 15px}.stage-journey .stage-journey-destination{font-size:17px}}
 
 body:has(#exploration-minimap:not([hidden])) .run-stats{inset:15vh auto auto 3vw;width:27vw;max-height:75vh;padding:18px;box-sizing:border-box}
+
+.item-pickup-notice{position:fixed;left:50%;top:19%;transform:translateX(-50%);width:min(440px,88vw);box-sizing:border-box;display:flex;align-items:center;gap:16px;padding:16px 20px;background:linear-gradient(110deg,rgba(13,30,33,.97),rgba(18,28,34,.94));border:1px solid #8eaa91;border-left:4px solid #bad599;border-radius:8px;box-shadow:0 8px 30px #0008;color:#fff6df;pointer-events:none;z-index:18}
+.item-pickup-notice[hidden]{display:none}.item-pickup-notice[data-rarity="uncommon"]{border-color:#e1b65a}
+.item-pickup-icon{width:76px;height:76px;flex:0 0 76px;filter:drop-shadow(0 3px 7px #0008)}
+.item-pickup-notice small{display:block;color:#cfb57b;font-size:10px;font-weight:800;letter-spacing:1.5px;margin-bottom:5px}
+.item-pickup-notice strong{display:block;font-size:19px;line-height:1.2}.item-pickup-notice p{margin:7px 0 0;font-size:14px;line-height:1.4;color:#e2e9df}
