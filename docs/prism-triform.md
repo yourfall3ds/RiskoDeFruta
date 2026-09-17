@@ -68,8 +68,18 @@ O carregador possui pescoço de alimentação, lábios metálicos, contatos e tr
 
 - Assault: rajada de três pulsos cianos, com três recuos e impactos pequenos.
 - Sniper: lança de íons rápida e alongada, com impacto concentrado.
-- Lança-granadas: cápsula de plasma girando em arco, explosão ampla e fragmentos luminosos.
+- Lança-granadas: cápsula incendiária com armadura violeta, payload quente e anéis de contenção; voo em arco, bola de fogo, fumaça, brasas e fragmentos.
 
 Os disparos partem do socket do cano da forma atual. A câmera abre para mostrar a trajetória e volta ao enquadramento da arma ao selecionar uma forma. A câmera lenta afeta projéteis e animações; a pausa congela os efeitos. O controle de posição inspeciona apenas o clipe da arma.
 
-Esta entrega é uma demonstração visual na oficina, sem dano, colisão com inimigos ou áudio novo. A integração ao combate continua separada da autoria dos efeitos.
+Esta entrega é uma demonstração audiovisual na oficina, sem dano ou colisão com inimigos. A integração ao combate continua separada da autoria dos efeitos.
+
+## Áudio e explosão incendiária
+
+`scripts/author-prism-audio.py` combina foley já existente no projeto com camadas de energia e ruído filtrado, exportando 18 WAVs estéreo de 48 kHz em `public/audio/prism`. O manifesto registra fontes, duração, pico e RMS. Nenhum áudio externo foi baixado. Os novos sons usam volume inicial de 45%, limite de 12 vozes e controle de volume na oficina.
+
+Disparos e impactos têm sons por modo. Destravar, servo, retirar carregador, inserir e travar acompanham os quadros do clipe. Pausar/interpolar manualmente interrompe as vozes; a posição do clipe determina os próximos eventos, evitando sons atrasados de temporizadores antigos. Em câmera lenta, os eventos acompanham a animação, com alteração de pitch limitada para manter a leitura.
+
+A explosão usa `prism-fireball.png`, sprite RGBA gerado com imagegen, com material emissivo, fumaça com a mesma máscara, brasas e fragmentos de carcaça. Os modelos e sprites são exportados pelo Blender, e os efeitos expiram automaticamente.
+
+A oficina oferece quatro assinaturas alienígenas para transformação: pulsos, orgânico, cristal e portal. São frases sintetizadas sem foley metálico ou rampas de motor. O seletor aplica a escolha às três formas e salva a preferência localmente. Ouvir som permite comparar sem animação; Parar som interrompe a prévia. O servo anterior permanece como opção. Recargas e disparos mantêm seus sons próprios. Ver impacto permite inspecionar a explosão diretamente.

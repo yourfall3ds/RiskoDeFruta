@@ -12,6 +12,7 @@ import {PBRMaterial} from '@babylonjs/core/Materials/PBR/pbrMaterial';
 import {Texture} from '@babylonjs/core/Materials/Textures/texture';
 import '@babylonjs/loaders/glTF';
 import {PrismShotPreview,PRISM_SHOTS} from './PrismShotPreview';
+import {PrismWeaponAudio,TRANSFORM_SOUNDS,type TransformSound,type PrismSound} from './PrismWeaponAudio';
 
 const canvas=document.querySelector<HTMLCanvasElement>('#view')!;
 const engine=new Engine(canvas,true),scene=new Scene(engine);
@@ -37,6 +38,16 @@ buttons.forEach(b=>b.disabled=true);
 try{
  const model=await LoadAssetContainerAsync('/models/weapons/prism-triform.glb?v=fitted-magazine-5',scene);model.addAllToScene();
  const shots=await PrismShotPreview.create(scene);
+ const audio=new PrismWeaponAudio();await audio.load();
+ const soundChoice=document.querySelector<HTMLSelectElement>('#transform-sound')!;
+ let transformSound:TransformSound='alien-pulse';
+ try{const saved=localStorage.getItem('prism-transform-sound');if(TRANSFORM_SOUNDS.includes(saved as TransformSound))transformSound=saved as TransformSound;}catch{}
+ soundChoice.value=transformSound;
+ soundChoice.onchange=()=>{transformSound=soundChoice.value as TransformSound;audio.stop();try{localStorage.setItem('prism-transform-sound',transformSound);}catch{}};
+ const volume=document.querySelector<HTMLInputElement>('#volume')!;
+ volume.oninput=()=>audio.volume(Number(volume.value)/100);
+ const speed=()=>Number(document.querySelector<HTMLSelectElement>('#speed')!.value);
+ shots.onImpact=mode=>audio.play((['impact-small','impact-ion','explosion'] as const)[mode]!,speed());
  const muzzle=model.transformNodes.find(n=>n.name==='SOCKET_muzzle')!;
  const charge=model.transformNodes.find(node=>node.name==='FX_charge');
  const luminous=model.materials.filter((material):material is PBRMaterial=>material instanceof PBRMaterial&&material.emissiveColor.r+material.emissiveColor.g+material.emissiveColor.b>0);
@@ -60,21 +71,28 @@ try{
  for(const group of model.animationGroups)group.stop();
  const byName=new Map(model.animationGroups.map(g=>[g.name,g]));
  let active:typeof model.animationGroups[number]|undefined;
+ let cues:Array<{at:number;sound:PrismSound;played:boolean}>=[];
  scene.onBeforeRenderObservable.add(()=>{
   const paused=active&&!active.isPlaying;
   if(!paused)shots.update(Math.min(engine.getDeltaTime(),50)/1000*Number(document.querySelector<HTMLSelectElement>('#speed')!.value));
+  if(active?.isPlaying){
+   const progress=(active.getCurrentFrame()-active.from)/(active.to-active.from);
+   for(const cue of cues)if(!cue.played&&progress>=cue.at){cue.played=true;audio.play(cue.sound,speed());}
+  }
  });
  pause.disabled=true;scrub.disabled=true;
- pause.onclick=()=>{if(!active)return;if(active.isPlaying){active.pause();pause.textContent='Continuar';}else{active.play(false);pause.textContent='Pausar';}};
- scrub.oninput=()=>{if(!active)return;active.pause();active.goToFrame(active.from+(active.to-active.from)*Number(scrub.value)/100);pause.textContent='Continuar';};
+ pause.onclick=()=>{if(!active)return;if(active.isPlaying){active.pause();audio.stop();pause.textContent='Continuar';}else{active.play(false);pause.textContent='Pausar';}};
+ scrub.oninput=()=>{if(!active)return;active.pause();audio.stop();const t=Number(scrub.value)/100;active.goToFrame(active.from+(active.to-active.from)*t);for(const cue of cues)cue.played=cue.at<=t;pause.textContent='Continuar';};
  const initial=byName.get('Assault_to_Sniper')!;initial.start(false);initial.goToFrame(initial.from);initial.pause();
  const play=(name:string,rate=1)=>new Promise<void>((resolve,reject)=>{
   const group=byName.get(name);if(!group){reject(new Error(`Animação ausente: ${name}`));return;}
   for(const other of model.animationGroups)other.stop();
+  const sequence:Array<[number,PrismSound]>=name.endsWith('Reload')?[[.10,'eject'],[.34,'servo'],[.9,'insert'],[.97,'lock']]:name.includes('_to_')?[[0,transformSound]]:[[0,(['assault','sniper','grenade'] as const)[mode]!]];
+  cues=sequence.map(([at,sound])=>({at,sound,played:false}));
   active=group;pause.disabled=false;scrub.disabled=false;pause.textContent='Pausar';scrub.value='0';
-  group.onAnimationGroupEndObservable.addOnce(()=>{active=undefined;pause.disabled=true;scrub.disabled=true;pause.textContent='Pausar';resolve();});group.start(false,rate*Number(document.querySelector<HTMLSelectElement>('#speed')!.value),group.from,group.to);
+  group.onAnimationGroupEndObservable.addOnce(()=>{for(const cue of cues)if(!cue.played&&cue.at>=.85){cue.played=true;audio.play(cue.sound,speed());}active=undefined;pause.disabled=true;scrub.disabled=true;pause.textContent='Pausar';resolve();});group.start(false,rate*Number(document.querySelector<HTMLSelectElement>('#speed')!.value),group.from,group.to);
  });
- async function perform(action:()=>Promise<void>){if(busy)return;busy=true;state();try{await action();status.textContent='Pronta · 9 animações';}catch(e){status.textContent=String(e);}finally{busy=false;state();}}
+ async function perform(action:()=>Promise<void>){if(busy)return;busy=true;state();try{await audio.resume();await action();status.textContent='Pronta · 9 animações';}catch(e){status.textContent=String(e);}finally{busy=false;state();}}
  for(const button of buttons.filter(b=>b.dataset.mode!==undefined))button.onclick=()=>void perform(async()=>{
   const wanted=Number(button.dataset.mode);
   camera.setTarget(new Vector3(1,1,0));camera.radius=10;
@@ -90,6 +108,9 @@ try{
   }
  });
  document.querySelector<HTMLButtonElement>('#reload')!.onclick=()=>void perform(async()=>{status.textContent='Recarregando…';await play(phases[mode]+'_Reload');});
+ document.querySelector<HTMLButtonElement>('#impact')!.onclick=()=>void perform(async()=>{camera.setTarget(new Vector3(4,1,0));camera.radius=18;shots.impact(mode,new Vector3(8,1,0),Vector3.Right());});
+ document.querySelector<HTMLButtonElement>('#listen-transform')!.onclick=()=>void perform(async()=>{audio.stop();audio.play(transformSound);});
+ document.querySelector<HTMLButtonElement>('#stop-sound')!.onclick=()=>audio.stop();
  status.textContent='Pronta · 9 animações';state();
 }catch(e){status.textContent='Falha ao carregar: '+String(e);}
 engine.runRenderLoop(()=>scene.render());window.addEventListener('resize',()=>engine.resize());

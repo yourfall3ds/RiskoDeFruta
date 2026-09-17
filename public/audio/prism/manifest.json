@@ -1,0 +1,113 @@
+{
+  "source": "Existing project pistol, reload, launch and punch foley; original offline energy design. No downloaded audio.",
+  "sounds": [
+    {
+      "name": "assault",
+      "seconds": 0.3,
+      "peak": 0.7539689958301821,
+      "rms": 0.17718695179774294
+    },
+    {
+      "name": "sniper",
+      "seconds": 0.75,
+      "peak": 0.76,
+      "rms": 0.14846387863152025
+    },
+    {
+      "name": "grenade",
+      "seconds": 0.48,
+      "peak": 0.6456145559306944,
+      "rms": 0.1881537092516141
+    },
+    {
+      "name": "impact-small",
+      "seconds": 0.23,
+      "peak": 0.677003080983317,
+      "rms": 0.18826238896984215
+    },
+    {
+      "name": "impact-ion",
+      "seconds": 0.42,
+      "peak": 0.6442509144400077,
+      "rms": 0.1434923471080282
+    },
+    {
+      "name": "explosion",
+      "seconds": 1.1,
+      "peak": 0.76,
+      "rms": 0.29797466044186294
+    },
+    {
+      "name": "unlock",
+      "seconds": 0.16,
+      "peak": 0.7021173293149078,
+      "rms": 0.061584513698457896
+    },
+    {
+      "name": "servo",
+      "seconds": 0.6,
+      "peak": 0.44401758061988644,
+      "rms": 0.10665017839982424
+    },
+    {
+      "name": "lock",
+      "seconds": 0.22,
+      "peak": 0.7037582818323619,
+      "rms": 0.05473176821299507
+    },
+    {
+      "name": "eject",
+      "seconds": 0.2,
+      "peak": 0.7061997881225947,
+      "rms": 0.05539794634692539
+    },
+    {
+      "name": "insert",
+      "seconds": 0.25,
+      "peak": 0.7036035004629263,
+      "rms": 0.05151842543863649
+    },
+    {
+      "name": "tech-unlock",
+      "seconds": 0.18,
+      "peak": 0.36631875646779194,
+      "rms": 0.0690034935229396
+    },
+    {
+      "name": "tech-servo",
+      "seconds": 0.68,
+      "peak": 0.5884759752205739,
+      "rms": 0.1521711572682102
+    },
+    {
+      "name": "tech-lock",
+      "seconds": 0.3,
+      "peak": 0.41393737722430735,
+      "rms": 0.07026665423484552
+    },
+    {
+      "name": "alien-pulse",
+      "seconds": 2.1,
+      "peak": 0.2582937104167082,
+      "rms": 0.07906317966373465
+    },
+    {
+      "name": "alien-organic",
+      "seconds": 2.1,
+      "peak": 0.24209267559473835,
+      "rms": 0.0733544548324483
+    },
+    {
+      "name": "alien-crystal",
+      "seconds": 2.1,
+      "peak": 0.21027691058300882,
+      "rms": 0.05191864047971893
+    },
+    {
+      "name": "alien-portal",
+      "seconds": 2.1,
+      "peak": 0.2665019965672274,
+      "rms": 0.07074849467331325
+    }
+  ]
+}
