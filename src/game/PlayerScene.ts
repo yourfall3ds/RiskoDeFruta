@@ -1,3 +1,4 @@
+import {ExplorationMap} from '../ui/ExplorationMap';
 import {usePlanetWorld} from '../world/WorldSelection';
 import {reloadMovement} from '../player/ReloadMovement';
 import {meleeMovement} from '../combat/MeleeMovement';
@@ -223,6 +224,7 @@ export class PlayerScene implements SceneModule {
   readonly enemies:EnemyReview|EnemySwarm;
 
   private readonly runHUD:RunHUD|undefined;
+  private explorationMap:ExplorationMap|undefined;
 
   private readonly interactables:RunInteractables|undefined;
 
@@ -359,6 +361,7 @@ export class PlayerScene implements SceneModule {
       :new FarmWorld(this.scene,collision,shadows,!new URLSearchParams(location.search).get('online'));
 
     // O contrato de mundo: é o que a horda e as armas recebem, nos dois mapas.
+    if(planetWorld)this.explorationMap=new ExplorationMap();
     this.world=planetWorld??new FarmGameWorld(this.yard as TrainingYard|FarmWorld,(from,to)=>this.routeLength(from,to));
 
     traceBoot(this.radial?'cena:construtor radial':'cena:construtor plano');
@@ -783,6 +786,11 @@ export class PlayerScene implements SceneModule {
 
     if(this.enemies instanceof EnemySwarm){
       this.runHUD!.setVisible(this.started&&this.player.hp>0);
+      if(this.yard instanceof PlanetWorld&&this.yard.manifest){
+        const manifest=this.yard.manifest;
+        this.explorationMap?.update(dt,this.started&&this.player.hp>0&&!this.intro.holdsControl&&!this.journey.holdsControl,`${this.attemptSeed}:${this.progression.stage}`,this.world.sites,manifest.bridges,this.world.surface,manifest.centre,this.player.position,this.player.forward,this.objectives.discovered?this.objectives.totems[0]?.site.position:undefined,this.runHUD!.atlasOpen);
+      }
+
       // Distâncias e alcance de interação usam o corpo do jogador; a câmera só orienta a seta.
       this.runHUD!.update(this.progression,this.enemies,this.interactables!,this.camera.camera,{objectives:this.objectives,resonance:this.resonance,mp:this.mp,player:this.player.position,weather:this.weather,journey:this.journey});
       if(this.journey.active){
@@ -1579,6 +1587,11 @@ export class PlayerScene implements SceneModule {
     this.hud?.loading(stages.filter(Boolean).length,stages.length,label);for(const material of this.scene.materials){const lit=material as typeof material & {maxSimultaneousLights?:number};if(lit.maxSimultaneousLights!==undefined&&lit.maxSimultaneousLights>4){lit.unfreeze();lit.maxSimultaneousLights=4;}}if(this.visual?.ready&&this.weapons?.ready&&this.skillAura?.ready&&(!(this.yard instanceof FarmWorld)||this.yard.ready)&&(!(this.enemies instanceof EnemySwarm)||(this.enemies.ready&&this.enemies.navigationReady))&&(!this.interactables||this.interactables.ready)&&deckReady&&planned){if(this.warming)return;this.warming=true;this.scene.executeWhenReady(()=>{if(!this.disposed)this.hud.ready();});}}
 
   configure(name: string,value: number): void {
+    if(name==='review-enemy-distance'&&this.yard instanceof PlanetWorld&&this.yard.manifest){
+      const island=this.yard.manifest.islands.filter(i=>this.world.surface.planarDistance(this.player.position,i.spawn)>100).sort((a,b)=>this.world.surface.planarDistance(this.player.position,a.spawn)-this.world.surface.planarDistance(this.player.position,b.spawn))[0];
+      if(!island)return;
+      this.intro.skip();this.player.arriveAt(this.seatOnDeck(island.spawn));this.player.debugInvincible=true;return;
+    }
     if(name==='review-loot'&&this.interactables){
       const chest=this.interactables.entries.filter(e=>!e.used&&e.kind!=='altar').sort((a,b)=>this.world.surface.planarDistance(this.player.position,a)-this.world.surface.planarDistance(this.player.position,b))[0];
       if(!chest)return;
@@ -1728,14 +1741,14 @@ export class PlayerScene implements SceneModule {
       +`\nEntrada ${this.intro.phase}${this.intro.skipped?' (pulada)':''} · deck ${this.dropship?this.dropship.error||(this.dropship.ready?'pronto':'carregando'):'treino'} · controle ${this.intro.holdsControl?'RETIDO':'livre'}`
       +`\n${this.stagePlanDescription}`
       +(this.meleeReview.active?`\nRevisão corpo a corpo · ${this.meleeReview.label} · voltas ${this.meleeReview.loops} · armas ${this.weapons.holstered?'guardadas':'EM MÃOS'}`:'')
-      +`\nPosição${this.player.position.x.toFixed(1)}, ${this.player.position.y.toFixed(1)}, ${this.player.position.z.toFixed(1)}\nVelocidade ${Math.hypot(this.player.velocity.x,this.player.velocity.z).toFixed(2)} m/s · ${this.player.sprinting?'CORRENDO':'NORMAL'}\nMira ${this.input.yaw.toFixed(3)} / ${this.input.pitch.toFixed(3)}\nGrounded ${this.player.grounded} · Saltos ${this.player.jumps}\nEsquivas ${this.player.dodges} · Retornos ${this.player.respawns}\n${this.enemies instanceof EnemySwarm?this.enemies.tactical?.residencyDescription??'':''}\nNavmesh ${this.enemies instanceof EnemySwarm?this.enemies.tactical?.count??0:0} agentes · Ragdolls ${this.enemies instanceof EnemySwarm?this.enemies.ragdollCount:0} · Marcas ${this.weapons.effects.decalCount}\nCorpo do jogador: ${this.playerRagdoll.ready?"pronto":"carregando"} · ${this.playerRagdoll.bodies} corpos · ${this.playerRagdoll.active?"física ativa":"inativo"} · ${this.playerRagdoll.error}\nDisparos ${this.weapons.cadence.shots} · Acertos ${this.weapons.hits}\nImpacto ${this.weapons.lastImpact}\nModelo ${this.visual.ready?'pronto':'carregando'} · ${this.visual.skinning}\nInvulnerabilidade QA ${this.player.debugInvincible?'ATIVA':'desligada'}\nDirector ${this.enemies instanceof EnemySwarm?this.enemies.director.state:'treino'} · Estágio ${this.progression.stage}`};
+      +`\nPosição${this.player.position.x.toFixed(1)}, ${this.player.position.y.toFixed(1)}, ${this.player.position.z.toFixed(1)}\nVelocidade ${Math.hypot(this.player.velocity.x,this.player.velocity.z).toFixed(2)} m/s · ${this.player.sprinting?'CORRENDO':'NORMAL'}\nMira ${this.input.yaw.toFixed(3)} / ${this.input.pitch.toFixed(3)}\nGrounded ${this.player.grounded} · Saltos ${this.player.jumps}\nEsquivas ${this.player.dodges} · Retornos ${this.player.respawns}\n${this.enemies instanceof EnemySwarm?this.enemies.tactical?.residencyDescription??'':''}\nReciclagem ${this.enemies instanceof EnemySwarm?this.enemies.strays:0} distantes removidos · ${this.enemies instanceof EnemySwarm?this.enemies.recycled:0} repostos perto\nNavmesh ${this.enemies instanceof EnemySwarm?this.enemies.tactical?.count??0:0} agentes · Ragdolls ${this.enemies instanceof EnemySwarm?this.enemies.ragdollCount:0} · Marcas ${this.weapons.effects.decalCount}\nCorpo do jogador: ${this.playerRagdoll.ready?"pronto":"carregando"} · ${this.playerRagdoll.bodies} corpos · ${this.playerRagdoll.active?"física ativa":"inativo"} · ${this.playerRagdoll.error}\nDisparos ${this.weapons.cadence.shots} · Acertos ${this.weapons.hits}\nImpacto ${this.weapons.lastImpact}\nModelo ${this.visual.ready?'pronto':'carregando'} · ${this.visual.skinning}\nInvulnerabilidade QA ${this.player.debugInvincible?'ATIVA':'desligada'}\nDirector ${this.enemies instanceof EnemySwarm?this.enemies.director.state:'treino'} · Estágio ${this.progression.stage}`};
 
   }
 
   dispose(): void {if(this.disposed)return;this.disposed=true;
     // Invalida qualquer carregamento de destino em voo: o `.then` tardio vê a versão mudada e sai.
     this.planVersion++;this.planning=false;this.journey.reset();this.pendingSetup=undefined;this.stagePlans.clear();
-    this.weatherView?.dispose();this.weatherView=undefined;this.dropship?.dispose();this.dropship=undefined;this.collision.detachRadialProps('expedition-sites');this.collision.detachRadialProps('loot');this.expeditionSites?.dispose();this.expeditionSites=undefined;this.playerRagdoll.dispose();this.avatar?.dispose();this.net?.dispose();this.cancelCinematic();this.cutIn.dispose();this.skillAura.dispose();this.elements.dispose();this.world.dispose();this.input.dispose();this.enemies.dispose();this.runHUD?.dispose();this.interactables?.dispose();this.events.clear();this.weapons.dispose();this.footing.dispose();this.abyss?.dispose();this.visual.dispose();this.audio.dispose();this.hud.dispose();this.instrumentation.dispose();this.scene.dispose();}
+    this.weatherView?.dispose();this.weatherView=undefined;this.dropship?.dispose();this.dropship=undefined;this.collision.detachRadialProps('expedition-sites');this.collision.detachRadialProps('loot');this.expeditionSites?.dispose();this.expeditionSites=undefined;this.playerRagdoll.dispose();this.avatar?.dispose();this.net?.dispose();this.cancelCinematic();this.cutIn.dispose();this.skillAura.dispose();this.elements.dispose();this.world.dispose();this.input.dispose();this.enemies.dispose();this.explorationMap?.dispose();this.runHUD?.dispose();this.interactables?.dispose();this.events.clear();this.weapons.dispose();this.footing.dispose();this.abyss?.dispose();this.visual.dispose();this.audio.dispose();this.hud.dispose();this.instrumentation.dispose();this.scene.dispose();}
 
 }
 

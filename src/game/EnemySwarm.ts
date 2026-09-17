@@ -59,6 +59,23 @@ const headingLength=(d:Heading):number=>Math.hypot(d.x,d.y??0,d.z);
 const HIT_OVERLAY=Color3.FromHexString('#fff0bc'),CHARGE_OVERLAY=new Color3(1,.25,.025);
 /** Mesmo teto de antes: só os quatro corpos mais próximos projetam sombra. */
 const SHADOW_CASTERS=4;
+/**
+ * Coleira da horda, em metros CAMINHÁVEIS (arco no planeta).
+ *
+ * Além disto o corpo não alcança, não atira, não é ouvido e é um pixel na tela: seguir o jogador
+ * por ilhas afora só queima IA, agente do Detour, sonda de colisão e — o que dói de verdade — a
+ * vaga de população que um hostil perto poderia estar ocupando. O valor fica acima do dobro do anel
+ * de spawn (`SPAWN_RING_MAX`=35) e acima da faixa "longe" do `AIScheduler` (60), então nada que
+ * ainda esteja em combate, ou que acabou de nascer, é recolhido.
+ */
+export const STRAY_DISTANCE=72;
+/**
+ * Uma reposição por vez. Recolher oito retardatários de uma vez é barato e é o objetivo; devolvê-los
+ * todos no mesmo segundo em volta do jogador seria uma emboscada que ninguém pediu.
+ */
+export const STRAY_REPLACEMENT_INTERVAL=1.1;
+/** Distância mínima para a aposentadoria por ORÇAMENTO (quadro pesado), que é outra coisa. */
+const RETIREMENT_DISTANCE=18;
 export interface DamageLabel {position:Vec3;amount:number;crit:boolean;time:number}
 /** Simulation, AI scheduling and presentation share stable actor IDs; visuals are recycled. */
 export class EnemySwarm {
@@ -83,7 +100,15 @@ export class EnemySwarm {
   /** Cacos de casca/polpa/semente por espécie, derivados do corpo real. */
   readonly fragments:FruitFragments;
   private presentationTime=0;private procs:ItemProcs;private shadowClock=0;private shadowCasters:Mesh[]=[];
-  populationCap=24;readonly budget=new PopulationBudget();benchmark=false;private retirementClock=0;private debris:CorpseDebris;private readonly ragdolls=new RagdollWorld();tactical:TacticalNavigation|undefined;navigationReady=false;audio:WeaponAudio|undefined;
+  populationCap=24;readonly budget=new PopulationBudget();benchmark=false;private retirementClock=0;
+  /** Relógio e fila da reciclagem por distância. Ver `recycleStrays`. */
+  private replacementClock=0;private readonly replacements:EnemyKind[]=[];
+  /**
+   * Quantos corpos a coleira recolheu e quantos já voltaram perto do jogador. São contadores de
+   * diagnóstico: nenhum deles conta abate, paga recompensa ou aparece como progresso de objetivo.
+   */
+  strays=0;recycled=0;
+  private debris:CorpseDebris;private readonly ragdolls=new RagdollWorld();tactical:TacticalNavigation|undefined;navigationReady=false;audio:WeaponAudio|undefined;
   /**
    * Quem responde "para cima". Sem `world.surface` isto é o `FlatSpace`, que chama exatamente as
    * mesmas funções de colisão de antes — a fazenda não muda um bit. Com superfície, a horda INTEIRA
@@ -138,7 +163,9 @@ export class EnemySwarm {
    * perseguição radial usa direção tangente direta — continua perseguindo, atacando e morrendo.
    */
   initialize():void {if(this.tactical||this.navigation||this.space.radial)return;this.navigation=new FarmNavigation(this.world.collision);this.navigation.update(this.player.position);}
-  nextStage():void {this.lasers.begin();this.elemental.clear();for(const l of this.chargeLights)l.intensity=0;this.burning.clear();this.debris.clear();this.fragments.clear();this.ragdolls.clear();this.tactical?.clear();this.scheduler.clear();this.tick.clear();this.chargeLightTargets.length=0;this.populationCap=this.budget.limit;this.benchmark=false;this.retirementClock=0;for(const a of this.actors){a.active=false;a.root.setEnabled(false);a.body.isPickable=false;}this.kills=0;this.boss=undefined;this.bossDeadTime=-1;this.effects.clear();this.labels.length=0;this.director=new MonsterDirector(this.rng.stream('director'),this.progression.stage,50,this.mode);}
+  nextStage():void {this.lasers.begin();this.elemental.clear();for(const l of this.chargeLights)l.intensity=0;this.burning.clear();this.debris.clear();this.fragments.clear();this.ragdolls.clear();this.tactical?.clear();this.scheduler.clear();this.tick.clear();this.chargeLightTargets.length=0;this.populationCap=this.budget.limit;this.benchmark=false;this.retirementClock=0;
+    this.replacementClock=0;this.replacements.length=0;this.strays=0;this.recycled=0;
+    for(const a of this.actors){a.active=false;a.root.setEnabled(false);a.body.isPickable=false;}this.kills=0;this.boss=undefined;this.bossDeadTime=-1;this.effects.clear();this.labels.length=0;this.director=new MonsterDirector(this.rng.stream('director'),this.progression.stage,50,this.mode);}
   get count():number{let live=0;for(const a of this.actors)if(a.active&&!a.health.dead)live++;return live;}
   get status():string{return `${this.count} hostis · ${this.kills} abatidos`;}
   get bossHP():number{return this.boss?.health.current??0;}
@@ -178,11 +205,77 @@ export class EnemySwarm {
     }
     return pick;
   }
+  /**
+   * Tira um corpo VIVO de cena e devolve tudo o que ele segurava: a vaga de população, o agente do
+   * Detour, o emprego no escalonador, os alvos clicáveis e os avisos/projéteis que ele tinha no ar.
+   * Depois disto ele é invisível para `fixedUpdate`, `update`, `buildTickCache`, `separate`,
+   * `updateCameraVisibility` e `nearest` — o corpo para de custar.
+   *
+   * NÃO conta abate, NÃO paga recompensa, NÃO emite colheita e NÃO toca no chefe. Quem chama decide
+   * o que fazer com a vaga: `retire` devolve orçamento ao diretor, `recycleStrays` promete reposição.
+   */
+  private release(a:Actor):void {
+    a.active=false;a.push.setAll(0);a.direction={x:0,z:0};
+    this.world.collision.playerBodies.delete(a.id);
+    a.root.setEnabled(false);a.body.isPickable=false;
+    for(const mesh of a.target.meshes??[a.body])mesh.isPickable=false;
+    this.scheduler.remove(a.id);this.tactical?.remove(a.id);
+    this.cancelEffectsOf(a.id);
+  }
+  /**
+   * Avisos e projéteis órfãos do corpo que saiu. Sem isto uma faixa ou uma bomba de quem foi
+   * recolhido continuava viva, ocupando slot do pool e — no caso do aviso com dano — ferindo o
+   * jogador em nome de um hostil que não existe mais. Mesmo protocolo de liberação que o vencimento
+   * natural usa: desativar e desligar a malha, que devolve o mesh auxiliar ao pool.
+   */
+  private cancelEffectsOf(owner:number):void {
+    for(const w of this.effects.warnings)if(w.active&&w.owner===owner){w.active=false;w.remaining=0;w.damage=0;w.pulses=0;w.mesh.setEnabled(false);}
+    for(const p of this.effects.projectiles)if(p.active&&p.owner===owner){p.active=false;p.mesh.setEnabled(false);}
+  }
+  /** Aposentadoria pura: o corpo sai e a vaga vira orçamento do diretor, que repõe no ritmo dele. */
+  private retire(a:Actor):void {this.director.retireLivingEnemy();this.release(a);}
+  /**
+   * Reciclagem por distância — o que resolve a horda que atravessa o arquipélago atrás do jogador.
+   *
+   * Recolhe TODOS os retardatários além da coleira no mesmo quadro (parar o trabalho caro é o
+   * objetivo, e um corpo a 72 m não está fazendo nada que o jogador possa ver) e devolve UM por
+   * intervalo, perto do jogador, pelo mesmo anel e pelas mesmas validações de piso do diretor.
+   *
+   * A vaga recolhida nunca evapora: ou volta como corpo novo perto do jogador — e aí a cota da onda
+   * e os créditos da expedição não mudam, porque a população continua a mesma — ou é devolvida ao
+   * diretor por `retireLivingEnemy`, que é exatamente a contabilidade que o modo horda (`spawned`)
+   * e a expedição (crédito) já sabem tratar. Abate, XP, ouro, colheita e o chefe ficam de fora.
+   */
+  private recycleStrays(dt:number):void {
+    const leash=STRAY_DISTANCE*STRAY_DISTANCE;
+    for(const a of this.actors){
+      if(!a.active||a.health.dead||a.kind==='boss')continue;
+      if(this.distanceSquared(a.root.position,this.player.position)<=leash)continue;
+      const kind=a.kind;
+      this.release(a);this.strays++;
+      // A fila de reposição nunca passa do teto: mais do que isso é população que não caberia de volta.
+      if(this.replacements.length<this.populationCap)this.replacements.push(kind);
+      else this.director.retireLivingEnemy();
+    }
+    // Reservas também contam como população; fim de fase/morte nunca pode gerar reforços.
+    if(this.director.stopped||this.player.hp<=0){
+      for(const _kind of this.replacements)this.director.retireLivingEnemy();
+      this.replacements.length=0;return;
+    }
+    this.replacementClock=Math.max(0,this.replacementClock-dt);
+    if(!this.replacements.length||this.replacementClock>0)return;
+    this.replacementClock=STRAY_REPLACEMENT_INTERVAL;
+    const kind=this.replacements.shift()!;
+    // Sem vaga livre (ou sem piso válido no anel) a reposição vira orçamento: o diretor decide quando.
+    if(this.count<this.populationCap&&this.spawn(kind))this.recycled++;
+    else this.director.retireLivingEnemy();
+  }
   updateBudget(dt:number,frameMs:number):void {
     if(this.benchmark)return;this.budget.update(dt,frameMs);this.populationCap=this.budget.limit;
+    this.recycleStrays(dt);
     this.retirementClock-=dt;if(this.count<=this.populationCap||this.retirementClock>0)return;
-    const actor=this.farthestRetirable(18);
-    if(actor){this.director.retireLivingEnemy();actor.active=false;actor.root.setEnabled(false);actor.body.isPickable=false;this.scheduler.remove(actor.id);this.tactical?.remove(actor.id);this.retirementClock=1;}
+    const actor=this.farthestRetirable(RETIREMENT_DISTANCE);
+    if(actor){this.retire(actor);this.retirementClock=1;}
   }
   updateCameraVisibility(camera:Vec3,dt:number):void {for(const a of this.actors){if(!a.active)continue;const d=this.distance(a.root.position,camera);const desired=d<ENEMIES[a.kind].radius*ENEMY_AFFIXES[a.variant].scale+.9?0:1;for(const mesh of a.target.meshes??[a.body])mesh.visibility=Math.abs(desired-mesh.visibility)<.01?desired:mesh.visibility+(desired-mesh.visibility)*Math.min(1,dt*14);}}
   /**
@@ -231,7 +324,7 @@ export class EnemySwarm {
   spawn(kind:EnemyKind,position?:Vec3,variant:EnemyVariant=kind==='boss'?'normal':chooseVariant(this.rng.stream('elite').next(),this.director.time)):boolean {
     if(kind==='boss'&&this.boss&&!this.boss.health.dead)return true;
     if(!this.ready||(this.count>=this.populationCap&&kind!=='boss'))return false;const at=position??this.spawnPosition();if(!at)return false;
-    if(this.count>=this.populationCap){const retired=this.farthestRetirable(0);if(!retired)return false;this.director.retireLivingEnemy();retired.active=false;this.scheduler.remove(retired.id);this.tactical?.remove(retired.id);retired.root.setEnabled(false);for(const mesh of retired.target.meshes??[retired.body])mesh.isPickable=false;}
+    if(this.count>=this.populationCap){const retired=this.farthestRetirable(0);if(!retired)return false;this.retire(retired);}
     const definition=ENEMIES[kind],affix=ENEMY_AFFIXES[variant];let actor=this.actors.find(a=>!a.active&&a.kind===kind);
     if(!actor){const container=this.containers.get(definition.model);if(!container)return false;const instance=container.instantiateModelsToScene(n=>`enemy-${this.nextId}-${n}`,false,{doNotInstantiate:true});const root=new TransformNode(`enemy-${this.nextId}`,this.scene),visual=new TransformNode(`enemy-visual-${this.nextId}`,this.scene);visual.parent=root;for(const node of instance.rootNodes)node.parent=visual;
       const meshes=visual.getChildMeshes();const body=meshes.filter(x=>x.getTotalVertices()>0).sort((a,b)=>b.getTotalVertices()-a.getTotalVertices())[0] as Mesh|undefined;if(!body){root.dispose();return false;}
@@ -269,7 +362,7 @@ export class EnemySwarm {
     // O empurrão continua sendo TANGENTE ao chão onde o corpo está: no plano isso é zerar `y`, na
     // esfera é remover a componente radial. Um empurrão com componente vertical arrancaria a praga
     // do convés, e ela não tem integração vertical em nenhum estado vivo.
-    if(force>.5){this.space.tangentInto(a.root.position,context.forceDirection,work0);a.push.set(work0.x*force,work0.y*force,work0.z*force);}
+    if(force>.5){this.space.tangentInto(a.root.position,context.forceDirection,work0);work0.normalize();a.push.set(work0.x*force,work0.y*force,work0.z*force);}
     if(stagger){a.stagger=.18;a.staggerCooldown=.85;if(a.state==='windup'){a.state='chase';a.time=0;a.cooldown=.4;}}
     this.audio?.enemy('hit',a.kind,this.distance(a.root.position,this.player.position));this.space.lift(a.root.position,1.8,work0);this.labels.push({position:{x:work0.x,y:work0.y,z:work0.z},amount:Math.round(finalDamage),crit:applied.crit,time:.7});if(this.labels.length>32)this.labels.shift();
     this.procs.onHit(context,{burn:seconds=>{a.burn=seconds;a.burnClock=0;this.effects.burst(a.root.position,'seed');},blast:radius=>{this.effects.burst(a.root.position,'seed',2);for(const other of this.actors)if(other!==a&&other.active&&!other.health.dead&&this.distance(other.root.position,a.root.position)<radius)this.hit(other,{...applied,victimId:other.id,baseDamage:finalDamage*.5,finalDamage:finalDamage*.5,procChainDepth:1,sourceProcId:'bomb'});}});
@@ -315,14 +408,21 @@ export class EnemySwarm {
     if(a.state!=='chase'||a.push.lengthSquared()>.25)return;const p=this.player.position,d=this.distance(a.root.position,p),def=ENEMIES[a.kind];
     a.direction=this.navigation?this.navigation.direction(a.root.position,p):this.space.radial&&!this.tactical?this.headingToward(a.root.position,p):{x:0,z:0};
     const behavior=ENEMY_BEHAVIORS[a.kind],ranged=Boolean(behavior.ranged);
+    /**
+     * Alcance de ENGAJAMENTO do ataque que vem a seguir, e não mais o `range` único de catálogo.
+     * Para quem atira os dois números são o mesmo (o posto de tiro continua idêntico); para quem
+     * bate, é o impulso que a faixa do windup desenha — o chefe deixou de anunciar uma varredura de
+     * 7 m parado a 18 m do jogador. Consultado ANTES de `a.attack++`, que é o contrato do `engage`.
+     */
+    const engagement=behavior.engage(a);
     if(this.tactical)this.tactical.target(a.id,p,this.tick.rank(a.id),ranged,def.speed*ENEMY_AFFIXES[a.variant].speed);
-    if(behavior.ranged){if(d<def.range*.55){a.direction.x*=-1;a.direction.z*=-1;if(a.direction.y!==undefined)a.direction.y*=-1;}else if(d<def.range)a.direction={x:0,z:0};}
+    if(behavior.ranged){if(d<engagement*.55){a.direction.x*=-1;a.direction.z*=-1;if(a.direction.y!==undefined)a.direction.y*=-1;}else if(d<engagement)a.direction={x:0,z:0};}
     if(behavior.zigzag&&d>2&&d<10)this.space.rotateHeading(a.root.position,a.direction,Math.sin(this.director.time*3+a.id)*.65);
     a.cooldown=Math.max(0,a.cooldown-dt);
     // Alcance, altura, recarga e lotação são testes aritméticos; a varredura de linha de visão é a cara
     // do conjunto e agora só roda para quem já passou por todos eles — o `&&` avalia na ordem escrita.
     // A porta de altura é a diferença na vertical LOCAL: em `+Y` na fazenda, radial no planeta.
-    if(!(d<=def.range&&Math.abs(this.space.heightGap(p,a.root.position))<3&&a.cooldown===0&&this.tick.windups(ranged)<(ranged?4:3)))return;
+    if(!(d<=engagement&&Math.abs(this.space.heightGap(p,a.root.position))<3&&a.cooldown===0&&this.tick.windups(ranged)<(ranged?4:3)))return;
     this.space.lift(a.root.position,1.1,work0);
     workVec.x=p.x-a.root.position.x;workVec.y=p.y-a.root.position.y;workVec.z=p.z-a.root.position.z;
     if(this.space.sweepTime(work0,workVec,.05)!==undefined)return;
@@ -439,7 +539,7 @@ export class EnemySwarm {
     // corpos em ilhas diferentes têm gravidades diferentes, e é isso que a correção por corpo dá.
     // Na fazenda ninguém chama isto e a gravidade do ragdoll segue `(0,−18,0)`, intacta.
     if(this.radial)this.ragdolls.applyLocalGravity(this.localDown,dt);
-    if(!this.ready||this.player.hp<=0)return;this.burning.update(dt,(owner,amount)=>{this.player.applyDamage({...this.damageContext(owner,amount,this.player.position,'incendiary_burn'),forceMagnitude:0,damageTags:['enemy','fire','dot']});});this.initialize();this.navigation?.update(this.player.position);this.buildTickCache();this.scheduler.update(dt);this.tactical?.step(dt,this.player.position);this.director.update(dt,this.kills,this.count,kind=>this.spawn(kind),this.populationCap);if(this.bossDeadTime>=0)this.bossDeadTime+=dt;
+    if(!this.ready||this.player.hp<=0)return;this.burning.update(dt,(owner,amount)=>{this.player.applyDamage({...this.damageContext(owner,amount,this.player.position,'incendiary_burn'),forceMagnitude:0,damageTags:['enemy','fire','dot']});});this.initialize();this.navigation?.update(this.player.position);this.buildTickCache();this.scheduler.update(dt);this.tactical?.step(dt,this.player.position);this.director.update(dt,this.kills,this.count+this.replacements.length,kind=>this.spawn(kind),this.populationCap);if(this.bossDeadTime>=0)this.bossDeadTime+=dt;
     let undriven=0;
     for(const a of this.actors){if(!a.active)continue;a.time+=dt;a.hit=Math.max(0,a.hit-dt);a.stagger=Math.max(0,a.stagger-dt);a.staggerCooldown=Math.max(0,a.staggerCooldown-dt);
       if(a.state==='dead'&&a.ragdoll){if(a.time>7){this.ragdolls.release(a.ragdoll);a.active=false;a.root.setEnabled(false);}continue;}
@@ -463,7 +563,7 @@ export class EnemySwarm {
       const driven=this.tactical?this.tactical.position(a.id):undefined;
       if(!driven)undriven++;
       if(driven&&(a.state!=='chase'||a.push.lengthSquared()>.25))this.settleAt(a,driven);
-      if(a.push.lengthSquared()>.25){if(driven)this.tactical!.velocity(a.id,a.push,a.push.length());else this.space.slide(a.root.position,{x:a.push.x*dt,y:a.push.y*dt,z:a.push.z*dt},ENEMIES[a.kind].radius,1.8,.5);a.push.scaleInPlace(Math.exp(-dt*8));continue;}
+      if(a.push.lengthSquared()>.25){if(driven)this.tactical!.velocity(a.id,a.push,a.push.length(),true);else this.space.slide(a.root.position,{x:a.push.x*dt,y:a.push.y*dt,z:a.push.z*dt},ENEMIES[a.kind].radius,1.8,.5);a.push.scaleInPlace(Math.exp(-dt*8));continue;}
       if(a.state==='windup'){this.space.towardInto(a.root.position,this.player.position,work0);this.space.face(a.root,a.facing,a.root.position,work0,Math.min(1,dt*10));if(a.time>=behavior.windup){this.attack(a);a.state='recover';a.time=0;}continue;}
       let speed=ENEMIES[a.kind].speed*ENEMY_AFFIXES[a.variant].speed;if(a.state==='recover'){speed=behavior.recoverySpeed(a);if(speed&&this.distance(a.root.position,this.player.position)<ENEMIES[a.kind].radius+.55){this.player.applyDamage({...this.damageContext(a.id,behavior.contactDamage,this.player.position,a.kind+'_rush'),forceMagnitude:a.kind==='eggplant'?10:6});a.direction={x:0,z:0};}if(a.time>1.15){a.state='chase';a.time=0;a.cooldown=a.kind==='boss'?1.7:1.5+(a.id%5)*.17;}}
       if(driven){if(a.state==='recover')this.tactical!.velocity(a.id,{x:a.direction.x*speed,y:(a.direction.y??0)*speed,z:a.direction.z*speed},speed,speed>0);const v=this.tactical!.motion(a.id);this.settleAt(a,driven);if(v&&this.space.planarSpeed(a.root.position,v)>.15)this.space.face(a.root,a.facing,a.root.position,v,Math.min(1,dt*9));continue;}
@@ -554,7 +654,7 @@ export class EnemySwarm {
       a.palette.sync();a.root.computeWorldMatrix(true);
     }
   }
-  dispose():void {this.fragments.dispose();this.lasers.dispose();for(const l of this.chargeLights)l.dispose();this.elemental.dispose();this.burning.clear();this.ragdolls.clear();this.tactical?.dispose();this.debris.clear();this.disposed=true;this.scheduler.clear();this.effects.clear();for(const a of this.actors){this.world.collision.playerBodies.delete(a.id);const i=this.world.targets.indexOf(a.target);if(i>=0)this.world.targets.splice(i,1);for(const clip of a.clips.values())clip.dispose();a.root.dispose();}for(const container of this.containers.values())container.dispose();this.actors.length=0;this.byId.clear();this.tick.clear();this.separationBuckets.clear();this.separationPool.length=0;this.nearestSlots.length=0;this.shadowCasters.length=0;this.chargeLightTargets.length=0;}
+  dispose():void {this.fragments.dispose();this.lasers.dispose();for(const l of this.chargeLights)l.dispose();this.elemental.dispose();this.burning.clear();this.ragdolls.clear();this.tactical?.dispose();this.debris.clear();this.disposed=true;this.scheduler.clear();this.effects.clear();for(const a of this.actors){this.world.collision.playerBodies.delete(a.id);const i=this.world.targets.indexOf(a.target);if(i>=0)this.world.targets.splice(i,1);for(const clip of a.clips.values())clip.dispose();a.root.dispose();}for(const container of this.containers.values())container.dispose();this.actors.length=0;this.byId.clear();this.replacements.length=0;this.tick.clear();this.separationBuckets.clear();this.separationPool.length=0;this.nearestSlots.length=0;this.shadowCasters.length=0;this.chargeLightTargets.length=0;}
 }
 
 

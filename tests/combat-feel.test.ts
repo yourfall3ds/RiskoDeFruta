@@ -28,3 +28,14 @@ describe('ricochet fan ballistics',()=>{
  it('reflects on a thin wall and cannot cross it even with a long update',()=>{let hits=0;const fan=new RicochetFan(ray=>{const d=(2-ray.origin.z)/ray.direction.z;if(ray.direction.z>0&&d>=0&&d<=ray.length)return{point:ray.origin.add(ray.direction.scale(d)),normal:new Vector3(0,0,-1),distance:d};},()=>hits++,()=>{});fan.launch(Vector3.Zero(),Vector3.Forward(),4);fan.update(.2);expect(hits).toBe(1);expect(fan.bullets[0]!.position.z).toBeLessThan(2);expect(fan.bullets[0]!.direction.z).toBeLessThan(0);});
  it('hits an enemy once per bullet and limits the number of ricochets',()=>{let hits=0;const fan=new RicochetFan((ray,ignore)=>ignore.has(7)?undefined:{point:ray.origin.add(ray.direction.scale(.1)),normal:ray.direction.negate(),distance:.1,targetId:7},()=>hits++,()=>{});fan.launch(Vector3.Zero(),Vector3.Forward(),4);for(let i=0;i<30;i++)fan.update(frame);expect(hits).toBe(1);let contacts=0;const trapped=new RicochetFan(ray=>({point:ray.origin.add(ray.direction.scale(.05)),normal:ray.direction.negate(),distance:.05}),()=>contacts++,()=>{});trapped.launch(Vector3.Zero(),Vector3.Forward(),4);trapped.update(frame);expect(contacts).toBe(3);expect(trapped.bullets).toHaveLength(0);});
 });
+
+
+it('gives direct melee weight resistance without amplifying copied item procs',()=>{
+ const hit={...damage('unarmed_right-cross',4),damageTags:['melee']};
+ const normal=enemyImpact(hit,'normal','eggplant',0);
+ expect(normal.force).toBeGreaterThan(6);expect(normal.stagger).toBe(true);
+ expect(enemyImpact(hit,'giant','eggplant',0).force).toBeLessThan(normal.force);
+ expect(enemyImpact(hit,'giant','boss',0).force).toBeLessThan(enemyImpact(hit,'giant','eggplant',0).force);
+ expect(enemyImpact({...hit,procChainDepth:1},'normal','eggplant',0).stagger).toBe(false);
+ expect(enemyImpact({...hit,procChainDepth:1},'normal','eggplant',0).force).toBeLessThan(1);
+});

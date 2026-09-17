@@ -196,3 +196,5 @@ body.game-menu-open:has(.play-gate.defeated) #game{visibility:visible}
 .stage-journey.journey-failed .stage-journey-step{color:#ffb79c}
 .stage-journey.journey-failed .stage-journey-track i{background:#e2704f}
 @media(max-width:900px){.stage-journey{top:16%;padding:13px 15px}.stage-journey .stage-journey-destination{font-size:17px}}
+
+body:has(#exploration-minimap:not([hidden])) .run-stats{inset:15vh auto auto 3vw;width:27vw;max-height:75vh;padding:18px;box-sizing:border-box}

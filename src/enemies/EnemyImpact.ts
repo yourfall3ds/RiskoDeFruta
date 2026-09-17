@@ -7,6 +7,10 @@ export function corpseLaunch(context:DamageContext):{x:number;y:number;z:number}
 }
 export function enemyImpact(context:DamageContext,variant:string,kind:string,cooldown:number):{force:number;stagger:boolean} {
  const regular=context.sourceId==='dual_pistols'||context.procChainDepth>0;
- const force=Math.min(10,context.forceMagnitude*(regular?.18:.65))/(variant==='giant'?3:kind==='boss'?5:1);
+ const melee=!regular&&context.damageTags.includes('melee');
+ // Direct punches move a normal enemy about 0.8 m; kicks/finishers about 1.8–2.2 m.
+ // Secondary item procs retain their reduced impulse, even when copied from a melee hit.
+ const resistance=kind==='boss'?5:variant==='giant'?3:1;
+ const force=Math.min(melee?18:10,context.forceMagnitude*(regular?.18:melee?1.6:.65))/resistance;
  return {force,stagger:!regular&&force>3&&cooldown<=0};
 }

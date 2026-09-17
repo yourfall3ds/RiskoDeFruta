@@ -1,4 +1,5 @@
-import { describe,it,expect } from 'vitest';
+import {MonsterDirector} from '../src/run/MonsterDirector';
+import { describe,it,expect,vi } from 'vitest';
 import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
 import { Scene } from '@babylonjs/core/scene';
 import { AssetContainer } from '@babylonjs/core/assetContainer';
@@ -78,3 +79,54 @@ it.each([false,true])('the Detour rush respects wall=%s while committing to play
  t.swarm.tactical=await TacticalNavigation.create(t.collision);t.swarm.spawn('eggplant',{x:0,y:0,z:6},'normal');const a=t.swarm.actors[0]!;a.state='windup';a.locked={...t.player.position};a.time=0;
  for(let i=0;i<116;i++)t.swarm.fixedUpdate(1/60);if(wall){expect(t.player.hp).toBe(130);expect(a.root.position.z).toBeGreaterThan(3.2);}else{expect(t.player.hp).toBeLessThan(130);expect(a.root.position.z).toBeLessThan(2);}
 }finally{t.close();}});
+
+
+describe('reciclagem mantém contabilidade do diretor',()=>{
+ it('reserva a população pendente, preserva chefe e não paga por inimigos removidos',async()=>{
+  const t=await setup();try{
+   t.swarm.benchmark=false;t.swarm.director=new MonsterDirector(new RunRNG('recycle').stream('director'),1,50,'expedition');
+   for(const x of [90,100,110])t.swarm.spawn('eggplant',{x,y:0,z:0});
+   t.swarm.spawn('boss',{x:120,y:0,z:0});
+   const spy=vi.spyOn(t.swarm.director,'update');
+   t.swarm.updateBudget(.01,16);
+   expect(t.swarm.strays).toBe(3);expect(t.swarm.recycled).toBe(1);
+   expect(t.swarm.boss?.active).toBe(true);
+   expect(t.run.credits).toBe(0);expect(t.run.totalKills).toBe(0);expect(t.run.xp).toBe(0);
+   t.swarm.fixedUpdate(1/60);
+   expect(spy.mock.calls[0]![2]).toBe(4); // dois ativos + duas vagas reservadas
+  }finally{t.close();}
+ });
+ it('não gera reposição depois do fim da fase e remove o corpo da colisão',async()=>{
+  const t=await setup();try{
+   t.swarm.benchmark=false;t.swarm.spawn('eggplant',{x:100,y:0,z:0});
+   const actor=t.swarm.actors[0]!;
+   t.swarm.updateBudget(.1,16);
+   expect(t.swarm.count).toBe(0);expect(t.swarm.recycled).toBe(0);
+   expect(t.collision.playerBodies.has(actor.id)).toBe(false);
+   expect(t.swarm.scheduler.size).toBe(0);
+   expect(actor.root.isEnabled()).toBe(false);
+  }finally{t.close();}
+ });
+});
+
+
+describe('physical melee knockback',()=>{
+  it('moves a living enemy away on a punch and farther on a kick without lifting it off the floor',async()=>{
+    const distances:number[]=[];
+    for(const force of [4,12]){
+      const t=await setup();
+      try{
+        t.swarm.spawn('eggplant',{x:0,y:0,z:10},'normal');
+        const a=t.swarm.actors[0]!;a.state='chase';a.cooldown=10;
+        a.target.onHit!({...damage(a.id,1),sourceId:'unarmed_test',damageTags:['melee'],forceMagnitude:force});
+        expect(a.stagger).toBeGreaterThan(0);
+        for(let i=0;i<18;i++)t.swarm.fixedUpdate(1/60);
+        distances.push(a.root.position.z-10);
+        expect(a.health.dead).toBe(false);
+        expect(a.root.position.y).toBeCloseTo(0,3);
+      }finally{t.close();}
+    }
+    expect(distances[0]).toBeGreaterThan(.55);
+    expect(distances[1]).toBeGreaterThan(distances[0]!*2);
+  });
+});

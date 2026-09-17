@@ -135,7 +135,7 @@ export class RunHUD {
  /** Porto opcional: quem passar um `FlatSurface` continua no caminho plano literal. */
  useSurface(surface:EnemySurface|undefined):void {this.surfaceOverride=radialSurfaceOf(surface);}
  constructor(){
-  this.element.id='run-hud';this.element.innerHTML='<div class="run-inventory"></div><div class="run-clock"></div><div class="run-mission"></div><aside class="expedition-route" hidden></aside><div class="harvest-resonance" hidden></div><aside class="district-contract"></aside><div class="run-boss" hidden><span>PRAGA ALFA</span><div><i></i></div><small></small></div><div class="run-xp"><span></span><div><i></i></div></div><div class="run-hostiles"></div><div class="run-interact" hidden></div><div class="run-toast"></div><div class="damage-labels"></div><div class="run-bearing"></div><div class="world-supplies"></div><div class="enemy-health-bars"></div><aside class="run-stats" hidden></aside><small class="stats-hint">TAB · ATRIBUTOS</small>';document.body.append(this.element);
+  this.element.id='run-hud';this.element.innerHTML='<div class="run-inventory"></div><div class="run-clock"></div><div class="run-mission"></div><aside class="expedition-route" hidden></aside><div class="harvest-resonance" hidden></div><aside class="district-contract"></aside><div class="run-boss" hidden><span>PRAGA ALFA</span><div><i></i></div><small></small></div><div class="run-xp"><span></span><div><i></i></div></div><div class="run-hostiles"></div><div class="run-interact" hidden></div><div class="run-toast"></div><div class="damage-labels"></div><div class="run-bearing"></div><div class="world-supplies"></div><div class="enemy-health-bars"></div><aside class="run-stats" hidden></aside><small class="stats-hint">TAB · MAPA E ATRIBUTOS</small>';document.body.append(this.element);
   const pick=(selector:string):HTMLElement=>this.element.querySelector(selector) as HTMLElement;
   this.inventory=new HtmlSlot(pick('.run-inventory'));this.bearing=new HtmlSlot(pick('.run-bearing'));this.clockPanel=new HtmlSlot(pick('.run-clock'));
   this.mission=new HtmlSlot(pick('.run-mission'));this.contract=new HtmlSlot(pick('.district-contract'));this.hostiles=new HtmlSlot(pick('.run-hostiles'));
@@ -148,9 +148,10 @@ export class RunHUD {
   this.bars=new MarkerPool(pick('.enemy-health-bars'),buildBar);
   this.damage=new MarkerPool(pick('.damage-labels'),buildLabel);
   this.supplies=new MarkerPool(pick('.world-supplies'),buildSupply);
-  window.addEventListener('keydown',event=>{if(event.code==='Tab'&&!this.element.hidden){event.preventDefault();const panel=this.statsPanel.node;panel.hidden=!panel.hidden;}},{signal:this.controls.signal});
+  window.addEventListener('keydown',event=>{if(event.code==='Tab'&&!event.repeat&&!this.element.hidden){event.preventDefault();const panel=this.statsPanel.node;panel.hidden=!panel.hidden;}},{signal:this.controls.signal});
 
  }
+ get atlasOpen():boolean{return !this.statsPanel.node.hidden;}
  setVisible(visible:boolean):void {this.element.hidden=!visible;document.getElementById('player-hud')?.classList.toggle('run-active',visible);}
  /** Nós já criados pelos três pools de marcadores. Exposto para o teste de vazamento de DOM. */
  get pooledMarkers():number {return this.bars.size+this.damage.size+this.supplies.size;}
@@ -166,7 +167,7 @@ export class RunHUD {
   const key=[...run.inventory].join();if(key!==this.inventoryKey){this.inventoryKey=key;this.inventory.set([...run.inventory].slice(0,12).map(([id,count])=>{const item=ITEMS.find(x=>x.id===id)!;return `<div title="${item.name}: ${item.description}"><i class="item-icon" style='${perkIcon(item.icon)}'></i><b>×${count}</b></div>`;}).join('')+(run.inventory.size>12?'<small class=inventory-more>+'+(run.inventory.size-12)+' ITENS · TAB</small>':''));}
   const f=camera.getForwardRay().direction,heading=(Math.atan2(f.x,f.z)*180/Math.PI+360)%360,seconds=Math.floor(run.time);
   this.bearing.set(`${['N','NE','L','SE','S','SO','O','NO'][Math.round(heading/45)%8]} · ${Math.round(heading)}°`);
-  this.clockPanel.set(`<b>◷ ${String(Math.floor(seconds/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}</b><span>ESTÁGIO ${run.stage} · ${['NORMAL','CRESCENTE','DIFÍCIL','CAÓTICA','PRAGA ALFA','FENDA'][swarm.director.state]}</span><strong>◈ ${run.credits} CRÉDITOS</strong><em class="run-weather">${expedition?.weather?.label??''}</em>`);
+  this.clockPanel.set(`<b>◷ ${String(Math.floor(seconds/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}</b><span>ESTÁGIO ${run.stage} · ${expedition?.objectives.planned?(expedition.objectives.phase==='extract'?'EMBARQUE LIBERADO':expedition.objectives.phase==='boss'?'HORDA FINAL':['NORMAL','CRESCENTE','DIFÍCIL','CAÓTICA','EXTREMA'][Math.min(4,swarm.director.state)]):['NORMAL','CRESCENTE','DIFÍCIL','CAÓTICA','PRAGA ALFA','FENDA'][swarm.director.state]}</span><strong>◈ ${run.credits} CRÉDITOS</strong><em class="run-weather">${expedition?.weather?.label??''}</em>`);
   this.renderExpedition(expedition,camera,heading);
   this.mission.set(expedition?.journey?.active?`${expedition.journey.label} · ${expedition.journey.destination}`
    :expedition?.objectives.planned?this.expeditionMission(expedition.objectives,expedition.player,heading):swarm.director.hordeMode?(swarm.director.intermission>0?'PRÓXIMA HORDA EM '+Math.ceil(swarm.director.intermission)+' s':swarm.director.wave%5===0?'ELIMINE O CHEFE E SUA HORDA':'SOBREVIVA À HORDA '+swarm.director.wave):swarm.bossDeadTime>=5?'ENTRE NA FENDA · CELEIRO':swarm.bossDeadTime>=0?'PRAGA ALFA DERROTADA':swarm.boss?'ELIMINE A PRAGA ALFA':['LOCALIZE A PRAGA ALFA','CONTENHA A INFESTAÇÃO','SOBREVIVA AO SURTO','RESISTA À COLHEITA FINAL','A PRAGA ALFA SE APROXIMA'][swarm.director.state]??'');
