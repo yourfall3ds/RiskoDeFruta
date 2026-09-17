@@ -34,7 +34,7 @@ let mode=0,busy=false;
 function state(){title.textContent=labels[mode]!;for(const b of buttons){b.disabled=busy;b.dataset.active=String(b.dataset.mode===String(mode));}}
 buttons.forEach(b=>b.disabled=true);
 try{
- const model=await LoadAssetContainerAsync('/models/weapons/prism-triform.glb?v=full-surreal-material-3',scene);model.addAllToScene();
+ const model=await LoadAssetContainerAsync('/models/weapons/prism-triform.glb?v=smooth-circles-4',scene);model.addAllToScene();
  const charge=model.transformNodes.find(node=>node.name==='FX_charge');
  const luminous=model.materials.filter((material):material is PBRMaterial=>material instanceof PBRMaterial&&material.emissiveColor.r+material.emissiveColor.g+material.emissiveColor.b>0);
  const baseline=luminous.map(material=>material.emissiveColor.clone());
@@ -77,5 +77,6 @@ try{
  status.textContent='Pronta · 9 animações';state();
 }catch(e){status.textContent='Falha ao carregar: '+String(e);}
 engine.runRenderLoop(()=>scene.render());window.addEventListener('resize',()=>engine.resize());
+
 
 

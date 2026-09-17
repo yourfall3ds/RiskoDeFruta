@@ -51,3 +51,7 @@ Textura de cor gerada com imagegen em `public/textures/weapons/prism-violet-surr
 `public/textures/weapons/prism-material-atlas.png` contém prata escovada, grafite usinado, borracha e líquido energético azul, também gerados com imagegen. Todos os nove materiais têm textura: placas e cristais usam ametista; estrutura e gravuras usam prata; mecanismos usam grafite; empunhadura usa borracha; núcleo, trilhos e célula usam líquido azul. UVs mantêm margem dentro de cada região do atlas.
 
 Núcleo, trilhos, célula e cristais usam materiais emissivos separados da armadura. A oficina intensifica o glow com o envelope de carga durante recargas e transformações e desloca suavemente a textura do líquido, sem afetar o metal. Esse movimento visual não é uma simulação de fluidos; precisa ser conectado também na futura integração ao jogo. Pausar e arrastar a barra permite inspecionar qualquer ponto de cada animação.
+
+## Superfícies circulares
+
+Lentes e cilindros usam 96 lados, anéis usam 128, com normais suaves nas paredes curvas e faces planas nas tampas. Os arcos da íris e da câmara têm 16 subdivisões por setor. Parafusos, placas e cristais mantêm suas facetas intencionais. A suavização não altera as transformações, os materiais ou a quantidade de módulos animados.

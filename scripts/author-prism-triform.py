@@ -101,13 +101,15 @@ def box(name,loc,size,material,parent=root,bevel=.025):
  bpy.ops.mesh.primitive_cube_add(size=1);o=bpy.context.object;o.location=loc;o.scale=size
  bpy.ops.object.transform_apply(location=False,rotation=False,scale=True)
  return finish(o,name,material,parent,bevel)
-def cyl(name,loc,radius,depth,material,parent=root,axis='X',vertices=32):
+def cyl(name,loc,radius,depth,material,parent=root,axis='X',vertices=96):
  bpy.ops.mesh.primitive_cylinder_add(vertices=vertices,radius=radius,depth=depth,location=loc)
  o=bpy.context.object
+ if vertices>=24:
+  for face in o.data.polygons:face.use_smooth=len(face.vertices)==4
  if axis=='X':o.rotation_euler[1]=math.pi/2
  elif axis=='Y':o.rotation_euler[0]=math.pi/2
  return finish(o,name,material,parent,.012)
-def ring(name,x,outer,inner,depth,material,parent=root,n=32):
+def ring(name,x,outer,inner,depth,material,parent=root,n=128):
  vs=[]
  for px,r in [(x-depth/2,outer),(x+depth/2,outer),(x-depth/2,inner),(x+depth/2,inner)]:
   vs.extend((px,math.sin(i*2*math.pi/n)*r,math.cos(i*2*math.pi/n)*r) for i in range(n))
@@ -115,6 +117,7 @@ def ring(name,x,outer,inner,depth,material,parent=root,n=32):
  for i in range(n):
   j=(i+1)%n;fs.extend([(i,j,n+j,n+i),(2*n+j,2*n+i,3*n+i,3*n+j),(i,2*n+i,2*n+j,j),(n+j,3*n+j,3*n+i,n+i)])
  mesh=bpy.data.meshes.new(name);mesh.from_pydata(vs,[],fs);mesh.update();o=bpy.data.objects.new(name,mesh);weapon.objects.link(o)
+ for face in mesh.polygons:face.use_smooth=face.index%4<2
  return finish(o,name,material,parent,.008)
 def line(name,points,r,material,parent=root):
  curve=bpy.data.curves.new(name,'CURVE');curve.dimensions='3D';curve.resolution_u=1;curve.bevel_depth=r;curve.bevel_resolution=2
@@ -149,7 +152,7 @@ for y in [-.325,.325]:
  cyl('Reactor gasket',(-.37,y*1.48,1.12),.39,.08,dark,axis='Y')
  cyl('Reactor silver bezel',(-.37,y*1.59,1.12),.343,.035,steel,axis='Y')
  cyl('Reactor energized lens',(-.37,y*1.67,1.12),.285,.027,cyan,axis='Y')
- cyl('Reactor centre',(-.37,y*1.73,1.12),.12,.03,white,axis='Y',vertices=16)
+ cyl('Reactor centre',(-.37,y*1.73,1.12),.12,.03,white,axis='Y')
  for j in range(3):
   pts=[]
   for i in range(13):
@@ -190,7 +193,7 @@ for side in [-1,1]:
 panel('Magazine base shoe',[(.6,-.12),(1.08,.0),(1.12,-.14),(.63,-.26)],.43,steel)
 for i in range(6):box('Upper optic rail',(-.55+i*.19,0,1.57),(.105,.28,.075),dark,bevel=.01)
 box('Scope fixed riser',(0,0,1.66),(.40,.20,.20),dark)
-for sy in [-1,1]:cyl('Scope lift piston',(0,sy*.09,1.77),.042,.30,steel,axis='Z',vertices=12)
+for sy in [-1,1]:cyl('Scope lift piston',(0,sy*.09,1.77),.042,.30,steel,axis='Z',vertices=32)
 scope=module('Optic_lift',(0,0,1.7),[(Z,Z),((.04,0,.15),Z),((-.05,0,.02),Z)])
 box('Scope foot',(0,0,0),(.65,.25,.1),steel,scope)
 cyl('Scope main tube',(.02,0,.23),.22,.6,dark,scope)
@@ -263,9 +266,12 @@ for j in range(12):
  # Small arc segment; joints open as it expands into a grenade aperture.
  pts=[]
  for x,r in [(-.015,.247),(.025,.247),(-.015,.216),(.025,.216)]:
-  pts += [(x,math.sin(t)*r,math.cos(t)*r) for t in [-.22,0,.22]]
- fs=[(0,1,4,3),(1,2,5,4),(6,9,10,7),(7,10,11,8),(3,4,10,9),(4,5,11,10),(0,6,7,1),(1,7,8,2),(0,3,9,6),(2,8,11,5)]
+  pts += [(x,math.sin(t)*r,math.cos(t)*r) for t in [-.22+i*.44/16 for i in range(17)]]
+ n=17;fs=[]
+ for k in range(n-1):fs.extend([(k,k+1,k+1+n,k+n),(k+2*n+1,k+2*n,k+3*n,k+3*n+1),(k,k+2*n,k+2*n+1,k+1),(k+n+1,k+3*n+1,k+3*n,k+n)])
+ fs.extend([(0,n,3*n,2*n),(n-1,3*n-1,4*n-1,2*n-1)])
  mesh=bpy.data.meshes.new('iris arc');mesh.from_pydata(pts,[],fs);mesh.update();o=bpy.data.objects.new('Iris luminous sector',mesh);weapon.objects.link(o);finish(o,o.name,cyan,iris)
+ for face in mesh.polygons:face.use_smooth=face.index<4*(n-1) and face.index%4<2
 
 # Armoured iris barrel: twelve overlapping sleeve sectors unfold into the launcher drum.
 for j in range(12):
@@ -273,15 +279,17 @@ for j in range(12):
  sleeve=module('Grenade_chamber_sector_%02d'%j,(2.30,0,1.13),[(Z,(a,0,0),(1,.38,.38)),((1.64,0,0),(a,0,0),(1,.30,.30)),(Z,(a,0,0),(1,1,1))])
  vs=[]
  for px,r in [(-.55,.70),(.51,.75),(-.55,.61),(.51,.67)]:
-  vs.extend((px,math.sin(t)*r,math.cos(t)*r) for t in [-.27,-.135,0,.135,.27])
+  vs.extend((px,math.sin(t)*r,math.cos(t)*r) for t in [-.27+i*.54/16 for i in range(17)])
  fs=[]
- for k in range(4):
-  fs.extend([(k,k+1,k+6,k+5),(k+11,k+10,k+15,k+16),(k,k+10,k+11,k+1),(k+6,k+16,k+15,k+5)])
- fs.extend([(0,5,15,10),(4,14,19,9)])
+ n=17
+ for k in range(n-1):
+  fs.extend([(k,k+1,k+n+1,k+n),(k+2*n+1,k+2*n,k+3*n,k+3*n+1),(k,k+2*n,k+2*n+1,k+1),(k+n+1,k+3*n+1,k+3*n,k+n)])
+ fs.extend([(0,n,3*n,2*n),(n-1,3*n-1,4*n-1,2*n-1)])
  mesh=bpy.data.meshes.new('Layered launcher sector');mesh.from_pydata(vs,[],fs);mesh.update()
+ for face in mesh.polygons:face.use_smooth=face.index<4*(n-1) and face.index%4<2
  o=bpy.data.objects.new('Launcher armoured chamber',mesh);weapon.objects.link(o);finish(o,o.name,dark,sleeve,.01)
- line('Chamber luminous internal edge',[(.52,math.sin(t)*.694,math.cos(t)*.694) for t in [-.255,-.13,0,.13,.255]],.014,cyan,sleeve)
- line('Chamber silver outer rim',[(.51,math.sin(t)*.75,math.cos(t)*.75) for t in [-.27,-.135,0,.135,.27]],.02,steel,sleeve)
+ line('Chamber luminous internal edge',[(.52,math.sin(t)*.694,math.cos(t)*.694) for t in [-.255+i*.51/16 for i in range(17)]],.014,cyan,sleeve)
+ line('Chamber silver outer rim',[(.51,math.sin(t)*.75,math.cos(t)*.75) for t in [-.27+i*.54/16 for i in range(17)]],.02,steel,sleeve)
 
 # Mount sockets are stable in all forms; gameplay can use per-mode muzzle sockets.
 empty('SOCKET_hand_R',root,(0,0,.35));empty('SOCKET_hand_L',root,(1.2,0,.8))
