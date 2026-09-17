@@ -3,12 +3,12 @@ from pathlib import Path
 import numpy as np, wave, json
 ROOT=Path(__file__).resolve().parents[1];OUT=ROOT/'public/audio/prism';OUT.mkdir(parents=True,exist_ok=True)
 SR=48000;rng=np.random.default_rng(715)
-def foley(path,duration,pitch=1):
+def foley(path,duration,pitch=1,offset=0):
  with wave.open(str(ROOT/'public/audio'/path),'rb') as w:
   width=w.getsampwidth();assert width in (2,4),path
   x=np.frombuffer(w.readframes(w.getnframes()),dtype='<i2' if width==2 else '<i4').astype(float)/(2**(width*8-1))
   x=x.reshape(-1,w.getnchannels()).mean(axis=1);rate=w.getframerate()
- x=np.interp(np.arange(int(duration*SR))*rate*pitch/SR,np.arange(len(x)),x,left=0,right=0)
+ x=np.interp(np.arange(int(duration*SR))*rate*pitch/SR+offset*rate,np.arange(len(x)),x,left=0,right=0)
  return x/(max(.05,np.max(np.abs(x))))
 def noise(t,low,high):
  x=rng.normal(0,1,len(t));f=np.fft.rfftfreq(len(x),1/SR);s=np.fft.rfft(x)
@@ -46,7 +46,10 @@ def save(name,duration,kind):
   for f,a in [(980,.13),(1586,.085),(2520,.045)]:x+=a*np.sin(2*np.pi*f*t)*np.exp(-t/decay)
  elif kind=='assault':x=.58*foley('pistol-1.wav',duration,1.15)+.30*noise(t,280,6500)*np.exp(-t/ .065)+.25*tone(t,900,145,.08)
  elif kind=='sniper':x=.60*foley('pistol-4.wav',duration,.8)+.38*tone(t,1300,100,.17)+.3*noise(t,600,8500)*np.exp(-t/.22)
- elif kind=='grenade':x=.62*foley('combat/launch.wav',duration,.75)+.46*tone(t,165,48,.16)+.18*noise(t,90,1800)*np.exp(-t/.20)
+ elif kind=='grenade':
+  # Preserve the legacy generator's RNG sequence for all unrelated sounds.
+  noise(t,90,1800)
+  x=.8*foley('prism/source/launcher-boom.wav',duration,1,.20)*np.exp(-t/.19)
  elif kind=='explosion':x=.6*foley('combat/punch-heavy.wav',duration,.65)+.65*noise(t,25,1400)*np.exp(-t/.38)+.42*tone(t,95,32,.4)
  elif kind.startswith('impact'):x=.36*foley('combat/punch-hit.wav',duration,1.15)+.4*noise(t,400,6000)*np.exp(-t/.08)+.16*tone(t,1200,260,.12)
  elif kind=='servo':x=.4*noise(t,200,1800)*np.sin(np.pi*t/duration)**1.2+.13*np.sin(2*np.pi*(170*t+100*t*t))*(np.sin(np.pi*t/duration)**2)
@@ -63,5 +66,13 @@ def save(name,duration,kind):
 spec=[('assault',.30,'assault'),('sniper',.75,'sniper'),('grenade',.48,'grenade'),('impact-small',.23,'impact'),('impact-ion',.42,'impact-ion'),('explosion',1.1,'explosion'),('unlock',.16,'unlock'),('servo',.60,'servo'),('lock',.22,'lock'),('eject',.20,'unlock'),('insert',.25,'lock'),('tech-unlock',.18,'tech-unlock'),('tech-servo',.68,'tech-servo'),('tech-lock',.30,'tech-lock')]
 spec += [(name,2.1,name) for name in ['alien-pulse','alien-organic','alien-crystal','alien-portal']]
 report=[save(*entry) for entry in spec]
+# Recorded explosion from the user's earlier game replaces the punch-based impact.
+# Render after the synthetic bank so every other sound remains deterministic.
+explosion=foley('prism/source/grenade-explosion.wav',2.72,1)
+explosion*=np.minimum(np.arange(len(explosion))/(SR*.004),1)*np.minimum(np.arange(len(explosion))[::-1]/(SR*.06),1)
+explosion*=.76/max(.76,np.max(np.abs(explosion)))
+with wave.open(str(OUT/'explosion.wav'),'wb') as w:
+ w.setnchannels(2);w.setsampwidth(2);w.setframerate(SR);w.writeframes((np.repeat(explosion[:,None],2,axis=1)*32767).astype('<i2').tobytes())
+report=[entry if entry['name']!='explosion' else {'name':'explosion','seconds':2.72,'peak':float(np.max(np.abs(explosion))),'rms':float(np.sqrt(np.mean(explosion**2)))} for entry in report]
 (OUT/'manifest.json').write_text(json.dumps({'source':'Existing project pistol, reload, launch and punch foley; original offline energy design. No downloaded audio.','sounds':report},indent=2))
 print(json.dumps(report,indent=2))

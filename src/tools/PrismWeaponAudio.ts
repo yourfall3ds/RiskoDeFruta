@@ -9,7 +9,7 @@ export class PrismWeaponAudio{
  constructor(){this.gain.gain.value=.45;this.gain.connect(this.context.destination);}
  async load(){
   const names:PrismSound[]=['assault','sniper','grenade','impact-small','impact-ion','explosion','unlock','servo','lock','eject','insert','tech-unlock','tech-lock',...TRANSFORM_SOUNDS];
-  await Promise.all(names.map(async name=>{const r=await fetch(`/audio/prism/${name}.wav`);if(!r.ok)throw new Error(`Áudio ausente: ${name}`);this.buffers.set(name,await this.context.decodeAudioData(await r.arrayBuffer()));}));
+  await Promise.all(names.map(async name=>{const r=await fetch(`/audio/prism/${name}.wav${name==='grenade'||name==='explosion'?'?v=recorded-3':''}`);if(!r.ok)throw new Error(`Áudio ausente: ${name}`);this.buffers.set(name,await this.context.decodeAudioData(await r.arrayBuffer()));}));
  }
  async resume(){await this.context.resume();}
  volume(value:number){this.gain.gain.value=Math.max(0,Math.min(1,value));}
