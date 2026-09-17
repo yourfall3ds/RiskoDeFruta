@@ -14,6 +14,7 @@ export default defineConfig({
       input: {
         main: resolve(__dirname, 'index.html'),
         'audio-lab': resolve(__dirname, 'audio-lab.html'),
+        'weapon-lab': resolve(__dirname, 'weapon-lab.html'),
       },
     },
   },
