@@ -90,7 +90,11 @@ try{
   const sequence:Array<[number,PrismSound]>=name.endsWith('Reload')?[[.10,'eject'],[.34,'servo'],[.9,'insert'],[.97,'lock']]:name.includes('_to_')?[[0,transformSound]]:[[0,(['assault','sniper','grenade'] as const)[mode]!]];
   cues=sequence.map(([at,sound])=>({at,sound,played:false}));
   active=group;pause.disabled=false;scrub.disabled=false;pause.textContent='Pausar';scrub.value='0';
-  group.onAnimationGroupEndObservable.addOnce(()=>{for(const cue of cues)if(!cue.played&&cue.at>=.85){cue.played=true;audio.play(cue.sound,speed());}active=undefined;pause.disabled=true;scrub.disabled=true;pause.textContent='Pausar';resolve();});group.start(false,rate*Number(document.querySelector<HTMLSelectElement>('#speed')!.value),group.from,group.to);
+  group.onAnimationGroupEndObservable.addOnce(()=>{
+   if(name.includes('_to_'))audio.stop();
+   else for(const cue of cues)if(!cue.played&&cue.at>=.85){cue.played=true;audio.play(cue.sound,speed());}
+   active=undefined;pause.disabled=true;scrub.disabled=true;pause.textContent='Pausar';resolve();
+  });group.start(false,rate*Number(document.querySelector<HTMLSelectElement>('#speed')!.value),group.from,group.to);
  });
  async function perform(action:()=>Promise<void>){if(busy)return;busy=true;state();try{await audio.resume();await action();status.textContent='Pronta · 9 animações';}catch(e){status.textContent=String(e);}finally{busy=false;state();}}
  for(const button of buttons.filter(b=>b.dataset.mode!==undefined))button.onclick=()=>void perform(async()=>{
