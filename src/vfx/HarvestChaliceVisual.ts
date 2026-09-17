@@ -69,6 +69,8 @@ export class HarvestChaliceVisual {
   private live=0;
   private readonly rimLocal=new Vector3(0,CHALICE_RIM_HEIGHT,0);
   private readonly rimWorld=new Vector3();
+  private readonly liquidWorld=new Vector3();
+  private readonly dropUp=new Vector3();
   private target=0;
   private shown=0;
   private pulseTime=0;
@@ -105,18 +107,22 @@ export class HarvestChaliceVisual {
 
   /** Onde as gotas devem cair, em mundo. Útil para o áudio/VFX de quem integra. */
   rimPoint(out=new Vector3()):Vector3{
-    out.copyFrom(this.rimLocal).scaleInPlace(this.scale).addInPlace(this.root.position);
+    Vector3.TransformCoordinatesToRef(this.rimLocal,this.root.computeWorldMatrix(true),out);
     return out;
   }
 
   /** Altura em mundo da superfície do suco para uma fração 0..1. */
-  surfaceHeight(fill=this.shown):number{
+  surfaceHeight(fill=this.shown):number{return this.surfacePoint(fill).y;}
+
+  surfacePoint(fill=this.shown,out=new Vector3()):Vector3{
     const levels=CHALICE_FILL_LEVELS;
     const p=Math.min(1,Math.max(0,fill))*(levels.length-1);
     const index=Math.min(levels.length-2,Math.floor(p));
     const u=p-index;
     const low=levels[index]??levels[0],high=levels[index+1]??low;
-    return this.root.position.y+(low+(high-low)*u)*this.scale;
+    out.set(0,low+(high-low)*u,0);
+    Vector3.TransformCoordinatesToRef(out,this.root.computeWorldMatrix(true),out);
+    return out;
   }
 
   /** Nível autoritativo do marco (suco/meta). Guardado e reaplicado quando o GLB chegar. */
@@ -252,7 +258,8 @@ export class HarvestChaliceVisual {
     const droplet=this.droplet;
     if(!droplet)return;
     const rim=this.rimPoint(this.rimWorld);
-    const drown=rim.y-this.surfaceHeight();
+    const liquid=this.surfacePoint(this.shown,this.liquidWorld);
+    Vector3.TransformNormalToRef(Vector3.UpReadOnly,this.root.computeWorldMatrix(true),this.dropUp);this.dropUp.normalize();
     let written=0;
     for(let i=this.live-1;i>=0;i--){
       const drop=this.pool[i],last=this.pool[this.live-1];
@@ -266,8 +273,8 @@ export class HarvestChaliceVisual {
         continue;
       }
       this.position.set(drop.from.x+(rim.x-drop.from.x)*t,drop.from.y+(rim.y-drop.from.y)*t,drop.from.z+(rim.z-drop.from.z)*t);
-      this.position.y+=Math.sin(Math.PI*t)*DROP_ARC*this.scale;
-      this.position.y-=Math.max(0,t-.82)/.18*drown;
+      const arc=Math.sin(Math.PI*t)*DROP_ARC*this.scale,dip=Math.max(0,t-.82)/.18;
+      this.position.addInPlaceFromFloats(this.dropUp.x*arc+(liquid.x-rim.x)*dip,this.dropUp.y*arc+(liquid.y-rim.y)*dip,this.dropUp.z*arc+(liquid.z-rim.z)*dip);
       const size=drop.size*this.scale*(1.15-.35*t);
       this.scaling.set(size,size*(1+.45*t),size);
       Quaternion.RotationYawPitchRollToRef(drop.spin+t*2.4,Math.PI*.5*t,0,this.rotation);

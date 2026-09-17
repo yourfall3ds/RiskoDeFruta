@@ -88,7 +88,9 @@ export class ExpeditionSites {
       for(const totem of totems){
         this.visuals.push(this.build(totem));
         const chalice=new HarvestChaliceVisual(this.scene);
-        chalice.place(totem.site.position);this.chalices.push(chalice);
+        chalice.place(totem.site.position);
+        if(this.surface)this.surface.orient(chalice.root,totem.site.position,this.surface.basis(totem.site.position,{x:0,y:0,z:1}).forward);
+        this.chalices.push(chalice);
         // Each cup owns its morph targets; cloned managers would fill all four cups at once.
         void chalice.load().then(ready=>{
           if(this.disposed)return;

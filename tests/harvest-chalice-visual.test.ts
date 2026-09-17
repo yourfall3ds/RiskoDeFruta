@@ -1,3 +1,4 @@
+import {Quaternion,Vector3} from '@babylonjs/core/Maths/math.vector';
 import {describe,it,expect} from 'vitest';
 import {readFileSync} from 'node:fs';
 import {NullEngine} from '@babylonjs/core/Engines/nullEngine';
@@ -204,4 +205,21 @@ describe('harvest chalice visual module',()=>{
    chalice.dispose();
   } finally {scene.dispose();engine.dispose();}
  });
+});
+
+
+it('keeps the authored cup and juice endpoints above a sideways or inverted planet surface',async()=>{
+ const {chalice,close}=await stage();
+ try{
+  await chalice.load();
+  for(const up of [new Vector3(1,0,0),new Vector3(0,-1,0),new Vector3(0,0,-1)]){
+   const origin=up.scale(200);chalice.place(origin);
+   chalice.root.rotationQuaternion=Quaternion.FromUnitVectorsToRef(Vector3.Up(),up,Quaternion.Identity());
+   const rim=chalice.rimPoint().subtract(origin),liquid=chalice.surfacePoint(.5).subtract(origin);
+   expect(Vector3.Dot(rim,up)).toBeGreaterThan(1);
+   expect(Vector3.Dot(liquid,up)).toBeGreaterThan(0);
+   expect(Vector3.Dot(liquid,up)).toBeLessThan(Vector3.Dot(rim,up));
+   expect(Vector3.Cross(rim,up).length()).toBeLessThan(.001);
+  }
+ }finally{close();}
 });
