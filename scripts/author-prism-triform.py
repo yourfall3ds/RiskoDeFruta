@@ -147,21 +147,14 @@ panel('Receiver titanium skeleton',[(-.95,.72),(-1.0,1.23),(-.7,1.53),(.67,1.53)
 for y in [-.325,.325]:
  panel('Receiver silver frame',[(-.89,.83),(-.78,1.38),(-.45,1.53),(.62,1.47),(.91,1.25),(.71,.78),(.3,.66),(-.4,.7)],.075,steel,y=y)
  panel('Receiver violet enamel',[(-.65,.87),(-.59,1.29),(-.31,1.43),(.61,1.39),(.81,1.18),(.58,.8),(.22,.73),(-.37,.78)],.08,purple,y=y+math.copysign(.055,y))
- panel('Angular cheek blade',[(.05,.89),(.38,.79),(.81,.96),(.84,1.22),(.6,1.27),(.3,1.1)],.04,violet,y=y+math.copysign(.11,y))
  # Visible circular reactor recessed into armour, both sides.
  cyl('Reactor gasket',(-.37,y*1.48,1.12),.39,.08,dark,axis='Y')
  cyl('Reactor silver bezel',(-.37,y*1.59,1.12),.343,.035,steel,axis='Y')
  cyl('Reactor energized lens',(-.37,y*1.67,1.12),.285,.027,cyan,axis='Y')
  cyl('Reactor centre',(-.37,y*1.73,1.12),.12,.03,white,axis='Y')
- for j in range(3):
-  pts=[]
-  for i in range(13):
-   a=j*2*math.pi/3+i*.14;r=.07+i*.016
-   pts.append((-.37+math.cos(a)*r,y*1.79,1.12+math.sin(a)*r))
-  line('Reactor spiral',pts,.012,white)
- for x,z in [(-.78,1.3),(.56,1.34),(.68,.88),(-.63,.78)]:bolt('Receiver fastener',x,z,y*1.39)
- # Deliberate faceted engraving, not random noise.
- line('Receiver etched seam',[(.09,y*1.52,1.4),(.23,y*1.52,1.23),(.41,y*1.52,1.17),(.45,y*1.52,.87)],.006,etch)
+ # Screw bodies intersect their supporting silver / violet plates.
+ for x,z,depth in [(-.80,1.23,.355),(.55,1.30,.408),(.54,.91,.408)]:
+  bolt('Receiver fastener',x,z,math.copysign(depth,y))
 
 # Rear stock is open, formed from separate structural rails.
 panel('Stock shoulder pad',[(-2.72,.45),(-2.72,1.59),(-2.55,1.66),(-2.43,1.5),(-2.43,.46),(-2.55,.34)],.45,rubber)
@@ -190,6 +183,31 @@ for side in [-1,1]:
  panel('Magazine silver rim',[(.56,.64),(.87,.58),(.99,-.07),(.66,-.1)],.025,steel,y=side*.18)
  panel('Magazine plasma window',[(.62,.56),(.82,.52),(.91,.00),(.71,-.035)],.03,cyan,y=side*.20)
  for i in range(3):gem('Magazine crystal cell',(.73+i*.04,side*.23,.41-i*.16),(.09,.024,.10))
+# A real feed neck fits inside an open receiver socket. Cells remain attached to the magazine.
+box('Magazine feed neck',(.735,0,.755),(.29,.265,.16),dark,bevel=.014)
+for side in [-1,1]:
+ box('Magazine feed lip',(.735,side*.132,.84),(.31,.028,.035),steel,bevel=.007)
+ box('Magazine contact rail',(.735,side*.138,.77),(.19,.016,.028),steel,bevel=.004)
+for x in [.65,.735,.82]:
+ cyl('Magazine charged cell',(x,0,.85),.030,.205,cyan,axis='Y',vertices=32)
+ for side in [-1,1]:cyl('Magazine cell terminal',(x,side*.106,.85),.032,.018,steel,axis='Y',vertices=24)
+# Four separate lips form an actual opening, not a solid box beneath the weapon.
+for side in [-1,1]:
+ box('Feed socket side',(.735,side*.207,.665),(.47,.055,.15),steel,bevel=.012)
+ box('Feed socket guide',(.735,side*.180,.755),(.32,.022,.19),dark,bevel=.005)
+for x in [.495,.975]:box('Feed socket end',(x,0,.665),(.055,.46,.15),steel,bevel=.012)
+box('Feed socket latch',(.982,-.16,.66),(.065,.10,.07),dark,bevel=.008)
+# Cut a blind recess into the receiver; the seated cells enter this cavity.
+receiver=bpy.data.objects['Receiver titanium skeleton']
+bpy.ops.mesh.primitive_cube_add(size=1,location=(.735,0,.65));cutter=bpy.context.object;cutter.scale=(.425,.36,.60)
+bpy.ops.object.transform_apply(location=False,rotation=False,scale=True)
+bpy.context.view_layer.objects.active=receiver
+cut=receiver.modifiers.new('Open magazine feed cavity','BOOLEAN');cut.operation='DIFFERENCE';cut.solver='EXACT';cut.object=cutter
+bpy.ops.object.modifier_apply(modifier=cut.name);bpy.data.objects.remove(cutter,do_unlink=True)
+# Keep fresh recess faces inside the graphite atlas quadrant.
+uv=receiver.data.uv_layers.active
+for loop in uv.data:
+ loop.uv.x=max(.60,min(.90,loop.uv.x));loop.uv.y=max(.60,min(.90,loop.uv.y))
 panel('Magazine base shoe',[(.6,-.12),(1.08,.0),(1.12,-.14),(.63,-.26)],.43,steel)
 for i in range(6):box('Upper optic rail',(-.55+i*.19,0,1.57),(.105,.28,.075),dark,bevel=.01)
 box('Scope fixed riser',(0,0,1.66),(.40,.20,.20),dark)
@@ -218,9 +236,6 @@ for j in range(3):
   yy=math.sin(angle)*(radius+.005);zz=math.cos(angle)*(radius+.005)
   box('Conductive exposed rail',(.48,yy,zz),(.96,.04,.04),cyan,b,.009)
  for x in [-.08,1.04]:ring('Telescopic lock ring',x,radius+.035,radius-.026,.10,steel,b)
- # Armour facets at the segment rear, silver rim plus inset violet.
- for sign in [-1,1]:
-  panel('Sleeve inset fin',[(-.1,-.21),(.12,-.29),(.48,-.19),(.7,-.13),(.5,.02),(.03,.08)],.035,purple,b,y=sign*(radius+.045),bevel=.016)
 
 # Four front armour petals: wide barrel cage -> long sniper shroud -> radial launcher petals.
 for j,angle in enumerate([0,math.pi/2,math.pi,math.pi*1.5]):
@@ -234,8 +249,7 @@ for j,angle in enumerate([0,math.pi/2,math.pi,math.pi*1.5]):
  panel('Petal amethyst bevel',[(.19,.16),(.43,.19),(.75,.16),(.92,.05),(.52,.04)],.455,violet,petal,bevel=.012)
  for sy in [-1,1]:
   gem('Armour embedded shard',(.38,sy*.244,.09),(.17,.035,.065),petal)
-  line('Petal engraved seam',[(.68,sy*.232,.21),(.75,sy*.232,.14),(.97,sy*.232,.12),(1.04,sy*.232,.04)],.006,etch,petal)
-  bolt('Petal bolt',.13,.11,sy*.241,petal)
+  bolt('Petal bolt',.25,.11,sy*.208,petal)
  box('Petal cyan slot',(.91,0,.251),(.3,.08,.016),cyan,petal,.008)
 
 # Broad violet cap on the outward face of every armour petal.
@@ -243,7 +257,6 @@ for j in range(4):
  petal=bpy.data.objects['Armour_petal_%02d'%j]
  cap=panel('Outer violet armour cap',[(.12,-.16),(.28,-.18),(.91,-.14),(1.19,-.05),(1.04,.12),(.34,.17),(.1,.08)],.035,purple,petal,bevel=.012)
  cap.rotation_euler.x=math.pi/2;cap.location.z=.285
- for sy in [-1,1]:line('Cap facet seam',[(.35,sy*.12,.312),(.55,sy*.075,.32),(.72,sy*.11,.312)],.005,etch,petal)
 
 # Muzzle carrier shifts forward in sniper and retracts to the wide launcher mouth.
 muzzle=module('Muzzle_carrier',(2.78,0,1.13),[(Z,Z),((2.03,0,0),Z),((-.04,0,0),Z)])
@@ -355,12 +368,12 @@ for name,start,end,mode in [('Assault_Fire',301,313,0),('Sniper_Fire',337,361,1)
  else:
   # The energy cell is pulled below the well, turns clear, then is reseated.
   loc,rot,scale=poses[magazine.name][mode]
-  for fraction,offset,angle in [(.15,(0,0,-.12),.04),(.34,(.08,0,-.85),.25),(.58,(.08,0,-.85),.25),(.76,(0,0,-.11),.03),(.82,Z,0)]:
+  for fraction,offset,angle in [(.12,(0,0,-.16),0),(.32,(.08,0,-.92),.22),(.54,(.08,0,-.92),.22),(.68,(0,0,-.30),0),(.78,(0,0,-.10),0),(.85,(0,0,-.10),0),(.90,Z,0)]:
    key(magazine,start+round(duration*fraction),Vector(loc)+Vector(offset),(0,angle,0),scale)
   for fraction,angle in [(.14,.08),(.40,.12),(.67,.08),(.86,-.015)]:key(root,start+round(duration*fraction),Z,(-angle,-.025,0),S)
   loc,rot,scale=poses[bolt_group.name][mode]
-  key(bolt_group,start+round(duration*.82),Vector(loc)+Vector((-.32,0,0)),rot,scale)
-  key(bolt_group,start+round(duration*.91),loc,rot,scale)
+  key(bolt_group,start+round(duration*.91),Vector(loc)+Vector((-.32,0,0)),rot,scale)
+  key(bolt_group,start+round(duration*.97),loc,rot,scale)
   if mode==2:
    for o in moving:
     if o.name.startswith(('Grenade_chamber','Muzzle_radial_jaw','Launcher_iris','Armour_petal')):

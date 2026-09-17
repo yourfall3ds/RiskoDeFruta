@@ -48,10 +48,16 @@ A validação confere poses finais, mais de 360° de órbita nas transformaçõe
 
 Textura de cor gerada com imagegen em `public/textures/weapons/prism-violet-surreal-basecolor.png`: metal violeta com desgaste fino e veios de ametista. As placas têm UVs por face; a imagem fica incorporada nos GLBs e empacotada nos arquivos Blender. Metalicidade e rugosidade permanecem parâmetros físicos separados; a imagem não é um mapa de normais.
 
-`public/textures/weapons/prism-material-atlas.png` contém prata escovada, grafite usinado, borracha e líquido energético azul, também gerados com imagegen. Todos os nove materiais têm textura: placas e cristais usam ametista; estrutura e gravuras usam prata; mecanismos usam grafite; empunhadura usa borracha; núcleo, trilhos e célula usam líquido azul. UVs mantêm margem dentro de cada região do atlas.
+`public/textures/weapons/prism-material-atlas.png` contém prata escovada, grafite usinado, borracha e líquido energético azul, também gerados com imagegen. Todos os materiais têm textura: placas e cristais usam ametista; estrutura usa prata; mecanismos usam grafite; empunhadura usa borracha; núcleo, trilhos e célula usam líquido azul. UVs mantêm margem dentro de cada região do atlas.
 
 Núcleo, trilhos, célula e cristais usam materiais emissivos separados da armadura. A oficina intensifica o glow com o envelope de carga durante recargas e transformações e desloca suavemente a textura do líquido, sem afetar o metal. Esse movimento visual não é uma simulação de fluidos; precisa ser conectado também na futura integração ao jogo. Pausar e arrastar a barra permite inspecionar qualquer ponto de cada animação.
 
 ## Superfícies circulares
 
 Lentes e cilindros usam 96 lados, anéis usam 128, com normais suaves nas paredes curvas e faces planas nas tampas. Os arcos da íris e da câmara têm 16 subdivisões por setor. Parafusos, placas e cristais mantêm suas facetas intencionais. A suavização não altera as transformações, os materiais ou a quantidade de módulos animados.
+
+## Encaixes e limpeza do acabamento
+
+Removidos os filetes decorativos salientes, as duas placas laterais sobrepostas do receptor e as aletas roxas dos tubos telescópicos. Parafusos reposicionados com corpo embutido nas placas de apoio; os demais cristais foram preservados.
+
+O carregador possui pescoço de alimentação, lábios metálicos, contatos e três células energéticas no topo. O receptor tem uma cavidade real recortada, com moldura aberta e guias fixas. Nas três recargas, o carregador sai alinhado antes de inclinar, realinha abaixo da abertura, faz uma pausa curta e trava; o ferrolho rearma depois do encaixe.
