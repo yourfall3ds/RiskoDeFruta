@@ -34,3 +34,12 @@ O ciclo de seleção é assault → sniper → lança-granadas → assault. Os d
 A arma está entregue como asset e visualizador. Ainda não substitui as pistolas no jogo: comandos, munição, dano, projéteis, sons e animação das mãos precisam de integração. Os clipes de disparo animam a arma; não simulam balística nem dano.
 
 Reconstrução: `blender -b --python scripts/author-prism-triform.py`. As fontes `.blend` ficam na pasta local `art`, que o repositório já ignora; GLBs e scripts podem ser versionados.
+
+
+## Revisão orbital
+
+As placas da frente orbitam o eixo do cano: uma volta na transformação, duas na recarga. Anéis e trilhos giram no sentido contrário, com abertura radial antes do encaixe. Quaternions amostrados preservam voltas completas no GLB, sem desfazer a rotação no último quadro.
+
+`FX_charge.position.x` é o envelope de energia (0–1) exportado junto dos clipes. Na oficina, ele controla emissão e glow; no Blender, os materiais também têm emissão animada. A integração futura ao jogo deve consumir esse envelope para manter o brilho sincronizado. O visualizador inclui câmera lenta de ¼× para inspecionar as peças.
+
+A validação confere poses finais, mais de 360° de órbita nas transformações e mais de 720° nas recargas. As formas estáticas permanecem iguais.

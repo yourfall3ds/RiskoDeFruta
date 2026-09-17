@@ -7,6 +7,8 @@ import {HemisphericLight} from '@babylonjs/core/Lights/hemisphericLight';
 import {DirectionalLight} from '@babylonjs/core/Lights/directionalLight';
 import {HDRCubeTexture} from '@babylonjs/core/Materials/Textures/hdrCubeTexture';
 import {LoadAssetContainerAsync} from '@babylonjs/core/Loading/sceneLoader';
+import {GlowLayer} from '@babylonjs/core/Layers/glowLayer';
+import {PBRMaterial} from '@babylonjs/core/Materials/PBR/pbrMaterial';
 import '@babylonjs/loaders/glTF';
 
 const canvas=document.querySelector<HTMLCanvasElement>('#view')!;
@@ -19,6 +21,8 @@ const hemi=new HemisphericLight('fill',new Vector3(0,1,0),scene);hemi.intensity=
 const key=new DirectionalLight('key',new Vector3(-.3,-1,.7),scene);key.intensity=2;
 scene.environmentTexture=new HDRCubeTexture('/environment/field-sky.hdr',scene,128,false,true,false,true);
 scene.environmentIntensity=.55;
+const glow=new GlowLayer('PRISM energy bloom',scene,{mainTextureFixedSize:512,blurKernelSize:32});
+glow.intensity=.35;
 const status=document.querySelector<HTMLElement>('#status')!,title=document.querySelector<HTMLElement>('#mode')!;
 const buttons=[...document.querySelectorAll<HTMLButtonElement>('button')];
 const labels=['Assault rifle','Sniper','Lança-granadas'];
@@ -29,13 +33,21 @@ function state(){title.textContent=labels[mode]!;for(const b of buttons){b.disab
 buttons.forEach(b=>b.disabled=true);
 try{
  const model=await LoadAssetContainerAsync('/models/weapons/prism-triform.glb',scene);model.addAllToScene();
+ const charge=model.transformNodes.find(node=>node.name==='FX_charge');
+ const luminous=model.materials.filter((material):material is PBRMaterial=>material instanceof PBRMaterial&&material.emissiveColor.r+material.emissiveColor.g+material.emissiveColor.b>0);
+ const baseline=luminous.map(material=>material.emissiveColor.clone());
+ scene.onBeforeRenderObservable.add(()=>{
+  const energy=Math.max(0,Math.min(1,charge?.position.x??0));
+  glow.intensity=.35+energy*.9;
+  luminous.forEach((material,i)=>baseline[i]!.scaleToRef(1+energy*2,material.emissiveColor));
+ });
  for(const group of model.animationGroups)group.stop();
  const byName=new Map(model.animationGroups.map(g=>[g.name,g]));
  const initial=byName.get('Assault_to_Sniper')!;initial.start(false);initial.goToFrame(initial.from);initial.pause();
  const play=(name:string)=>new Promise<void>((resolve,reject)=>{
   const group=byName.get(name);if(!group){reject(new Error(`Animação ausente: ${name}`));return;}
   for(const other of model.animationGroups)other.stop();
-  group.onAnimationGroupEndObservable.addOnce(()=>resolve());group.start(false,1,group.from,group.to);
+  group.onAnimationGroupEndObservable.addOnce(()=>resolve());group.start(false,Number(document.querySelector<HTMLSelectElement>('#speed')!.value),group.from,group.to);
  });
  async function perform(action:()=>Promise<void>){if(busy)return;busy=true;state();try{await action();status.textContent='Pronta · 9 animações';}catch(e){status.textContent=String(e);}finally{busy=false;state();}}
  for(const button of buttons.filter(b=>b.dataset.mode!==undefined))button.onclick=()=>void perform(async()=>{

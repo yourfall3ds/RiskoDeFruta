@@ -3,7 +3,7 @@ Run with Blender 5.2: blender -b --python scripts/author-prism-triform.py
 The game consumes exported GLBs; all visible geometry is authored here, never at runtime.
 """
 import bpy, math, os, json
-from mathutils import Vector
+from mathutils import Vector, Euler
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -263,11 +263,12 @@ box('Bolt slide shoe',(0,0,0),(.31,.09,.13),dark,bolt_group,.018)
 cyl('Bolt handle',(0,-.10,0),.045,.18,steel,bolt_group,'Y',12)
 box('Bolt lever grip',(0,-.21,0),(.16,.09,.12),rubber,bolt_group,.02)
 moving.append(root);poses[root.name]=[(Z,Z,S)]*3
+charge=module('FX_charge',Z,[(Z,Z),(Z,Z),(Z,Z)])
 
 # Full authored timeline: three settled forms, anticipation, clearance, travel and lock.
 def key(obj,frame,loc,rot,scale):
- obj.location=loc;obj.rotation_euler=rot;obj.scale=scale
- for path in ['location','rotation_euler','scale']:obj.keyframe_insert(data_path=path,frame=frame,group=obj.name)
+ obj.location=loc;obj.rotation_mode='QUATERNION';obj.rotation_quaternion=Euler(rot,'XYZ').to_quaternion();obj.scale=scale
+ for path in ['location','rotation_quaternion','scale']:obj.keyframe_insert(data_path=path,frame=frame,group=obj.name)
 for obj in moving:
  states=poses[obj.name]
  for k,(start,end) in enumerate([(25,85),(109,169),(193,253)]):
@@ -320,6 +321,50 @@ for name,start,end,mode in [('Assault_Fire',301,313,0),('Sniper_Fire',337,361,1)
       key(o,start+round(duration*fraction),Vector(loc)+Vector((amount,0,0)),rotation,scale)
  for o in moving:key(o,end,*poses[o.name][mode])
  scene.timeline_markers.new(name,frame=start)
+# Orbit around the BARREL axis, not each plate's own centre. Baked quaternion keys
+# preserve full revolutions and prevent a last-frame Euler unwind at the lock pose.
+for clip,start,end,source,target in clips:
+ if clip.endswith('Fire'):
+  for frame in range(start,end+1):
+   t=(frame-start)/(end-start);energy=max(0,1-t*3)
+   key(charge,frame,(energy,0,0),Z,S)
+  continue
+ reload=clip.endswith('Reload');duration=end-start
+ for frame in range(start,end+1):
+  t=(frame-start)/duration
+  travel=max(0,min(1,(t-.15)/.68));ease=travel*travel*(3-2*travel)
+  orbit=max(0,min(1,(t-.10)/.80));orbit=orbit*orbit*(3-2*orbit)
+  clearance=math.sin(math.pi*max(0,min(1,t/.94)))**2
+  energy=(math.sin(math.pi*t)**.7)*(0.83+.17*math.sin(t*math.tau*3)**2)
+  key(charge,frame,(energy,0,0),Z,S)
+  for o in moving:
+   if not o.name.startswith(('Armour_petal','Muzzle_radial_jaw','Grenade_chamber','Launcher_iris','Telescope_')):continue
+   src=poses[o.name][source];dst=poses[o.name][target]
+   loc=Vector(src[0]).lerp(Vector(dst[0]),ease);rot=Vector(src[1]).lerp(Vector(dst[1]),ease);scale=Vector(src[2]).lerp(Vector(dst[2]),ease)
+   outer=o.name.startswith(('Armour_petal','Muzzle_radial_jaw'))
+   direction=1 if o.name.startswith(('Armour_petal','Grenade_chamber')) else -1
+   turns=(1 if outer else 2) if not reload else (2 if outer else 3)
+   theta=direction*math.tau*turns*orbit
+   if outer:
+    y,z=loc.y,loc.z-1.13;r=math.hypot(y,z);expansion=1+clearance*(.28 if reload else .38)/max(.15,r)
+    loc.y=(y*math.cos(theta)-z*math.sin(theta))*expansion
+    loc.z=1.13+(y*math.sin(theta)+z*math.cos(theta))*expansion
+    loc.x+=clearance*(.14 if 'petal' in o.name else .24)
+   elif o.name.startswith('Telescope_'):
+    # Conductive barrel rails rotate against the armour while the tubes extend.
+    loc.x+=clearance*.07
+   rot.x+=theta
+   if outer:rot.y+=math.sin(math.pi*t)*.075
+   key(o,frame,loc,rot,scale)
+  # Tilt the complete weapon to display the unfolding assembly, then settle.
+  if not reload:key(root,frame,(0,0,.025*clearance),(.08*math.sin(math.pi*t),-.025*clearance,0),S)
+ # The source material animation is saved in Blender. The exported FX_charge node
+ # carries the same envelope to the renderer without a vendor-only glTF extension.
+ for material,base_strength in [(cyan,1.8),(white,3.0),(gemmat,.35)]:
+  socket=next(n for n in material.node_tree.nodes if n.type=='BSDF_PRINCIPLED').inputs['Emission Strength']
+  for frame in range(start,end+1):
+   t=(frame-start)/(end-start);energy=(math.sin(math.pi*t)**.7)*(0.83+.17*math.sin(t*math.tau*3)**2)
+   socket.default_value=base_strength*(1+energy*2.0);socket.keyframe_insert('default_value',frame=frame)
 scene.frame_start=1;scene.frame_end=747
 for name,frame in [('01 ASSAULT',1),('ASSAULT → SNIPER',25),('02 SNIPER',85),('SNIPER → GRENADE',109),('03 GRENADE',169),('GRENADE → ASSAULT',193),('01 ASSAULT RETURN',253)]:scene.timeline_markers.new(name,frame=frame)
 
@@ -385,8 +430,8 @@ export(EXPORT/'prism-triform-cycle.glb',True)
 actions={o.name:o.animation_data.action for o in moving}
 for phase,frame in [('assault',1),('sniper',85),('grenade',169)]:
  scene.frame_set(frame)
- frozen={o.name:(o.location.copy(),o.rotation_euler.copy(),o.scale.copy()) for o in moving}
- for o in moving:o.animation_data_clear();o.location,o.rotation_euler,o.scale=frozen[o.name]
+ frozen={o.name:(o.location.copy(),o.rotation_quaternion.to_euler().copy(),o.scale.copy()) for o in moving}
+ for o in moving:o.animation_data_clear();o.location=frozen[o.name][0];o.rotation_quaternion=frozen[o.name][1].to_quaternion();o.scale=frozen[o.name][2]
  bpy.ops.wm.save_as_mainfile(filepath=str(OUT/('PRISM_'+phase.upper()+'.blend')))
  export(EXPORT/('prism-'+phase+'.glb'))
  scene.render.filepath=str(OUT/(phase+'.png'))
@@ -399,7 +444,7 @@ for clip,start,end,source_mode,target_mode in clips:
  samples[clip]={o.name:[] for o in moving}
  for frame in range(start,end+1):
   scene.frame_set(frame)
-  for o in moving:samples[clip][o.name].append((tuple(o.location),tuple(o.rotation_euler),tuple(o.scale)))
+  for o in moving:samples[clip][o.name].append((tuple(o.location),tuple(o.rotation_quaternion.to_euler()),tuple(o.scale)))
 for o in moving:
  o.animation_data_clear()
  for clip in samples:
