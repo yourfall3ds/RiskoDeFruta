@@ -513,3 +513,20 @@ describe('recompensa de onda no planeta', () => {
     } finally {f.close();}
   });
 });
+
+
+describe('baús acompanham a partida sorteada',()=>{
+ it('coloca suprimentos próximos da ilha sul e preserva baús abertos em configuração repetida',()=>{
+  const f=fixture();
+  try{
+   const spawn=f.sites.find(s=>s.id==='south')!.centre;
+   const source={sites:f.sites,surface:()=>f.world.surface,seed:'spawn-sul',spawn};
+   f.chests.configurePlacement(source);
+   const near=f.chests.entries.filter(e=>e.kind!=='altar'&&f.world.surface.planarDistance(spawn,e)<16);
+   expect(near.length).toBeGreaterThanOrEqual(2);
+   near[0]!.used=true;
+   f.chests.configurePlacement({...source,spawn:{...spawn}});
+   expect(f.chests.entries.find(e=>e.id===near[0]!.id)!.used).toBe(true);
+  }finally{f.close();}
+ });
+});

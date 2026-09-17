@@ -688,7 +688,10 @@ export class PlayerScene implements SceneModule {
     const landing=this.player.position,stagingYaw=this.radial?0:this.player.yaw;
     const stagingOrigin=this.radial?ORIGIN:landing;
     const introPose=this.intro.pose(stagingOrigin,stagingYaw);
-    if(introPose&&this.radial)introPose.position=this.stageToWorld(introPose.position,landing);
+    if(introPose&&this.radial){
+      introPose.position=this.stageToWorld(introPose.position,landing);
+      if(introPose.stride)introPose.stride.yaw+=this.player.yaw;
+    }
     if(this.dropship){
       this.dropship.basis=this.radial?this.world.surface.basis(boarding?exitAnchor:landing,this.player.forward):undefined;
       if(this.intro.visible)this.dropship.place(this.stageToWorld(this.intro.deckEdge(stagingOrigin,stagingYaw),landing),this.player.yaw);
@@ -1126,14 +1129,15 @@ export class PlayerScene implements SceneModule {
    */
   private applyLootPlacement():void {
     const interactables=this.interactables;
-    if(!interactables||!this.lootReady||!this.radial||!this.world.ready)return;
+    if(!interactables||!this.lootReady||!this.radial||!this.world.ready||!this.stageSetup)return;
     interactables.configurePlacement({
       sites:this.world.sites,
+      spawn:this.spawn,
       // Função, nunca valor: o referencial do mundo troca quando o planeta é configurado.
       surface:()=>this.world.surface,
       // A semente é a da TENTATIVA: repetir com a mesma semente devolve o mesmo mapa de baús,
       // e uma tentativa nova sorteia outro — a mesma regra que já vale para ilha e cálice.
-      seed:this.attemptSeed,
+      seed:`${this.attemptSeed}:stage:${this.progression.stage}`,
     });
     // A malha do baú é desenho; o CORPO dele é esta lista. Sem anexar, o baú do planeta seria
     // atravessado — a BVH do manifesto é assada sobre o asset e não contém nada criado em
@@ -1280,6 +1284,7 @@ export class PlayerScene implements SceneModule {
       this.input.pitch=.02;
       this.camera.update(this.player.position,this.input.yaw,this.input.pitch,1);
     }
+    this.applyLootPlacement();
     if(!arrival)return;
     if(this.yard instanceof PlanetWorld)this.yard.restoreScenery();
     this.events.emit('StageStarted',{stageId:String(this.progression.stage),seed:this.seed});
@@ -1561,7 +1566,7 @@ export class PlayerScene implements SceneModule {
     void this.loadStageDestination(this.progression.stage);
   }
 
-  private checkReady():void {this.ensureStagePlan();
+  private checkReady():void {this.ensureStagePlan();this.applyLootPlacement();
     // A nave entra na lista: o menu vivo mostra o corpo em pé no deck, então o deck precisa existir
     // antes do Jogar. Uma falha de carga NÃO trava o boot — a entrada cai no mergulho original.
     const deckReady=!this.dropship||this.dropship.ready||Boolean(this.dropship.error);
@@ -1574,6 +1579,13 @@ export class PlayerScene implements SceneModule {
     this.hud?.loading(stages.filter(Boolean).length,stages.length,label);for(const material of this.scene.materials){const lit=material as typeof material & {maxSimultaneousLights?:number};if(lit.maxSimultaneousLights!==undefined&&lit.maxSimultaneousLights>4){lit.unfreeze();lit.maxSimultaneousLights=4;}}if(this.visual?.ready&&this.weapons?.ready&&this.skillAura?.ready&&(!(this.yard instanceof FarmWorld)||this.yard.ready)&&(!(this.enemies instanceof EnemySwarm)||(this.enemies.ready&&this.enemies.navigationReady))&&(!this.interactables||this.interactables.ready)&&deckReady&&planned){if(this.warming)return;this.warming=true;this.scene.executeWhenReady(()=>{if(!this.disposed)this.hud.ready();});}}
 
   configure(name: string,value: number): void {
+    if(name==='review-loot'&&this.interactables){
+      const chest=this.interactables.entries.filter(e=>!e.used&&e.kind!=='altar').sort((a,b)=>this.world.surface.planarDistance(this.player.position,a)-this.world.surface.planarDistance(this.player.position,b))[0];
+      if(!chest)return;
+      this.intro.skip();if(this.enemies instanceof EnemySwarm){this.enemies.nextStage();this.enemies.director.stopped=true;}
+      this.player.resetAt(this.qaSpotNear(chest,0,-2,.05));this.faceQa(chest);this.input.pitch=.3;
+      this.player.debugInvincible=true;this.progression.credits=90;return;
+    }
     if(name==='review-crate'&&this.yard instanceof PlanetWorld){
       const props=this.yard.destructibles.filter(p=>p.kind==='crate').sort((a,b)=>this.world.surface.planarDistance(a.centre,this.player.position)-this.world.surface.planarDistance(b.centre,this.player.position));
       const prop=props[0];if(!prop)return;

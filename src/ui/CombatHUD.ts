@@ -170,12 +170,22 @@ export class RunHUD {
   this.renderExpedition(expedition,camera,heading);
   this.mission.set(expedition?.journey?.active?`${expedition.journey.label} · ${expedition.journey.destination}`
    :expedition?.objectives.planned?this.expeditionMission(expedition.objectives,expedition.player,heading):swarm.director.hordeMode?(swarm.director.intermission>0?'PRÓXIMA HORDA EM '+Math.ceil(swarm.director.intermission)+' s':swarm.director.wave%5===0?'ELIMINE O CHEFE E SUA HORDA':'SOBREVIVA À HORDA '+swarm.director.wave):swarm.bossDeadTime>=5?'ENTRE NA FENDA · CELEIRO':swarm.bossDeadTime>=0?'PRAGA ALFA DERROTADA':swarm.boss?'ELIMINE A PRAGA ALFA':['LOCALIZE A PRAGA ALFA','CONTENHA A INFESTAÇÃO','SOBREVIVA AO SURTO','RESISTA À COLHEITA FINAL','A PRAGA ALFA SE APROXIMA'][swarm.director.state]??'');
-  const contract=interact.districtContract,contractDirection=contract?COMPASS[Math.round(((Math.atan2(contract.target.x-camera.position.x,contract.target.z-camera.position.z)*180/Math.PI-heading+720)%360)/45)%8]:'';
+
+  const radial=radialSurfaceOf(this.surface);
+  const nearChest=interact.entries.filter(e=>!e.used&&e.kind!=='altar').map(e=>({entry:e,d:radial?radial.planarDistance(camera.position,e):Math.hypot(e.x-camera.position.x,e.z-camera.position.z)})).sort((a,b)=>a.d-b.d)[0];
+  const delta=nearChest?new Vector3(nearChest.entry.x-camera.position.x,nearChest.entry.y-camera.position.y,nearChest.entry.z-camera.position.z):Vector3.Zero();
+  const up=radial?.up(camera.position)??{x:0,y:1,z:0};
+  const right=Vector3.Cross(new Vector3(up.x,up.y,up.z),f).normalize();
+  const lootArrow=COMPASS[(Math.round(Math.atan2(Vector3.Dot(delta,right),Vector3.Dot(delta,f))*4/Math.PI)+8)%8];
+
   const reward=interact.waveRewardGuide;
   // A dica da recompensa é o último filho do contrato; concatenar aqui dá o mesmo DOM que o
   // `insertAdjacentHTML('beforeend')` anterior e mantém o painel inteiro sob uma única comparação.
   const rewardHint=reward?`<span class="wave-reward-guide"><b>◈ RECOMPENSA DA HORDA</b><br>${reward.drop.item.name}<br><small>${reward.drop.waveField} · ${COMPASS[Math.round(((Math.atan2(reward.drop.landing.x-camera.position.x,reward.drop.landing.z-camera.position.z)*180/Math.PI-heading+720)%360)/45)%8]} ${Math.round(reward.distance)} m · [E] recolher</small></span>`:'';
-  this.contract.set((contract?`<small>EXPLORAÇÃO OPCIONAL · ${contract.completed}/${contract.total}</small><b>${contract.contract.name}</b><span>Abra baús diferentes · ${contract.opened}/${contract.required}</span><small>${contractDirection} ${Math.round(contract.distance)} m até o baú · recompensa: item aleatório no chão</small>`:'<small>EXPLORAÇÃO</small><b>Rotas de abastecimento concluídas</b><span>Todos os contratos deste estágio recuperados.</span>')+rewardHint);
+  const contract=interact.districtContract;
+  const bonus=contract?`<small>${contract.contract.name}: ${contract.opened}/${contract.required} baús → item bônus.</small>`:'';
+  this.contract.set('<small>FIQUE MAIS FORTE</small><b>Abata → ganhe créditos → abra baús</b>'+(nearChest?`<span>${lootArrow} BAÚ · ${Math.round(nearChest.d)} m · ${nearChest.entry.cost} créditos</span><small>${run.credits>=nearChest.entry.cost?'Você pode abrir este baú. Aproxime-se e aperte [E].':`Faltam ${nearChest.entry.cost-run.credits} créditos: derrote mais frutas.`} Depois, [E] recolhe o item.</small>`:'<span>Baús esgotados: procure o cálice para avançar.</span>')+'<small>Explore as pontes → encontre e ative o cálice → encha de suco e derrote o chefe → [E] embarque.</small>'+bonus+rewardHint);
+
   text(this.xpText,`NV. ${run.level} · ${run.xp} / ${run.nextLevelXP} XP`);css(this.xpFill,'width',pct(run.xp/run.nextLevelXP*100));
   this.hostiles.set(`<span>ONDA ${swarm.director.hordeMode?swarm.director.wave:Math.floor(swarm.director.time/36)+1}</span><b>${swarm.count} / ${swarm.populationCap}</b><small>${swarm.kills} abatidos · ${swarm.director.hordeMode?(swarm.director.intermission>0?(swarm.director.completedWaves>0?'RECOLHA O ITEM · PREPARE-SE':'PREPARE-SE'):Math.max(0,swarm.director.waveQuota-swarm.director.spawned)+' por nascer'):(swarm.director.time%36>27?'REAGRUPE-SE':'HORDA ATIVA')}</small>`);
   shown(this.bossBox,Boolean(swarm.boss)&&swarm.bossHP>0);css(this.bossFill,'width',pct(swarm.bossHP/swarm.bossMaxHP*100));text(this.bossText,`${Math.ceil(swarm.bossHP)} / ${swarm.bossMaxHP}`);
@@ -226,11 +236,11 @@ export class RunHUD {
    // Distância CAMINHÁVEL (arco na esfera) e etiqueta 1,8 m acima na vertical local do baú.
    const d=this.surface?this.surface.planarDistance(e,camera.position):Math.hypot(e.x-camera.position.x,e.z-camera.position.z);
    this.lift(e,1.8,this.anchor);
-   if(d>=35||d<=3||!project(this.anchor.x,this.anchor.y,this.anchor.z))continue;
+   if(d>=55||d<=3||!project(this.anchor.x,this.anchor.y,this.anchor.z))continue;
    const marker=this.supplies.take();
    css(marker.root,'left',pct(this.screen.x/width*100));css(marker.root,'top',pct(this.screen.y/height*100));
-   css(marker.root,'opacity',String(Math.round(Math.min(1,(35-d)/10)*100)/100));
-   text(marker.cost,String(e.cost));
+   css(marker.root,'opacity',String(Math.round(Math.min(1,(55-d)/15)*100)/100));
+   text(marker.cost,`${e.kind==='altar'?'ALTAR':'BAÚ'} · ${e.cost} ◈`);
   }
   this.supplies.end();
  }

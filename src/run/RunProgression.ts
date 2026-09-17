@@ -114,7 +114,14 @@ export class RunProgression {
   addXP(amount:number):void {this.xp+=Math.max(0,amount);while(this.xp>=this.nextLevelXP){this.xp-=this.nextLevelXP;this.level++;this.stats=this.computeStats();this.events.emit('LevelUp',{entityId:1,level:this.level});}this.stats=this.computeStats();}
   reward(elite=false,multiplier=1):void {this.totalKills++;this.credits+=Math.round((elite?50:8+this.stage*2)*multiplier);this.addXP(Math.round((elite?90:10+this.stage*2)*multiplier));}
   purchase(cost:number,itemId:string):boolean {if(this.credits<cost)return false;this.credits-=cost;this.addItem(itemId);return true;}
-  randomItem(rng:RandomStream):ItemDefinition {const rarity=rng.next()<.24?'uncommon':'common';return rng.pick(ITEMS.filter(item=>item.rarity===rarity));}
+  randomItem(rng:RandomStream):ItemDefinition {
+    const rarity=rng.next()<.24?'uncommon':'common';
+    const pool=ITEMS.filter(item=>item.rarity===rarity);
+    // Sorteie o efeito antes da aparência: dezenas de bônus de vida não podem diluir pulo e cargas.
+    const effects=[...new Set(pool.map(item=>item.hook??item.stat!))];
+    const effect=rng.pick(effects);
+    return rng.pick(pool.filter(item=>(item.hook??item.stat)===effect));
+  }
   advanceStage():void {this.addXP(this.credits);this.credits=0;this.stage++;}
 }
 

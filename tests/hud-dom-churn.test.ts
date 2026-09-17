@@ -181,14 +181,15 @@ describe('churn de DOM do HUD de combate',()=>{
   expect(labels.children[0]!.textContent).toBe('10!');
   expect(labels.children[1]!.textContent).toBe('11');
   expect(supplies.children).toHaveLength(4);
-  expect(supplies.children[0]!.textContent).toBe('◈25');
+  expect(supplies.children[0]!.textContent).toBe('◈BAÚ · 25 ◈');
 
-  const before=copyMetrics(t.dom.metrics);
+  const originalLabels=[...labels.children],originalSupplies=[...supplies.children];
   t.swarm.labels.splice(0,4);
   t.interact.entries[0]!.used=true;
   t.tick();
-  const after=deltaMetrics(before,t.dom.metrics);
-  expect(after.elementsCreated+after.elementsParsed).toBe(0);
+  // O guia troca para o próximo baú; os marcadores continuam reutilizados.
+  expect([...labels.children]).toEqual(originalLabels);
+  expect([...supplies.children]).toEqual(originalSupplies);
   expect(labels.children).toHaveLength(6);   // quatro apagados, não removidos
   expect(labels.children.filter(l=>l.style.display==='none')).toHaveLength(4);
   expect(supplies.children.filter(s=>s.style.display==='none')).toHaveLength(1);

@@ -44,6 +44,7 @@ export interface Interactable {id:string;name:string;kind:'supply'|'shop'|'altar
  * plano. Ausente ⇒ leio `world.surface`, que já é um getter.
  */
 export interface LootPlacementSource {
+  spawn?:Vec3;
   readonly sites:readonly WorldSite[];
   surface?():SurfaceFrame;
   /** Mesma semente ⇒ mesmo mapa de baús. Default: hash dos ids dos sítios. */
@@ -111,13 +112,14 @@ export class RunInteractables {
    * abertos continuam abertos. Passar `undefined` volta à colocação autoral da fazenda.
    */
   configurePlacement(source:LootPlacementSource|undefined):void {
-    const key=source?`${source.seed??''}|${source.sites.map(s=>s.id).join(',')}`:'';
-    if(key===this.placementKey&&this.placement===source)return;
+    const key=source?`${source.seed??''}|${source.sites.map(s=>s.id).join(',')}|${source.spawn?`${source.spawn.x},${source.spawn.y},${source.spawn.z}`:''}`:'';
+    if(key===this.placementKey)return;
     this.placement=source;this.placementKey=key;
     if(!source){this.contracts.configureSource(undefined);return;}
     // As caixas de colisão dos baús da fazenda são coordenadas planas: no planeta elas virariam
     // paredes invisíveis no meio do nada. As do planeta são OBB radiais, em `props`.
     this.detachColliders();
+    this.props.clear();
     const placed=this.placeOnSites(source);
     for(const entry of this.entries.slice(this.homeCount))entry.root?.dispose();
     this.entries.length=this.homeCount;
@@ -144,15 +146,15 @@ export class RunInteractables {
    */
   private relocateHome(source:LootPlacementSource):void {
     const surface=source.surface?.()??this.world.surface;
-    if(surface.kind!=='sphere')return;
-    const home=source.sites[0];if(!home)return;
+    if(surface.kind!=='sphere'||source.sites.length===0)return;
+    const home=source.spawn?source.sites.reduce((a,b)=>surface.planarDistance(a.centre,source.spawn!)<surface.planarDistance(b.centre,source.spawn!)?a:b):source.sites[0];if(!home)return;
     const rng=new RunRNG(`${String(source.seed??'')}-home`).stream('interactable');
     for(let index=0;index<this.homeCount;index++){
       const entry=this.entries[index]!;
       // Separação contra TUDO que já ocupa a ilha — os baús do mapa e os interativos de casa já
       // realocados. Comparar só com os anteriores da lista deixava um par a 2,5 m de distância.
       const taken=this.entries.filter((e,i)=>i!==index&&e.siteId!==undefined);
-      const point=this.sampleDeck(surface,home,rng,taken)
+      const point=this.sampleDeck(surface,source.spawn?{...home,centre:source.spawn,radius:16}:home,rng,taken)
         ??surfaceRewardGround(surface,home.centre,2,6);
       if(!point)continue;
       entry.x=point.x;entry.y=point.y;entry.z=point.z;entry.up=surface.up(point);entry.siteId=home.id;
@@ -227,7 +229,7 @@ export class RunInteractables {
   /** Anel tangente sorteado no deck, com separação mínima entre baús do mesmo sítio. */
   private sampleDeck(surface:SurfaceFrame,site:WorldSite,rng:RandomStream,placed:readonly Interactable[]):Vec3|undefined {
     const reach=site.radius*.75;
-    for(let attempt=0;attempt<12;attempt++){
+    for(let attempt=0;attempt<80;attempt++){
       const angle=rng.range(0,Math.PI*2);
       // Raiz da uniforme: sem ela o sorteio empilha os baús no centro da ilha.
       const radius=reach*Math.sqrt(rng.next());
@@ -238,6 +240,7 @@ export class RunInteractables {
         z:(basis.right.z*Math.sin(angle)+basis.forward.z*Math.cos(angle))*radius});
       const ground=surfaceRewardGround(surface,probe,1,6);
       if(!ground)continue;
+      if(this.placement?.spawn&&surface.planarDistance(ground,this.placement.spawn)<3.5)continue;
       if(placed.some(e=>e.siteId===site.id&&surface.planarDistance(ground,{x:e.x,y:e.y,z:e.z})<6))continue;
       return ground;
     }
@@ -269,6 +272,10 @@ export class RunInteractables {
   private buildRoots():void {
     const scene=this.scene,crate=this.container,altar=this.altarContainer;
     if(!crate||!altar)return;
+    for(const material of [...crate.materials,...altar.materials]){
+      const lit=material as typeof material & {maxSimultaneousLights?:number};
+      if(lit.maxSimultaneousLights!==undefined){lit.unfreeze();lit.maxSimultaneousLights=4;}
+    }
     for(const entry of this.entries){
       if(entry.root)continue;
       const root=new TransformNode(entry.id,scene);entry.openClips=[];entry.opening=0;
