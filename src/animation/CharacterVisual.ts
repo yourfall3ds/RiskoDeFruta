@@ -67,6 +67,39 @@ export class CharacterVisual {
    */
   meleePose:{stepId:string;phase:MeleePhase;progress:number;heavy:boolean}|undefined;
   unarmedStance=false;
+  rifleEquipped=false;
+  /** Apply after locomotion/aim, before attaching the two-handed weapon. */
+  poseRifleGrip():void {
+    if(!this.rifleEquipped||!this.ready||this.unarmedStance||this.dodging||this.arrivalPose||this.deathProgress!==undefined||this.skillPerformance||this.preparation)return;
+    const arm=this.bones.get('RightArm'),forearm=this.bones.get('RightForeArm'),hand=this.hands[0],grip=this.grips[0];
+    if(!arm||!forearm||!hand||!grip)return;
+    const frame=this.root.computeWorldMatrix(true),body=Vector3.TransformCoordinates(Vector3.Zero(),frame);
+    const up=Vector3.TransformNormal(Vector3.Up(),frame).normalize(),right=Vector3.TransformNormal(Vector3.Right(),frame).normalize();
+    const direction=Vector3.TransformNormal(Vector3.Forward(),grip.computeWorldMatrix(true)).normalize();
+    const forward=Vector3.TransformNormal(Vector3.Forward(),frame).normalize();
+    const wrist=body.add(up.scale(1.20)).addInPlace(right.scale(.02)).addInPlace(forward.scale(.03));
+    const pole=body.add(up.scale(.99)).addInPlace(right.scale(.58));
+    poseAkimbo(arm,forearm,hand,grip,wrist,pole,wrist.add(direction.scale(10)));
+    // Fix roll independently of the elbow so the receiver stays upright on a spherical world.
+    if(hand.parent&&hand.rotationQuaternion){
+      const desired=up.subtract(direction.scale(Vector3.Dot(up,direction))).normalize();
+      const inverse=Matrix.Invert(hand.parent.computeWorldMatrix(true));
+      const current=Vector3.TransformNormal(Vector3.Up(),grip.computeWorldMatrix(true));
+      const from=Vector3.TransformNormal(current,inverse).normalize(),to=Vector3.TransformNormal(desired,inverse).normalize();
+      const axis=Vector3.Cross(from,to);
+      if(axis.lengthSquared()>1e-8)hand.rotationQuaternion=Quaternion.RotationAxis(axis.normalize(),Math.acos(Math.max(-1,Math.min(1,Vector3.Dot(from,to))))).multiply(hand.rotationQuaternion).normalize();
+      hand.computeWorldMatrix(true);grip.computeWorldMatrix(true);
+    }
+  }
+  poseRifleSupport(target:Vector3,direction:Vector3):void {
+    if(!this.rifleEquipped||this.unarmedStance||this.dodging||this.arrivalPose||this.deathProgress!==undefined||this.skillPerformance||this.preparation)return;
+    const arm=this.bones.get('LeftArm'),forearm=this.bones.get('LeftForeArm'),hand=this.hands[1],grip=this.grips[1];
+    if(!arm||!forearm||!hand||!grip)return;
+    const pole=Vector3.TransformCoordinates(new Vector3(-.48,.94,.22),this.root.computeWorldMatrix(true));
+    // Socket marks the palm contact; the wrist sits behind it by the glove's grip offset.
+    const wrist=target.subtract(direction.scale(.13));
+    poseAkimbo(arm,forearm,hand,grip,wrist,pole,target.add(direction.scale(10)));
+  }
   meleeRate=1;
   private airborneSeconds=0;
   private hitReaction=0;
@@ -263,7 +296,7 @@ export class CharacterVisual {
     for(let side=0;side<2;side++)this.firing[side]=Math.min(1,this.firing[side]!+dt/.21);
     this.releaseTime=Math.min(1,this.releaseTime+dt/.3);this.styleTime=Math.max(0,this.styleTime-dt);this.styleClock+=dt;for(let i=0;i<2;i++)this.fanTime[i]=Math.max(0,this.fanTime[i]!-dt);for(const side of [0,1] as const)this.targetTime[side]=Math.max(0,this.targetTime[side]!-dt);
     if(performance?.tier===3)this.styleTime=Math.max(.2,this.styleTime);
-    if(this.reloadProgress>=0){
+    if(this.reloadProgress>=0&&!this.rifleEquipped){
       const reload=this.clips.get('ReloadCast'),p=this.reloadProgress;
       const weight=Math.min(1,p/.08,(1-p)/.1);
       if(reload)this.sample(reload,p,bone=>/^(Spine|Head|Neck|(?:Left|Right)(?:Shoulder|Arm|ForeArm|Hand|WeaponGrip))/.test(bone),Math.max(0,weight));

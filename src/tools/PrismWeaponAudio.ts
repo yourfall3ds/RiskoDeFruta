@@ -20,4 +20,5 @@ export class PrismWeaponAudio{
   this.voices.add(source);source.onended=()=>{this.voices.delete(source);source.disconnect();};source.start();
  }
  stop(){for(const source of this.voices)source.stop();this.voices.clear();}
+ dispose(){this.stop();this.buffers.clear();this.gain.disconnect();void this.context.close();}
 }

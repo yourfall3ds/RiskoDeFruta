@@ -8,6 +8,9 @@ export class GameInput {
   private readonly taps = new DoubleTap();
   private reload=false;
   private stance=false;
+  /** `B` alterna pistolas ↔ PRISM; `T` avança a forma da PRISM. Bordas, como `reload`. */
+  private swapWeapon=false;
+  private cycleMode=false;
   private jump = false;
   private dodge = false;
   private interaction:number|undefined;
@@ -32,6 +35,8 @@ export class GameInput {
       if(!e.repeat&&e.code==='KeyR')this.reload=true;
       if(!e.repeat&&e.code==='KeyE')this.interaction=0;
       if(!e.repeat&&e.code==='KeyV')this.stance=true;
+      if(!e.repeat&&e.code==='KeyB')this.swapWeapon=true;
+      if(!e.repeat&&e.code==='KeyT')this.cycleMode=true;
     }, { signal });
     window.addEventListener('keyup', e => this.held.delete(e.code), { signal });
     window.addEventListener('blur', () => this.clear(), { signal });
@@ -67,10 +72,12 @@ export class GameInput {
       x, z,
       reload:this.reload,stance:this.stance,jump: this.jump, dodge: this.dodge, fire: (this.primary||this.primaryPressed) && this.active, charging: this.secondary && this.active,
       dash: this.taps.read(x, z), interact:this.interaction,
+      swapWeapon:this.swapWeapon,cycleMode:this.cycleMode,
     };
     this.reload=false;this.stance=false;this.jump = false; this.dodge = false;this.primaryPressed=false;this.interaction=undefined;
+    this.swapWeapon=false;this.cycleMode=false;
     return frame;
   }
-  clear(): void { this.cancelVersion++;this.held.clear(); this.reload=false;this.stance=false;this.jump = false; this.dodge = false; this.primary = false;this.primaryPressed=false; this.secondary = false; this.drag = false;this.interaction=undefined;this.taps.clear(); }
+  clear(): void { this.cancelVersion++;this.held.clear(); this.reload=false;this.stance=false;this.swapWeapon=false;this.cycleMode=false;this.jump = false; this.dodge = false; this.primary = false;this.primaryPressed=false; this.secondary = false; this.drag = false;this.interaction=undefined;this.taps.clear(); }
   dispose(): void { this.clear(); if (this.locked) document.exitPointerLock(); this.controller.abort(); }
 }

@@ -20,6 +20,20 @@ export interface DamageContext {
   hitNormal: Vec3;
   forceDirection: Vec3;
   forceMagnitude: number;
+  /**
+   * Direção REAL do projétil que produziu o acerto, quando o emissor a conhece — OPCIONAL e
+   * aditivo: nada existente lê este campo e nenhum emissor é obrigado a preenchê-lo.
+   *
+   * Por que não reaproveitar `forceDirection`: ele é a direção do TRANCO, e nos disparos ele carrega
+   * o rumo da CÂMERA, enquanto `hitPosition` sai do raio que parte do CANO. A poucos metros os dois
+   * divergem em graus, o suficiente para um teste de ponto fraco errar de lado. Quem preenche
+   * `hitDirection` entrega o par coerente `(hitPosition, hitDirection)` — origem e direção do mesmo
+   * segmento —, que é o que `resolveWeakPoint` precisa para dizer "a bala passou DENTRO da asa"
+   * em vez de "a bala acertou perto do bicho".
+   *
+   * Ausente ⇒ quem consome cai em `forceDirection`, que é o comportamento anterior.
+   */
+  hitDirection?: Vec3;
 }
 
 export interface GameEvents {

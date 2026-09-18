@@ -24,6 +24,7 @@ import { ShotEffects } from '../vfx/ShotEffects';
 import {PickingInfo} from '@babylonjs/core/Collisions/pickingInfo';
 import {sweepBox,type CollisionWorld} from '../physics/CollisionWorld';
 import { PistolCadence } from './PistolCadence';
+import type { CombatContact,CombatHitSpec,CombatServices,CombatSweep } from './CombatServices';
 import { PISTOL_TUNING as t } from '../player/PlayerTuning';
 
 /** Base ortonormal local. Convenção de mão-esquerda do jogo: `right = up × forward`. */
@@ -149,7 +150,7 @@ function offsetInFrame(origin:Vector3,frame:CombatBasis,right:number,up:number,f
   return origin.add(frame.right.scale(right)).addInPlace(frame.up.scale(up)).addInPlace(frame.forward.scale(forward));
 }
 
-export class DualPistols {
+export class DualPistols implements CombatServices {
   readonly magazine=new PistolMagazine();private readonly casings:ShellCasings;
   readonly cadence=new PistolCadence();
   readonly effects: ShotEffects;
@@ -171,6 +172,21 @@ export class DualPistols {
   skillShots=0;
   /** Pistolas guardadas durante o combate desarmado: somem das mãos e não disparam. */
   holstered=false;
+  /**
+   * Pistolas ESCONDIDAS porque outra arma está equipada (a PRISM).
+   *
+   * Diferente de `holstered` de propósito: guardar é um estado de JOGO (o exterminador sacou os
+   * punhos) e desliga o disparo; esconder é só apresentação. O backend continua inteiro — é ele
+   * que atende as três habilidades de MP, que continuam sendo de pistola por autoria (leque,
+   * barragem e tempestade têm clipe, voz e coreografia próprios). Ver `skillActive`: enquanto uma
+   * habilidade está no ar a cena volta a mostrar as pistolas, senão a cinemática tocaria com as
+   * mãos vazias.
+   */
+  concealed=false;
+  /** `true` enquanto qualquer uma das três habilidades de MP ainda está produzindo disparo. */
+  get skillActive():boolean {
+    return this.stormRemaining>0||this.barrageIndex<this.barrageTotal||this.fanIndex<this.fanTotal||this.fan.bullets.length>0;
+  }
   /**
    * Destruição de cenário. Trocável a quente porque a fachada só existe depois do manifesto e do
    * GLB: até lá é `NO_DESTRUCTION` e o tiro funciona EXATAMENTE como sempre funcionou, sem nenhum
@@ -261,16 +277,69 @@ export class DualPistols {
   }
   /** Existing pistol nodes borrowed by the physical corpse until the attempt resets. */
   corpseEquipment(): readonly {node: TransformNode; bone: string}[] {
-    if(this.holstered)return [];
+    if(this.holstered||this.concealed)return [];
     return this.weapons.map((node,index)=>({node,bone:index===0?'RightHand':'LeftHand'}));
+  }
+
+  // ------------------------------------------------------------------ serviços de combate
+  //
+  // A porta `CombatServices`, satisfeita por estrutura. São ENVELOPES dos métodos privados que o
+  // tiro já usava — nenhuma regra nova de mira, colisão, destruição ou dano nasce aqui, e é
+  // exatamente esse o ponto: a arma nova herda a física da antiga em vez de reescrevê-la.
+
+  /** Alvos atingíveis do mapa; a lista viva da horda. */
+  get combatTargets():readonly TrainingTarget[] {return this.yard.targets;}
+  /** Contato do mundo estático, com o triângulo quando o backend radial o conhece. */
+  traceWorld(origin:Vector3,direction:Vector3,range:number):CombatContact|undefined {
+    const hit=this.worldPick(new Ray(origin,direction,range));
+    if(!hit?.hit||!hit.pickedPoint)return undefined;
+    return {point:hit.pickedPoint,normal:hit.getNormal(true)??direction.negate(),distance:hit.distance,
+      target:undefined,triangle:this.pickTriangle.get(hit)};
+  }
+  /**
+   * Mundo + atores na frente dele, ordenados. O recorte por `world.distance` é o MESMO que o tiro
+   * comum já fazia: um inimigo atrás da parede não entra na lista, então nenhum consumidor precisa
+   * lembrar de conferir cobertura.
+   */
+  sweep(origin:Vector3,direction:Vector3,range:number,padding=0):CombatSweep {
+    const world=this.traceWorld(origin,direction,range);
+    const limit=world?world.distance:range;
+    const ray=new Ray(origin,direction,range);
+    const actors:CombatContact[]=[];
+    for(const target of this.yard.targets){
+      if(!target.mesh.isPickable||!target.mesh.isEnabled())continue;
+      const hit=this.targetPick(ray,target,padding);
+      if(!hit.hit||!hit.pickedPoint||hit.distance>=limit)continue;
+      actors.push({point:hit.pickedPoint,normal:hit.getNormal(true)??direction.negate(),distance:hit.distance,
+        target,triangle:undefined});
+    }
+    actors.sort((a,b)=>a.distance-b.distance);
+    return {world,actors};
+  }
+  /** Dano num ator pela porta de sempre; o contador de acertos do jogador é compartilhado. */
+  applyHit(target:TrainingTarget,spec:CombatHitSpec):void {
+    const context:DamageContext={attackerId:1,victimId:target.id,sourceId:spec.sourceId,attackId:spec.attackId,
+      baseDamage:spec.damage,finalDamage:spec.damage,crit:false,procCoefficient:spec.procCoefficient,procChainDepth:0,
+      damageTags:spec.tags,
+      hitPosition:{x:spec.point.x,y:spec.point.y,z:spec.point.z},
+      hitNormal:{x:-spec.ray.x,y:-spec.ray.y,z:-spec.ray.z},
+      forceDirection:{x:spec.force.x,y:spec.force.y,z:spec.force.z},
+      hitDirection:{x:spec.ray.x,y:spec.ray.y,z:spec.ray.z},
+      forceMagnitude:spec.forceMagnitude};
+    this.events.emit('DamageDealt',context);target.onHit?.(context);
+    target.hits++;this.hits++;this.hitTime=.12;target.ring?.scaling.setAll(1.1);
+  }
+  /** Mesma porta de destruição do tiro e do soco. */
+  damageScenery(point:Vector3,normal:Vector3,direction:Vector3,damage:number,triangle:number|undefined):boolean {
+    return this.destroyScenery(point,normal,direction,damage,triangle);
   }
   updatePose(dt: number): void {
     const body=this.body(),frame=this.frame();
     for(let side=0;side<2;side++) {
       this.recoil[side]=Math.max(0,this.recoil[side]!-dt);
       const root=this.weapons[side]!;const hand=this.visual.hands[side];
-      root.setEnabled(this.visual.ready&&!this.holstered);
-      if(this.holstered){this.reloadMagazines[side]!.setEnabled(false);this.flashLights[side]!.intensity=0;continue;}
+      root.setEnabled(this.visual.ready&&!this.holstered&&!this.concealed);
+      if(this.holstered||this.concealed){this.reloadMagazines[side]!.setEnabled(false);this.flashLights[side]!.intensity=0;continue;}
       const grip=this.visual.grips?.[side];
       const intensity=this.recoil[side]!/t.recoilSeconds;
       this.flashLights[side]!.intensity=intensity>.6?(intensity-.6)*4:0;
@@ -300,8 +369,15 @@ export class DualPistols {
     this.hitTime=Math.max(0,this.hitTime-dt);this.effects.update(dt);this.casings.update(dt);
   }
   fixedUpdate(dt: number,fire: boolean): void {
-    this.magazine.update(dt);this.visual.reloadProgress=this.magazine.reloading?this.magazine.progress:-1;
-    if(this.magazine.ammo===0&&!this.magazine.reloading)this.requestReload();
+    // Escondida, a pistola NÃO conta o relógio do carregador nem se recarrega sozinha. Sem esta
+    // guarda, equipar a PRISM encheria as duas armas ao mesmo tempo — a recarga de graça que a
+    // troca de arma não pode conceder. As habilidades de MP continuam correndo normalmente: elas
+    // pagam MP, não munição.
+    if(this.concealed)this.visual.reloadProgress=-1;
+    else {
+      this.magazine.update(dt);this.visual.reloadProgress=this.magazine.reloading?this.magazine.progress:-1;
+      if(this.magazine.ammo===0&&!this.magazine.reloading)this.requestReload();
+    }
     this.cadence.update(dt,fire&&!this.magazine.reloading&&this.magazine.ammo>0&&this.visual.ready&&this.barrageIndex>=this.barrageTotal&&this.stormRemaining<=0&&this.fanIndex>=this.fanTotal,side=>this.shoot(side));
     if(this.actionClock&&this.actionClock()>=this.actionDuration){this.fanIndex=this.fanTotal;this.barrageIndex=this.barrageTotal;this.stormRemaining=0;}
     // MP I e MP II: cada NOVO disparo copia a mira atual.

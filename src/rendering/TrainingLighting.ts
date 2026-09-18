@@ -15,14 +15,23 @@ import { SSAO2RenderingPipeline } from '@babylonjs/core/PostProcesses/RenderPipe
 import '@babylonjs/core/Materials/Textures/Loaders/envTextureLoader';
 import type { Scene } from '@babylonjs/core/scene';
 import type { Camera } from '@babylonjs/core/Cameras/camera';
+import {SceneLoader} from '@babylonjs/core/Loading/sceneLoader';
+import type {GLTFFileLoader} from '@babylonjs/loaders/glTF';
 
 export const TRAINING_LIGHTING = { sun:4.2, fill:.5, exposure:1.4, contrast:1.08, bloom:.12, shadowSize:2048, msaa:4 } as const;
 const qualitySettings=new WeakMap<Scene,(balanced:boolean)=>void>();
 export function applyLightingQuality(scene:Scene,balanced:boolean):void {qualitySettings.get(scene)?.(balanced);}
 export function trainingLighting(scene: Scene,camera: Camera): ShadowGenerator {
   // glTF 9.25 raises every material to the scene's light count after each import.
-  // Clamp before readiness/rendering: GTX 1650 exposes only 12 vertex UBO bindings.
-  scene.onBeforeRenderObservable.add(()=>{for(const material of scene.materials)if(material instanceof PBRMaterial||material instanceof StandardMaterial){if(material.maxSimultaneousLights>4){material.unfreeze();material.maxSimultaneousLights=4;}}});
+  // Clamp before readiness/rendering: WebGL can expose only 12 vertex UBO bindings.
+  const clampLights=()=>{for(const material of scene.materials)if(material instanceof PBRMaterial||material instanceof StandardMaterial){if(material.maxSimultaneousLights>4){material.unfreeze();material.maxSimultaneousLights=4;}}};
+  scene.onBeforeRenderObservable.add(clampLights);
+  // Imports finish between frames. Clamp before executeWhenReady can compile the inflated
+  // shader variant; waiting for a render is too late when readiness itself blocks the render.
+  const loaderObserver=SceneLoader.OnPluginActivatedObservable.add(plugin=>{
+    if(plugin.name==='gltf')(plugin as GLTFFileLoader).onCompleteObservable.addOnce(clampLights);
+  });
+  scene.onDisposeObservable.addOnce(()=>SceneLoader.OnPluginActivatedObservable.remove(loaderObserver));
   scene.clearColor=new Color4(.16,.25,.38,1);
   scene.fogMode=3;scene.fogStart=70;scene.fogEnd=260;scene.fogColor=new Color3(.34,.44,.62);
   const sun=new DirectionalLight('afternoon-sun',new Vector3(-.6,-1,.4),scene);

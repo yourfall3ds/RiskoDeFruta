@@ -7,6 +7,7 @@ import type { DualPistols } from '../combat/DualPistols';
 import type { MPCharge } from '../combat/MPCharge';
 import type { EnemyReview } from '../game/EnemyReview';
 import { createSeed } from '../core/RunRNG';
+import { weaponReadout,type WeaponReadoutView } from './WeaponReadout';
 /** Rótulos do detalhamento da pontuação, no `title` do bloco de score. */
 const SCORE_LABEL={kills:'abate'} as const;
 export class PlayerHUD {
@@ -100,7 +101,7 @@ export class PlayerHUD {
         :mode==='horde'
         ?'Sobreviva a hordas cada vez mais fortes. Ao vencer cada onda, recolha o item que cai no campo para acumular poder. A cada cinco ondas, enfrente uma Praga Alfa.'
         :'Contenha a infestação até a Praga Alfa aparecer, derrote-a e atravesse a fenda para avançar de estágio.';
-      this.element.querySelector('.controls')!.insertAdjacentHTML('beforeend','<span><kbd>DIREITO</kbd> Carregar habilidade</span><span><kbd>E</kbd> Ativar cálice / abrir / recolher</span><span><kbd>W A S D</kbd> ×2 Arrancada</span><span><kbd>V</kbd> Corpo a corpo</span>');
+      this.element.querySelector('.controls')!.insertAdjacentHTML('beforeend','<span><kbd>DIREITO</kbd> Carregar habilidade</span><span><kbd>E</kbd> Ativar cálice / abrir / recolher</span><span><kbd>W A S D</kbd> ×2 Arrancada</span><span><kbd>V</kbd> Corpo a corpo</span><span><kbd>B</kbd> Trocar PRISM / pistolas</span><span><kbd>T</kbd> Forma da PRISM</span>');
     }
     if(farm)this.element.insertAdjacentHTML('beforeend','<div class="class-sigil"><img src="/ui/farm-mark.svg" alt="Divisão agrícola"></div><div class="weapon-readout"><span>PISTOLAS DUPLAS</span><b>50 / 50</b><small>R · RECARREGAR</small></div>');
     const options=document.createElement('div');options.className='game-options';options.innerHTML='<label>Som <input aria-label="Volume do som" type="range" min="0" max="100" value="55"></label>';
@@ -186,11 +187,19 @@ export class PlayerHUD {
   }
 
   setActive(active: boolean): void {this.playActive=active;const film=this.gate.querySelector<HTMLVideoElement>('video');if(active)film?.pause();else if(film)void film.play().catch(()=>{});document.body.classList.toggle('game-menu-open',!active);this.gate.hidden=active;if(active)this.entered=true;else if(this.entered&&!this.dead){this.element.querySelector('h1')!.textContent='Campo pausado.';this.button.textContent='CONTINUAR EXPEDIÇÃO →';}}
-  update(player: PlayerMotor,pistols: DualPistols,error: string,mp: MPCharge,enemies:Pick<EnemyReview,'count'|'kills'|'status'>,dt=1/60): void {
+  /**
+   * `weapon` é o painel já resolvido (ver `weaponReadout`). Quando ausente, o painel cai no texto
+   * das pistolas de sempre — é o caminho do pátio de treino e de qualquer cena sem a PRISM.
+   */
+  update(player: PlayerMotor,pistols: DualPistols,error: string,mp: MPCharge,enemies:Pick<EnemyReview,'count'|'kills'|'status'>,dt=1/60,weapon?:WeaponReadoutView): void {
     const ammo=this.element.querySelector('.weapon-readout b');if(ammo){
-      this.element.querySelector('.weapon-readout span')!.textContent=pistols.holstered?'CORPO A CORPO':'PISTOLAS DUPLAS';
-      ammo.textContent=pistols.holstered?'COMBO':pistols.magazine.ammo+' / '+pistols.magazine.capacity;
-      this.element.querySelector('.weapon-readout small')!.textContent=pistols.holstered?'CLIQUE · GOLPEAR / V · SACAR':pistols.magazine.reloading?'RECARREGANDO · '+Math.round(pistols.magazine.progress*100)+'%':'R · RECARREGAR / V · GUARDAR';
+      const view=weapon??weaponReadout({holstered:pistols.holstered,prismReady:false,prismEquipped:false,prismMode:0,
+        prismAmmo:0,prismCapacity:0,prismReloading:false,prismProgress:0,prismBusy:false,
+        pistolAmmo:pistols.magazine.ammo,pistolCapacity:pistols.magazine.capacity,
+        pistolReloading:pistols.magazine.reloading,pistolProgress:pistols.magazine.progress});
+      this.element.querySelector('.weapon-readout span')!.textContent=view.label;
+      ammo.textContent=view.ammo;
+      this.element.querySelector('.weapon-readout small')!.textContent=view.hint;
     }
     const resource=this.element.querySelector('.mp-resource')!;resource.setAttribute('aria-valuenow',String(Math.round(mp.current)));(resource.querySelector('i') as HTMLElement).style.width=mp.current+'%';resource.querySelector('b')!.textContent=Math.floor(mp.current)+' / 100';resource.classList.toggle('mp-low',mp.current<25);
     this.hp.textContent=`${Math.ceil(player.hp)} / ${player.maxHP}`;

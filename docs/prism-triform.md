@@ -72,7 +72,7 @@ O carregador possui pescoço de alimentação, lábios metálicos, contatos e tr
 
 Os disparos partem do socket do cano da forma atual. A câmera abre para mostrar a trajetória e volta ao enquadramento da arma ao selecionar uma forma. A câmera lenta afeta projéteis e animações; a pausa congela os efeitos. O controle de posição inspeciona apenas o clipe da arma.
 
-Esta entrega é uma demonstração audiovisual na oficina, sem dano ou colisão com inimigos. A integração ao combate continua separada da autoria dos efeitos.
+A oficina demonstra os efeitos em uma trajetória de prévia. No jogo, `PrismWeapon` usa colisão, dano e munição reais, enquanto `PrismRig` prende a arma à mão direita e conduz a mão esquerda ao apoio ou ao carregador durante a recarga. Veja `PRISM_GAMEPLAY.md` para os controles e limites da integração.
 
 ## Áudio e explosão incendiária
 
