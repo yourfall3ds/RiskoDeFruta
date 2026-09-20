@@ -346,3 +346,123 @@ Depois **inverter**. Isso detecta qualquer dependência de "jogador local".
 
 Ao encontrar implementação que contradiz esta especificação: **não contorne com um boolean.**
 Refatore a responsabilidade para o lugar certo.
+
+## 20. ADENDO DO BLOCO E — RNG, EVENTO DE COMBATE E MORTE ÚNICA
+
+> Nasceu durante o bloco E, no momento em que o RNG de combate ia ser consolidado num fluxo único
+> `combat`. Vence o §6 onde for mais específico.
+
+### 20.1 Separação semântica de RNG
+
+O servidor ser autoridade elimina divergência entre clientes. **Não** resolve determinismo nem
+testabilidade. Um fluxo único consumido por crítico, proc, spread, variante e efeitos faz com que
+uma mudança boba na ORDEM DE AVALIAÇÃO altere resultados de combate posteriores.
+
+Domínios separados, equivalentes a: `run`, `stage`, `director`, `interactable`, `loot`,
+`combatCrit`, `combatProc`, `combatSpread`, `enemyVariant`. Não precisam ser exatamente oito
+objetos se a abstração existente (`RunRNG.stream`) servir melhor. A regra é o que vale:
+
+- acrescentar uma rolagem de spread **não** altera a sequência futura de loot;
+- acrescentar um proc **não** muda qual elite o Director escolhe;
+- efeito **cosmético nunca** consome RNG autoritativo.
+
+### 20.2 O evento de combate tem identidade
+
+Do cliente: `attackerId`, `inputSequence`, `abilityId`, `clientTimestamp`, `aim`.
+Do servidor: `combatEventId`, `attackerId`, `targetId`, `baseDamage`, `crit`, `procCoefficient`,
+`finalDamage`, `hitPosition`, `tick`.
+
+O cliente **nunca** envia dano, crítico, resultado de proc nem HP resultante. Se enviar, ignora-se.
+
+O `combatEventId` existe para que retransmissão, reconciliação e mensagem duplicada não produzam
+dano duas vezes, proc duas vezes, nem som e muzzle duplicados.
+
+### 20.3 Crítico e proc
+
+Ordem fixa: validar ataque → resolver alvo e hit → rolar crítico → calcular dano → aplicar →
+gravar evento. **Um** crit roll por evento que, pela regra da habilidade, tem um. Cliente não rola;
+`mirror()` não rola; apresentação não rola.
+
+Proc é **consequência do hit autoritativo**: hit confirmado → avaliação → RNG do servidor → efeito
+autoritativo. Se o proc cria míssil, explosão, cura ou cadeia, a consequência também existe no
+servidor. O cliente representa.
+
+### 20.4 Uma entrada central de dano
+
+`applyDamage({attackerId, victimId, damage, damageType, source, combatEventId})`, cuidando de
+invulnerabilidade, armadura, escudo, vida, death guard, atribuição, `onHit` e `onKill`.
+
+Proibido espalhar `hp -= amount` por `EnemySimulation`, `FarmSimulation`, habilidades e projéteis.
+
+### 20.5 Morte exatamente uma vez
+
+Quando `hp > 0` vira `hp <= 0`, o servidor gera **uma** transição de morte. Depois disso, outro
+projétil no mesmo tique, outro proc ou outra mensagem do cliente não podem gerar de novo
+recompensa, loot, XP, `onKill` nem evento de morte. Guarda autoritativa de estado, não um booleano
+no fim do fluxo.
+
+### 20.6 Dano no jogador vale para qualquer vítima
+
+A mesma arquitetura serve a qualquer `victimId`. O bug `victimId !== 1` — que tornava os jogadores
+2, 3 e 4 **imortais** — mostrou o custo de assumir a vítima. Teste os quatro explicitamente; não
+deduza do padrão `entityId = 1`.
+
+### 20.7 Rewind e projéteis
+
+Hitscan: `clientTimestamp`/`inputSequence` → **clamp** para a janela permitida → rewind → raycast e
+validação no servidor → **restaurar** o estado atual → aplicar dano. Nunca aceitar timestamp
+ilimitado; nunca deixar o rewind alterar permanentemente o estado atual.
+
+Projétil lento **não** entra no modelo de hitscan: é entidade autoritativa evoluindo no tempo.
+
+### 20.8 O que o cliente pode prever
+
+Muzzle flash, recuo, som, tracer e feedback preliminar de mira. HP real e hit final vêm do
+servidor; previsão errada reconcilia.
+
+### 20.9 Provas obrigatórias do bloco
+
+- **Trapaça.** Atirar sem munição, antes da cadência, habilidade em cooldown, timestamp velho
+  forjado, vítima forjada, dano forjado, mesmo evento duas vezes. O servidor rejeita ou torna
+  inofensivo.
+- **Isolamento de RNG.** Mesma semente, mesma sequência de pedidos, resultado reproduzível. Depois
+  intercalar uma rolagem de **outro** domínio (loot): a sequência de críticos não muda. E o
+  inverso.
+- **Rede.** Dois clientes reais: mesmo `enemyId`, mesmo `hpAfter`, mesma morte, mesma recompensa.
+  Nenhum cliente roda HP local.
+- **Morte simultânea — o teste assassino.** Inimigo com 10 de vida, A e B acertam 20 no mesmo tique
+  ou em janela próxima: **uma** morte, **uma** recompensa, **um** drop roll, **um** `onKill`
+  conforme a posse, zero duplicação. Qualquer duplicação aqui significa lógica escapando do
+  servidor.
+- **Proc.** Ataque confirmado gera proc; os dois clientes veem a mesma consequência; nenhum RNG no
+  cliente.
+
+### 20.10 "Pulado" não é verde
+
+Medido nesta base: `tests/net-enemies.test.ts` pendurava 60 s no `beforeAll` por disputa da porta
+2568 e tinha os três casos **pulados** — a suíte fechava sem jamais executar a única prova
+fim-a-fim do co-op. Isolado passava; junto, não rodava.
+
+Todo portão final imprime **passed / failed / skipped / todo** e exige `failed = 0` e
+`skipped inesperados = 0`. Skip deliberado tem de estar documentado e **fora** dos testes que
+constituem prova do co-op. Teste de rede usa porta sorteada e garante teardown em `afterAll`, para
+não deixar servidor zumbi para a execução seguinte.
+
+### 20.11 Não aumentar a dívida
+
+`EnemySimulation` (servidor) e o caminho local de `EnemySwarm` (offline) ainda são duas
+implementações das mesmas regras — dívida real, registrada no §2. Não é preciso interromper o
+trabalho para refatorá-la, mas **nenhum sistema novo pode nascer implementado duas vezes**. O
+padrão daqui em diante é núcleo de simulação compartilhável, usado pelo servidor online e pelo
+runtime local. A migração saudável é:
+
+```text
+antes:   EnemySwarm = decisão + visual
+depois:  EnemySimulation = decisão  |  EnemySwarm = visual
+```
+
+e nunca:
+
+```text
+EnemySimulation = decisão nova  |  EnemySwarm = decisão velha "só por garantia"
+```
