@@ -778,3 +778,32 @@ kills         servidor == todos
 
 **Não precisa** estar bonito, ter lobby definitivo, reconnect perfeito, `PlanetScene` migrada, as 48
 mutações corrigidas nem a dívida conhecida resolvida. **Precisa dar para jogar.**
+
+### 22.3 O roteiro do primeiro playtest — curto e determinístico
+
+Não tentar "jogar normal" de primeira. O primeiro teste é um roteiro curto, na ordem abaixo, porque
+é o que localiza a falha em vez de virar caça a fantasma:
+
+```text
+1.  P1/P2/P3/P4 entram
+2.  todos se enxergam
+3.  P1 dá 1 tiro
+4.  P2 dá 1 melee
+5.  P3 recebe dano
+6.  P4 finaliza um mob
+7.  conferir saldo
+8.  comprar 1 baú
+9.  conferir saldo e recompensa
+10. matar 1 jogador
+11. continuar 30 s
+```
+
+Quebrou no 4 → melee. No 8 → economia. No 11 → morte e continuidade. Corrige o que quebrou **nesse
+roteiro** e repete. Só depois de ele passar inteiro é que se soltam os quatro para jogar de verdade.
+
+### 22.4 Como subir os quatro
+
+`.\jogar-coop.ps1` na raiz sobe o servidor Colyseus e o cliente Vite em janelas separadas e imprime
+a URL. A semente é sorteada uma vez e **a mesma para os quatro**: `FarmRoom` é registrada com
+`filterBy(['seed'])`, então semente diferente cria sala diferente e o teste falharia por motivo
+nenhum. Sem `?online=1` o jogo roda single-player e não prova nada.
