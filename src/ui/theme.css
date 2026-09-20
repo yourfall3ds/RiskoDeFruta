@@ -776,6 +776,136 @@ body.rdf-quit::after {
   /* A vinheta também desencosta: escurecer o meio apagaria o personagem. */
   background: linear-gradient(90deg, #04101af2 0 30%, #04101a8c 46%, transparent 62%) !important;
 }
+/* ===============================================================================================
+   SELEÇÃO DE PERSONAGEM — grade de retratos, ficha embaixo
+   =============================================================================================== */
+
+.class-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(62px, 1fr));
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+/* O slot: quadrado, com cantoneiras douradas — o mesmo vocabulário do resto da HUD. */
+.class-slot {
+  position: relative;
+  aspect-ratio: 1;
+  padding: 0 !important;
+  overflow: hidden;
+  border: var(--rdf-hair) solid var(--rdf-line) !important;
+  background: linear-gradient(180deg, #123044, #071a26) !important;
+  cursor: pointer;
+  transition: border-color var(--rdf-snap) var(--rdf-ease), transform var(--rdf-snap) var(--rdf-ease);
+  clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px);
+}
+/* O slot não usa a pele de botão: ele já é a própria moldura, e a seiva por baixo do retrato
+   deixaria o rosto ilegível no hover. */
+.class-slot::before,
+.class-slot::after { content: none !important; }
+
+.class-slot-bust {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+  /* Os não escolhidos ficam em silhueta escura, como na referência: só o ativo tem cor. */
+  filter: brightness(.42) saturate(.35);
+  transition: filter var(--rdf-snap) var(--rdf-ease);
+}
+.class-slot:hover .class-slot-bust { filter: brightness(.8) saturate(.8); }
+.class-slot.chosen .class-slot-bust { filter: none; }
+
+.class-slot.chosen {
+  border-color: var(--rdf-wheat) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 0 0 1px var(--rdf-wheat), 0 8px 22px #0009;
+}
+/* O losango de seleção embaixo do retrato ativo. */
+.class-slot.chosen::after {
+  content: '' !important;
+  position: absolute;
+  left: 50%;
+  bottom: 2px;
+  width: 7px;
+  height: 7px;
+  transform: translateX(-50%) rotate(45deg);
+  background: var(--rdf-wheat);
+}
+
+/* A arma como emblema de canto: é o que realmente distingue as duas classes hoje, já que o jogo
+   tem um único modelo de corpo. */
+.class-slot-badge {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 44%;
+  opacity: .9;
+  filter: drop-shadow(0 1px 3px #000);
+  pointer-events: none;
+}
+
+/* Vagas futuras: silhueta vazia com interrogação. */
+.class-slot-locked {
+  display: grid;
+  place-items: center;
+  font-family: var(--rdf-display);
+  font-size: 20px;
+  color: #ffffff1f;
+  background: repeating-linear-gradient(45deg, #0a1f2d 0 6px, #081a26 6px 12px) !important;
+  border-color: #ffffff12 !important;
+  cursor: default;
+}
+
+/* ---- ficha da classe escolhida ------------------------------------------------------------- */
+.class-detail { text-align: left; }
+.class-detail-name {
+  margin: 0 !important;
+  font-family: var(--rdf-display);
+  font-size: clamp(17px, 1.7vw, 24px);
+  letter-spacing: .04em;
+  color: var(--rdf-wheat-hot);
+}
+.class-detail-role {
+  margin: 0 0 8px !important;
+  font-size: 11px !important;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--rdf-rind) !important;
+}
+.class-weapon {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  margin-bottom: 8px;
+  border: var(--rdf-hair) solid var(--rdf-line);
+  background: #08202ecc;
+  clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
+}
+.class-weapon img { width: 34px; height: 34px; object-fit: contain; }
+.class-weapon b { font-size: 11px; letter-spacing: .12em; color: var(--rdf-ink); }
+
+.class-skills-heading {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 9px;
+  letter-spacing: .26em;
+  color: var(--rdf-wheat);
+}
+.class-skills { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; }
+.class-skills li {
+  display: grid;
+  gap: 1px;
+  padding: 5px 8px;
+  border-left: 2px solid var(--rdf-wheat-dim);
+  background: #06161f99;
+  font-size: 11px;
+  line-height: 1.3;
+}
+.class-skills b { color: var(--rdf-ink); letter-spacing: .06em; }
+.class-skills span { color: var(--rdf-ink-soft); }
+
 /* ESTREITO de propósito. O personagem fica em torno do CENTRO da tela — é ali que ele está de pé
    no convés, em pose de espera, e é dali que ele sai correndo ao começar. Um cartão de 520px
    encostado à esquerda ainda alcançava o meio e tapava exatamente ele. Em ~34% da largura o
