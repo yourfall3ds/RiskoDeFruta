@@ -579,6 +579,7 @@ export class PlayerScene implements SceneModule {
       if(!this.disposed)this.prismError=error instanceof Error?error.message:'Falha no rig da PRISM';
     }).finally(()=>{if(!this.disposed){this.prismSettled=true;this.applyPlayerClass();this.checkReady();}});
     void this.prismVisuals.load();
+    void this.prismVisuals.loadMissile();
 
     // Arco previsto do lança-granadas e a lente limpa da luneta. Os dois são apresentação de MIRA:
     // não colidem, não são atingíveis e não entram na lista de alvos.

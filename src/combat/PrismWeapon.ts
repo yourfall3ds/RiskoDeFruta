@@ -63,7 +63,7 @@ export interface PrismRigPort {
 export interface PrismVisualsPort {
   readonly ready: boolean;
   tracer(mode: PrismMode, from: Vector3, to: Vector3): void;
-  spawnCapsule(id: number, position: Vector3, direction: Vector3): void;
+  spawnCapsule(id: number, position: Vector3, direction: Vector3, missile?: boolean): void;
   moveCapsule(id: number, position: Vector3, direction: Vector3, spin: number): void;
   removeCapsule(id: number): void;
   impact(mode: PrismMode, point: Vector3, normal: Vector3): void;
@@ -585,6 +585,7 @@ export class PrismWeapon {
       damageScale:plan.blastDamageScale,
       incendiary:plan.incendiary,
       groundFire:plan.groundFire,
+      missile:plan.kind==='strike',
       attackId:plan.id,
     };
   }
@@ -684,7 +685,7 @@ export class PrismWeapon {
       PRISM_GRENADE.speed,payload,
     );
     this.services.effects.muzzle(origin);
-    this.visuals?.spawnCapsule(grenade.id,origin,direction);
+    this.visuals?.spawnCapsule(grenade.id,origin,direction,payload?.missile===true);
   }
 
   // ------------------------------------------------------------------ explosão

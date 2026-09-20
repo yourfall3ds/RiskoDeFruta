@@ -49,6 +49,13 @@ export interface GrenadeBody {
  * Ausente = cápsula comum, com os números de `PRISM_GRENADE`.
  */
 export interface GrenadePayload {
+  /**
+   * Desenhar com o corpo do MÍSSIL em vez da cápsula.
+   *
+   * Só apresentação: balística, colisão, explosão e destruição são exatamente as mesmas. O míssil
+   * da chuva É uma cápsula largada de cima — o que muda é o que o jogador vê cair.
+   */
+  readonly missile?: boolean;
   /** A explosão acende o chão onde bate. Ver `src/combat/GroundFire.ts`. */
   readonly groundFire?: boolean;
   /** Multiplicador do raio da explosão. Quem lança é responsável por já aplicar o teto. */

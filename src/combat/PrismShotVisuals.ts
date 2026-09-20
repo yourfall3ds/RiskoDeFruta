@@ -89,8 +89,63 @@ export class PrismShotVisuals {
     });
   }
   /** A cápsula em voo entra em cena. Uma por granada viva; a posição é escrita por `moveCapsule`. */
-  spawnCapsule(id:number,position:Vector3,direction:Vector3):void {
+  /**
+   * O corpo do MÍSSIL da chuva, gerado localmente a partir da referência do usuário.
+   *
+   * Vive num GLB próprio (`prism-missile.glb`) e não em `prism-shots.glb` porque não é autoral do
+   * mesmo lote: foi gerado pelo Hunyuan3D e reexportado. Carga separada também significa que uma
+   * falha aqui não derruba pulso, lança nem cápsula — o míssil só volta a ser cápsula.
+   */
+  private missile:TransformNode|undefined;
+  private missileContainer:AssetContainer|undefined;
+
+  /**
+   * Escala do míssil em cena.
+   *
+   * O gerador normaliza tudo para ~2 unidades no maior eixo; sem corrigir, o míssil entraria com
+   * 2 m de comprimento — maior que uma praga inteira. `0.6` o põe em ~1,2 m, que é a proporção
+   * certa contra o jogador de 1,8 m. É a armadilha de escala que já pôs um celeiro de 79 m no
+   * jogo: nenhum typecheck pega, só medir pega.
+   */
+  private static readonly MISSILE_SCALE=.6;
+
+  async loadMissile():Promise<void> {
+    try{
+      const container=await LoadAssetContainerAsync('/models/weapons/prism-missile.glb',this.scene);
+      if(this.disposed){container.dispose();return;}
+      this.missileContainer=container;
+      container.addAllToScene();
+      const root=container.transformNodes[0]??container.meshes.find(mesh=>mesh.getTotalVertices()>0)?.parent as TransformNode|undefined;
+      const node=root??(container.meshes.find(mesh=>mesh.getTotalVertices()>0) as unknown as TransformNode|undefined);
+      if(!node)throw Error('prism-missile.glb sem malha');
+      node.setEnabled(false);
+      for(const mesh of node.getChildMeshes())mesh.isPickable=false;
+      this.missile=node;
+    }catch(error){
+      // Sem o míssil o jogo segue: a chuva desenha a cápsula, como fazia antes de o asset existir.
+      this.error=this.error||`míssil: ${error instanceof Error?error.message:'falhou'}`;
+    }
+  }
+
+  /**
+   * A cápsula em voo entra em cena. `missile` troca o corpo pelo do míssil da chuva.
+   *
+   * O parâmetro é OPCIONAL de propósito: a porta `PrismVisualsPort` continua satisfeita por quem
+   * não conhece míssil (testes, oficina), e a habilidade cai na cápsula sem erro.
+   */
+  spawnCapsule(id:number,position:Vector3,direction:Vector3,missile=false):void {
     if(!this.ready||this.capsules.has(id))return;
+    if(missile&&this.missile){
+      const node=this.missile.clone('prism-missile-'+id,null,false);
+      if(node){
+        node.setEnabled(true);
+        node.position.copyFrom(position);
+        node.rotationQuaternion=Quaternion.FromUnitVectorsToRef(Vector3.Right(),safeDirection(direction),new Quaternion());
+        node.scaling.setAll(PrismShotVisuals.MISSILE_SCALE);
+        this.capsules.set(id,node);
+        return;
+      }
+    }
     const node=this.clone('Grenade',position,direction);
     if(!node)return;
     // Workshop previews are enlarged; a gameplay capsule must fit the equipped barrel.
@@ -163,7 +218,7 @@ export class PrismShotVisuals {
     for(const node of this.capsules.values())node.dispose();
     this.capsules.clear();
   }
-  dispose():void {this.disposed=true;this.clear();this.rocket.dispose();this.container?.dispose();this.container=undefined;this.templates.clear();this.ready=false;}
+  dispose():void {this.disposed=true;this.clear();this.rocket.dispose();this.missile=undefined;this.missileContainer?.dispose();this.missileContainer=undefined;this.container?.dispose();this.container=undefined;this.templates.clear();this.ready=false;}
 }
 
 /** Direção unitária utilizável; `+X` quando o vetor é degenerado. */
