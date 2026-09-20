@@ -159,6 +159,14 @@ export class WeaponAudio {
  meleeSwing():void {this.play('melee-swing',.22,1,0,.08);}
  /** Only real lethal heavy-melee launches; short fade prevents a long flight loop over combat. */
  meleeLaunch(distance:number):void {if(distance<24)this.play('melee-launch',.32*Math.max(0,1-distance/24),1,0,.65,0,1.1);}
+ /**
+  * O baque da QUEDA fatal — gravacao autoral, cortada no ataque do impacto.
+  *
+  * Separado de `fatalImpact`, que toca no golpe que MATOU: são dois instantes diferentes, e juntar
+  * os dois faria o baque soar com o corpo ainda no ar. O arquivo de origem tinha 1,81 s de quase
+  * silêncio antes do impacto; foi cortado no ataque para o baque começar no primeiro quadro.
+  */
+ fallImpact():void {this.play('player-fall',1,1,0,0);}
  bodyGround(strength=1):void {this.play('body-ground',.4*Math.min(1,strength),1,0,.12);}
 
  /**

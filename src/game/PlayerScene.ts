@@ -284,6 +284,8 @@ export class PlayerScene implements SceneModule {
    */
   readonly prism: PrismWeapon;
   private readonly prismRig: PrismRig;
+  /** O baque da queda ja tocou nesta morte. Impede repetir enquanto o corpo fica no chao. */
+  private fallHeard=false;
   private readonly prismVisuals: PrismShotVisuals;
   /** As tres visuais das habilidades novas do assalto. Ver src/vfx/IonBeam.ts. */
   private readonly ionBeam: IonBeam;
@@ -967,6 +969,16 @@ export class PlayerScene implements SceneModule {
 
     const deathDt=this.paused?0:dt;
     if(this.death.active)this.deathFlight.update(deathDt);
+    /**
+     * O baque da queda toca no instante em que o corpo ENCOSTA, não quando a morte começa.
+     *
+     * O som gravado tinha 1,81 s de quase silêncio antes do impacto; tocá-lo junto com o golpe
+     * fatal punha o baque quase dois segundos depois do corpo já parado. O arquivo foi cortado no
+     * ataque, e o disparo mudou para a borda de `deathFlight.landed` — a queda dura o que tiver de
+     * durar (um tombo curto ou dezoito metros de despenhadeiro) e o baque continua no lugar certo.
+     */
+    if(this.deathFlight.landed&&!this.fallHeard){this.fallHeard=true;this.audio.fallImpact();}
+    else if(!this.death.active)this.fallHeard=false;
     if(this.death.update(deathDt)){this.audio.setActive(false);this.hud.defeated(this.deathSummary!,!this.net&&this.enemies instanceof EnemySwarm?()=>this.restartAttempt():undefined);}
     if(this.death.active)this.hud.fatalReaction(true,this.death.progress);
     this.visual.deathProgress=this.death.state==='idle'||this.ragdollOwnsBody?undefined:this.death.progress;

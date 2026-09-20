@@ -5,7 +5,7 @@ import {nearestContact,type CombatServices} from './CombatServices';
 import {WORLD_SPACE,type CombatCamera,type CombatSpace} from './DualPistols';
 import {PrismArsenal,type PrismMagazine} from './PrismArsenal';
 import {PrismTrigger} from './PrismTrigger';
-import {PrismGrenades,blastFalloff,type Grenade,type GrenadeContact,type GrenadePayload,type GrenadeWorld} from './PrismGrenades';
+import {MINE,PrismGrenades,blastFalloff,type Grenade,type GrenadeContact,type GrenadePayload,type GrenadeWorld} from './PrismGrenades';
 import {predictGrenadeFlight,type GrenadePrediction,type TrajectoryOptions} from './GrenadeTrajectory';
 import {PRISM_GRENADE,PRISM_MODES,type PrismMode,type PrismModeTuning} from './PrismTuning';
 import {
@@ -289,7 +289,7 @@ export class PrismWeapon {
     this.magazine.update(dt);
     // O rig é quem diz quando a forma mudou; o backend só adota o resultado.
     if(this.transforming&&!this.rig.busy){this.transforming=false;this.arsenal.setMode(this.rig.mode);}
-    this.grenades.update(dt);
+    this.grenades.update(dt);this.sweepMines();
     if(!this.live){
       this.rig.firing=false;
       // A transformação só anda porque o rig recebe `update` na APRESENTAÇÃO, e a apresentação só
@@ -585,9 +585,38 @@ export class PrismWeapon {
       damageScale:plan.blastDamageScale,
       incendiary:plan.incendiary,
       groundFire:plan.groundFire,
-      missile:plan.kind==='strike',
+      // A chuva de mísseis é míssil por mecânica; a ogiva pede o corpo explicitamente no plano.
+      missile:plan.kind==='strike'||plan.missile===true,
+      ...(plan.mine?{mine:true}:{}),
+      ...(plan.forceScale!==1?{forceScale:plan.forceScale}:{}),
       attackId:plan.id,
     };
+  }
+
+  /**
+   * Ronda de proximidade das MINAS pousadas.
+   *
+   * Vive aqui e não em `PrismGrenades` porque é aqui que os hostis são conhecidos
+   * (`services.combatTargets`); aquele módulo é balística pura e não sabe o que é um inimigo.
+   *
+   * Uma mina por passo, no máximo: duas minas vizinhas disparadas pelo mesmo hostil no mesmo quadro
+   * seriam duas explosões sobrepostas no mesmo ponto — o dano dobraria sem o jogador entender por
+   * quê. A segunda estoura no passo seguinte, em cadeia visível.
+   */
+  private sweepMines(): void {
+    const armed=this.grenades.live.filter(g=>g.armed&&g.payload?.mine);
+    if(armed.length===0)return;
+    const raio=MINE.triggerRadius*MINE.triggerRadius;
+    for(const mina of armed){
+      for(const alvo of this.services.combatTargets){
+        if(!alvo.mesh.isPickable||!alvo.mesh.isEnabled())continue;
+        const centro=alvo.mesh.getBoundingInfo().boundingBox.centerWorld;
+        const dx=centro.x-mina.position.x,dy=centro.y-mina.position.y,dz=centro.z-mina.position.z;
+        if(dx*dx+dy*dy+dz*dz>raio)continue;
+        this.grenades.detonateNow(mina.id);
+        return;
+      }
+    }
   }
 
   /**
@@ -746,7 +775,7 @@ export class PrismWeapon {
       if(direct)this.services.applyHit(direct,{
         point:centre,force:heading,ray:heading,damage:tuning.damage*damageScale,
         sourceId:tuning.id,attackId:payload?.attackId??'capsule',tags:directTags,
-        procCoefficient:1,forceMagnitude:tuning.force,
+        procCoefficient:1,forceMagnitude:tuning.force*(payload?.forceScale??1),
       });
     }
     // A onda parte de 25 cm À FRENTE da superfície em que a cápsula bateu, na normal do contato.
@@ -773,7 +802,7 @@ export class PrismWeapon {
       this.services.applyHit(target,{
         point,force:direction,ray:direction,damage:PRISM_GRENADE.blastDamage*damageScale*falloff,
         sourceId:tuning.id,attackId:payload?`${payload.attackId}_blast`:'blast',tags:blastTags,
-        procCoefficient:.5,forceMagnitude:PRISM_GRENADE.blastForce*falloff,
+        procCoefficient:.5,forceMagnitude:PRISM_GRENADE.blastForce*(payload?.forceScale??1)*falloff,
       });
     }
     // O cenário leva a explosão pela MESMA porta de destruição do tiro e do soco.

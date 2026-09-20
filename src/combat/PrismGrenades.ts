@@ -1,6 +1,22 @@
 import type {Vec3} from '../core/contracts';
 import {PRISM_GRENADE} from './PrismTuning';
 
+/**
+ * A MINA do lanca-granadas, em numeros.
+ *
+ * `triggerRadius` e menor que o raio da explosao de proposito: a mina tem de estourar DEBAIXO de
+ * quem pisou, nao a meio caminho. `armedSeconds` termina em detonacao e nao em sumico — municao
+ * gasta sempre vira explosao, a mesma regra do teto de capsulas vivas.
+ */
+export const MINE={
+  /** Quanto tempo a mina espera antes de estourar sozinha. */
+  armedSeconds:20,
+  /** Raio em que um hostil dispara a mina. */
+  triggerRadius:2.3,
+  /** Folga acima da superficie tocada, para o corpo nao ficar meio enterrado. */
+  lift:.12,
+} as const;
+
 /** Contato de uma cápsula com o mundo ou com um corpo. */
 export interface GrenadeContact {
   readonly point: Vec3;
@@ -37,6 +53,14 @@ export interface GrenadeBody {
   readonly velocity: Vec3;
   /** Segundos restantes de estopim. */
   fuse: number;
+  /**
+   * MINA pousada e esperando: nao voa, nao cai, nao gasta estopim de voo.
+   *
+   * Separado de `fuse` porque sao dois relogios diferentes: o estopim conta o VOO (3,2 s ate estourar
+   * no ar), e este estado conta a espera no chao, que dura muito mais. Uma mina nao e uma capsula com
+   * estopim longo — ela para de existir como projetil no instante em que encosta.
+   */
+  armed?: boolean;
   /** Distância já percorrida, em metros — usada só pela apresentação. */
   travelled: number;
 }
@@ -58,6 +82,21 @@ export interface GrenadePayload {
   readonly missile?: boolean;
   /** A explosão acende o chão onde bate. Ver `src/combat/GroundFire.ts`. */
   readonly groundFire?: boolean;
+  /**
+   * A cápsula POUSA e vira mina em vez de detonar no contato.
+   *
+   * Ela para onde encostou, arma, e só estoura quando um hostil entra no raio de gatilho — ou
+   * quando o tempo de espera acaba. Quem faz a ronda de proximidade é quem conhece os hostis
+   * (`PrismWeapon`), não este módulo, que de propósito não sabe o que é um inimigo.
+   */
+  readonly mine?: boolean;
+  /**
+   * Multiplicador do EMPURRÃO da explosão, sobre `PRISM_GRENADE.blastForce`.
+   *
+   * Separado de `damageScale` porque são promessas diferentes: dano mata, força arremessa. A ogiva
+   * do lança-granadas existe justamente para ter força desproporcional ao dano.
+   */
+  readonly forceScale?: number;
   /** Multiplicador do raio da explosão. Quem lança é responsável por já aplicar o teto. */
   readonly radiusScale: number;
   /** Multiplicador do dano de contato direto e do estilhaço. */
@@ -76,7 +115,7 @@ export interface Grenade extends GrenadeBody {
 
 /** Resultado de UM passo de voo. `up` é a vertical local usada naquele passo. */
 export interface GrenadeStep {
-  readonly state: 'flying' | 'contact' | 'expired';
+  readonly state: 'flying' | 'contact' | 'expired' | 'armed';
   readonly up: Vec3;
   /** Só em `contact`. */
   readonly contact?: GrenadeContact | undefined;
@@ -95,6 +134,9 @@ export interface GrenadeStep {
  */
 export function stepGrenade(world: GrenadeWorld, body: GrenadeBody, dt: number): GrenadeStep {
   const up=world.up(body.position);
+  // Mina pousada: nenhuma integracao. Sair aqui e o que a impede de afundar no chao quadro a
+  // quadro — a gravidade continuaria puxando contra um contato que ja aconteceu.
+  if(body.armed){body.fuse-=dt;return body.fuse<=0?{state:'expired',up}:{state:'armed',up};}
   const drop=PRISM_GRENADE.gravity*dt;
   body.velocity.x-=up.x*drop;body.velocity.y-=up.y*drop;body.velocity.z-=up.z*drop;
   const to={x:body.position.x+body.velocity.x*dt,y:body.position.y+body.velocity.y*dt,z:body.position.z+body.velocity.z*dt};
@@ -140,7 +182,7 @@ export class PrismGrenades {
   ) {}
   get live(): readonly Grenade[] {return this.bullets;}
   get count(): number {return this.bullets.length;}
-  launch(origin: Vec3, direction: Vec3, speed = PRISM_GRENADE.speed, payload?: GrenadePayload): Grenade {
+  launch(origin: Vec3, direction: Vec3, speed: number = PRISM_GRENADE.speed, payload?: GrenadePayload): Grenade {
     const grenade: Grenade = {
       id:this.nextId++,
       position:{x:origin.x,y:origin.y,z:origin.z},
@@ -163,6 +205,23 @@ export class PrismGrenades {
       const grenade=this.bullets[i]!;
       const step=stepGrenade(this.world,grenade,dt);
       if(step.state==='contact'){
+        /**
+         * Mina: o contato ARMA, não detona.
+         *
+         * Ela é reposicionada um dedo ACIMA da superfície tocada, na normal do contato — pousar no
+         * ponto exato deixaria metade do corpo dentro do chão, e no passo seguinte o teste de
+         * segmento acusaria contato de novo contra a mesma parede.
+         *
+         * Contato com um CORPO (`targetId`) detona na hora mesmo sendo mina: uma mina que ricocheteia
+         * na cara do hostil e cai armada seria um tiro perdido, não uma armadilha.
+         */
+        if(grenade.payload?.mine&&!grenade.armed&&step.contact!.targetId===undefined){
+          const n=step.contact!.normal,at=step.contact!.point;
+          grenade.position.x=at.x+n.x*MINE.lift;grenade.position.y=at.y+n.y*MINE.lift;grenade.position.z=at.z+n.z*MINE.lift;
+          grenade.velocity.x=0;grenade.velocity.y=0;grenade.velocity.z=0;
+          grenade.armed=true;grenade.fuse=MINE.armedSeconds;
+          continue;
+        }
         this.bullets.splice(i,1);
         this.onDetonate(grenade,step.contact!.point,step.contact!.normal,step.contact);
         continue;
@@ -173,6 +232,20 @@ export class PrismGrenades {
       }
     }
   }
+  /**
+   * Detona uma capsula VIVA de fora — e como a ronda de proximidade dispara uma mina.
+   *
+   * Vive aqui e nao no chamador porque a lista e privada: deixar alguem de fora tirar a capsula
+   * da lista abriria caminho para uma mina detonar duas vezes, uma por cada quem achou primeiro.
+   */
+  detonateNow(id:number):boolean {
+    const index=this.bullets.findIndex(g=>g.id===id);
+    if(index<0)return false;
+    const grenade=this.bullets.splice(index,1)[0]!;
+    this.onDetonate(grenade,grenade.position,this.world.up(grenade.position),undefined);
+    return true;
+  }
+
   /** Some com o que está em voo SEM detonar. Morte, reinício e descarte — nunca jogo normal. */
   clear(): void {this.bullets.length=0;}
 }
