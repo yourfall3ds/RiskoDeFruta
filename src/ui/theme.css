@@ -2202,14 +2202,38 @@ body:has(#view) footer select {
 }
 .rdf-runner {
   position: fixed !important;
-  right: clamp(46px, 4.4vw, 74px);
-  bottom: clamp(24px, 3.6vh, 48px);
+  /* POR QUE ESTES NÚMEROS SÃO CONTA, E NÃO CHUTE
+     --------------------------------------------------------------------------------------------
+     O boneco não é imagem: é `box-shadow` desenhado a partir de uma caixa de 4×4px, espalhando-se
+     16px para a DIREITA e 24px para BAIXO dela. A caixa é o canto SUPERIOR ESQUERDO do desenho,
+     não o centro.
+
+     Com `transform-origin: right bottom` — o que estava aqui — a escala de 2,4× segurava o canto
+     inferior direito da CAIXA e empurrava o desenho para baixo: a sombra que ficava a 20px virava
+     48px, e o boneco aparecia quase 50px abaixo da âncora. Era exatamente o que se via: ele bem
+     mais baixo que o número, em vez de ao lado.
+
+     Com a origem no canto de onde as sombras SAEM (`left top`), o desenho ocupa, a partir do topo
+     da caixa, 16 × 2,4 = 38,4px para a direita e 24 × 2,4 = 57,6px para baixo. Daí as duas contas:
+
+     VERTICAL — a base do desenho fica 57,6px abaixo do topo da caixa, e esse topo está 4px acima da
+     borda inferior dela. Para a base do desenho cair na mesma linha do número, a caixa sobe
+     57,6 − 4 ≈ 54px acima do `bottom` do número.
+
+     HORIZONTAL — o desenho começa na borda esquerda da caixa e cresce para a direita. Para ficar
+     16px à direita do número, a caixa fica 20px "antes" do `right` dele: 16 de folga mais os 4px da
+     própria caixa.
+
+     Os dois `clamp` são os MESMOS de `.loading-progress b`, de propósito: se o número se mover um
+     dia, o boneco vai junto, em vez de descolar em silêncio. */
+  right: calc(clamp(84px, 8vw, 132px) - 20px);
+  bottom: calc(clamp(18px, 3vh, 40px) + 54px);
   grid-column: auto !important;
   grid-row: auto !important;
   margin: 0 !important;
   /* 2,4× em vez de 1,4×: no canto da tela, longe do olho, o boneco precisa de corpo. */
   transform: scale(2.4);
-  transform-origin: right bottom;
+  transform-origin: left top;
   filter: drop-shadow(0 2px 6px #000);
 }
 
