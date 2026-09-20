@@ -511,3 +511,70 @@ Vale para todo sistema — horda, dano, proc, projétil, drop.
 8. Projétil lento que não virou hitscan diferido para caber no sistema.
 9. Previsão do cliente antecipando feedback permitido sem criar verdade de combate.
 10. `skipped` e `todo` impedindo o verde.
+
+### 20.15 Espelho não vira fonte de verdade depois
+
+`FarmRoom`, `RemotePlayers` e o HUD podem escrever e copiar HP replicado — isso é o trabalho deles.
+O buraco não é a escrita, é a **leitura**: nenhum sistema pode ler o valor espelhado para decidir
+**morte, proc, alvo, drop ou dano**. Se ler, a mutação é inocente e a leitura recria autoridade
+lateral — o mesmo defeito por outro caminho.
+
+Decisão lê o estado da simulação. Apresentação lê o espelho. Nunca o contrário.
+
+### 20.16 `applyDamage` é idempotente em replay
+
+O mesmo `combatEventId` chegando duas vezes: a primeira aplicação altera o estado; a segunda é
+**no-op observável** — sem dano, sem morte, sem drop, sem proc duplicado. "Observável" significa que
+o teste afirma que nada mudou, não que a segunda chamada foi engolida em silêncio.
+
+### 20.17 A morte simultânea é hostil, não simpática
+
+A matriz mínima, toda executada:
+
+- dois atacantes no mesmo tique;
+- dois hits letais **diferentes** — não o mesmo evento repetido;
+- mesma vítima;
+- **ordens de chegada invertidas**, com o mesmo resultado exigido nas duas;
+- **replay de uma das resoluções** no meio da corrida;
+- resultado: exatamente **1** transição alive→dead, **1** evento de morte, **1** recompensa/drop.
+
+### 20.18 Determinismo depois de reinicializar o runtime
+
+A terceira perna da prova do §20.12: mesma semente, mesmos ids de domínio e mesma sequência de
+eventos, **depois de reinicializar o runtime** — resultado idêntico.
+
+Isso prova determinismo reprodutível, não só isolamento. Dependência acidental de ordem de criação
+de objetos, de relógio, de `Math.random()` residual ou de contador global aparece **só** aqui.
+
+### 20.19 O ledger, não a contagem
+
+A entrega do item 4 do §20.14 não é "caiu de 22 para 7". É um ledger com **proprietário semântico
+explícito** para cada mutação de vida restante, mais a afirmação de que nenhuma constitui decisão
+autoritativa fora do núcleo. Sobreviveu uma? Diga qual, por quê, e o que a impede de ser autoridade.
+
+Linha de base medida nesta base antes do bloco E — 22 mutações em 10 arquivos:
+
+```text
+Health.ts           1    núcleo permitido
+PlayerHUD.ts        1    apresentação
+RemotePlayers.ts    1    réplica
+FarmRoom.ts         2    espelho
+PlayerScene.ts      4    ??? classificar ou eliminar
+PlayerMotor.ts      4    ??? classificar ou eliminar
+EnemySwarm.ts       1    ??? suspeito
+MPCharge.ts         1    ??? suspeito
+FarmSimulation.ts   1    ??? suspeito
+PlanetScene.ts      6    ??? classificar
+```
+
+O alvo nunca foi "regex = zero". É **zero mutação que represente decisão de vida fora do núcleo
+autoritativo**.
+
+### 20.20 Os três números que fecham o bloco
+
+1. mutações autoritativas fora do núcleo = **0**
+2. duplicações de morte/recompensa sob corrida = **0**
+3. divergências de RNG cruzando domínios = **0**
+
+Com esses três e os dez itens do §20.14, o bloco deixa de ser implementação plausível e passa a ser
+autoridade de combate fechada. Sem eles, não fecha — por mais verde que a suíte esteja.
