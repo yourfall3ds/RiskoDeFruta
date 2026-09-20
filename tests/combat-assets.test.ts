@@ -1,5 +1,6 @@
 import { describe,it,expect } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { Health } from '../src/combat/Health';
 import { EventBus } from '../src/core/EventBus';
 import type { DamageContext,GameEvents } from '../src/core/contracts';
@@ -14,11 +15,17 @@ describe('weapon attachment and imported enemies',()=>{
     const {bytes,json}=readGlb('public/models/pistol.glb');const triangles=json.meshes.flatMap((mesh:{primitives:{indices:number}[]})=>mesh.primitives).reduce((sum:number,primitive:{indices:number})=>sum+json.accessors[primitive.indices].count/3,0);
     expect(triangles).toBeLessThanOrEqual(45000);expect(bytes.length).toBeLessThan(8*1048576);expect(json.images.length).toBeGreaterThanOrEqual(3);
   });
+  // A pasta `assets/` com os GLBs originais fica fora do Git (.gitignore), então a integridade é conferida
+  // contra as assinaturas registradas em docs/original-enemy-integrity.json — mesma garantia, sem arquivo ausente.
   it.each(['carrot','corn','eggplant','tomato','watermelon'])('preserves %s original geometry, embedded textures and skin byte for byte',(name)=>{
     const audit=JSON.parse(readFileSync('docs/original-enemy-integrity.json','utf8')).find((x:{species:string})=>x.species===name);
-    const {bytes,json}=readGlb(`public/models/original-${name}.glb`),source=readGlb(audit.source);
-    expect(json.meshes).toEqual(source.json.meshes);expect(json.materials).toEqual(source.json.materials);expect(json.images).toEqual(source.json.images);expect(json.skins).toEqual(source.json.skins);
-    const original=source.bytes.subarray(28+source.bytes.readUInt32LE(12)),runtime=bytes.subarray(28+bytes.readUInt32LE(12));expect(runtime.subarray(0,original.length).equals(original)).toBe(true);
+    expect(audit?.preservedSectionsSHA256,`assinatura ausente para ${name}`).toBeTruthy();
+    const {bytes,json}=readGlb(`public/models/original-${name}.glb`);
+    const sha=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
+    for(const section of ['meshes','materials','images','skins'] as const)expect(sha(json[section]),`seção ${section} de ${name}`).toBe(audit.preservedSectionsSHA256[section]);
+    const runtime=bytes.subarray(28+bytes.readUInt32LE(12));
+    expect(runtime.length).toBeGreaterThanOrEqual(audit.originalBinaryBytes);
+    expect(createHash('sha256').update(runtime.subarray(0,audit.originalBinaryBytes)).digest('hex')).toBe(audit.originalBinarySHA256);
     expect(json.animations.map((a:{name:string})=>a.name)).toEqual(expect.arrayContaining(['Run','Walk','Hit','Death','Attack']));
   });
 });

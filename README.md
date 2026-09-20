@@ -6,7 +6,7 @@ Jogo de ação 3D em terceira pessoa, Babylon.js + TypeScript. A cena padrão te
 
 ## Executar
 
-Node 22.12+ (ambiente validado: 22.18.0), npm.
+Node 22.12+ (validado em 22.18.0 e 24.21.0), npm. Funciona em qualquer pasta: o clone não depende mais de `D:\Riskodefruta2`.
 
 ```sh
 npm ci
@@ -20,10 +20,19 @@ npm run typecheck
 npm test
 npm run build
 npm run preview
-npm run assets:audit
+npm run server
 ```
 
 O `.env` foi criado e está ignorado pelo Git, reservado para configurações locais futuras. Atualmente não exige nenhuma chave. Nunca coloque segredos em variáveis `VITE_*`.
+
+### O que não está versionado
+
+`assets/` (fontes pesadas originais) e `art/` (projetos Blender e renders) ficam fora do Git por decisão do `.gitignore`. Num clone limpo:
+
+- `npm run assets:audit` avisa que não há o que inventariar e encerra sem erro. O inventário publicado continua em [asset-inventory.json](docs/asset-inventory.json).
+- A integridade dos cinco inimigos originais é conferida pelas assinaturas SHA-256 gravadas em [original-enemy-integrity.json](docs/original-enemy-integrity.json), e a pele do personagem pelas de [gunslinger-skin-baseline.json](docs/gunslinger-skin-baseline.json). Os testes não abrem mais arquivos ausentes.
+
+Tudo que o jogo carrega em tempo de execução está em `public/` e é versionado.
 
 ## Conteúdo entregue
 

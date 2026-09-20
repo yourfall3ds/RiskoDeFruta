@@ -5,7 +5,7 @@ import {Vector3} from '@babylonjs/core/Maths/math.vector';
 import type {Mesh} from '@babylonjs/core/Meshes/mesh';
 import type {Scene} from '@babylonjs/core/scene';
 import type {CollisionWorld} from '../physics/CollisionWorld';
-import type {WeaponAudio} from '../audio/WeaponAudio';
+import type {WeaponAudio} from '../audio/RecordedAudio';
 import {radialSurfaceOf,type EnemySurface} from '../enemies/EnemySpace';
 interface Casing {mesh:Mesh;velocity:Vector3;age:number;bounces:number;active:boolean;ground:number;up:Vector3}
 /** Fixed pool; contact-triggered recordings, no extra rigid bodies or shadow casters. */

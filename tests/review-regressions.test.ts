@@ -15,7 +15,7 @@ import {AnimationStateMachine} from '../src/animation/AnimationStateMachine';
 import {poseAkimbo} from '../src/animation/StylishAim';
 import type {CharacterVisual} from '../src/animation/CharacterVisual';
 import type {ThirdPersonCamera} from '../src/camera/ThirdPersonCamera';
-import type {WeaponAudio} from '../src/audio/WeaponAudio';
+import type {WeaponAudio} from '../src/audio/RecordedAudio';
 it('distributes all 14 barrage rays over the flip, never 14 on the release frame',()=>{
  const engine=new NullEngine(),scene=new Scene(engine);try{const visual={ready:true,release:vi.fn()} as unknown as CharacterVisual,camera={forward:Vector3.Forward()} as ThirdPersonCamera,w=new DualPistols(scene,camera,visual,{targets:[]},new RunRNG('skills').stream('run'),new EventBus(),{} as WeaponAudio),spy=vi.spyOn(w as any,'skillRay').mockImplementation(()=>{});
  w.releaseSkill(2);expect(spy).toHaveBeenCalledTimes(0);for(let i=0;i<60;i++){const before=spy.mock.calls.length;w.fixedUpdate(1/60,false);expect(spy.mock.calls.length-before).toBeLessThanOrEqual(1);}expect(spy).toHaveBeenCalledTimes(14);w.dispose();}finally{scene.dispose();engine.dispose();}

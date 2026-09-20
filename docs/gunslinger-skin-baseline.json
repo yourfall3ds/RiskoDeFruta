@@ -1,0 +1,25 @@
+{
+  "file": "public/models/gunslinger.glb",
+  "note": "Assinaturas de pele/malha do personagem antes da autoria direcional (art/processed/gunslinger-before-directional.glb, fora do Git). Qualquer nova animação deve manter estes hashes.",
+  "sectionsSHA256": {
+    "meshes": "b9dae693d27010bdb0239584a3ccf3fd2a9265def2175ea6076305a437657ff2",
+    "skins": "64f0e60ee60b051566b86d9da50b6498a6471e183c9a83dc41a325c4e38ab0e8",
+    "images": "93327b96c397114fad02c255d1c55cbcc751e9dbd8f6ab74dfc10b13226b825c",
+    "materials": "3981029e23ca6b874ddd07f34694d6c0fa106b80075e81562a714d1dcfe49249",
+    "textures": "efbc38b9e39c846cab21547a6857d60d53a7e5d3e9eb77382195124e0dab69bb"
+  },
+  "authoredAnimations": [
+    "WalkBackward",
+    "StrafeLeft",
+    "StrafeRight",
+    "RunBackward",
+    "RunStrafeLeft",
+    "RunStrafeRight",
+    "FanCast",
+    "PrepareFan",
+    "PrepareMortal",
+    "PrepareStorm",
+    "ReloadCast"
+  ],
+  "authoredSampleCount": 61
+}

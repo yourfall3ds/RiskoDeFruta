@@ -69,8 +69,11 @@ export function mergeCollision(mesh: CollisionData['mesh'], solid: CollisionData
   return { mesh: merged, solid: volumes, surfaces };
 }
 
-/** Entrada de um jogador tal como chega pela rede; `seq` permite reconciliar a predição local. */
-export interface NetInput { frame: InputFrame; yaw: number; pitch: number; seq: number }
+/**
+ * Entrada de um jogador já decodificada pela sala; `seq` permite reconciliar a predição local.
+ * Nome distinto do schema de rede `NetInput` (`src/net/NetInput.ts`), que é a forma serializada.
+ */
+export interface PlayerCommand { frame: InputFrame; yaw: number; pitch: number; seq: number }
 
 export interface PlayerSnapshot {
   id: string; x: number; y: number; z: number; yaw: number; pitch: number; seq: number;
@@ -140,7 +143,7 @@ export class FarmSimulation {
 
   removePlayer(id: string): void { this.players.delete(id); }
 
-  applyInput(id: string, input: NetInput): void {
+  applyInput(id: string, input: PlayerCommand): void {
     const player = this.players.get(id);
     if (!player || input.seq <= player.seq) return; // descarta pacotes fora de ordem
     player.input = input.frame; player.yaw = input.yaw;

@@ -14,7 +14,7 @@ import type {Mesh} from '@babylonjs/core/Meshes/mesh';
 import type {Scene} from '@babylonjs/core/scene';
 import type {PlayerMotor} from '../player/PlayerMotor';
 import type {CollisionWorld} from '../physics/CollisionWorld';
-import type {WeaponAudio} from '../audio/WeaponAudio';
+import type {WeaponAudio} from '../audio/RecordedAudio';
 import type {Vec3} from '../core/contracts';
 import type {SurfaceFrame} from '../physics/SurfaceFrame';
 import {FootstepSync} from '../animation/FootstepSync';

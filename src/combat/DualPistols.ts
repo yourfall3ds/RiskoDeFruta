@@ -19,7 +19,7 @@ import {destructionHit,NO_DESTRUCTION,type DestructionPort} from '../planet-game
 import type { CharacterVisual } from '../animation/CharacterVisual';
 import type { TrainingYard, TrainingTarget } from '../world/TrainingYard';
 import type { MPTier } from './MPCharge';
-import type { WeaponAudio } from '../audio/WeaponAudio';
+import type { WeaponAudio } from '../audio/RecordedAudio';
 import { ShotEffects } from '../vfx/ShotEffects';
 import {PickingInfo} from '@babylonjs/core/Collisions/pickingInfo';
 import {sweepBox,type CollisionWorld} from '../physics/CollisionWorld';

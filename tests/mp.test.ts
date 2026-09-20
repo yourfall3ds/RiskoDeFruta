@@ -13,7 +13,7 @@ import { DualPistols } from '../src/combat/DualPistols';
 import type { CharacterVisual } from '../src/animation/CharacterVisual';
 import type { ThirdPersonCamera } from '../src/camera/ThirdPersonCamera';
 import type { TrainingYard } from '../src/world/TrainingYard';
-import type { WeaponAudio } from '../src/audio/WeaponAudio';
+import type { WeaponAudio } from '../src/audio/RecordedAudio';
 
 describe('MP charge',()=>{
   it('reaches each threshold exactly at fixed ticks and resets immediately on release',()=>{

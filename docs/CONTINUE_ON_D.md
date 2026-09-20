@@ -1,5 +1,10 @@
 # Continuidade no disco D:
 
+> **Nota de 15/09/2026.** O repositório deixou de exigir `D:\Riskodefruta2`. O `.npmrc` não fixa mais um
+> cache absoluto e os testes não abrem mais `assets/` nem `art/`, que continuam fora do Git. Um clone limpo
+> roda `npm ci`, `npm run dev`, `npm test` e `npm run build` em qualquer pasta. Os caminhos D: abaixo são
+> registro histórico da máquina de origem, não requisito.
+
 Projeto ativo: D:\Riskodefruta2. Fila cumulativa: docs/OBJECTIVES_QUEUE.md. Estado atual: docs/CURRENT_IMPLEMENTATION.md.
 
 203 testes / 22 arquivos, TypeScript e build aprovados em 07/09. A última correção entrega o item aleatório dos baús no mundo, após abrir a tampa; E recolhe. Conferido no navegador com Mira de precisão, cobrança única e inventário após coleta.
@@ -20,6 +25,6 @@ Porte gráfico vindo do backup C:: supersampling 1,5× com teto de pixels (`crea
 
 Correções: `PistolMagazine.update` com tolerância (1,35−1−0,35 ≈ 1e-16 nunca zerava). `InputFrame`/`EMPTY_INPUT` movidos para `src/input/InputFrame.ts` (re-exportados por `GameInput.ts`) para o servidor não arrastar a classe DOM.
 
-Pendências fora desta sessão: erro de typecheck em `src/game/EnemySwarm.ts:168` (`readonly Mesh[]`) vindo de edição paralela; C: com ~20 MB livres derruba ferramentas que gravam temporários no C:. Não desenvolver duas versões em paralelo.
+Pendências fora desta sessão: erro de typecheck em `src/game/EnemySwarm.ts:168` (`readonly Mesh[]`) vindo de edição paralela; C: com ~20 MB livres derruba ferramentas que gravam temporários no C:. Não desenvolver duas versões em paralelo. *(Verificado em 15/09/2026: `npm run typecheck` e `npm run server:typecheck` passam sem erro; essa pendência está resolvida.)*
 
 Fase 2 (07/09): cliente online em `src/net/` — `NetworkClient` (@colyseus/sdk, InputHandle, Predict), `Reconciliation` (pura, 5 testes), `RemotePlayers` (CharacterVisual por remoto, aiming=false), `NetworkSession` (fachada; `?online=1&server=`). Gancho mínimo no PlayerScene (import, campo, 1 linha no construtor, 3 em fixedUpdate, 1 em render, debug e dispose). 232 testes / 28 arquivos. Overlay F1 mostra RTT/correções. Erros de typecheck restantes são da edição paralela (EnemySwarm.ts:168, PlayerScene ready).

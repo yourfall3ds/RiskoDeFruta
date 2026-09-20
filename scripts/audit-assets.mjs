@@ -1,9 +1,16 @@
-import { open, readdir, mkdir, writeFile, stat } from 'node:fs/promises';
+import { open, readdir, mkdir, writeFile, stat, access } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const directory = path.join(root, 'assets');
+// `assets/` guarda as fontes pesadas e fica fora do Git (.gitignore); num clone limpo ela não existe.
+// Sem ela não há o que inventariar: avisar e sair com sucesso, em vez de quebrar `npm run assets:audit`.
+try { await access(directory); } catch {
+  console.log('Pasta assets/ ausente: nada a auditar. Ela guarda as fontes pesadas locais e não é versionada.');
+  console.log('O inventário já publicado continua em docs/asset-inventory.json.');
+  process.exit(0);
+}
 const report = [];
 for (const name of (await readdir(directory)).sort()) {
   const filename = path.join(directory, name);

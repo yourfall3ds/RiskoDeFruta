@@ -34,7 +34,7 @@ import { TacticalNavigation } from '../ai/TacticalNavigation';
 import { AnimationStateMachine } from '../animation/AnimationStateMachine';
 import { RagdollWorld } from '../physics/RagdollWorld';
 import type { Skeleton } from '@babylonjs/core/Bones/skeleton';
-import type { WeaponAudio } from '../audio/WeaponAudio';
+import type { WeaponAudio } from '../audio/RecordedAudio';
 import '@babylonjs/core/Rendering/outlineRenderer';
 import '@babylonjs/core/Shaders/outline.vertex';
 import '@babylonjs/core/Shaders/outline.fragment';

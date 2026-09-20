@@ -17,7 +17,13 @@
       "Spawn",
       "Cast",
       "Attack"
-    ]
+    ],
+    "preservedSectionsSHA256": {
+      "meshes": "b9dae693d27010bdb0239584a3ccf3fd2a9265def2175ea6076305a437657ff2",
+      "materials": "fab471a03284893ebc4f08db69386dc892de0696f04fd233b74e68fcd7ff1500",
+      "images": "feec6aedd4b51bc63e5cc6f99d35ea418a560da62facd696377971e9a2480295",
+      "skins": "2cd48e2f2edc9fd315d5edcee6610490f26f772d07aa2ece6282008f4ca1ffe5"
+    }
   },
   {
     "species": "corn",
@@ -37,7 +43,13 @@
       "Spawn",
       "Cast",
       "Attack"
-    ]
+    ],
+    "preservedSectionsSHA256": {
+      "meshes": "b9dae693d27010bdb0239584a3ccf3fd2a9265def2175ea6076305a437657ff2",
+      "materials": "fab471a03284893ebc4f08db69386dc892de0696f04fd233b74e68fcd7ff1500",
+      "images": "feec6aedd4b51bc63e5cc6f99d35ea418a560da62facd696377971e9a2480295",
+      "skins": "2cd48e2f2edc9fd315d5edcee6610490f26f772d07aa2ece6282008f4ca1ffe5"
+    }
   },
   {
     "species": "carrot",
@@ -57,7 +69,13 @@
       "Spawn",
       "Cast",
       "Attack"
-    ]
+    ],
+    "preservedSectionsSHA256": {
+      "meshes": "b9dae693d27010bdb0239584a3ccf3fd2a9265def2175ea6076305a437657ff2",
+      "materials": "fab471a03284893ebc4f08db69386dc892de0696f04fd233b74e68fcd7ff1500",
+      "images": "feec6aedd4b51bc63e5cc6f99d35ea418a560da62facd696377971e9a2480295",
+      "skins": "2cd48e2f2edc9fd315d5edcee6610490f26f772d07aa2ece6282008f4ca1ffe5"
+    }
   },
   {
     "species": "tomato",
@@ -81,7 +99,13 @@
       "Roll",
       "Hit",
       "Death"
-    ]
+    ],
+    "preservedSectionsSHA256": {
+      "meshes": "9c568cbe9e7efd0a40ca6cadd8693df145267b36255d3d148f13743b31643d62",
+      "materials": "5ea03e86ee7a024e2bfd0ce5fe5e1e84519b4ec9f77e4d7f8e719f3ea07762df",
+      "images": "279f4d403b3855545c3bf46ba7e0d0163089d63e42126358295a4cc4b1d965fd",
+      "skins": "6f9009542dd98e218837d971873c1d6d07028308da8411ba60f40e9cb1a5b471"
+    }
   },
   {
     "species": "watermelon",
@@ -105,6 +129,12 @@
       "Roll",
       "Hit",
       "Death"
-    ]
+    ],
+    "preservedSectionsSHA256": {
+      "meshes": "f8f9e634c9e277e472358f619b99e71c30e42e9c6dd1249a708628f329f22eb6",
+      "materials": "5ea03e86ee7a024e2bfd0ce5fe5e1e84519b4ec9f77e4d7f8e719f3ea07762df",
+      "images": "b9157b5aece76495c9b612a675f8a22cb6167425c783f05872b350e3ea538cf2",
+      "skins": "fb6071a0557029b89a12a7bd48cd2457028e3b929130b3fb66ca7504195a75c7"
+    }
   }
 ]

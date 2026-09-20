@@ -79,7 +79,7 @@ import { CAMERA_TUNING } from '../player/PlayerTuning';
 
 import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
 
-import { WeaponAudio } from '../audio/WeaponAudio';
+import { WeaponAudio } from '../audio/RecordedAudio';
 
 import { PlayerHUD } from '../ui/PlayerHUD';
 
@@ -99,7 +99,7 @@ import { RunInteractables } from '../run/RunInteractables';
 
 import { FootingPresentation } from '../world/FootingPresentation';
 
-import { RunHUD } from '../ui/RunHUD';
+import { RunHUD } from '../ui/CombatHUD';
 
 import { ExpeditionObjectives,findTotemSite,FINAL_CHALICE_JUICE,TOTEM_RADIUS,isOuterDeck,CHALICE_SIGNAL_SECONDS,DECK_TOLERANCE,type TotemSite } from '../run/ExpeditionObjectives';
 

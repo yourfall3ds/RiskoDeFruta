@@ -11,7 +11,7 @@ import {CollisionWorld} from '../src/physics/CollisionWorld';
 import {ThirdPersonCamera} from '../src/camera/ThirdPersonCamera';
 import {CharacterVisual} from '../src/animation/CharacterVisual';
 import {DualPistols} from '../src/combat/DualPistols';
-import {WeaponAudio} from '../src/audio/WeaponAudio';
+import {WeaponAudio} from '../src/audio/RecordedAudio';
 
 it('keeps an immutable death inventory and statistics while resetting the same run object for retry',()=>{
  const run=new RunProgression(new EventBus<GameEvents>()),inventory=run.inventory;run.addItem('feather');run.addItem('feather');run.addItem('fire');run.reward();run.time=125;run.stage=3;run.level=7;
