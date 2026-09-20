@@ -51,7 +51,26 @@ import { enemySpace,radialSurfaceOf,type EnemySpace,type EnemySurface,type Headi
 import { mark,section } from '../debug/FreezeTrace';
 
 type State='spawn'|'chase'|'windup'|'recover'|'flee'|'dead';
+/**
+ * Uma linha da horda AUTORITATIVA, já decodificada do schema.
+ *
+ * Declarada aqui, e não importada do servidor, para a apresentação não passar a depender de
+ * `server/`: o cliente recebe números e desenha. `targetPlayerId` vem junto de propósito — quem o
+ * inimigo está caçando é decisão do servidor, e sem o campo o cliente teria de adivinhar (e duas
+ * telas adivinhariam diferente, que é o bug que este bloco fecha).
+ */
+export interface ReplicatedEnemy {
+  id:number;kind:EnemyKind;variant:EnemyVariant;scale:number;
+  x:number;y:number;z:number;yaw:number;hp:number;maxHP:number;
+  state:State;time:number;burn:number;stagger:number;targetPlayerId:number;alive:boolean;
+}
+/** Amostras guardadas para desenhar o corpo UM patch no passado (contrato §13). */
+interface ReplicaTrack {previous:Vec3;target:Vec3;yawPrevious:number;yawTarget:number;elapsed:number;interval:number;raw:string}
 interface Actor {id:number;kind:EnemyKind;variant:EnemyVariant;scale:number;push:Vector3;root:TransformNode;body:Mesh;visual:TransformNode;clips:Map<string,AnimationGroup>;machine:AnimationStateMachine;skeleton:Skeleton|undefined;laserSocket?:TransformNode;laserArm?:TransformNode;
+  /** Id do corpo no servidor, quando a horda é replicada. Ausente = corpo decidido localmente. */
+  serverId?:number;replica?:ReplicaTrack;
+  /** Quem este corpo está caçando, segundo o SERVIDOR. Apresentação; nunca recalculado aqui. */
+  targetPlayerId?:number;
   /** Nós do rig que formam o ponto fraco da espécie, resolvidos uma vez. `[]` = espécie sem zona. */
   weakNodes?:TransformNode[];ragdoll:ReturnType<RagdollWorld['create']>;healthTrail:number;gait:number;lastPosePosition:Vector3;palette:PosePalette;health:Health;target:TrainingTarget;state:State;time:number;attack:number;locked:Vec3;direction:Heading;facing:Vector3;burn:number;burnClock:number;anim:number;hit:number;stagger:number;staggerCooldown:number;deathVelocity:Vector3;active:boolean;cooldown:number}
 /**
@@ -131,6 +150,19 @@ export class EnemySwarm {
   private readonly isChargingTomato=(a:Actor):boolean=>a.active&&!a.health.dead&&a.kind==='tomato'&&a.state==='windup';
   private readonly isLiveActor=(a:Actor):boolean=>a.active&&!a.health.dead;
   ready=false;error='';kills=0;boss:Actor|undefined;bossDeadTime=-1;message='';
+  /**
+   * QUEM DECIDE esta horda.
+   *
+   * `local` é a fazenda de sempre: diretor, nascimento, IA, vida e morte saem daqui. `server` é o
+   * cooperativo: o dono é `EnemySimulation`, e este objeto vira APRESENTAÇÃO — malha, pose, ragdoll,
+   * som e rótulo. Nunca os dois (contrato §18.8): a primeira chamada de `replicate` desliga a
+   * decisão local no mesmo passo, em vez de deixá-la rodando em paralelo duplicando entidade.
+   */
+  private authority:'local'|'server'='local';
+  get replicated():boolean {return this.authority==='server';}
+  /** Só `replicate` pode criar corpo depois da virada; `spawn` externo é recusado. */
+  private applyingReplica=false;
+  private readonly byServerId=new Map<number,Actor>();
   /**
    * Id do último ator que `spawn` colocou em campo, ou −1 se a última chamada falhou.
    *
@@ -340,6 +372,9 @@ export class EnemySwarm {
     else this.director.retireLivingEnemy();
   }
   updateBudget(dt:number,frameMs:number):void {
+    // Aposentar e reciclar TIRA corpo de campo: é decisão de população, e com o servidor no comando
+    // ela é dele. Um cliente lento não pode fazer um inimigo sumir da tela dele e não da do outro.
+    if(this.authority==='server')return;
     if(this.benchmark)return;this.budget.update(dt,frameMs);this.populationCap=this.budget.limit;
     this.recycleStrays(dt);
     this.retirementClock-=dt;if(this.count<=this.populationCap||this.retirementClock>0)return;
@@ -392,6 +427,10 @@ export class EnemySwarm {
   }
   spawn(kind:EnemyKind,position?:Vec3,variant:EnemyVariant=kind==='boss'?'normal':chooseVariant(this.rng.stream('elite').next(),this.director.time)):boolean {
     this.lastSpawnedId=-1;
+    // Com o servidor no comando, NASCER é decisão dele. Recusar aqui (em vez de confiar em quem
+    // chama) é o que garante que nenhum caminho antigo — represália, invocação do chefe, QA —
+    // consiga criar um corpo que o outro cliente não tem.
+    if(this.authority==='server'&&!this.applyingReplica)return false;
     if(kind==='boss'&&this.boss&&!this.boss.health.dead)return true;
     /**
      * O teto de população é um ORÇAMENTO DE DESEMPENHO, não regra de jogo. O chefe sempre nasce, e
@@ -502,7 +541,11 @@ export class EnemySwarm {
     return resolveWeakPoint(context.hitPosition,direction,spheres)>=0?zone:undefined;
   }
   private hit(a:Actor,context:DamageContext):void {
-    if(!a.active||a.health.dead)return;const stats=this.progression.stats;
+    if(!a.active||a.health.dead)return;
+    // Vida, crítico, proc e morte são do servidor. Aceitar o acerto aqui faria a barra descer duas
+    // vezes no atirador e uma só no companheiro — dois donos da mesma regra.
+    if(this.authority==='server')return;
+    const stats=this.progression.stats;
     const weak=this.weakPointOf(a,context);
     // Acerto direto JÁ é crítico. O dado do crítico aleatório nem é rolado quando a zona acertou:
     // sem isso o multiplicador empilharia (×2 × ×2,4) e o mesmo golpe contaria dois críticos.
@@ -724,6 +767,15 @@ export class EnemySwarm {
     // corpos em ilhas diferentes têm gravidades diferentes, e é isso que a correção por corpo dá.
     // Na fazenda ninguém chama isto e a gravidade do ragdoll segue `(0,−18,0)`, intacta.
     if(this.radial)this.ragdolls.applyLocalGravity(this.localDown,dt);
+    /**
+     * A VIRADA DE DONO, num `return`.
+     *
+     * Daqui para baixo está TUDO que decide: queimadura, diretor, nascimento, escalonador de IA,
+     * windup, ataque, dano ao jogador, avisos e projéteis. Com o servidor no comando nada disso
+     * roda — o corpo é colocado por `replicate`. O que ficou acima é cosmético (gravidade dos
+     * cadáveres, idade do último abate) e continua valendo nos dois modos.
+     */
+    if(this.authority==='server')return;
     if(!this.ready||this.player.hp<=0)return;this.burning.update(dt,(owner,amount)=>{this.player.applyDamage({...this.damageContext(owner,amount,this.player.position,'incendiary_burn'),forceMagnitude:0,damageTags:['enemy','fire','dot']});});this.initialize();this.navigation?.update(this.player.position);this.buildTickCache();this.scheduler.update(dt);this.tactical?.step(dt,this.player.position);this.director.update(dt,this.kills,this.count+this.replacements.length,kind=>this.spawn(kind),this.populationCap);if(this.bossDeadTime>=0)this.bossDeadTime+=dt;
     let undriven=0;
     for(const a of this.actors){if(!a.active)continue;a.time+=dt;a.hit=Math.max(0,a.hit-dt);a.stagger=Math.max(0,a.stagger-dt);a.staggerCooldown=Math.max(0,a.staggerCooldown-dt);
@@ -814,6 +866,109 @@ export class EnemySwarm {
       if(p.impact&&landed){const impact={x:work2.x,y:work2.y,z:work2.z};if(p.impact.zone)this.effects.warning(impact,p.impact.zone==='acid'?4:2.3,.12,p.damage||18,p.owner,p.impact.zone);if(p.impact.summon&&(this.tactical?this.tactical.reachable(impact,this.player.position):this.navigation?this.navigation.reachable(impact):this.space.radial))this.spawn(p.impact.summon,impact);}
     }
   }
+  /**
+   * A HORDA REPLICADA — apresentação pura.
+   *
+   * Recebe a lista autoritativa e reconcilia o pool visual contra ela: quem chegou nasce, quem
+   * sumiu sai, quem morreu cai. **Nada aqui decide**: posição, vida, estado e alvo vêm prontos.
+   *
+   * Os corpos são desenhados UM PATCH NO PASSADO (contrato §13): cada amostra nova vira o novo
+   * destino e a anterior vira a origem, e o quadro interpola entre as duas pelo intervalo REAL
+   * medido entre amostras. Desenhar a última posição crua daria o teleporte a 30 Hz que o contrato
+   * proíbe; extrapolar daria o corpo atravessando parede quando um pacote atrasa.
+   */
+  replicate(rows:readonly ReplicatedEnemy[],dt:number):void {
+    this.authority='server';
+    const seen=new Set<number>();
+    for(const row of rows){
+      seen.add(row.id);
+      let a=this.byServerId.get(row.id);
+      if(!a){
+        a=this.adoptReplica(row);
+        if(!a)continue;               // GLB ainda carregando: o corpo entra no próximo patch
+      }
+      const track=a.replica!;
+      // Assinatura da amostra: só o que MUDA por tique. Sem ela, um corpo parado reiniciaria a
+      // interpolação a cada quadro e nunca chegaria ao destino.
+      const raw=`${row.x}|${row.y}|${row.z}|${row.yaw}`;
+      if(raw!==track.raw){
+        track.previous={x:a.root.position.x,y:a.root.position.y,z:a.root.position.z};
+        track.yawPrevious=a.root.rotation.y;
+        track.target={x:row.x,y:row.y,z:row.z};track.yawTarget=row.yaw;
+        // Intervalo real entre amostras, com piso: a sala publica a 30 Hz, mas jitter acontece.
+        track.interval=Math.max(1/120,Math.min(.5,track.elapsed));
+        track.elapsed=0;track.raw=raw;
+      }
+      track.elapsed+=dt;
+      const t=Math.min(1,track.elapsed/track.interval);
+      a.root.position.set(
+        track.previous.x+(track.target.x-track.previous.x)*t,
+        track.previous.y+(track.target.y-track.previous.y)*t,
+        track.previous.z+(track.target.z-track.previous.z)*t,
+      );
+      // Ângulo pelo caminho curto: sem isto o corpo gira 350° ao cruzar ±π.
+      const turn=Math.atan2(Math.sin(track.yawTarget-track.yawPrevious),Math.cos(track.yawTarget-track.yawPrevious));
+      a.root.rotation.y=track.yawPrevious+turn*t;
+      a.health.current=row.hp;a.time=row.time;a.burn=row.burn;a.stagger=row.stagger;
+      a.targetPlayerId=row.targetPlayerId;
+      if(row.alive){a.state=row.state==='dead'?'chase':row.state;continue;}
+      // MORTE: uma transição, uma vez. Os dois clientes veem a mesma, porque os dois recebem a
+      // mesma linha virar `alive:false` — nenhum deles decide "agora morreu".
+      if(a.state!=='dead')this.presentDeath(a);
+    }
+    // Quem o servidor tirou de campo sai aqui — com o cadáver articulado devolvido ao pool, que é
+    // o que `fixedUpdate` fazia aos 7 s e não faz mais neste modo.
+    for(const [id,a] of [...this.byServerId]) if(!seen.has(id)){
+      this.ragdolls.release(a.ragdoll);a.ragdoll=undefined;
+      this.release(a);this.byServerId.delete(id);
+    }
+  }
+
+  /** Cria o corpo visual de uma linha nova, reusando o pool e o caminho de nascimento existentes. */
+  private adoptReplica(row:ReplicatedEnemy):Actor|undefined {
+    this.applyingReplica=true;
+    const born=this.spawn(row.kind,{x:row.x,y:row.y,z:row.z},row.variant);
+    this.applyingReplica=false;
+    if(!born||this.lastSpawnedId<0)return undefined;
+    const a=this.byId.get(this.lastSpawnedId);
+    if(!a)return undefined;
+    a.serverId=row.id;
+    // A vida é a do SERVIDOR, inclusive o máximo: a fórmula local não conhece o multiplicador de
+    // onda nem o nível da sala, e uma barra com denominador diferente mostraria progresso errado.
+    a.health=new Health(a.id,row.maxHP,this.events);
+    a.health.current=row.hp;
+    a.replica={previous:{x:row.x,y:row.y,z:row.z},target:{x:row.x,y:row.y,z:row.z},yawPrevious:row.yaw,yawTarget:row.yaw,elapsed:0,interval:1/30,raw:''};
+    a.root.rotation.y=row.yaw;
+    // O escalonador de IA é do servidor: um emprego local aqui faria `think` decidir windup.
+    this.scheduler.remove(a.id);
+    this.byServerId.set(row.id,a);
+    return a;
+  }
+
+  /**
+   * A cena de morte, sem nenhuma consequência de jogo.
+   *
+   * O que `hit` fazia aqui e NÃO acontece mais: recompensa, XP, ouro, colheita, `director.bossKilled`
+   * e `StageCompleted`. Todos são do servidor. Ficam o ragdoll, os cacos, o cadáver e o som — que
+   * são justamente o que pode divergir entre telas sem consequência nenhuma.
+   */
+  private presentDeath(a:Actor):void {
+    a.state='dead';a.time=0;
+    this.lastKill={position:{x:a.root.position.x,y:a.root.position.y,z:a.root.position.z},kind:a.kind,age:0};
+    this.scheduler.remove(a.id);this.tactical?.remove(a.id);a.palette.sync();
+    const context=this.damageContext(a.id,0,a.root.position,'replicated_death');
+    a.ragdoll=this.takeRagdoll(a,context);
+    this.audio?.enemy('death',a.kind,this.distance(a.root.position,this.player.position));
+    a.body.isPickable=false;
+    for(const mesh of a.target.meshes??[a.body])mesh.isPickable=false;
+    this.launchCorpse(a,context.forceDirection,3,3);
+    this.effects.burst(a.root.position,'juice',a.kind==='boss'?4:1.2);
+    this.fragments.burst(a.kind,a.root.position,context.forceDirection,a.body,a.kind==='boss'?1.6:1);
+    // Contador de tela: o abate já foi contado no servidor, aqui é só o número que o HUD mostra.
+    this.kills++;
+    if(a.kind==='boss')this.bossDeadTime=this.mode==='classic'?0:-1;
+  }
+
   update(dt:number):void {
     this.lasers.begin();this.presentationTime+=dt;this.elemental.update(dt);this.flameClock-=dt;if(this.flameClock<=0&&dt>0){this.flameClock=.11;for(const p of this.effects.projectiles)if(p.active&&p.delay<=0&&p.impact?.zone==='fire')this.elemental.emit('fire',p.position,.65);let fields=0;for(const w of this.effects.warnings)if(w.active&&w.kind.startsWith('fire')&&fields++<3){for(let i=0;i<2;i++){const a=this.presentationTime+i*3.14;this.elemental.emit('fire',this.space.ringPoint(w.position,a,w.radius*.4,.06,new Vector3()),.8);}}}
     this.elemental.aura('fire',this.burning.remaining>0?[this.space.lift(this.player.position,.6,new Vector3())]:[],this.presentationTime,this.burning.remaining>0?.65:0);

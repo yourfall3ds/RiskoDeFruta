@@ -73,6 +73,17 @@ export class NetworkSession {
     for (const seq of [...this.frames.keys()]) if (seq <= me.seq) this.frames.delete(seq);
   }
 
+  /**
+   * A horda autoritativa deste tique, ou `undefined` enquanto a sala não está de pé.
+   *
+   * `undefined` e lista vazia dizem coisas DIFERENTES e o chamador precisa dos dois: vazio é "o
+   * servidor diz que não há inimigo", indefinido é "ainda não há servidor". Só o primeiro autoriza
+   * o cliente a virar apresentação — virar no segundo deixaria a fazenda sem horda nenhuma.
+   */
+  enemies(): readonly import('../game/EnemySwarm').ReplicatedEnemy[] | undefined {
+    return this.online ? this.client.enemies() : undefined;
+  }
+
   /** Por frame de render: interpola e apresenta os remotos. */
   render(dt: number): void {
     if (!this.online) return;

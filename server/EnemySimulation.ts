@@ -253,9 +253,16 @@ export class EnemySimulation {
   // Alvo
   // ---------------------------------------------------------------------------------------------
 
-  /** O jogador que este corpo está caçando, ou `undefined`. Nunca recalculado por quem lê. */
+  /**
+   * O jogador que este corpo está caçando, ou `undefined`. Nunca recalculado por quem lê.
+   *
+   * Um alvo que já não é alvejável (morreu, saiu) não é devolvido nem por um tique: a IA precisa
+   * enxergar "sem alvo" imediatamente, e não um cadáver com as coordenadas certas.
+   */
   targetOf(a:EnemyActor):SimulatedPlayer|undefined {
-    return a.targetPlayerId===NO_TARGET?undefined:this.players.find(p=>p.entityId===a.targetPlayerId);
+    if(a.targetPlayerId===NO_TARGET)return undefined;
+    const player=this.players.find(p=>p.entityId===a.targetPlayerId);
+    return player&&player.alive&&player.eligible?player:undefined;
   }
 
   private distanceToTarget(a:EnemyActor):number {
@@ -429,7 +436,13 @@ export class EnemySimulation {
         if(context)p.applyDamage({...context,forceMagnitude:0,damageTags:['enemy','fire','dot']});
       }
     });
-    if(!living.length)return;
+    if(!living.length){
+      // Sem ninguém vivo, ninguém está sendo caçado. Deixar o `targetPlayerId` apontando para o
+      // último morto replicaria "E persegue B" com B no chão — e, quando B renascesse no próximo
+      // estágio, a horda já estaria em cima dele sem nunca ter adquirido o alvo.
+      for(const a of this.actors)if(a.targetPlayerId!==NO_TARGET){a.targetPlayerId=NO_TARGET;a.targetLockTime=0;a.lastTargetSwitchTime=this.time;}
+      return;
+    }
 
     this.scheduler.update(dt);
     this.director.update(dt,this.kills,this.count,kind=>this.spawn(kind),this.populationCap);

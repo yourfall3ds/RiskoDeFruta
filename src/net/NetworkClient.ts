@@ -1,6 +1,9 @@
 import { Client, Predict, type Room, type InputHandle } from '@colyseus/sdk';
 import type { FarmState, PlayerState } from '../../server/schema';
-import { CLASS_IDS, PHASE } from '../../server/schema';
+import { CLASS_IDS, PHASE, ENEMY_STATES } from '../../server/schema';
+import type { ReplicatedEnemy } from '../game/EnemySwarm';
+import type { EnemyKind } from '../run/MonsterDirector';
+import type { EnemyVariant } from '../enemies/EnemyAffixes';
 import { NetInput, writeInput } from './NetInput';
 import type { InputFrame } from '../input/InputFrame';
 import type { LobbyLink, LobbyPlayer, LobbyPhase } from './LobbyLink';
@@ -75,6 +78,28 @@ export class NetworkClient implements LobbyLink {
     }
     for (const state of this.attached) if (!seen.has(state)) { predict.detach(state); this.attached.delete(state); }
     return samples;
+  }
+
+  /**
+   * A horda autoritativa, decodificada para a apresentação.
+   *
+   * Leitura pura do schema: nenhum campo é calculado aqui. `state` volta a ser nome (o ordinal é
+   * só a forma de rede, que existe porque `state` muda várias vezes por segundo em dezenas de
+   * corpos) e o resto viaja como veio. Lista vazia enquanto a sala não respondeu — e é por isso que
+   * a apresentação nunca inventa um inimigo para cobrir o silêncio.
+   */
+  enemies(): ReplicatedEnemy[] {
+    const room = this.room;
+    if (!room) return [];
+    const rows: ReplicatedEnemy[] = [];
+    for (const e of room.state.enemies.values()) rows.push({
+      id: e.id, kind: e.kind as EnemyKind, variant: e.variant as EnemyVariant, scale: e.scale,
+      x: e.x, y: e.y, z: e.z, yaw: e.yaw, hp: e.hp, maxHP: e.maxHP,
+      state: (ENEMY_STATES[e.state] ?? 'chase') as ReplicatedEnemy['state'],
+      time: e.time, burn: e.burn, stagger: e.stagger,
+      targetPlayerId: e.targetPlayerId, alive: e.alive,
+    });
+    return rows;
   }
 
   // ---- lobby (`LobbyLink`) ------------------------------------------------------------------

@@ -133,6 +133,7 @@ import { ENEMY_AFFIXES } from '../enemies/EnemyAffixes';
 import { WeatherCycle } from '../world/WeatherCycle';
 
 import { WeatherPresentation } from '../world/WeatherPresentation';
+import { FarmWildlife } from '../world/FarmWildlife';
 
 import type { GameWorld } from '../world/GameWorld';
 
@@ -362,6 +363,11 @@ export class PlayerScene implements SceneModule {
   /** Ciclo sol → nublado → chuva → crepúsculo → noite, avançado por tempo e abates. */
   readonly weather=new WeatherCycle();
   private weatherView:WeatherPresentation|undefined;
+  /**
+   * Bichos de cenário da fazenda: galinha, corvo, pardal. NÃO são inimigos — não entram no
+   * `EnemySwarm`, não dão dano e não contam abate. Um tiro mata e explode em penas.
+   */
+  private wildlife:FarmWildlife|undefined;
   /** Sessão online (`?online=1`): predição local, reconciliação e remotos. `undefined` no single-player. */
   private net:NetworkSession|undefined;
 
@@ -505,7 +511,13 @@ export class PlayerScene implements SceneModule {
       this.checkReady();
     });
 
-    if(this.yard instanceof FarmWorld)void this.yard.load().then(async()=>{if(this.disposed)return;if(this.enemies instanceof EnemySwarm)await this.enemies.prepareNavigation();if(!this.disposed)this.checkReady();});
+    if(this.yard instanceof FarmWorld)void this.yard.load().then(async()=>{if(this.disposed)return;if(this.enemies instanceof EnemySwarm)await this.enemies.prepareNavigation();if(!this.disposed)this.checkReady();
+      // Os bichos só podem nascer DEPOIS do cenário: a cota de cada um sai de `collision.groundAt`,
+      // e antes da colisão da fazenda entrar o terreno inteiro responde zero — o bando nasceria
+      // enfileirado num plano no meio do ar. Fora do `checkReady` de propósito: cenário com vida é
+      // enfeite, e o jogo não deve esperar por galinha para começar.
+      if(!this.disposed)void this.wildlife?.load();
+    });
 
     if(training){collision.boxes.push(...this.yard.collision.boxes);collision.surfaces.push(...this.yard.collision.surfaces);}
 
@@ -610,6 +622,16 @@ export class PlayerScene implements SceneModule {
     // inteira, mas sem respingo no piso/telhado real e sem supressão sob cobertura.
     if(this.weatherView){this.weatherView.onRain=intensity=>this.audio.ambientRain(intensity);this.weatherView.world=this.collision;}
 
+    // Bichos de cenário: só na fazenda, nunca no treino (o pátio não tem terreiro) e nunca sem
+    // tela — sem canvas o `DynamicTexture` das penas não tem contexto 2D e o servidor/teste não
+    // precisa de galinha. Os alvos entram na lista do PRÓPRIO mundo, e não numa lista paralela,
+    // para o hitscan enxergá-los pelo mesmo caminho do disco voador.
+    this.wildlife=training||!(this.yard instanceof FarmWorld)||!this.scene.getEngine().getRenderingCanvas()
+      // Sorteio em `Math.random` e não num fluxo de `RunRNG`: nada aqui é jogabilidade — nem loot,
+      // nem spawn de inimigo, nem dano. Amarrar o cisco de uma galinha à semente da run só gastaria
+      // um fluxo determinístico e faria toda revisão de seed passar por enfeite.
+      ?undefined:new FarmWildlife(this.scene,this.collision,this.audio,this.yard.targets);
+
     this.instrumentation=new SceneInstrumentation(this.scene);this.instrumentation.captureFrameTime=true;
 
     this.events.on('BodyBumped',({strength})=>{this.camera.impulse(.02*strength);this.audio.bodyGround(strength);});
@@ -636,6 +658,12 @@ export class PlayerScene implements SceneModule {
       this.audio.playerHurt(tags.includes('dot')?'dot':tags.includes('fire')?'fire':tags.includes('laser')?'laser':tags.includes('environment')?'environment':/projectile|seed|rush/.test(context.sourceId)?'projectile':'melee');});
 
     this.events.on('EnemyHit',hit=>{if(!hit.damageTags.includes('melee'))this.audio.impact();});
+
+    // O barulho do combate espanta os bichos de cenário. `DamageDealt` é o único evento que já
+    // traz `hitPosition` de QUALQUER coisa que o jogador acertou — bala, granada, habilidade — e é
+    // por isso que o susto entra por aqui e não por um gancho novo no caminho das pistolas, que
+    // pertence a outro módulo. Fora da fazenda `wildlife` é `undefined` e isto não custa nada.
+    this.events.on('DamageDealt',hit=>{if(hit.attackerId===1)this.wildlife?.startleAt(hit.hitPosition);});
 
     // Ressonância da Colheita: só acertos reais e mobilidade aérea real alimentam o bônus.
     this.events.on('DamageDealt',hit=>{if(hit.attackerId!==1||hit.finalDamage<=0)return;if(hit.damageTags.includes('melee'))this.resonance.register('melee');else if(hit.damageTags.includes('bullet'))this.resonance.register('shot');});
@@ -826,7 +854,20 @@ export class PlayerScene implements SceneModule {
 
     trace?.('armas:depois');
     if(this.enemies instanceof EnemySwarm){
-      this.progression.time+=dt;this.enemies.fixedUpdate(dt);
+      this.progression.time+=dt;
+      /**
+       * QUEM DECIDE A HORDA, num lugar só.
+       *
+       * Com sala de pé, a horda é do servidor e este cliente APRESENTA o que ele mandou — a decisão
+       * local não roda em paralelo, ela deixa de existir (contrato §18.8). Sem sala, nada muda: é o
+       * mesmo `fixedUpdate` de sempre, com o mesmo diretor e a mesma IA.
+       *
+       * `enemies()` devolve `undefined` (e não lista vazia) enquanto o servidor não respondeu, e é
+       * essa distinção que impede a fazenda de ficar sem horda nenhuma durante a conexão.
+       */
+      const replicated=this.net?.enemies();
+      if(replicated)this.enemies.replicate(replicated,dt);
+      else this.enemies.fixedUpdate(dt);
       trace?.('horda:depois');
       const expedition=this.directorMode==='expedition'&&this.objectives.planned;
       if(expedition)this.updateExpedition(dt,this.enemies);
@@ -1036,6 +1077,10 @@ export class PlayerScene implements SceneModule {
     this.weather.paused=this.paused||!this.started;
     this.weather.update(animDt,this.enemies instanceof EnemySwarm?this.enemies.kills:0);
     this.weatherView?.update(this.weather,this.camera.camera.position,animDt);
+    // Bichos de cenário no MESMO `animDt` da apresentação: pausar congela o bando, as penas e o
+    // sangue junto com o resto. A câmera manda no orçamento de pose (só bicho perto é amostrado);
+    // o corpo do jogador é quem assusta.
+    this.wildlife?.update(animDt,this.camera.camera.position,this.player.position);
 
     if(this.enemies instanceof EnemySwarm)this.enemies.updateCameraVisibility(this.camera.camera.position,dt);
 
@@ -2453,7 +2498,7 @@ export class PlayerScene implements SceneModule {
     // Invalida qualquer carregamento de destino em voo: o `.then` tardio vê a versão mudada e sai.
     this.planVersion++;this.planning=false;this.journey.reset();this.pendingSetup=undefined;this.stagePlans.clear();
     this.cancelAim();this.aimOverlay.dispose();this.trajectory.dispose();this.scopeOcclusion.dispose();
-    this.weatherView?.dispose();this.weatherView=undefined;for(const beam of this.beams)beam.dispose();this.beams.length=0;this.raids.length=0;this.raidWave.clear();this.raidFirstEt=-1;this.dropship?.dispose();this.dropship=undefined;this.collision.detachRadialProps('expedition-sites');this.collision.detachRadialProps('loot');this.expeditionSites?.dispose();this.expeditionSites=undefined;this.pendingSites?.dispose();this.pendingSites=undefined;this.playerRagdoll.dispose();this.avatar?.dispose();this.net?.dispose();this.cancelCinematic();this.cutIn.dispose();this.skillAura.dispose();this.elements.dispose();this.world.dispose();this.input.dispose();this.enemies.dispose();this.explorationMap?.dispose();this.runHUD?.dispose();this.interactables?.dispose();this.events.clear();this.prism.dispose();this.prismVisuals.dispose();this.prismRig.dispose();this.weapons.dispose();this.footing.dispose();this.abyss?.dispose();this.visual.dispose();this.audio.dispose();this.hud.dispose();this.instrumentation.dispose();this.scene.dispose();}
+    this.weatherView?.dispose();this.weatherView=undefined;this.wildlife?.dispose();this.wildlife=undefined;for(const beam of this.beams)beam.dispose();this.beams.length=0;this.raids.length=0;this.raidWave.clear();this.raidFirstEt=-1;this.dropship?.dispose();this.dropship=undefined;this.collision.detachRadialProps('expedition-sites');this.collision.detachRadialProps('loot');this.expeditionSites?.dispose();this.expeditionSites=undefined;this.pendingSites?.dispose();this.pendingSites=undefined;this.playerRagdoll.dispose();this.avatar?.dispose();this.net?.dispose();this.cancelCinematic();this.cutIn.dispose();this.skillAura.dispose();this.elements.dispose();this.world.dispose();this.input.dispose();this.enemies.dispose();this.explorationMap?.dispose();this.runHUD?.dispose();this.interactables?.dispose();this.events.clear();this.prism.dispose();this.prismVisuals.dispose();this.prismRig.dispose();this.weapons.dispose();this.footing.dispose();this.abyss?.dispose();this.visual.dispose();this.audio.dispose();this.hud.dispose();this.instrumentation.dispose();this.scene.dispose();}
 
 }
 
