@@ -1,6 +1,9 @@
 import { Application } from './game/Application';
 import {traceBoot} from './core/BootTrace';
 import './style.css';
+// A identidade visual entra DEPOIS da folha herdada, de propósito: ela redefine em vez de apagar.
+// Ver o cabeçalho de `ui/theme.css` para o porquê de ser uma camada separada.
+import './ui/theme.css';
 
 if(new URLSearchParams(location.search).has('qaBoot')){
   traceBoot('entry');

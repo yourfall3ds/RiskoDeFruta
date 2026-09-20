@@ -9,6 +9,9 @@
  */
 
 import './enemy-audio-lab.css';
+// O estúdio é uma PÁGINA separada: não passa por `main.ts`, então puxa a identidade visual por
+// conta própria — senão seria a única tela do jogo fora do tema.
+import './theme.css';
 import {
   ENEMY_AUDIO_EVENT_SPECS, ENEMY_AUDIO_SPECIES, enemyAudioSpecies,
   type EnemyAudioEvent, type EnemyAudioKind,

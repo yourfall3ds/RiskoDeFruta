@@ -9,6 +9,7 @@ import type { EnemyReview } from '../game/EnemyReview';
 import { createSeed } from '../core/RunRNG';
 import { weaponReadout,type WeaponReadoutView } from './WeaponReadout';
 import { ClassSelect } from './ClassSelect';
+import { MenuShell } from './MenuShell';
 import { DEFAULT_PLAYER_CLASS,type PlayerClassId } from '../run/PlayerClass';
 
 /**
@@ -63,6 +64,8 @@ export class PlayerHUD {
   }
   /** Seleção de classe do menu. `undefined` quando a cena não oferece escolha (treino). */
   private readonly classSelect:ClassSelect|undefined;
+  /** Composição do menu em telas (raiz / personagem / opções). Ausente no campo de testes. */
+  private menu:MenuShell|undefined;
   /** A classe realmente em vigor; o painel de arma e a barra de carga falam por ela. */
   private playerClass:PlayerClassId=DEFAULT_PLAYER_CLASS;
   constructor(private readonly start: () => void,private readonly farm=false,settings?:{volume:(value:number)=>void;quality:(balanced:boolean)=>void},private readonly mode:'expedition'|'horde'|'classic'='expedition',classPicker?:ClassPicker) {
@@ -84,7 +87,22 @@ export class PlayerHUD {
     this.journeyCard.setAttribute('role','status');this.journeyCard.setAttribute('aria-live','polite');
     this.journeyCard.innerHTML='<small class="stage-journey-step"></small><b class="stage-journey-destination"></b><span class="stage-journey-detail"></span><div class="stage-journey-track"><i></i></div>';
     document.body.append(this.journeyCard);
-    document.body.append(this.element);const film=document.querySelector<HTMLVideoElement>('#boot-menu .loading-film')??document.createElement('video');if(!film.src&&!film.querySelector('source')){film.src='/ui/cosmic-descent-v2.mp4';film.poster='/ui/loading-poster-v2.jpg';film.autoplay=true;film.muted=true;film.loop=true;film.playsInline=true;film.className='loading-film';}this.element.querySelector('.play-gate')!.prepend(film);this.element.querySelector('.play-gate')!.insertAdjacentHTML('beforeend','<div class=loading-progress role=status><span class=loading-stage>CALIBRANDO A QUEDA</span><div class=loading-track><i></i></div><b>0%</b><small>Montando fazendas, rotas e ameaças…</small></div>');document.getElementById('boot-menu')?.remove();document.body.classList.add('game-menu-open');
+    document.body.append(this.element);const film=document.querySelector<HTMLVideoElement>('#boot-menu .loading-film')??document.createElement('video');if(!film.src&&!film.querySelector('source')){film.src='/ui/cosmic-descent-v2.mp4';film.poster='/ui/loading-poster-v2.jpg';film.autoplay=true;film.muted=true;film.loop=true;film.playsInline=true;film.className='loading-film';}this.element.querySelector('.play-gate')!.prepend(film);this.element.querySelector('.play-gate')!.insertAdjacentHTML('beforeend',/**
+     * Tela de carregamento: logo, barra e o corredor.
+     *
+     * O `.rdf-runner` é o bichinho que corre sobre a barra enquanto o mundo é montado, na
+     * tradição de Risk of Rain. Ele não é enfeite: numa montagem que leva dezenas de segundos e
+     * trava em passos longos, a porcentagem sozinha parece congelada. Um movimento contínuo, que
+     * NÃO depende do progresso, é o que diz "o jogo está vivo" quando o número não muda.
+     */
+    '<div class=loading-progress role=status>'
+      +'<img class=rdf-loading-logo src="/ui/logo-rdf.png" alt="Risco de Fruta" decoding=async>'
+      +'<span class=loading-stage>CALIBRANDO A QUEDA</span>'
+      // O corredor é `<span>`, e não `<b>` nem `<i>`: `loading()` resolve a barra por
+      // `querySelector('i')` e a porcentagem por `querySelector('b')`, então qualquer uma dessas
+      // duas etiquetas aqui sequestraria a consulta e quebraria o carregamento.
+      +'<div class=loading-track><i></i><span class=rdf-runner aria-hidden=true></span></div>'
+      +'<b>0%</b><small>Montando fazendas, rotas e ameaças…</small></div>');document.getElementById('boot-menu')?.remove();document.body.classList.add('game-menu-open');
     this.gate=this.element.querySelector('.play-gate')!;this.hp=this.element.querySelector('.hp-value')!;
     this.charges=this.element.querySelector('.dodge-charges')!;this.crosshair=this.element.querySelector('.crosshair')!;
     this.diagnostic=this.element.querySelector('.field-diagnostic')!;this.button=this.element.querySelector('.start-play')!;
@@ -110,14 +128,23 @@ export class PlayerHUD {
     };window.addEventListener('keydown',this.gateKey);
     if(farm){this.element.classList.add('farm-hud');
       this.element.querySelector('.field-objective span')!.textContent=mode==='expedition'?'EXPEDIÇÃO':'EXPLORE A FAZENDA';
-      this.element.querySelector('.gate-card .eyebrow')!.textContent='MUTANT FARM / ILHAS SUSPENSAS';
+      // O sobretítulo ("MUTANT FARM / ILHAS SUSPENSAS") saiu: era a legenda de um cabeçalho de
+      // site em cima do título do próprio jogo, repetindo o que o título já diz.
+      (this.element.querySelector('.gate-card .eyebrow') as HTMLElement|null)?.remove();
       this.element.querySelector('h1')!.innerHTML='A colheita<br>se revoltou.';
-      // Texto do modo realmente ativo. O antigo prometia item no centro e chefe a cada cinco ondas.
+      /**
+       * Texto do modo realmente ativo, em UMA linha.
+       *
+       * As versões anteriores explicavam a expedição inteira aqui — cálice, horda, chefe, suco,
+       * embarque e itens — em três linhas de parágrafo. Menu de jogo não é manual: o que ele
+       * precisa entregar é o VERBO do modo, e o resto o jogador descobre jogando (e já está
+       * escrito na rota da expedição, dentro da partida, onde é acionável).
+       */
       this.element.querySelector('.gate-card p')!.textContent=mode==='expedition'
-        ?'Explore as ilhas, abra baús e encontre o cálice. Ative-o quando estiver preparado para a horda final com a Praga Alfa. Encha o cálice e derrote o chefe; depois recolha o suco com E para embarcar rumo ao próximo bioma mantendo seus itens.'
+        ?'Ache o cálice. Encha. Derrote a Praga Alfa. Embarque.'
         :mode==='horde'
-        ?'Sobreviva a hordas cada vez mais fortes. Ao vencer cada onda, recolha o item que cai no campo para acumular poder. A cada cinco ondas, enfrente uma Praga Alfa.'
-        :'Contenha a infestação até a Praga Alfa aparecer, derrote-a e atravesse a fenda para avançar de estágio.';
+        ?'Sobreviva às hordas. Colha o que cai. A Praga Alfa vem a cada cinco.'
+        :'Contenha a infestação, derrote a Praga Alfa e atravesse a fenda.';
       // Sem `B` e sem `T`: a arma é a da CLASSE escolhida no menu e não troca dentro da expedição.
       this.element.querySelector('.controls')!.insertAdjacentHTML('beforeend','<span><kbd>DIREITO</kbd> Mira apurada · luneta no sniper</span><span><kbd>RODA</kbd> Zoom da luneta</span><span><kbd>E</kbd> Ativar cálice / abrir / recolher</span><span><kbd>W A S D</kbd> ×2 Arrancada</span><span><kbd>V</kbd> Corpo a corpo</span><span><kbd>Q</kbd> Soldado: I transforma a PRISM · II e III por forma</span>');
     }
@@ -138,6 +165,25 @@ export class PlayerHUD {
       help.append(summary,controls);this.element.querySelector('.gate-card')!.append(help);
       this.syncClassSelect();
     }
+    /**
+     * Compõe o menu em telas.
+     *
+     * Feito DEPOIS de tudo acima porque o shell reposiciona nós que os blocos anteriores acabaram
+     * de criar. Nada é recriado — ver `MenuShell` —, então as referências guardadas aqui
+     * (`this.button`, `this.classSelect`) continuam apontando para os mesmos elementos.
+     */
+    const card=this.element.querySelector('.gate-card') as HTMLElement|null;
+    if(card)this.menu=new MenuShell(card,{
+      title:card.querySelector('h1'),
+      tagline:card.querySelector('p'),
+      play:this.button,
+      classSelect:this.classSelect?.element??null,
+      options:card.querySelector('.game-options'),
+      controlsHelp:card.querySelector('.class-controls-help'),
+      // `:scope >` e não `small` solto: existem `<small>` dentro dos controles e do cartão de
+      // classe, e pegar o primeiro da árvore movia o elemento errado para a tela de opções.
+      notes:[card.querySelector<HTMLElement>(':scope > small')],
+    });
   }
 
   /**
@@ -229,7 +275,10 @@ export class PlayerHUD {
     this.button.onclick=()=>leave(true);menu.onclick=()=>leave(false);
   }
 
-  setActive(active: boolean): void {this.playActive=active;const film=this.gate.querySelector<HTMLVideoElement>('video');if(active)film?.pause();else if(film)void film.play().catch(()=>{});document.body.classList.toggle('game-menu-open',!active);this.gate.hidden=active;if(active)this.entered=true;else if(this.entered&&!this.dead){this.element.querySelector('h1')!.textContent='Campo pausado.';this.button.textContent='CONTINUAR EXPEDIÇÃO →';}this.syncClassSelect();}
+  setActive(active: boolean): void {this.playActive=active;const film=this.gate.querySelector<HTMLVideoElement>('video');if(active)film?.pause();else if(film)void film.play().catch(()=>{});document.body.classList.toggle('game-menu-open',!active);this.gate.hidden=active;if(active)this.entered=true;else if(this.entered&&!this.dead){this.element.querySelector('h1')!.textContent='Campo pausado.';this.button.textContent='CONTINUAR EXPEDIÇÃO →';}
+    // Reabrir a pausa sempre cai na raiz: ninguém espera voltar direto na tela de opções em que
+    // estava dez minutos antes, e a ação que 99% das vezes se quer é "continuar".
+    if(!active)this.menu?.show('raiz');this.syncClassSelect();}
   /**
    * `weapon` é o painel já resolvido (ver `weaponReadout`). Quando ausente, o painel cai no texto
    * das pistolas de sempre — é o caminho do pátio de treino e de qualquer cena sem a PRISM.

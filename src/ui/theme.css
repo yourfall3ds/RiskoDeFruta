@@ -1,0 +1,1322 @@
+/* =============================================================================================
+   RISCO DE FRUTA — linguagem visual da interface
+   =============================================================================================
+
+   ## O que este arquivo é, e por que é um arquivo separado
+
+   `src/style.css` cresceu por acúmulo: 36 KB, 302 cores escritas à mão, zero variáveis, e o mesmo
+   seletor redefinido em três lugares diferentes (`.start-play` aparece nas linhas 32, 91 e 140).
+   Reescrever aquilo seria arriscado E efêmero: o upstream edita `style.css` constantemente, e cada
+   rebase traria conflito em tudo que eu tivesse tocado.
+
+   Então a identidade visual entra como CAMADA, carregada DEPOIS em `src/main.ts`. Ela não apaga
+   nada: redefine. A superfície de conflito com o upstream fica perto de zero, e desligar o tema
+   inteiro é remover uma linha de import.
+
+   ## A ideia da identidade
+
+   O jogo chama RISCO DE FRUTA e a colheita se revoltou. A interface é, então, o TERMINAL DE CAMPO
+   de quem foi mandado conter isso: instrumentação agrícola militarizada. Não é cyberpunk genérico
+   de ciano — o mundo renderizado é quente (ouro de trigo, noite azul-petróleo, polpa de tomate), e
+   uma HUD ciano brigaria com a própria tela do jogo a cada quadro.
+
+   As três semânticas de cor saem da própria fruta:
+   - OURO DE TRIGO  → o que está pronto, o que você comanda, a ação principal.
+   - POLPA          → risco, dano, contaminação, o que dói.
+   - CLOROFILA      → o que está são, carregado, disponível.
+   E o "risco" do nome vira uma gramática literal: faixas de perigo diagonais, cantoneiras de
+   contenção e chanfros de 45° — o vocabulário de quem sinaliza área interditada.
+
+   ## As três primitivas
+
+   1. CHANFRO      — cantos cortados em 45°, sem `border-radius`, via `clip-path`.
+   2. CANTONEIRA   — marcas de canto desenhadas em `background-image`, SEM elemento extra.
+   3. SEIVA        — o preenchimento que escorre no hover, como suco enchendo o botão.
+
+   A cantoneira é feita em gradiente de fundo de propósito: a maioria dos painéis aqui já usa
+   `::before` e `::after` para outras coisas (véu, cicatriz, brilho), e eu não posso alterar o TS
+   que monta o DOM sem entrar em conflito com o upstream em toda tela. Gradiente de fundo é a
+   única técnica que adiciona ornamento a QUALQUER elemento sem pedir um nó novo nem um pseudo.
+
+   ## Movimento
+
+   Isto roda por cima de um jogo em 60 Hz. Toda animação persistente é `transform` ou `opacity` —
+   as duas únicas propriedades que o compositor resolve sem relayout nem repaint. Nada de animar
+   `box-shadow`, `filter` ou `width` em laço infinito. E tudo morre sob `prefers-reduced-motion`.
+   ============================================================================================= */
+
+:root {
+  /* ---- Substrato: a noite do planeta Horta-7 --------------------------------------------- */
+  --rdf-void:        #040d14;
+  --rdf-soil:        #071927;
+  --rdf-husk:        #0d2334;
+  --rdf-husk-soft:   #12293b;
+
+  /* ---- Ouro de trigo: o que está pronto e o que você comanda ----------------------------- */
+  --rdf-wheat:       #e9c681;
+  --rdf-wheat-hot:   #ffe3b6;
+  --rdf-wheat-dim:   #a8895180;
+
+  /* ---- Polpa: risco, dano, contaminação --------------------------------------------------- */
+  --rdf-pulp:        #e2704f;
+  --rdf-pulp-hot:    #ff9a74;
+
+  /* ---- Clorofila: são, carregado, disponível ---------------------------------------------- */
+  --rdf-chloro:      #a9e7d7;
+  --rdf-rind:        #70d9ad;
+
+  /* ---- Tinta ------------------------------------------------------------------------------ */
+  --rdf-ink:         #f4ecd8;
+  --rdf-ink-soft:    #b9c6c4;
+  --rdf-ink-faint:   #7d8f92;
+  /* Texto SOBRE ouro. Quase preto de propósito: ouro claro com texto branco reprova em contraste. */
+  --rdf-ink-invert:  #10201c;
+
+  /* ---- Linhas ----------------------------------------------------------------------------- */
+  --rdf-line:        #e9c68140;
+  --rdf-line-hot:    #e9c681;
+  --rdf-hair:        1px;
+
+  /* ---- Chanfro: tamanho do corte de 45° --------------------------------------------------- */
+  --rdf-cut-lg:      18px;
+  --rdf-cut-md:      12px;
+  --rdf-cut-sm:      7px;
+
+  /* ---- Tempo ------------------------------------------------------------------------------ */
+  --rdf-snap:        .14s;
+  --rdf-flow:        .28s;
+  --rdf-ease:        cubic-bezier(.2,.8,.2,1);
+
+  /* ---- Tipografia ------------------------------------------------------------------------- */
+  /* O jogo não tinha fonte nenhuma: era `system-ui` em tudo, que é o que dá a cara de página web.
+     Agora são duas, BAIXADAS E HOSPEDADAS AQUI (`public/fonts/`, licença SIL OFL, uso comercial
+     liberado) — nada de CDN, porque uma HUD não pode depender de rede para desenhar a si mesma.
+
+     - DISPLAY (Archivo Black): peso único, muito pesado, para título e botão de ação. É o que dá
+       o impacto de menu de jogo em vez de cabeçalho de site.
+     - UI (Barlow Condensed): condensada. A escolha não é estética, é de VOLUME: em largura
+       condensada a mesma frase ocupa ~20% menos linha, e "parede de texto" é, antes de tudo,
+       um problema de massa visual.
+     - NUM (mono): só onde o número muda sozinho — relógio, munição, vida. Numeral tabular é o que
+       impede o dígito de "pular" a cada troca. */
+  --rdf-display: "Baloo 2", "Comic Sans MS", system-ui, sans-serif;
+  --rdf-ui: "Fredoka", "Baloo 2", "Segoe UI", system-ui, sans-serif;
+  --rdf-mono: ui-monospace, "Cascadia Mono", "Segoe UI Mono", Consolas, monospace;
+}
+
+/* -----------------------------------------------------------------------------------------------
+   AS FONTES
+
+   Duas famílias arredondadas e gordas, que é o que dá cara de jogo em vez de cara de painel
+   corporativo. A primeira tentativa foi Archivo Black — pesada, mas SÉRIA; para um jogo sobre
+   fruta que se revoltou ela estava errada de tom.
+
+   - Baloo 2 (800) → display: title, botão de ação, nome de classe. Bojuda, com terminações
+     redondas.
+   - Fredoka (500/600) → interface inteira. Arredondada e legível em corpo pequeno.
+
+   ACENTUAÇÃO: cada peso baixa DOIS arquivos, `latin` e `latin-ext`. Sem o `latin-ext` o português
+   quebra em palavra comum — "expedição", "munição", "cálice" — e o navegador cai numa fonte
+   substituta só naquele glifo, produzindo a letra trocada no meio da palavra. O `unicode-range`
+   é o que faz o navegador baixar o segundo arquivo só quando a página realmente usa acento.
+
+   Tudo hospedado em `public/fonts/` (licença SIL OFL, uso comercial liberado). Nenhum pedido a
+   CDN: uma HUD não pode depender de rede para desenhar a si mesma.
+   ----------------------------------------------------------------------------------------------- */
+
+@font-face {
+  font-family: "Baloo 2"; font-weight: 800; font-style: normal; font-display: swap;
+  src: url("/fonts/baloo2-800-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+                 U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Baloo 2"; font-weight: 800; font-style: normal; font-display: swap;
+  src: url("/fonts/baloo2-800-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-024F, U+0259, U+1E00-1EFF, U+2020, U+20A0-20AB, U+20AD-20CF, U+2113,
+                 U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Fredoka"; font-weight: 500; font-style: normal; font-display: swap;
+  src: url("/fonts/fredoka-500-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+                 U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Fredoka"; font-weight: 500; font-style: normal; font-display: swap;
+  src: url("/fonts/fredoka-500-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-024F, U+0259, U+1E00-1EFF, U+2020, U+20A0-20AB, U+20AD-20CF, U+2113,
+                 U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Fredoka"; font-weight: 600; font-style: normal; font-display: swap;
+  src: url("/fonts/fredoka-600-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+                 U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Fredoka"; font-weight: 600; font-style: normal; font-display: swap;
+  src: url("/fonts/fredoka-600-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-024F, U+0259, U+1E00-1EFF, U+2020, U+20A0-20AB, U+20AD-20CF, U+2113,
+                 U+2C60-2C7F, U+A720-A7FF;
+}
+
+/* A fonte de interface vale para o documento inteiro; quem precisa de número tabular pede o mono
+   explicitamente mais abaixo. */
+:root, body, button, input, select, textarea {
+  font-family: var(--rdf-ui);
+}
+
+/* ===============================================================================================
+   PRIMITIVA 1 — CHANFRO
+   Cantos cortados de verdade, em 45°, calculados em pixels absolutos para o corte não esticar em
+   painéis largos (uma polígono em % vira uma diagonal deitada num elemento de 600×40).
+   =============================================================================================== */
+
+/* ATENÇÃO — `clip-path` recorta o ALVO DE CLIQUE, não só o desenho.
+   Medido neste projeto, com `document.elementFromPoint` nos quatro cantos: com o corte aplicado
+   direto no `<button>`, o centro respondia e os dois cantos chanfrados NÃO. Em `.class-option`
+   isso é grave, porque o canto superior esquerdo é exatamente onde fica a aba com o nome da
+   classe — a parte que mais convida o clique.
+
+   Por isso o chanfro dos elementos INTERATIVOS não mora neles: mora em dois pseudo-elementos
+   atrás (ver "PELE CHANFRADA"). O elemento continua retangular e clicável inteiro.
+
+   Esta lista, então, só contém superfícies NÃO clicáveis — e o `<select>`, que é elemento
+   substituído e não aceita pseudo-elemento de forma confiável em todos os navegadores; ali o
+   canto morto é irrelevante porque o alvo real é a seta, no centro à direita. */
+.rdf-cut,
+.game-options select,
+.defeat-items article {
+  border-radius: 0 !important;
+  clip-path: polygon(
+    var(--rdf-cut, var(--rdf-cut-md)) 0,
+    100% 0,
+    100% calc(100% - var(--rdf-cut, var(--rdf-cut-md))),
+    calc(100% - var(--rdf-cut, var(--rdf-cut-md))) 100%,
+    0 100%,
+    0 var(--rdf-cut, var(--rdf-cut-md))
+  );
+}
+
+/* Chanfro nos quatro cantos, para painéis que devem parecer "lacrados" e não direcionais. */
+.rdf-cut-4,
+.play-gate .gate-card,
+.item-pickup-notice,
+.run-toast {
+  border-radius: 0 !important;
+  clip-path: polygon(
+    var(--rdf-cut, var(--rdf-cut-md)) 0,
+    calc(100% - var(--rdf-cut, var(--rdf-cut-md))) 0,
+    100% var(--rdf-cut, var(--rdf-cut-md)),
+    100% calc(100% - var(--rdf-cut, var(--rdf-cut-md))),
+    calc(100% - var(--rdf-cut, var(--rdf-cut-md))) 100%,
+    var(--rdf-cut, var(--rdf-cut-md)) 100%,
+    0 calc(100% - var(--rdf-cut, var(--rdf-cut-md))),
+    0 var(--rdf-cut, var(--rdf-cut-md))
+  );
+}
+
+/* ===============================================================================================
+   PRIMITIVA 2 — CANTONEIRA DE CONTENÇÃO
+   Quatro marcas em L nos cantos, desenhadas com oito gradientes de fundo. Zero DOM, zero pseudo —
+   por isso pode ser aplicada em painéis cujo `::before`/`::after` já estão ocupados.
+   =============================================================================================== */
+
+.rdf-brackets,
+#run-hud .expedition-route,
+#run-hud .district-contract,
+.harvest-resonance,
+.stage-journey,
+.defeat-report,
+#debug {
+  background-image:
+    /* superior esquerda */
+    linear-gradient(var(--rdf-line-hot), var(--rdf-line-hot)),
+    linear-gradient(var(--rdf-line-hot), var(--rdf-line-hot)),
+    /* superior direita */
+    linear-gradient(var(--rdf-line-hot), var(--rdf-line-hot)),
+    linear-gradient(var(--rdf-line-hot), var(--rdf-line-hot)),
+    /* inferior esquerda */
+    linear-gradient(var(--rdf-line-hot), var(--rdf-line-hot)),
+    linear-gradient(var(--rdf-line-hot), var(--rdf-line-hot)),
+    /* inferior direita */
+    linear-gradient(var(--rdf-line-hot), var(--rdf-line-hot)),
+    linear-gradient(var(--rdf-line-hot), var(--rdf-line-hot));
+  background-repeat: no-repeat;
+  background-size:
+    11px 1px, 1px 11px,
+    11px 1px, 1px 11px,
+    11px 1px, 1px 11px,
+    11px 1px, 1px 11px;
+  background-position:
+    left 6px  top 6px,     left 6px  top 6px,
+    right 6px top 6px,     right 6px top 6px,
+    left 6px  bottom 6px,  left 6px  bottom 6px,
+    right 6px bottom 6px,  right 6px bottom 6px;
+}
+
+/* ===============================================================================================
+   PRIMITIVA 3 — FAIXA DE RISCO
+   A gramática do nome do jogo. Diagonal de 45°, ouro sobre vazio, como fita de área interditada.
+   =============================================================================================== */
+
+.rdf-hazard {
+  background-image: repeating-linear-gradient(
+    45deg,
+    var(--rdf-wheat) 0 9px,
+    transparent 9px 18px
+  );
+  opacity: .5;
+}
+
+/* ===============================================================================================
+   BOTÕES — a seiva que escorre
+   =============================================================================================== */
+
+/* -----------------------------------------------------------------------------------------------
+   PELE CHANFRADA — a forma sem perder o alvo de clique
+
+   O elemento fica RETANGULAR e transparente; quem tem a forma são dois pseudo-elementos atrás:
+
+     ::before  chapa externa, cor da LINHA, inset 0    → vira a "borda" de 1px
+     ::after   chapa interna, cor do FUNDO, inset 1px  → cobre o miolo e deixa só a borda aparecendo
+
+   A seiva do hover viaja no `background-position` da chapa interna, e não num terceiro elemento:
+   o gradiente tem o dobro da largura, com o ouro na metade esquerda, e desliza para dentro. É uma
+   transição pintada em vez de composta — o preço que se paga por ter só dois pseudo-elementos
+   disponíveis. Custa alguns quadros de repaint num elemento pequeno, uma vez por hover, e só no
+   menu; um laço infinito pintado seria inaceitável, um hover de 280 ms não é.
+
+   As duas chapas usam o MESMO tamanho de corte absoluto. Como a interna é 2px menor, o ângulo
+   difere em fração de grau — invisível, e é o que torna a borda uniforme ao longo da diagonal.
+   ----------------------------------------------------------------------------------------------- */
+
+button {
+  position: relative;
+  isolation: isolate;
+  border: 0;
+  background: transparent;
+  color: var(--rdf-ink);
+  font: inherit;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    color var(--rdf-snap) var(--rdf-ease),
+    transform var(--rdf-snap) var(--rdf-ease);
+}
+
+button::before,
+button::after {
+  content: '';
+  position: absolute;
+  pointer-events: none;   /* a pele é desenho; o alvo continua sendo o botão */
+  clip-path: polygon(
+    var(--rdf-cut, var(--rdf-cut-md)) 0,
+    100% 0,
+    100% calc(100% - var(--rdf-cut, var(--rdf-cut-md))),
+    calc(100% - var(--rdf-cut, var(--rdf-cut-md))) 100%,
+    0 100%,
+    0 var(--rdf-cut, var(--rdf-cut-md))
+  );
+}
+
+/* Chapa externa = a borda. */
+button::before {
+  inset: 0;
+  z-index: -2;
+  background: var(--rdf-line);
+  transition: background var(--rdf-snap) var(--rdf-ease);
+}
+
+/* Chapa interna = o fundo, e a seiva que entra por cima dele. */
+button::after {
+  inset: var(--rdf-hair);
+  z-index: -1;
+  background:
+    linear-gradient(90deg, var(--rdf-wheat) 0 50%, transparent 50% 100%),
+    linear-gradient(180deg, var(--rdf-husk), var(--rdf-soil));
+  background-size: 200% 100%, 100% 100%;
+  background-position: 100% 0, 0 0;
+  background-repeat: no-repeat;
+  transition: background-position var(--rdf-flow) var(--rdf-ease);
+}
+
+button:hover:not(:disabled) { color: var(--rdf-ink-invert); }
+button:hover:not(:disabled)::before { background: var(--rdf-wheat-hot); }
+button:hover:not(:disabled)::after  { background-position: 0 0, 0 0; }
+
+/* A pressão é um recuo de 1px, não um "pulo": o botão tem de parecer metal, não gelatina. */
+button:active:not(:disabled) { transform: translateY(1px); }
+
+button:focus-visible {
+  outline: 2px solid var(--rdf-chloro);
+  outline-offset: 3px;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  color: var(--rdf-ink-faint);
+}
+button:disabled::before { background: var(--rdf-wheat-dim); }
+button:disabled::after  { background-position: 100% 0, 0 0; }
+
+/* ---- Ação principal: PRESS START ---------------------------------------------------------- */
+.start-play {
+  --rdf-cut: var(--rdf-cut-lg);
+  border: 0 !important;
+  background: transparent !important;
+  color: var(--rdf-wheat-hot) !important;
+  font-family: var(--rdf-display);
+  font-size: clamp(14px, 1.3vw, 19px) !important;
+  letter-spacing: .1em !important;
+  width: 100%;
+  min-width: 0 !important;
+  padding: clamp(14px, 1.5vw, 20px) 24px !important;
+  text-shadow: 0 0 18px #e9c68155;
+}
+/* A ação principal tem a borda acesa em repouso, e não apagada como as secundárias. */
+.start-play::before { background: var(--rdf-wheat); }
+.start-play::after {
+  background:
+    linear-gradient(90deg, var(--rdf-wheat) 0 50%, transparent 50% 100%),
+    linear-gradient(180deg, #1a3040, var(--rdf-soil));
+  background-size: 200% 100%, 100% 100%;
+  background-position: 100% 0, 0 0;
+  background-repeat: no-repeat;
+}
+.start-play:hover:not(:disabled) {
+  color: var(--rdf-ink-invert) !important;
+  text-shadow: none;
+}
+/* Enquanto o equipamento carrega o botão RESPIRA, em vez de ficar só apagado: é a diferença entre
+   "travado" e "trabalhando", e é a única coisa na tela dizendo que o motor ainda está montando. */
+.start-play:disabled {
+  animation: rdf-breathe 1.9s ease-in-out infinite;
+  filter: none;
+  color: var(--rdf-wheat-dim) !important;
+}
+
+/* ===============================================================================================
+   CARTÕES DE CLASSE — a aba de identificação
+   =============================================================================================== */
+
+.class-select-title {
+  font-family: var(--rdf-mono);
+  font-size: 10px !important;
+  letter-spacing: .34em !important;
+  color: var(--rdf-wheat) !important;
+  text-transform: uppercase;
+}
+
+.class-option {
+  --rdf-cut: var(--rdf-cut-md);
+  position: relative;
+  isolation: isolate;
+  padding: 16px 14px 14px !important;
+  text-align: left;
+  text-transform: none;
+  letter-spacing: 0;
+  border: 0 !important;
+  background: transparent !important;
+  transition: transform var(--rdf-snap) var(--rdf-ease);
+}
+
+/* No cartão a seiva NÃO entra: são três parágrafos ali dentro, e inverter o fundo no hover
+   apagaria a leitura. O cartão responde pela borda, pela aba e por subir 2px — e só. */
+.class-option::after {
+  background: linear-gradient(160deg, #0f2a3be6, #061521e6);
+  -webkit-backdrop-filter: blur(7px);
+  backdrop-filter: blur(7px);
+}
+.class-option:hover:not(:disabled) {
+  color: var(--rdf-ink) !important;
+  transform: translateY(-2px);
+}
+.class-option:hover:not(:disabled)::before { background: var(--rdf-wheat); }
+
+/* A aba: o nome da classe sai do topo do cartão numa etiqueta chanfrada. Fonte de display e
+   corpo grande — é o nome da classe que o jogador lê de longe, não o parágrafo. */
+.class-option strong {
+  display: block;
+  margin: -16px -14px 8px;
+  padding: 9px 16px 7px;
+  font-family: var(--rdf-display);
+  font-size: clamp(14px, 1.25vw, 19px);
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--rdf-ink-invert);
+  background: var(--rdf-wheat-dim);
+  clip-path: polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%);
+  transition: background var(--rdf-snap) var(--rdf-ease);
+}
+/* O papel da classe, em uma linha. É o que fica visível quando o cartão NÃO está escolhido. */
+.class-option em {
+  display: block;
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--rdf-rind);
+}
+
+/* A grade dos cartões acompanha a caixa em vez de viver em duas colunas fixas. */
+.class-select-options {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)) !important;
+  gap: 10px !important;
+}
+
+/* ---- Escolhida: a lacuna da esquerda vira barra sólida ------------------------------------- */
+.class-option[aria-checked=true]::before { background: var(--rdf-wheat); }
+.class-option[aria-checked=true]::after {
+  background: linear-gradient(160deg, #1d3a49ee, #08202edd);
+}
+.class-option[aria-checked=true] strong { background: var(--rdf-wheat); }
+
+/* Travada durante a expedição: continua legível, mas atravessada pela faixa de risco. */
+.class-select.locked .class-option { filter: saturate(.4); }
+.class-select.locked .class-option[aria-checked=true] { filter: none; }
+.class-select.locked .class-option[aria-checked=true]::before { background: var(--rdf-pulp); }
+.class-select.locked .class-option[aria-checked=true] strong { background: var(--rdf-pulp); }
+.class-select-notice {
+  font-family: var(--rdf-mono);
+  font-size: 9px;
+  letter-spacing: .1em;
+  color: var(--rdf-ink-faint);
+}
+.class-select.locked .class-select-notice { color: var(--rdf-pulp); }
+
+/* ===============================================================================================
+   CARTÃO DO MENU
+   =============================================================================================== */
+
+/* A caixa era `max-width:410px` fixo — por isso tudo dentro ficava espremido e nada acompanhava a
+   janela. Agora ela é fluida e respira com a tela. */
+.play-gate .gate-card {
+  --rdf-cut: var(--rdf-cut-lg);
+  position: relative;
+  width: min(560px, 46vw);
+  max-width: none !important;
+  padding: clamp(20px, 2.2vw, 36px) clamp(22px, 2.4vw, 38px) !important;
+  border: var(--rdf-hair) solid var(--rdf-line);
+  background: linear-gradient(155deg, #071c2ae6, #04101af5);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+/* Telas estreitas: a caixa passa a ocupar a largura útil em vez de encolher até virar coluna. */
+@media (max-width: 1000px) {
+  .play-gate .gate-card { width: min(560px, 86vw); }
+}
+
+/* -----------------------------------------------------------------------------------------------
+   DECORAÇÃO
+   O que fazia a tela parecer chapada não era a falta de corte: era a falta de CAMADA. Uma placa
+   sozinha, por mais recortada que seja, é um retângulo. Aqui entram três camadas de profundidade,
+   todas desenhadas em gradiente (sem imagem, sem DOM novo):
+     1. a fita de risco no topo do cartão — a assinatura do nome do jogo;
+     2. o brilho de canto, que dá volume à chapa;
+     3. a grade técnica de fundo, fraquíssima, que tira o "vazio de cor sólida".
+   ----------------------------------------------------------------------------------------------- */
+
+.play-gate .gate-card::before {
+  content: '';
+  position: absolute;
+  left: var(--rdf-cut-lg);
+  right: var(--rdf-cut-lg);
+  top: 0;
+  height: 4px;
+  pointer-events: none;
+  background: repeating-linear-gradient(45deg, var(--rdf-wheat) 0 7px, transparent 7px 14px);
+  opacity: .8;
+}
+
+.play-gate .gate-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    /* brilho de canto superior esquerdo: a luz que entra na chapa */
+    radial-gradient(120% 90% at 0 0, #e9c6811f, transparent 58%),
+    /* grade técnica: 1px a cada 26px, quase invisível, só para a cor não ficar morta */
+    repeating-linear-gradient(0deg, #ffffff08 0 1px, transparent 1px 26px),
+    repeating-linear-gradient(90deg, #ffffff06 0 1px, transparent 1px 26px);
+}
+
+.play-gate .gate-card > * { position: relative; z-index: 1; }
+
+.play-gate .gate-card .eyebrow,
+.eyebrow {
+  font-family: var(--rdf-mono);
+  letter-spacing: .34em !important;
+  color: var(--rdf-wheat) !important;
+  text-transform: uppercase;
+}
+
+.play-gate .gate-card h1 {
+  font-family: var(--rdf-display);
+  /* Fluido: o título cresce com a janela em vez de viver num `clamp` de site. */
+  font-size: clamp(34px, 4.6vw, 72px) !important;
+  line-height: .92 !important;
+  letter-spacing: -.02em !important;
+  text-transform: uppercase;
+  margin: 10px 0 14px !important;
+  text-shadow: 0 8px 40px #000c;
+}
+
+/* -----------------------------------------------------------------------------------------------
+   MENOS TEXTO — o pedido foi literal, e o problema é de VOLUME, não de conteúdo
+
+   O menu tinha, de uma vez só: um parágrafo de briefing de três linhas, dois cartões com três
+   blocos de texto cada, um aviso sobre troca de arma, um aviso sobre o F1 e a lista inteira de
+   controles. Isso é ficha técnica, não menu de jogo.
+
+   Nada é apagado — é ESCALONADO por relevância:
+   - o briefing encolhe e some em tela baixa, onde o espaço vertical é o recurso escasso;
+   - o descritivo longo da classe só aparece no cartão SELECIONADO, que é o único em que ele
+     responde uma pergunta que o jogador está fazendo agora;
+   - o rodapé de avisos vira nota de pé, pequena e discreta.
+   ----------------------------------------------------------------------------------------------- */
+
+.play-gate .gate-card p {
+  font-size: clamp(12px, 1.05vw, 14px) !important;
+  line-height: 1.45 !important;
+  max-width: 44ch !important;
+  color: var(--rdf-ink-soft) !important;
+}
+
+/* O descritivo longo da classe: escondido por padrão, presente no cartão escolhido. */
+.class-option span {
+  display: none;
+  color: var(--rdf-ink-soft);
+  font-size: 13px;
+  line-height: 1.35;
+}
+/* Três linhas e corta. O texto completo da classe é de catálogo (vive em `PlayerClass.ts`) e serve
+   a outros lugares; aqui ele é chamariz, não documentação — e seis linhas dentro de um cartão de
+   menu é exatamente a parede de texto que se quer evitar. */
+.class-option[aria-checked=true] span {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+}
+
+/* Rodapé de avisos: continua legível, para de competir. */
+.class-select-notice,
+.gate-card > small {
+  font-size: 10px !important;
+  line-height: 1.4 !important;
+  color: var(--rdf-ink-faint) !important;
+}
+
+/* Em tela baixa o briefing sai inteiro: o que precisa caber é o título, as classes e o START. */
+@media (max-height: 760px) {
+  .play-gate .gate-card p { display: none; }
+  .play-gate .gate-card h1 { font-size: clamp(30px, 3.6vw, 48px) !important; }
+}
+
+.controls kbd {
+  font-family: var(--rdf-mono) !important;
+  border: var(--rdf-hair) solid var(--rdf-line) !important;
+  background: #0a1f2e !important;
+  color: var(--rdf-wheat) !important;
+  border-radius: 0 !important;
+  clip-path: polygon(3px 0, 100% 0, 100% calc(100% - 3px), calc(100% - 3px) 100%, 0 100%, 0 3px);
+}
+
+.game-options select {
+  --rdf-cut: var(--rdf-cut-sm);
+  border: var(--rdf-hair) solid var(--rdf-line) !important;
+  background: var(--rdf-soil) !important;
+  color: var(--rdf-ink) !important;
+  font-family: var(--rdf-mono);
+  font-size: 11px;
+}
+
+/* ===============================================================================================
+   COMPOSIÇÃO DO MENU — uma decisão por vez, no centro da tela
+   =============================================================================================== */
+
+/* O portão deixa de ser uma coluna encostada à esquerda. */
+.play-gate:not(.defeated) {
+  display: grid !important;
+  place-items: center !important;
+  padding: 4vh 4vw !important;
+  /* Vinheta, não cortina: o cenário 3D é metade da apresentação do menu e precisa continuar
+     visível. Escuro só no centro, onde o cartão precisa de contraste para o texto. */
+  background: radial-gradient(75% 75% at 50% 50%, #04101a8c, #020a12cc) !important;
+}
+.play-gate:not(.defeated) .gate-card {
+  width: min(680px, 92vw) !important;
+  text-align: center;
+}
+
+.rdf-menu { display: grid; }
+/* Só a tela corrente ocupa espaço; as outras saem do fluxo, sem `display` escrito no TypeScript. */
+.rdf-screen { display: none; }
+.rdf-menu[data-screen="raiz"]       .rdf-screen[data-screen="raiz"],
+.rdf-menu[data-screen="personagem"] .rdf-screen[data-screen="personagem"],
+.rdf-menu[data-screen="opcoes"]     .rdf-screen[data-screen="opcoes"] {
+  display: grid;
+  gap: 14px;
+  animation: rdf-card-in .22s var(--rdf-ease) both;
+}
+
+/* A marca, grande, no topo. Ela É o título — o `h1` vira a chamada logo abaixo. */
+.rdf-logo {
+  justify-self: center;
+  width: min(460px, 82%);
+  height: auto;
+  margin: -6px auto 2px;
+  filter: drop-shadow(0 12px 30px #000d);
+}
+.rdf-menu-title {
+  margin: 0 0 6px !important;
+  /* Ao lado da marca o `h1` deixa de ser a peça dominante: vira legenda dela. */
+  font-size: clamp(17px, 1.6vw, 24px) !important;
+  color: var(--rdf-ink-soft) !important;
+  text-shadow: 0 3px 16px #000a;
+}
+
+/* TUDO CENTRADO. O menu inteiro é um eixo vertical: marca, chamada, ações e, dentro das subtelas,
+   título e conteúdo. Texto encostado à esquerda dentro de um cartão centrado é o que deixava a
+   composição torta. */
+.play-gate:not(.defeated) .gate-card,
+.rdf-menu,
+.rdf-screen,
+.rdf-screen[data-screen="personagem"],
+.rdf-screen[data-screen="opcoes"] { text-align: center; }
+
+.rdf-screen { justify-items: center; }
+.rdf-screen > * { width: 100%; }
+
+/* Dentro dos cartões de classe o texto também é centrado, inclusive a aba do nome. */
+.class-option { text-align: center !important; }
+.class-option strong { text-align: center; clip-path: polygon(0 0, 100% 0, calc(100% - 12px) 100%, 12px 100%); }
+
+/* Opções: rótulo e controle continuam em duas colunas, mas o bloco inteiro fica centrado. */
+.rdf-screen[data-screen="opcoes"] .game-options { justify-self: center; width: min(420px, 100%); }
+.rdf-screen[data-screen="opcoes"] .game-options label { text-align: left; }
+
+/* Tela de despedida do botão SAIR, quando o navegador recusa fechar o separador. */
+body.rdf-quit #game,
+body.rdf-quit #player-hud,
+body.rdf-quit #run-hud { display: none !important; }
+body.rdf-quit::after {
+  content: 'PODE FECHAR ESTA JANELA · ATÉ A PRÓXIMA COLHEITA';
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 8vw;
+  text-align: center;
+  font-family: var(--rdf-display);
+  font-size: clamp(16px, 2.2vw, 30px);
+  letter-spacing: .08em;
+  color: var(--rdf-wheat);
+  background: var(--rdf-void);
+  z-index: 9999;
+}
+.rdf-menu-tagline {
+  margin: 0 auto 6px !important;
+  max-width: 46ch !important;
+  text-align: center;
+}
+
+/* A pilha de ações: a primária grande, as secundárias menores e discretas. */
+.rdf-menu-nav {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+.rdf-menu-nav > * { width: min(340px, 100%); }
+
+.rdf-menu-link,
+.rdf-menu-back {
+  font-family: var(--rdf-ui);
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: .18em;
+  padding: 11px 18px !important;
+}
+.rdf-menu-back {
+  justify-self: center;
+  width: min(200px, 100%);
+  margin-top: 4px;
+}
+
+.rdf-screen-title {
+  margin: 0 !important;
+  font-family: var(--rdf-display);
+  font-size: clamp(20px, 2.1vw, 30px);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--rdf-wheat);
+}
+
+/* Dentro das subtelas o conteúdo volta a ser lido da esquerda: é formulário e lista, não pôster. */
+.rdf-screen[data-screen="personagem"],
+.rdf-screen[data-screen="opcoes"] { text-align: left; }
+.rdf-screen[data-screen="opcoes"] .game-options {
+  display: grid !important;
+  gap: 12px;
+  justify-items: stretch;
+}
+.rdf-screen[data-screen="opcoes"] .game-options label {
+  display: grid !important;
+  grid-template-columns: 110px 1fr;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  letter-spacing: .06em;
+}
+.rdf-menu-note {
+  font-size: 10px !important;
+  line-height: 1.5 !important;
+  color: var(--rdf-ink-faint) !important;
+}
+
+/* -----------------------------------------------------------------------------------------------
+   TELA DE CARREGAMENTO
+   Era uma barra ciano num painel bege, as duas cores que não existem em nenhum outro lugar do
+   jogo. Vira a colheita enchendo: talo dourado correndo dentro de um trilho escuro.
+   ----------------------------------------------------------------------------------------------- */
+
+/* O CARREGAMENTO MANDA NA TELA ENQUANTO EXISTE.
+   Antes a barra chegava a 100% e FICAVA, sobreposta ao menu já montado, porque esconder a barra
+   dependia de `ready()` ser chamado — e entre o 100% e o `ready()` existe um intervalo real, de
+   compilação de shader e montagem de cena, em que os dois ficavam na tela ao mesmo tempo.
+   Amarrar as duas visibilidades ao MESMO estado (`.loading`) elimina o intervalo por construção:
+   enquanto carrega, só a barra; terminou, só o menu. Nunca os dois. */
+/* Enquanto carrega, o cartão do menu SOME inteiro. Antes ele ficava no meio da tela como uma
+   placa vazia — o retângulo escuro com a fita de risco no topo e nada dentro, porque todo o
+   conteúdo estava escondido. Esconder o conteúdo e deixar a moldura é o pior dos dois mundos. */
+.play-gate.loading .gate-card { display: none !important; }
+.play-gate:not(.loading) .loading-progress { display: none !important; }
+
+/* A tela de carregamento ganha o centro: logo grande, barra embaixo, corredor em cima dela. */
+.play-gate.loading .loading-progress {
+  position: static !important;
+  width: min(620px, 88vw);
+  justify-self: center;
+  align-self: center;
+}
+.rdf-loading-logo {
+  grid-column: 1 / -1;
+  justify-self: center;
+  width: min(360px, 70%);
+  margin-bottom: 6px;
+  filter: drop-shadow(0 10px 26px #000c);
+}
+/* Fora do carregamento a marca não aparece aqui. */
+.play-gate:not(.loading) .rdf-loading-logo { display: none; }
+
+/* -----------------------------------------------------------------------------------------------
+   O CORREDOR
+
+   Desenhado em `box-shadow`: cada sombra é um pixel do boneco, num único elemento, sem imagem e
+   sem DOM extra. Dois quadros alternados dão a passada; o `steps(2)` é o que faz a troca ser
+   SECA, como sprite, em vez de interpolada — animação de personagem em pixel não faz meio-termo.
+
+   Ele corre sempre, independente do progresso: é essa a informação que a porcentagem não dá
+   quando trava num passo longo.
+   ----------------------------------------------------------------------------------------------- */
+.rdf-runner {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  width: 4px;
+  height: 4px;
+  margin-bottom: 2px;
+  background: transparent;
+  animation:
+    rdf-run-across 3.6s linear infinite,
+    rdf-run-legs .18s steps(1) infinite;
+}
+@keyframes rdf-run-across {
+  from { transform: translateX(-12px); }
+  to   { transform: translateX(calc(100% + 12px)); }
+}
+/* Quadro A e quadro B da passada. As coordenadas são múltiplos de 4px = o "pixel" do boneco. */
+@keyframes rdf-run-legs {
+  0% {
+    box-shadow:
+      /* chapéu */        4px  0    0 0 var(--rdf-wheat),  8px  0    0 0 var(--rdf-wheat),
+                          0    4px  0 0 var(--rdf-wheat), 12px  4px  0 0 var(--rdf-wheat),
+      /* cabeça */        4px  4px  0 0 #f4c9a0,           8px  4px  0 0 #f4c9a0,
+      /* tronco */        4px  8px  0 0 var(--rdf-rind),   8px  8px  0 0 var(--rdf-rind),
+                          4px 12px  0 0 var(--rdf-rind),   8px 12px  0 0 var(--rdf-rind),
+      /* braço */        12px  8px  0 0 #f4c9a0,
+      /* pernas quadro A */
+                          4px 16px  0 0 #2f4a58,          10px 16px  0 0 #2f4a58,
+                          2px 20px  0 0 #2f4a58,          12px 20px  0 0 #2f4a58;
+  }
+  50% {
+    box-shadow:
+      4px  0    0 0 var(--rdf-wheat),  8px  0    0 0 var(--rdf-wheat),
+      0    4px  0 0 var(--rdf-wheat), 12px  4px  0 0 var(--rdf-wheat),
+      4px  4px  0 0 #f4c9a0,           8px  4px  0 0 #f4c9a0,
+      4px  8px  0 0 var(--rdf-rind),   8px  8px  0 0 var(--rdf-rind),
+      4px 12px  0 0 var(--rdf-rind),   8px 12px  0 0 var(--rdf-rind),
+      0    8px  0 0 #f4c9a0,
+      /* pernas quadro B: passada trocada */
+      6px 16px  0 0 #2f4a58,           8px 16px  0 0 #2f4a58,
+      6px 20px  0 0 #2f4a58,          10px 20px  0 0 #2f4a58;
+  }
+}
+
+.loading-progress {
+  display: grid !important;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 4px 14px;
+  padding: 12px 16px !important;
+  border: var(--rdf-hair) solid var(--rdf-line) !important;
+  background: linear-gradient(180deg, #08202ef2, #04121cf7) !important;
+  box-shadow: 0 10px 40px #000a;
+  clip-path: polygon(
+    var(--rdf-cut-md) 0, 100% 0,
+    100% calc(100% - var(--rdf-cut-md)), calc(100% - var(--rdf-cut-md)) 100%,
+    0 100%, 0 var(--rdf-cut-md)
+  );
+}
+.loading-progress .loading-stage {
+  grid-column: 1;
+  grid-row: 2;
+  font-family: var(--rdf-ui);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--rdf-wheat);
+}
+/* Coluna da direita, na MESMA linha do passo. O `grid-row: 1 / span 2` de antes era anterior ao
+   logo; com a marca ocupando a primeira linha inteira, a porcentagem ia parar debaixo dela. */
+/* `position: static` é obrigatório aqui: a folha herdada crava
+   `.loading-progress b {position:absolute; right:0; top:25px}`, e um elemento absoluto NÃO
+   participa da grade. Com a marca ocupando o topo, a porcentagem ia parar em cima da arte do
+   logo, ilegível — e em ciano, a cor que não existe em mais nenhum lugar do jogo. */
+.loading-progress b {
+  position: static !important;
+  grid-column: 2;
+  grid-row: 2;
+  justify-self: end;
+  align-self: center;
+  font-family: var(--rdf-display);
+  font-size: clamp(22px, 2.4vw, 34px);
+  line-height: 1;
+  color: var(--rdf-wheat-hot);
+  font-variant-numeric: tabular-nums;
+}
+.loading-progress .loading-track {
+  position: relative;          /* âncora do corredor */
+  grid-column: 1 / -1;
+  grid-row: 3;
+  height: 10px !important;
+  border-radius: 0 !important;
+  background: #00000066 !important;
+  /* SEM `overflow:hidden`: o corredor mora em cima da barra, fora dela. Quem precisa recortar é
+     o preenchimento, e ele recorta sozinho por ter largura própria. */
+}
+/* O talo. Listra diagonal correndo por dentro = leitura imediata de "está trabalhando", mesmo
+   quando a porcentagem fica parada num passo demorado. */
+.loading-progress .loading-track i {
+  display: block;
+  height: 100%;
+  border-radius: 0 !important;
+  background:
+    repeating-linear-gradient(45deg, #ffffff26 0 8px, transparent 8px 16px),
+    linear-gradient(90deg, var(--rdf-rind), var(--rdf-wheat)) !important;
+  background-size: 22.6px 100%, 100% 100%;
+  animation: rdf-hazard-crawl 700ms linear infinite;
+  transition: width .25s var(--rdf-ease);
+}
+.loading-progress small {
+  grid-column: 1 / -1;
+  font-size: 11px;
+  color: var(--rdf-ink-faint);
+}
+
+/* ===============================================================================================
+   HUD DE CAMPO
+   =============================================================================================== */
+
+.field-brand,
+.field-objective,
+.field-diagnostic,
+.run-clock,
+.run-mission,
+.run-xp,
+.run-hostiles,
+.run-stats {
+  font-family: var(--rdf-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .08em;
+}
+
+/* -----------------------------------------------------------------------------------------------
+   HUD DE JOGO — a tela que fica 99% do tempo na frente do jogador
+
+   Regras que valem aqui e não valem no menu: nada pisca, nada anima em laço, nada tem `blur`
+   (a HUD desenha por cima de uma cena em 60 Hz, e `backdrop-filter` em tela cheia custa quadro).
+   A elegância vem de alinhamento, peso tipográfico e uma paleta só.
+   ----------------------------------------------------------------------------------------------- */
+
+/* Painéis de canto: placa escura chanfrada, sem caixa arredondada de site. */
+.field-brand,
+.field-objective,
+.run-clock,
+.run-mission,
+.run-boss,
+.run-xp,
+.run-hostiles,
+.run-inventory,
+.run-stats,
+.district-contract,
+.wave-reward-guide {
+  border-radius: 0 !important;
+}
+
+/* Números da HUD: display, grandes, tabular. Vida e munição se leem de canto de olho. */
+.hp-value,
+.run-clock,
+.dodge-charges {
+  font-family: var(--rdf-display);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+/* Vida: polpa. É a cor do dano no mundo inteiro, e a barra tem de falar a mesma língua. */
+.hp-track {
+  background: #00000073 !important;
+  border-radius: 0 !important;
+  box-shadow: inset 0 0 0 1px var(--rdf-line);
+}
+.hp-track > i,
+.hp-track > span {
+  background: linear-gradient(90deg, var(--rdf-pulp), var(--rdf-pulp-hot)) !important;
+}
+
+/* MP: clorofila. Carregado = são. */
+.mp-meter,
+.mp-resource { color: var(--rdf-chloro) !important; }
+
+/* Barra de vida do inimigo: chanfro pequeno e numeral tabular, para não dançar ao levar dano. */
+.enemy-health {
+  font-family: var(--rdf-mono);
+  font-variant-numeric: tabular-nums;
+}
+.enemy-health > div {
+  border-radius: 0 !important;
+  clip-path: polygon(3px 0, 100% 0, 100% calc(100% - 3px), calc(100% - 3px) 100%, 0 100%, 0 3px);
+}
+
+/* Painéis de rodapé da expedição: substrato escuro + cantoneira (herdada de `.rdf-brackets`). */
+#run-hud .expedition-route,
+#run-hud .district-contract,
+.harvest-resonance,
+.stage-journey {
+  border: var(--rdf-hair) solid var(--rdf-line);
+  border-radius: 0 !important;
+  background-color: #061621e8;
+}
+
+/* O aviso de item colhido chega com a faixa de risco na borda esquerda. */
+.item-pickup-notice {
+  --rdf-cut: var(--rdf-cut-sm);
+  border: var(--rdf-hair) solid var(--rdf-line) !important;
+  border-left: 3px solid var(--rdf-wheat) !important;
+  background: #061621f0 !important;
+}
+
+.run-toast {
+  --rdf-cut: var(--rdf-cut-sm);
+  font-family: var(--rdf-mono);
+  letter-spacing: .1em;
+  border: var(--rdf-hair) solid var(--rdf-line) !important;
+  background: #061621f0 !important;
+}
+
+/* ===============================================================================================
+   RELATÓRIO DE DERROTA — aqui o risco venceu, e a tela assume a polpa
+   =============================================================================================== */
+
+.play-gate.defeated .gate-card {
+  border-color: #e2704f55;
+}
+.play-gate.defeated .gate-card h1 { color: var(--rdf-pulp-hot); }
+.play-gate.defeated .gate-card .eyebrow { color: var(--rdf-pulp) !important; }
+
+.play-gate.defeated .start-play {
+  color: var(--rdf-pulp-hot) !important;
+  animation: none;
+}
+.play-gate.defeated .start-play::before { background: var(--rdf-pulp); }
+.play-gate.defeated .start-play::after {
+  background:
+    linear-gradient(90deg, var(--rdf-pulp) 0 50%, transparent 50% 100%),
+    linear-gradient(180deg, #2a1a1e, var(--rdf-soil));
+  background-size: 200% 100%, 100% 100%;
+  background-position: 100% 0, 0 0;
+  background-repeat: no-repeat;
+}
+
+.defeat-items article {
+  --rdf-cut: var(--rdf-cut-sm);
+  border: var(--rdf-hair) solid var(--rdf-line) !important;
+  background: #08202ecc !important;
+}
+
+.defeat-report {
+  border: var(--rdf-hair) solid var(--rdf-line);
+  border-radius: 0 !important;
+  background-color: #061621e8;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ===============================================================================================
+   DIAGNÓSTICO (F1) — o terminal técnico assume o mono por inteiro
+   =============================================================================================== */
+
+#debug {
+  border: var(--rdf-hair) solid var(--rdf-line) !important;
+  border-radius: 0 !important;
+  background-color: #04121cf7 !important;
+  font-family: var(--rdf-mono);
+}
+#debug h1 {
+  color: var(--rdf-wheat);
+  letter-spacing: .3em !important;
+}
+#debug button {
+  --rdf-cut: var(--rdf-cut-sm);
+  font-size: 10px;
+  letter-spacing: .06em;
+}
+#debug-toggle {
+  --rdf-cut: var(--rdf-cut-sm);
+  font-family: var(--rdf-mono);
+  font-size: 10px;
+  letter-spacing: .16em;
+}
+
+/* ===============================================================================================
+   AS ILHAS DE ESTILO
+   -----------------------------------------------------------------------------------------------
+   Seis telas do jogo NÃO são alcançadas por `style.css`, cada uma por um motivo diferente:
+
+   - `PlanetHUD.ts`, `PlanetDebugPanel.ts` e `WeaponAimOverlay.ts` injetam um `<style>` em tempo de
+     execução. Um `<style>` injetado entra no fim do documento, então ele ganha de mim no desempate
+     por ordem. A saída NÃO é editar os três arquivos (conflito garantido no próximo rebase): é
+     escrever aqui com especificidade MAIOR. `html #planet-hud ...` (1,1,2) vence
+     `#planet-hud ...` (1,1,1) independentemente da ordem.
+   - `audio-lab.html` e `weapon-lab.html` são páginas próprias, que não passam por `main.ts`. Elas
+     importam este arquivo direto, cada uma pelo seu módulo de entrada.
+   - `#boot-menu`, em `index.html`, e o atlas do mapa, em `ExplorationMap.ts`, são estilo INLINE.
+     Inline só perde para `!important` — que por isso aparece aqui, e só aqui, por necessidade
+     técnica e não por preguiça de achar o seletor certo.
+   =============================================================================================== */
+
+/* ---- HUD do planeta: o azul genérico sai, a instrumentação agrícola entra ------------------- */
+html #planet-hud .planet-gate > div {
+  border-radius: 0 !important;
+  border: var(--rdf-hair) solid var(--rdf-line);
+  background: linear-gradient(155deg, #071c2af2, #04101af7) !important;
+  clip-path: polygon(
+    var(--rdf-cut-lg) 0, 100% 0,
+    100% calc(100% - var(--rdf-cut-lg)), calc(100% - var(--rdf-cut-lg)) 100%,
+    0 100%, 0 var(--rdf-cut-lg)
+  );
+}
+html #planet-hud .planet-gate .eyebrow { color: var(--rdf-wheat) !important; }
+html #planet-hud .planet-gate h1 { color: var(--rdf-ink); }
+/* A pele chanfrada global já vale aqui (os pseudos vêm da regra de `button`); o que esta regra
+   precisa fazer é só desmontar o botão azul de fábrica e deixar a pele aparecer. */
+html #planet-hud .planet-gate button {
+  position: relative;
+  isolation: isolate;
+  border-radius: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: var(--rdf-wheat-hot) !important;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+}
+html #planet-hud .planet-gate button::before { background: var(--rdf-wheat); }
+html #planet-hud .planet-gate button:hover:not([disabled]) { color: var(--rdf-ink-invert) !important; }
+html #planet-hud .planet-gate button[disabled] { color: var(--rdf-ink-faint) !important; }
+html #planet-hud .planet-gate button[disabled]::before { background: var(--rdf-wheat-dim); }
+/* Vida e MP do planeta falam a mesma língua do resto: polpa dói, clorofila está sã. */
+html #planet-hud .bar .hp { background: linear-gradient(90deg, var(--rdf-pulp), var(--rdf-pulp-hot)) !important; }
+html #planet-hud .bar .mp { background: linear-gradient(90deg, var(--rdf-rind), var(--rdf-chloro)) !important; }
+html #planet-hud .planet-badge,
+html #planet-hud .planet-objective,
+html #planet-hud .planet-ammo-text,
+html #planet-hud .planet-hp-text,
+html #planet-hud .planet-mp-text {
+  font-family: var(--rdf-mono);
+  font-variant-numeric: tabular-nums;
+}
+html #planet-hud .planet-error { color: var(--rdf-pulp) !important; }
+
+/* ---- Painel de verificação do planeta (F2, só QA) ------------------------------------------ */
+html #planet-debug {
+  border-radius: 0 !important;
+  border: var(--rdf-hair) solid var(--rdf-line);
+  font-family: var(--rdf-mono);
+}
+html #planet-debug button {
+  border-radius: 0 !important;
+  border: var(--rdf-hair) solid var(--rdf-line) !important;
+  background: var(--rdf-husk) !important;
+  color: var(--rdf-ink) !important;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+/* ---- Mira apurada: o retículo é a peça mais vista do jogo ----------------------------------- */
+html .weapon-aim-overlay .prism-optic-label,
+html .weapon-aim-overlay .prism-optic-zoom {
+  font-family: var(--rdf-mono) !important;
+  letter-spacing: .2em !important;
+  color: var(--rdf-wheat) !important;
+  text-transform: uppercase;
+}
+
+/* ---- Menu de boot (index.html, inline) ------------------------------------------------------ */
+#boot-menu h1 {
+  letter-spacing: -1px;
+  text-shadow: 0 8px 40px #000a;
+}
+#boot-menu small,
+#boot-menu p[role=status] {
+  font-family: var(--rdf-mono) !important;
+  color: var(--rdf-wheat) !important;
+}
+
+/* ---- Atlas do mundo (TAB): estilo inline, por isso `!important` ----------------------------- */
+#exploration-minimap {
+  border-radius: 0 !important;
+  border-color: var(--rdf-line) !important;
+  background: #061621f7 !important;
+  clip-path: polygon(
+    var(--rdf-cut-lg) 0, 100% 0,
+    100% calc(100% - var(--rdf-cut-lg)), calc(100% - var(--rdf-cut-lg)) 100%,
+    0 100%, 0 var(--rdf-cut-lg)
+  );
+}
+#exploration-minimap > b { color: var(--rdf-wheat) !important; font-family: var(--rdf-mono); letter-spacing: .2em; }
+#exploration-minimap canvas { border-radius: 0 !important; background: #04121c !important; }
+
+/* ---- Estúdio de sons e oficina de armas: páginas próprias ----------------------------------- */
+body.audio-lab { background: var(--rdf-void); }
+.audio-lab-kicker,
+.audio-species-heading { font-family: var(--rdf-mono); letter-spacing: .24em; color: var(--rdf-wheat); }
+.audio-event-card,
+.audio-variant {
+  border-radius: 0 !important;
+  clip-path: polygon(
+    var(--rdf-cut-sm) 0, 100% 0,
+    100% calc(100% - var(--rdf-cut-sm)), calc(100% - var(--rdf-cut-sm)) 100%,
+    0 100%, 0 var(--rdf-cut-sm)
+  );
+}
+body:has(#view) footer button,
+body:has(#view) footer select {
+  border-radius: 0 !important;
+  clip-path: polygon(
+    var(--rdf-cut-sm) 0, 100% 0,
+    100% calc(100% - var(--rdf-cut-sm)), calc(100% - var(--rdf-cut-sm)) 100%,
+    0 100%, 0 var(--rdf-cut-sm)
+  );
+}
+
+/* ---- Lacunas: classes que existem no DOM e nunca tiveram regra ------------------------------ */
+/* `.intro-skip` e `.loading-stage` são criadas por `PlayerHUD.ts` e não têm UMA linha em
+   `style.css` — a primeira sobrevive de um `cssText` de emergência no próprio TS. */
+.intro-skip {
+  --rdf-cut: var(--rdf-cut-sm);
+  border-radius: 0 !important;
+  border: var(--rdf-hair) solid var(--rdf-line) !important;
+  background: #061621d9 !important;
+  color: var(--rdf-wheat) !important;
+  font-family: var(--rdf-mono);
+  font-size: 10px !important;
+  letter-spacing: .18em !important;
+  text-transform: uppercase;
+  clip-path: polygon(
+    var(--rdf-cut-sm) 0, 100% 0,
+    100% calc(100% - var(--rdf-cut-sm)), calc(100% - var(--rdf-cut-sm)) 100%,
+    0 100%, 0 var(--rdf-cut-sm)
+  );
+}
+.loading-stage {
+  font-family: var(--rdf-mono);
+  font-size: 10px;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  color: var(--rdf-wheat);
+}
+
+/* ===============================================================================================
+   MOVIMENTO
+   =============================================================================================== */
+
+/* Respiração do botão que ainda não pode ser apertado. Só `opacity`: sem repaint. */
+@keyframes rdf-breathe {
+  0%, 100% { opacity: .55; }
+  50%      { opacity: 1; }
+}
+
+/* Varredura: uma linha de leitura atravessa o painel de cima a baixo, devagar.
+   `transform` puro — o navegador resolve na composição, sem tocar no layout. */
+@keyframes rdf-scan {
+  0%   { transform: translateY(-100%); }
+  100% { transform: translateY(2000%); }
+}
+
+/* A fita de risco anda de lado. A animação corre sobre `background-position`, que é a única forma
+   de mover uma listra repetida sem multiplicar elementos; por isso ela fica restrita a faixas
+   finas e decorativas, nunca a um painel inteiro. */
+@keyframes rdf-hazard-crawl {
+  from { background-position: 0 0; }
+  to   { background-position: 25.46px 0; }  /* √2 × 18px: um ciclo exato da diagonal de 45° */
+}
+
+/* Entrada do cartão: sobe e materializa. Curta de propósito — isto aparece a cada morte. */
+@keyframes rdf-card-in {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.play-gate:not(.loading) .gate-card {
+  animation: rdf-card-in var(--rdf-flow) var(--rdf-ease) both;
+}
+
+.rdf-hazard { animation: rdf-hazard-crawl 1.4s linear infinite; }
+
+/* ===============================================================================================
+   RESPEITO A QUEM PEDIU MENOS MOVIMENTO
+   Não é enfeite de acessibilidade: movimento periférico constante numa HUD é gatilho real de
+   enjoo em quem joga em primeira/terceira pessoa. O tema continua inteiro — só para de se mexer.
+   =============================================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .play-gate:not(.loading) .gate-card,
+  .start-play:disabled,
+  .rdf-hazard {
+    animation: none !important;
+  }
+  button,
+  button::before,
+  .class-option {
+    transition: none !important;
+  }
+  .start-play:disabled { opacity: .7; }
+}

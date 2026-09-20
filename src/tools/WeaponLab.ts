@@ -1,3 +1,6 @@
+// A oficina é uma PÁGINA separada (weapon-lab.html): não passa por `main.ts`, então puxa a
+// identidade visual por conta própria — senão seria a única tela do jogo fora do tema.
+import '../ui/theme.css';
 import {Engine} from '@babylonjs/core/Engines/engine';
 import {Scene} from '@babylonjs/core/scene';
 import {ArcRotateCamera} from '@babylonjs/core/Cameras/arcRotateCamera';
