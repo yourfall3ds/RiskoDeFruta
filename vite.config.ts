@@ -12,9 +12,12 @@ export default defineConfig({
     // funciona em desenvolvimento e quebra na versão publicada.
     rollupOptions: {
       input: {
-        main: resolve(__dirname, 'index.html'),
-        'audio-lab': resolve(__dirname, 'audio-lab.html'),
-        'weapon-lab': resolve(__dirname, 'weapon-lab.html'),
+        // `import.meta.dirname` e não `__dirname`: o Vite avisa em toda inicialização que o
+        // carregador nativo de configuração — que vira o padrão numa versão maior futura — não
+        // suporta `__dirname`, e quando isso acontecer o build quebraria aqui, nas três entradas.
+        main: resolve(import.meta.dirname, 'index.html'),
+        'audio-lab': resolve(import.meta.dirname, 'audio-lab.html'),
+        'weapon-lab': resolve(import.meta.dirname, 'weapon-lab.html'),
       },
     },
   },

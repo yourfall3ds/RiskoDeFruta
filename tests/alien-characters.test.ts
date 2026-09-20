@@ -50,7 +50,45 @@ async function load(kind:EnemyKind,scene:Scene,gameplayRoot:TransformNode){
   return {character:character!,profile};
 }
 
+/**
+ * Orientação eleita para cada espécie, travada.
+ *
+ * Estes rótulos são o resultado que foi conferido POR IMAGEM, nos renders de quatro vistas do
+ * `scripts/render-menu-aliens.py`, com piso quadriculado e poste de 1 m. Eles existem aqui porque
+ * o resto deste arquivo NÃO consegue detectar uma troca de orientação: a altura sempre bate no
+ * alvo (a escala é calculada A PARTIR dela) e a sola sempre encosta (o apoio é calculado depois),
+ * então um corpo girado para o lado passa em todos os outros testes sem piscar.
+ *
+ * Descobri isso do jeito ruim: mexi nos padrões de nome de osso para dar confiança ao carrasco e
+ * dois OUTROS bichos trocaram de eixo em silêncio, com 20 testes verdes. Mudar um rótulo aqui é
+ * legítimo — mas exige olhar o render de novo, não só ver a suíte passar.
+ *
+ * O carrasco é `identidade (sem ossos)` de propósito: o rig dele nomeia a bacia como `DEF-HIPS_04`
+ * e o padrão de `hips` está ancorado no fim do nome, então o solver não a encontra e desiste de
+ * decidir. O resultado é o certo — mas por queda no caminho neutro, não por medição. É o único dos
+ * seis cujo acerto não está provado pelo solver, e está registrado como tal.
+ */
+const EXPECTED_ORIENTATION:Readonly<Record<string,string>>={
+  grey:'identidade',
+  invader:'X-90',
+  demon:'identidade (sem ossos)',
+  predator:'identidade',
+  strutter:'X+90',
+  hound:'identidade',
+};
+
 describe('alienígenas de terceiros no caminho do jogo',()=>{
+  for(const kind of KINDS)it(`${kind}: a orientação eleita é a que foi conferida por imagem`,async()=>{
+    const engine=new NullEngine(),scene=new Scene(engine);
+    try{
+      const gameplay=new TransformNode('gameplay',scene);
+      const {character}=await load(kind,scene,gameplay);
+      expect(character.orientationLabel,`${kind} mudou de eixo — confira o render antes de aceitar`)
+        .toBe(EXPECTED_ORIENTATION[kind]);
+      character.dispose();
+    }finally{scene.dispose();engine.dispose();}
+  });
+
   it('há espécies empacotadas para testar',()=>{
     expect(KINDS.length,'nenhum GLB de alienígena em public/models').toBeGreaterThan(0);
   });
