@@ -466,3 +466,48 @@ e nunca:
 ```text
 EnemySimulation = decisão nova  |  EnemySwarm = decisão velha "só por garantia"
 ```
+
+### 20.12 A prova cruel do isolamento de RNG
+
+Os testes de isolamento do §20.9 são fracos sozinhos. Uma implementação que *parece* ter fluxos
+separados — objetos distintos, nomes distintos — mas que em algum ponto cai num gerador
+compartilhado passa neles. Uma ou duas chamadas extras podem não deslocar nada visível.
+
+A prova que pega isso: rodar o **mesmo** combate duas vezes, mesma semente e mesma sequência de
+pedidos; na segunda execução, **antes de cada hit**, consumir dezenas ou centenas de números de
+**outro** domínio. Crítico e dano têm de sair **bit a bit idênticos**. E o inverso: consumir
+centenas do domínio de combate e provar que a sequência de loot não se move.
+
+### 20.13 Ausência de autoridade não é licença
+
+Em modo autoritativo, **proibido** em qualquer variação:
+
+```ts
+if (!serverDecisionAvailable) {
+  runOldEnemyDecision();   // "só por segurança"
+}
+```
+
+Isso recria dois donos exatamente onde o §18.8 os eliminou. Ausência de decisão do servidor é
+**ausência ou atraso de autoridade**: manter a última amostra conhecida, interpolar, ou não
+apresentar. Nunca reativar a decisão local, aplicar dano, decidir morte ou fazer nascer corpo.
+Vale para todo sistema — horda, dano, proc, projétil, drop.
+
+### 20.14 O gate do bloco, item a item
+
+`tsc` verde e testes existentes verdes **não** fecham o bloco. Fecham estes:
+
+1. RNG por domínio, provado pelo §20.12.
+2. `combatEventId` sobrevivendo a request → resolução → aplicação → registro, com deduplicação e
+   idempotência reais.
+3. Pipeline único sem caminho alternativo pulando etapa.
+4. `applyDamage` como entrada única — a busca por `hp -=`, `.hp = `, `hp--` e mutações diretas
+   equivalentes dá **zero** fora do núcleo permitido.
+5. Morte exatamente uma vez sob dois danos concorrentes capazes de matar.
+6. P1, P2, P3 e P4 tomando dano em teste **executado**; parametrização aparentemente genérica não
+   conta.
+7. Rewind restaurando o snapshot clampado de verdade, não apenas calculando posição histórica
+   enquanto outra parte do fluxo segue no estado atual.
+8. Projétil lento que não virou hitscan diferido para caber no sistema.
+9. Previsão do cliente antecipando feedback permitido sem criar verdade de combate.
+10. `skipped` e `todo` impedindo o verde.
