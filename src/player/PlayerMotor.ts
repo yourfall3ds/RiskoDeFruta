@@ -520,6 +520,17 @@ export class PlayerMotor {
     this.invulnerable=t.respawnProtection;this.grounded=true;this.launched=false;this.airDodged=false;this.airJumpsUsed=0;this.respawns++;
     this.adoptFrame(this.forward);
   }
+  /**
+   * Cura. Mora AQUI, e não em quem chama, para que nenhum sistema de fora escreva `hp` cru.
+   *
+   * Um morto não é curado por proc: ressuscitar é decisão de renascimento, num bloco próprio, e
+   * deixar uma cura tirar alguém do chão por acidente seria exatamente a regra sem dono que o
+   * contrato proíbe.
+   */
+  heal(amount:number):void {
+    if(!(amount>0)||this.hp<=0)return;
+    this.hp=Math.min(this.maxHP,this.hp+amount);
+  }
   applyDamage(context: DamageContext): void {
     if(this.debugInvincible||this.hp<=0 || context.victimId!==this.entityId || (this.invulnerable>0 && context.sourceId!=='void'))return;
     const applied=context.sourceId==='void'?context.finalDamage:context.finalDamage*100/(100+Math.max(0,this.armor));

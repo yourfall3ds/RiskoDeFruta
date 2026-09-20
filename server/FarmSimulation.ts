@@ -11,8 +11,11 @@ import { MPCharge, type MPTier } from '../src/combat/MPCharge';
 import { PistolCadence } from '../src/combat/PistolCadence';
 import { PistolMagazine } from '../src/combat/PistolMagazine';
 import { SkillTimeline, type SkillTier } from '../src/combat/SkillTimeline';
+import { WEAK_POINT_TAG, weakPointDamageMultiplier } from '../src/combat/WeakPoints';
+import { PISTOL_TUNING } from '../src/player/PlayerTuning';
 import { RunProgression } from '../src/run/RunProgression';
 import { PlayerLoadout } from '../src/run/PlayerLoadout';
+import { ItemProcs } from '../src/items/ItemProcs';
 import { IslandFerry } from '../src/world/IslandFerry';
 import { worldTerrain, sculptRegion, type OutcropShape } from '../src/world/terrain/WorldTerrain';
 import {applyInitialRockFix,type InitialRockFix} from '../src/world/terrain/InitialRocks';
@@ -78,6 +81,12 @@ export function mergeCollision(mesh: CollisionData['mesh'], solid: CollisionData
  */
 export interface PlayerCommand { frame: InputFrame; yaw: number; pitch: number; seq: number }
 
+/**
+ * Altura do peito do atirador, em metros. É de onde o cliente já traça a linha de mira
+ * (`DualPistols`: `body() + up × 1,3`); atirar do pé faria a bala raspar o chão a cada aclive.
+ */
+const SHOOTER_HEIGHT = 1.3;
+
 export interface PlayerSnapshot {
   id: string; entityId: number; x: number; y: number; z: number; yaw: number; pitch: number; seq: number;
   hp: number; maxHP: number; grounded: boolean; sprinting: boolean; dodgeRemaining: number; charges: number; invulnerable: number;
@@ -98,7 +107,11 @@ export interface Snapshot {
 export interface Player {
   id: string; entityId: number; motor: PlayerMotor; mp: MPCharge; cadence: PistolCadence; magazine: PistolMagazine; skill: SkillTimeline;
   loadout: PlayerLoadout;
+  /** Procs DESTE jogador: eles leem o inventário dele, não um `RunProgression` da sala. */
+  procs: ItemProcs;
   input: InputFrame; yaw: number; pitch: number; seq: number; shots: number;
+  /** Tiros DESTE jogador que encostaram num corpo. Diagnóstico; nenhuma regra lê este número. */
+  hits: number;
 }
 
 /**
@@ -142,7 +155,10 @@ export class FarmSimulation {
       players: () => this.livingPlayerViews(),
     });
     this.loop = new FixedLoop(dt => this.step(dt), () => {});
-    for (const type of ['DamageDealt', 'EnemyKilled', 'Dodged', 'SkillUsed', 'MPCharged', 'MPReleased', 'LevelUp', 'BossSpawned', 'ItemPicked', 'PlayerKilled'] as const)
+    // `EnemyHit` entra na lista com o bloco E: o número de dano é feedback EFÊMERO (§18.10) e o
+    // companheiro precisa vê-lo — sem ele, só quem atirou teria retorno do acerto, e cada tela
+    // voltaria a inventar o próprio dano a partir da vida replicada.
+    for (const type of ['DamageDealt', 'EnemyHit', 'EnemyKilled', 'Dodged', 'SkillUsed', 'MPCharged', 'MPReleased', 'LevelUp', 'BossSpawned', 'ItemPicked', 'PlayerKilled'] as const)
       this.events.on(type, payload => this.outbox.push({ type, payload }));
   }
 
@@ -152,10 +168,14 @@ export class FarmSimulation {
   addPlayer(id: string): PlayerSnapshot {
     if (this.players.has(id)) throw new Error(`Jogador duplicado ${id}`);
     const spawn = this.spawnPoint();
+    const loadout = new PlayerLoadout(this.progression.level);
     const player: Player = {
       id, entityId: this.freeEntityId(), motor: new PlayerMotor(this.collision, this.events, spawn), mp: new MPCharge(this.events), cadence: new PistolCadence(),
-      magazine: new PistolMagazine(), skill: new SkillTimeline(), loadout: new PlayerLoadout(this.progression.level),
-      input: EMPTY_INPUT, yaw: -.13, pitch: .02, seq: 0, shots: 0,
+      magazine: new PistolMagazine(), skill: new SkillTimeline(), loadout,
+      // Domínio `combatProc`, nunca `loot` nem `director`: um proc a mais não pode mexer em qual
+      // elite nasce nem em qual item cai (adendo §1).
+      procs: new ItemProcs(loadout, this.rng.stream('combatProc')),
+      input: EMPTY_INPUT, yaw: -.13, pitch: .02, seq: 0, shots: 0, hits: 0,
     };
     player.motor.yaw = player.yaw;
     // Sem isto o motor recusaria todo dano cujo `victimId` não fosse 1 — jogadores 2..4 imortais.
@@ -199,7 +219,10 @@ export class FarmSimulation {
       // Timeline da skill é do servidor, com as durações fixas de SKILL_CUES; a voz e a cinemática ficam no cliente.
       if (player.skill.active) player.skill.update(player.skill.elapsed + dt, tier => this.events.emit('SkillUsed', { entityId: player.entityId, skillId: tier === 1 ? 'ricochet_fan' : tier === 2 ? 'backflip_barrage' : 'harvest_storm' }));
       const firing = input.fire && !input.charging && m.dodgeRemaining === 0 && m.hp > 0 && !player.skill.active;
-      player.cadence.update(dt, firing, () => { if (player.magazine.consume()) player.shots++; });
+      // Antes este callback só CONTAVA o tiro: a intenção de disparo do jogador não chegava a
+      // `EnemySimulation.applyDamage` por caminho nenhum, e a horda só podia ser ferida pelos
+      // efeitos de área do próprio servidor. É aqui que o bloco E fecha o circuito.
+      player.cadence.update(dt, firing, () => { if (player.magazine.consume()) { player.shots++; this.resolveShot(player); } });
       // Entradas de borda (jump/dodge/reload/interact) valem por um passo; movimento contínuo permanece até o próximo pacote.
       player.input = { ...input, jump: false, dodge: false, reload: false };
       delete player.input.interact;
@@ -208,6 +231,69 @@ export class FarmSimulation {
     // não a do anterior. Mesma ordem que `PlayerScene.fixedUpdate` usa no cliente.
     this.enemies.step(dt);
     this.time += dt; this.progression.time = this.time;
+  }
+
+  /**
+   * O TIRO DO JOGADOR, RESOLVIDO NO SERVIDOR (contrato §6).
+   *
+   * O cliente manda `fire` + yaw/pitch e nada mais. Quem decide se acertou, em quem, quanto doeu e
+   * se foi crítico é este método — e o `EnemySwarm` do cliente recusa o mesmo acerto por autoridade
+   * (§18.8), para a barra de vida não descer duas vezes na tela de quem atirou.
+   *
+   * A direção é DERIVADA de yaw/pitch em vez de viajar como vetor próprio: é exatamente a conta que
+   * `ThirdPersonCamera.forward` faz, então o vetor seria a mesma informação num campo a mais — e um
+   * vetor pronto vindo do cliente não acrescentaria autoridade nenhuma, só superfície para mentir.
+   *
+   * O DANO É DO ATIRADOR: `loadout.stats` é dele, não da sala. Ler um `stats` compartilhado aqui
+   * devolveria os quatro jogadores mecanicamente idênticos, que é a armadilha 8.1/§2.6 do plano.
+   */
+  private resolveShot(player: Player): void {
+    const m = player.motor, stats = player.loadout.stats;
+    const yaw = player.yaw, pitch = player.pitch;
+    const direction = { x: Math.sin(yaw) * Math.cos(pitch), y: -Math.sin(pitch), z: Math.cos(yaw) * Math.cos(pitch) };
+    const origin = { x: m.position.x, y: m.position.y + SHOOTER_HEIGHT, z: m.position.z };
+    const hit = this.enemies.hitscan(origin, direction, PISTOL_TUNING.range);
+    if (!hit) return;
+    player.hits++;
+    /**
+     * O DADO DO CRÍTICO É DO SERVIDOR.
+     *
+     * Seed igual não bastaria (contrato §6): cada cliente consome os streams um número diferente de
+     * vezes — um atira mais, outro vê menos corpos — e as sequências divergem permanentemente. O
+     * stream `combat` existe só para isto e não é compartilhado com o diretor nem com o nascimento,
+     * senão um tiro a mais de um jogador mudaria qual inimigo nasce para todos.
+     */
+    const crit = this.rng.stream('combatCrit').next() < stats.crit;
+    const baseDamage = PISTOL_TUNING.damage;
+    // Mesma regra do cliente, no mesmo lugar: ponto fraco não empilha com crítico de sorte. Sem rig
+    // no servidor não há zona a testar, então o argumento é `false` — ver `EnemySimulation.hitscan`.
+    const finalDamage = baseDamage * stats.damage * weakPointDamageMultiplier(false, crit);
+    /**
+     * IDENTIDADE DO EVENTO (adendo §2).
+     *
+     * Atirador + sequência de entrada + número do tiro identificam este disparo para sempre. É o que
+     * permite a `EnemySimulation` recusar o MESMO evento chegando duas vezes — por retransmissão,
+     * por reaplicação de entrada ou por um proc que se derivou dele — sem depender de um booleano
+     * no fim do fluxo.
+     */
+    const combatEventId = `${player.entityId}:${player.seq}:${player.shots}`;
+    const context = {
+      attackerId: player.entityId, victimId: hit.id, sourceId: 'dual_pistols', attackId: 'dual_pistols',
+      baseDamage, finalDamage, crit, procCoefficient: 1, procChainDepth: 0, damageTags: [WEAK_POINT_TAG],
+      hitPosition: hit.point, hitNormal: { x: -direction.x, y: -direction.y, z: -direction.z },
+      forceDirection: direction, forceMagnitude: 2, hitDirection: direction, combatEventId,
+    };
+    if (!this.enemies.applyDamage(hit.id, context)) return;
+    // Proc é CONSEQUÊNCIA do acerto autoritativo, e a consequência também mora no servidor: o
+    // cliente representa o fogo e a explosão, nunca decide que eles saíram.
+    player.procs.onHit(context, {
+      burn: seconds => this.enemies.ignite(hit.id, seconds),
+      blast: radius => this.enemies.blast(hit.id, radius, finalDamage * .5, context),
+    });
+    if (this.enemies.actor(hit.id)?.health.dead) {
+      // Pela porta do motor, nunca escrevendo `hp` de fora: vida tem um dono só.
+      player.motor.heal(player.procs.onKill());
+    }
   }
 
   /**

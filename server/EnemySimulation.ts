@@ -63,6 +63,8 @@ export const TARGET_POLICIES:Record<EnemyKind,TargetPolicy>={
 export const UNREACHABLE_SECONDS=12;
 /** Distância além da qual o corpo é recolhido (a mesma coleira do cliente). */
 export const STRAY_DISTANCE=72;
+/** Quantos `combatEventId` recentes a sala lembra. Ver `EnemySimulation.claim`. */
+const RESOLVED_EVENT_MEMORY=4096;
 
 export type EnemyPhase='spawn'|'chase'|'windup'|'recover'|'flee'|'dead';
 
@@ -95,6 +97,17 @@ export interface EnemyRow {
   hp:number;maxHP:number;state:EnemyPhase;time:number;burn:number;stagger:number;
   targetPlayerId:number;targetLockTime:number;lastTargetSwitchTime:number;alive:boolean;
 }
+
+/** O corpo em que a bala encostou primeiro. Não carrega dano nenhum: dano é de quem atirou. */
+export interface HitscanHit {id:number;distance:number;point:Vec3}
+
+/**
+ * Altura do TORSO por espécie, em metros — a mesma medida que o corpo já ocupa na colisão.
+ *
+ * A melancia é baixa e larga; as outras são altas. Sem a distinção o tiro passaria por cima da
+ * melancia (a bala mira o centro de um corpo de 2 m que não existe) e acertaria o ar.
+ */
+const bodyHeight=(kind:EnemyKind):number=>kind==='watermelon'?1.6:2;
 
 /** Rascunhos: 60 Hz × dezenas de corpos não pode alocar um `Vector3` por método por quadro. */
 const work0=new Vector3(),work1=new Vector3();
@@ -129,6 +142,8 @@ export class EnemySimulation {
   time=0;
   private nextId=200;
   private readonly byId=new Map<number,EnemyActor>();
+  /** Eventos de combate já resolvidos, para nenhum deles ser aplicado duas vezes. Ver `claim`. */
+  private readonly resolvedEvents=new Set<string>();
   private readonly space:EnemySpace;
   private readonly radial:EnemySurface|undefined;
   /** Cursor da referência de spawn. O Director NÃO fixa um jogador: ele roda entre os vivos. */
@@ -315,7 +330,11 @@ export class EnemySimulation {
    */
   applyDamage(id:number,context:DamageContext):boolean {
     const a=this.byId.get(id);
+    // A MORTE ACONTECE UMA VEZ. `health.dead` é a guarda de estado: o segundo projétil do mesmo
+    // tique, o proc em cadeia e o pacote repetido chegam depois dela e não pagam recompensa de novo.
     if(!a||!a.active||a.health.dead)return false;
+    // E o MESMO evento não acontece duas vezes, mesmo que chegue duas vezes.
+    if(context.combatEventId!==undefined&&!this.claim(context.combatEventId))return false;
     const finalDamage=context.finalDamage*100/(100+ENEMY_AFFIXES[a.variant].armor);
     const applied={...context,victimId:a.id,finalDamage};
     if(!a.health.apply(applied))return false;
@@ -332,6 +351,94 @@ export class EnemySimulation {
     }
     if(a.health.dead)this.die(a,applied);
     return true;
+  }
+
+  /**
+   * EM QUEM A BALA ENCOSTOU — e só isso.
+   *
+   * Este método NÃO aplica dano e não conhece o atirador: quem sabe os atributos de quem puxou o
+   * gatilho é `FarmSimulation`, e misturar as duas coisas aqui faria a horda decidir o dano de um
+   * jogador cujo inventário ela não enxerga (e os quatro voltariam a ser mecanicamente iguais).
+   *
+   * A parede é testada ANTES dos corpos, pela mesma varredura que a linha de visão do windup usa:
+   * um segundo modelo de mundo só para a bala divergiria do que a IA considera visível.
+   *
+   * Limite honesto: sem rig no servidor não existe osso para testar, então o corpo é uma ESFERA do
+   * tamanho do torso e não há ponto fraco. Acerto direto continua sendo decisão do cliente
+   * — cosmética, sem dano — até existir esqueleto autoritativo.
+   */
+  hitscan(origin:Vec3,direction:Vec3,range:number):HitscanHit|undefined {
+    const length=Math.hypot(direction.x,direction.y,direction.z);
+    if(!(length>0)||!(range>0))return undefined;
+    const dx=direction.x/length,dy=direction.y/length,dz=direction.z/length;
+    const blocked=this.space.sweepTime(origin,{x:dx*range,y:dy*range,z:dz*range},.05);
+    // `sweepTime` devolve a FRAÇÃO do segmento até a parede; além dela a bala já parou.
+    const reach=blocked===undefined?range:range*blocked;
+    let best:HitscanHit|undefined;
+    for(const a of this.actors){
+      if(!a.active||a.health.dead||a.state==='dead')continue;
+      const height=bodyHeight(a.kind);
+      const radius=Math.max(ENEMIES[a.kind].radius*ENEMY_AFFIXES[a.variant].scale,height*.5);
+      this.space.lift(a.position,height*.5,work0);
+      const along=(work0.x-origin.x)*dx+(work0.y-origin.y)*dy+(work0.z-origin.z)*dz;
+      // Atrás do cano ou além do alcance: o corpo não está no segmento, e não basta estar perto da
+      // RETA — era assim que um tiro para o lado oposto "acertava" quem estava nas costas.
+      if(along<0||along>reach)continue;
+      if(best&&best.distance<=along)continue;
+      const ex=origin.x+dx*along-work0.x,ey=origin.y+dy*along-work0.y,ez=origin.z+dz*along-work0.z;
+      if(ex*ex+ey*ey+ez*ez>radius*radius)continue;
+      best={id:a.id,distance:along,point:{x:origin.x+dx*along,y:origin.y+dy*along,z:origin.z+dz*along}};
+    }
+    return best;
+  }
+
+  /**
+   * Reserva um `combatEventId`. `false` = já foi resolvido, e o chamador desiste.
+   *
+   * O conjunto é PODADO por tamanho em vez de por tempo: um id velho o bastante para sair daqui já
+   * é mais antigo que qualquer retransmissão possível, e um `Set` sem teto seria vazamento numa
+   * corrida de meia hora.
+   */
+  private claim(eventId:string):boolean {
+    if(this.resolvedEvents.has(eventId))return false;
+    if(this.resolvedEvents.size>=RESOLVED_EVENT_MEMORY){
+      const oldest=this.resolvedEvents.values().next();
+      if(!oldest.done)this.resolvedEvents.delete(oldest.value);
+    }
+    this.resolvedEvents.add(eventId);
+    return true;
+  }
+
+  /**
+   * Acende a queimadura de um corpo. Consequência de um acerto JÁ confirmado pelo servidor
+   * (adendo §4): o cliente nunca decide que um proc saiu, ele só desenha o fogo.
+   */
+  ignite(id:number,seconds:number):void {
+    const a=this.byId.get(id);
+    if(!a||!a.active||a.health.dead)return;
+    // `Math.max` RENOVA sem empilhar: cinco cápsulas no mesmo bicho não fazem cinco fogueiras.
+    a.burn=Math.max(a.burn,seconds);a.burnClock=0;
+  }
+
+  /**
+   * Explosão em área de um proc. O dano secundário nasce com `procChainDepth=1` — explosão não
+   * gera explosão, senão um acerto sortudo viraria uma cascata que ninguém pediu.
+   */
+  blast(id:number,radius:number,damage:number,origin:DamageContext):void {
+    const source=this.byId.get(id);
+    if(!source)return;
+    const centre={x:source.position.x,y:source.position.y,z:source.position.z};
+    for(const a of this.actors){
+      if(!a.active||a.health.dead||a.id===id)continue;
+      if(this.space.distance(a.position,centre)>radius)continue;
+      this.applyDamage(a.id,{
+        ...origin,victimId:a.id,baseDamage:damage,finalDamage:damage,
+        procChainDepth:1,sourceProcId:'bomb',
+        // Id PRÓPRIO por vítima: derivar do evento de origem manteria a rastreabilidade, mas reusar
+        // o mesmo id faria a segunda vítima ser recusada pela guarda de idempotência.
+        ...(origin.combatEventId===undefined?{}:{combatEventId:`${origin.combatEventId}:blast:${a.id}`}),
+      });
+    }
   }
 
   private die(a:EnemyActor,applied:DamageContext):void {
@@ -658,7 +765,7 @@ export class EnemySimulation {
   /** Novo estágio: nada sobrevive à transição exceto o catálogo. Mesmo protocolo do cliente. */
   nextStage():void {
     for(const a of this.actors)this.release(a);
-    this.effects.clear();this.burning.clear();this.scheduler.clear();this.byId.clear();
+    this.effects.clear();this.burning.clear();this.scheduler.clear();this.byId.clear();this.resolvedEvents.clear();
     this.kills=0;this.boss=undefined;this.bossDeadTime=-1;this.time=0;
     this.director=new MonsterDirector(this.options.rng.stream('director'),this.options.progression.stage,50,this.director.mode);
   }

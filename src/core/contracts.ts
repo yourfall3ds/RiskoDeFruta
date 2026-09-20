@@ -34,6 +34,15 @@ export interface DamageContext {
    * Ausente ⇒ quem consome cai em `forceDirection`, que é o comportamento anterior.
    */
   hitDirection?: Vec3;
+  /**
+   * IDENTIDADE DESTE EVENTO DE COMBATE, quando o servidor o emitiu — OPCIONAL e aditivo.
+   *
+   * Existe para que retransmissão, reconciliação ou mensagem duplicada não produzam dano duas
+   * vezes, proc duas vezes nem morte duas vezes: quem aplica guarda o id e recusa o repetido. Um
+   * contexto sem `combatEventId` é um golpe que não tem como se repetir (dano contínuo, QA, teste)
+   * e segue pelo caminho de sempre.
+   */
+  combatEventId?: string;
 }
 
 export interface GameEvents {

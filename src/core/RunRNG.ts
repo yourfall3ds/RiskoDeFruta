@@ -1,4 +1,21 @@
-export const RNG_STREAMS = ['run', 'director', 'loot', 'scene', 'spawn', 'boss', 'elite', 'interactable', 'procs'] as const;
+/**
+ * UM DOMÍNIO POR TIPO DE DECISÃO — nunca uma sacola de `random()` (contrato §6).
+ *
+ * Cada stream é semeado pelo hash do PRÓPRIO nome (ver o construtor abaixo), então os fluxos são
+ * independentes por construção: acrescentar uma rolagem de spread não desloca o loot, e um proc
+ * novo não muda qual elite o Director escolhe. É essa propriedade — e não um acordo entre
+ * chamadores — que os testes de isolamento travam.
+ *
+ * `elite` é o domínio da VARIANTE de inimigo sob o nome histórico dele; renomear agora mudaria a
+ * semente da fazenda de um jogador, e single-player não pode mudar um bit.
+ *
+ * Os três `combat*` são do SERVIDOR. Nenhum código de apresentação pode tirar daqui: efeito
+ * cosmético que consome RNG autoritativo desloca a sequência de quem decide.
+ */
+export const RNG_STREAMS = [
+  'run', 'stage', 'director', 'loot', 'scene', 'spawn', 'boss', 'elite', 'interactable', 'procs',
+  'combatCrit', 'combatProc', 'combatSpread',
+] as const;
 export type RNGStream = typeof RNG_STREAMS[number];
 
 function hash(value: string): number {
