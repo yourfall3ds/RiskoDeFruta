@@ -8,6 +8,8 @@ import {Color3,Color4} from '@babylonjs/core/Maths/math.color';
 import {Vector3} from '@babylonjs/core/Maths/math.vector';
 import {TransformNode} from '@babylonjs/core/Meshes/transformNode';
 import {LoadAssetContainerAsync} from '@babylonjs/core/Loading/sceneLoader';
+import {CubeTexture} from '@babylonjs/core/Materials/Textures/cubeTexture';
+import '@babylonjs/core/Materials/Textures/Loaders/envTextureLoader';
 import type {AbstractMesh} from '@babylonjs/core/Meshes/abstractMesh';
 import '@babylonjs/loaders/glTF';
 
@@ -38,6 +40,8 @@ camera.attachControl(canvas,true);
 camera.wheelDeltaPercentage=.02;
 new HemisphericLight('h',new Vector3(.2,1,.1),scene).intensity=.85;
 new DirectionalLight('k',new Vector3(-.5,-1,-.4),scene).intensity=1.5;
+// Ambiente para os materiais PBR do GLB: sem ele a pintura fica sem reflexo e some.
+scene.environmentTexture=CubeTexture.CreateFromPrefilteredData('https://assets.babylonjs.com/environments/studio.env',scene);
 
 const parts: Part[]=[];
 let root: TransformNode|undefined;
@@ -53,7 +57,10 @@ function apply():void {
 
 async function load():Promise<void> {
   // Qual saída mostrar: `?glb=object-rmbg.glb` compara a geração com remoção de fundo.
-  const file=new URLSearchParams(location.search).get('glb')??'object.glb';
+  const busca=new URLSearchParams(location.search);
+  const file=busca.get('glb')??'object.glb';
+  // `?textura=1` preserva o material do GLB: sem isto a cor por parte esconderia a textura.
+  const manterMaterial=busca.get('textura')==='1';
   const container=await LoadAssetContainerAsync('/pc-preview/'+file,scene);
   container.addAllToScene();
   const meshes=container.meshes.filter(mesh=>mesh.getTotalVertices()>0);
@@ -74,7 +81,12 @@ async function load():Promise<void> {
     const material=new StandardMaterial('part-'+index,scene);
     material.diffuseColor=new Color3(...colour);
     material.specularColor=new Color3(.15,.15,.18);
-    mesh.material=material;
+    // Em modo textura o material do GLB é PBR e precisa de AMBIENTE para refletir alguma coisa:
+    // sem `environmentTexture` o Babylon devolve uma superfície quase chapada e a pintura some.
+    if(manterMaterial){
+      const pbr=mesh.material as {environmentIntensity?:number; albedoTexture?:unknown}|null;
+      if(pbr&&'environmentIntensity' in pbr)pbr.environmentIntensity=1.1;
+    } else mesh.material=material;
     // Direção de afastamento: do centro do CONJUNTO para o centro DA PARTE.
     const away=mesh.getBoundingInfo().boundingBox.centerWorld.subtract(centre);
     if(away.lengthSquared()<1e-6)away.copyFromFloats(0,1,0);
@@ -95,8 +107,12 @@ async function load():Promise<void> {
   root=new TransformNode('root',scene);
   for(const part of parts)part.mesh.parent=root;
   root.position=centre.scale(-1);
+  // Diagnóstico honesto: diz QUAL material está na malha, para não confundir "sem textura" com
+  // "textura não aplicada". Foi exatamente essa confusão que me custou duas rodadas aqui.
+  const primeiro=meshes[0]?.material as {getClassName?:()=>string}|null;
+  const materialNome=manterMaterial?(primeiro?.getClassName?.()??'nenhum'):'cor por parte';
   document.getElementById('stats')!.textContent=
-    `${meshes.length} partes separadas · ${triangles.toLocaleString('pt-BR')} triângulos`;
+    `${meshes.length} partes separadas · ${triangles.toLocaleString('pt-BR')} triângulos · material: ${materialNome}`;
   apply();
   (window as unknown as Record<string,unknown>)['__ready']=true;
 }
