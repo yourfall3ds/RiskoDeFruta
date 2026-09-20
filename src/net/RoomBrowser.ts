@@ -27,6 +27,18 @@ export interface RoomRow {
   readonly max: number;
   readonly seed: string;
   readonly full: boolean;
+  /**
+   * O servidor DESTA sala, quando ela não veio do servidor ao qual esta página está ligada.
+   *
+   * Com a descoberta na LAN (`electron/discovery.ts`) a lista deixou de ter uma origem só: ela
+   * mistura as salas do servidor embutido desta máquina com as das máquinas dos amigos. Sem este
+   * campo, entrar numa sala descoberta mandaria o jogador ao servidor ERRADO — o dele mesmo — e o
+   * sintoma seria "cliquei na sala do meu irmão e caí numa sala vazia", que parece falha de
+   * sincronização e é endereço trocado.
+   *
+   * Vazio significa "o mesmo servidor da listagem", que é todo o caminho de navegador de hoje.
+   */
+  readonly server?: string | undefined;
 }
 
 /** O que o lobby do Colyseus entrega por sala. Só os campos que esta tela usa. */
@@ -48,7 +60,7 @@ const DEFAULT_MAX = 4;
  * economia adiantadas — e a `FarmRoom` continua aceitando o join, então a recusa tem de ser aqui.
  * Sala CHEIA continua listada, porque ver "4/4" é informação; o que ela não fica é entrável.
  */
-export function toRoomRow(entry: RoomAvailableLike): RoomRow | undefined {
+export function toRoomRow(entry: RoomAvailableLike, server = ''): RoomRow | undefined {
   const meta = entry.metadata ?? {};
   if (meta.phase === PHASE_PLAYING) return undefined;
   const seed = String(meta.seed ?? '');
@@ -65,6 +77,7 @@ export function toRoomRow(entry: RoomAvailableLike): RoomRow | undefined {
     hostName: hostName || '—',
     players, max, seed,
     full: players >= max,
+    server,
   };
 }
 
@@ -80,10 +93,12 @@ export type RoomEvent =
  * tanto para sala nova quanto para sala que mudou (alguém entrou, o anfitrião trocou). Por isso o
  * acréscimo SUBSTITUI a linha de mesmo `roomId` em vez de duplicá-la.
  */
-export function applyRoomEvent(rows: readonly RoomRow[], event: RoomEvent): RoomRow[] {
-  if (event.type === 'rooms') return event.rooms.map(toRoomRow).filter((row): row is RoomRow => !!row);
+export function applyRoomEvent(rows: readonly RoomRow[], event: RoomEvent, server = ''): RoomRow[] {
+  // `.map(toRoomRow)` seria um bug silencioso agora que `toRoomRow` tem um segundo parâmetro: o
+  // `map` passa o ÍNDICE nele, e toda sala a partir da segunda nasceria com `server: 1`, `2`, …
+  if (event.type === 'rooms') return event.rooms.map(entry => toRoomRow(entry, server)).filter((row): row is RoomRow => !!row);
   if (event.type === 'remove') return rows.filter(row => row.roomId !== event.roomId);
-  const row = toRoomRow(event.room);
+  const row = toRoomRow(event.room, server);
   const rest = rows.filter(existing => existing.roomId !== event.room.roomId);
   if (!row) return rest;
   const index = rows.findIndex(existing => existing.roomId === event.room.roomId);
@@ -126,7 +141,9 @@ export class ColyseusRoomBrowser implements RoomBrowserLink {
   }
 
   private apply(event: RoomEvent): void {
-    this.rooms = applyRoomEvent(this.rooms, event);
+    // `this.url` é o servidor desta listagem: carimbá-lo em cada linha é o que permite juntar
+    // listas de máquinas diferentes num painel só sem perder de onde cada sala veio.
+    this.rooms = applyRoomEvent(this.rooms, event, this.url);
     this.notify();
   }
   private notify(): void { for (const listener of this.listeners) listener(); }

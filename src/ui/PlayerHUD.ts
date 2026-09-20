@@ -352,6 +352,9 @@ export class PlayerHUD {
        * imediata pelo mesmo motivo: não há nada para reconstruir.
        */
       this.unsubscribeRoom=onRoomChange((room,notice)=>{
+        // O menu precisa saber se há sala para decidir para onde a tela de personagem VOLTA. Quem
+        // sabe isso é `RoomSession`, e este é o único ponto por onde a notícia passa.
+        this.menu?.setRoomOpen(!!room);
         if(room){this.attachLobby(room);return;}
         this.detachLobby();
         this.refreshRoster();
@@ -456,7 +459,11 @@ export class PlayerHUD {
       // Teto do rastejo: a etapa corrente mais 85% dela — perto do fim, sem tocá-lo.
       const teto=Math.min(1,this.progressTarget+passo*.85);
       const alvo=Math.max(this.progressTarget,Math.min(teto,this.shownProgress+dt*passo*.22));
-      this.shownProgress=Math.max(this.shownProgress,this.shownProgress+(alvo-this.shownProgress)*Math.min(1,dt*3.2));
+      const passo1=this.shownProgress+(alvo-this.shownProgress)*Math.min(1,dt*3.2);
+      // ENCOSTAR NO ALVO. A perseguição é exponencial: ela se APROXIMA do alvo sem nunca chegar.
+      // Com o alvo em 1, `Math.floor` do valor perseguido ficava em 99% para sempre — o "travado em
+      // 99%" era, em parte, esta assíntota. Meio por cento de distância já é o alvo.
+      this.shownProgress=Math.max(this.shownProgress,alvo-passo1<=.005?alvo:passo1);
       const pct=Math.min(100,Math.floor(this.shownProgress*100));
       const barra=progress.querySelector('i') as HTMLElement|null;
       if(barra)barra.style.width=pct+'%';
@@ -471,6 +478,13 @@ export class PlayerHUD {
     // O laço de animação para aqui: `loaded` fica verdadeiro logo abaixo e o quadro seguinte sai
     // sozinho, mas cancelar explicitamente evita um quadro órfão entre as duas coisas.
     if(this.progressRaf){cancelAnimationFrame(this.progressRaf);this.progressRaf=0;}
+    // O laço para no quadro em que estava, então o último número escrito era o da perseguição (85%,
+    // 97%…). Quem lê um relatório de QA lê ESTE texto: ele fecha em 100.
+    this.shownProgress=1;this.progressTarget=1;
+    const barra=this.element.querySelector('.loading-progress i') as HTMLElement|null;
+    if(barra)barra.style.width='100%';
+    const numero=this.element.querySelector('.loading-progress b');
+    if(numero)numero.textContent='100%';
     this.loading(1,1,'ROTA PRONTA · EQUIPAMENTO PRONTO');this.gate.classList.remove('loading');
     // A barra terminada continuava desenhada a 100% por cima do menu pronto. `.loading` só escondia
     // os controles; o próprio bloco de progresso nunca saía.

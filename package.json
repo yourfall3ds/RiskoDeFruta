@@ -15,7 +15,35 @@
     "server": "tsx --tsconfig server/tsconfig.json server/index.ts",
     "server:typecheck": "tsc --noEmit -p server/tsconfig.json",
     "assets:audit": "node scripts/audit-assets.mjs",
-    "audio:audit": "node scripts/audit-audio-candidates.mjs"
+    "audio:audit": "node scripts/audit-audio-candidates.mjs",
+    "app:dev": "node electron/build-app.mjs --dev && electron dist-electron/main.cjs",
+    "app:build": "npm run build && node electron/make-icon.mjs && node electron/build-app.mjs && electron-builder --win nsis"
+  },
+  "main": "dist-electron/main.cjs",
+  "build": {
+    "appId": "com.riscodefruta.jogo",
+    "productName": "Risco de Fruta",
+    "directories": { "output": "release", "buildResources": "electron/resources" },
+    "files": [
+      "dist-electron/**/*",
+      "dist/**/*",
+      "package.json"
+    ],
+    "//assets": "O jogo NÃO baixa nada na primeira execução. `npm run build` roda scripts/link-public.mjs, que espelha public/ inteiro (modelos, áudio, texturas) dentro de dist/ — então `dist/**/*` acima já carrega todos os assets para dentro do instalador. Um extraResources de public/ seria uma SEGUNDA cópia dos mesmos arquivos.",
+    "asar": true,
+    "asarUnpack": ["**/*.wasm"],
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "icon": "electron/resources/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Risco de Fruta"
+    }
   },
   "dependencies": {
     "@babylonjs/core": "9.25.0",

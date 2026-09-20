@@ -49,11 +49,19 @@ export class NetworkClient implements LobbyLink {
   get connected(): boolean { return !!this.room; }
   get sessionId(): string { return this.room?.sessionId ?? ''; }
   get roomId(): string { return this.room?.roomId ?? ''; }
-  /** Meu estado autoritativo mais recente, se já chegou. */
-  get me(): PlayerState | undefined { return this.room?.state.players.get(this.sessionId); }
+  /**
+   * Meu estado autoritativo mais recente, se já chegou.
+   *
+   * O `?.` vai até `players`, e não só até `room`. Entre o `join` e o PRIMEIRO patch de estado a
+   * sala existe e `state.players` ainda não: `room.state.players.get(...)` estourava
+   * `Cannot read properties of undefined (reading 'get')` dentro do `connect()`, a sala era
+   * descartada e o jogador voltava para a lista — com a tela dizendo só "não consegui entrar na
+   * sala", sem nada ligando isso a uma leitura cedo demais.
+   */
+  get me(): PlayerState | undefined { return this.room?.state?.players?.get(this.sessionId); }
   get rttMs(): number { return this.room?.clock.smoothedRtt() ?? 0; }
   get jitterMs(): number { return this.room?.clock.jitter() ?? 0; }
-  get playerCount(): number { return this.room?.state.players.size ?? 0; }
+  get playerCount(): number { return this.room?.state?.players?.size ?? 0; }
   get lastSentSeq(): number { return this.seq; }
 
   async connect(): Promise<void> {
@@ -157,7 +165,11 @@ export class NetworkClient implements LobbyLink {
     const room = this.room;
     if (!room) return [];
     const rows: ReplicatedEnemy[] = [];
-    for (const e of room.state.enemies.values()) rows.push({
+    // `enemies` só existe depois da primeira patch; antes dela a lista vazia é a resposta certa —
+    // não há horda para apresentar ainda, e inventar uma seria pior que esperar.
+    const enemies = room.state?.enemies;
+    if (!enemies) return rows;
+    for (const e of enemies.values()) rows.push({
       id: e.id, kind: e.kind as EnemyKind, variant: e.variant as EnemyVariant, scale: e.scale,
       x: e.x, y: e.y, z: e.z, yaw: e.yaw, hp: e.hp, maxHP: e.maxHP,
       state: (ENEMY_STATES[e.state] ?? 'chase') as ReplicatedEnemy['state'],
@@ -182,13 +194,13 @@ export class NetworkClient implements LobbyLink {
     // saldo: silêncio não é carteira vazia, e quem exibe precisa distinguir os dois.
     const p = room.state?.progression as FarmState['progression'] | undefined;
     if (!p) return undefined;
-    return { credits: p.credits, xp: p.xp, level: p.level, totalKills: p.totalKills, stage: room.state.stage, purchases: p.purchases };
+    return { credits: p.credits, xp: p.xp, level: p.level, totalKills: p.totalKills, stage: room.state?.stage ?? 1, purchases: p.purchases };
   }
 
   /** Os baús que o SERVIDOR marcou consumidos. Apresentação: a tampa abre igual nas quatro telas. */
   usedChests(): string[] {
-    const room = this.room;
-    return room ? [...room.state.usedChests] : [];
+    const used = this.room?.state?.usedChests;
+    return used ? [...used] : [];
   }
 
   /** A TENTATIVA de compra. Não devolve sucesso: o veredito chega por `purchaseResolved`. */
@@ -209,16 +221,19 @@ export class NetworkClient implements LobbyLink {
   get players(): readonly LobbyPlayer[] {
     const room = this.room;
     if (!room) return [];
-    const hostId = room.state.hostId;
-    return [...room.state.players.values()].map(p => ({
+    // Roster vazio enquanto o schema não chegou — a tela da sala já sabe desenhar "aguardando…".
+    const players = room.state?.players;
+    if (!players) return [];
+    const hostId = room.state?.hostId ?? '';
+    return [...players.values()].map(p => ({
       id: p.id, entityId: p.entityId, name: p.name,
       classId: p.classChosen ? CLASS_IDS[p.classId] as PlayerClassId | undefined : undefined,
       ready: p.ready, host: p.id === hostId, self: p.id === this.sessionId,
     })).sort((a, b) => a.entityId - b.entityId);
   }
 
-  get phase(): LobbyPhase { return this.room?.state.phase === PHASE.playing ? 'playing' : 'lobby'; }
-  get isHost(): boolean { return !!this.room && this.room.state.hostId === this.sessionId; }
+  get phase(): LobbyPhase { return this.room?.state?.phase === PHASE.playing ? 'playing' : 'lobby'; }
+  get isHost(): boolean { return !!this.room && this.room.state?.hostId === this.sessionId; }
 
   onChange(listener: () => void): () => void {
     this.lobbyListeners.add(listener);
@@ -230,7 +245,7 @@ export class NetworkClient implements LobbyLink {
   setSetting(key: string, value: string): void { this.room?.send('setSetting', { key, value }); }
 
   /** O nome da sala é um AJUSTE da sala, então passa pelo mesmo `setSetting` já guardado por host. */
-  get roomName(): string { return this.room?.state.settings.get('roomName') ?? ''; }
+  get roomName(): string { return this.room?.state?.settings?.get('roomName') ?? ''; }
   rename(name: string): void { this.setSetting('roomName', name); }
   kick(playerId: string): void { this.room?.send('kick', { playerId }); }
   closeRoom(): void { this.room?.send('closeRoom', {}); }

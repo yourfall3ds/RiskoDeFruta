@@ -39,6 +39,21 @@ import type {RoomBrowserLink,RoomRow} from '../net/RoomBrowser';
 
 export type MenuScreen='raiz'|'personagem'|'opcoes'|'abandonar'|'nome'|'multijogador'|'entrar'|'sala';
 
+/**
+ * PARA ONDE A TELA DE PERSONAGEM VOLTA.
+ *
+ * A regra vive fora da classe porque é uma DECISÃO, e decisão se afirma em teste sem montar DOM
+ * nenhum. O erro que ela corrige: o VOLTAR era um botão só, compartilhado por todas as telas, e
+ * mandava sempre para `'raiz'`. Quem chegou à escolha de personagem VINDO DA SALA era despejado no
+ * menu principal — e a sala continuava aberta, com ele dentro, sem nada na tela dizendo isso.
+ *
+ * `hasRoomScreen` é condição real, não zelo: o campo de testes monta o menu SEM a tela de sala, e
+ * mandar alguém para uma tela que não existe é trocar um destino errado por um pior.
+ */
+export function classScreenReturn(roomOpen:boolean,hasRoomScreen:boolean):MenuScreen {
+  return roomOpen&&hasRoomScreen?'sala':'raiz';
+}
+
 export class MenuShell {
   readonly element=document.createElement('div');
   private readonly screens=new Map<MenuScreen,HTMLElement>();
@@ -133,7 +148,8 @@ export class MenuShell {
        */
       const barra=document.createElement('div');
       barra.className='rdf-action-bar';
-      barra.append(ready,this.back());
+      // Com sala aberta o retorno é a SALA, não a raiz: quem abriu esta tela foi o lobby.
+      barra.append(ready,this.back(()=>classScreenReturn(this.roomOpen,this.screens.has('sala'))));
       (card.parentElement??card).append(barra);
       screen.append(this.heading('ESCOLHA SEU PERSONAGEM'),parts.classSelect,this.roster());
     }
@@ -273,14 +289,35 @@ export class MenuShell {
   get screen():MenuScreen {return this.current;}
 
   /** `Esc` dentro de uma subtela volta para a raiz em vez de sair do menu. */
-  back():HTMLButtonElement {
+  /**
+   * O VOLTAR, com DESTINO EXPLÍCITO.
+   *
+   * Voltava sempre para `'raiz'`, para toda tela, porque o botão era um só e não sabia de onde
+   * tinha vindo. Na tela de personagem isso é errado quando há sala aberta: o jogador entrou nela
+   * VINDO DA SALA, e voltar para o menu principal o tira do lobby sem fechar sala nenhuma — a sala
+   * continua de pé, com ele dentro, e a tela não mostra mais isso.
+   *
+   * O destino é resolvido NO CLIQUE, não na montagem: quando este botão é criado ainda não se sabe
+   * se haverá sala. Por isso a função, e não uma constante.
+   */
+  back(to:MenuScreen|(()=>MenuScreen)='raiz'):HTMLButtonElement {
     const button=document.createElement('button');
     button.type='button';
     button.className='rdf-menu-back';
     button.textContent='◂ VOLTAR';
-    button.onclick=()=>this.show('raiz');
+    button.onclick=()=>this.show(typeof to==='function'?to():to);
     return button;
   }
+
+  /**
+   * Existe sala aberta? É o que decide para onde a tela de personagem volta.
+   *
+   * Dito de fora (`PlayerHUD`, que é quem fala com `RoomSession`) em vez de deduzido da tela atual:
+   * inferir "estou no lobby" pelo que está desenhado erra justamente no caso que importa — o
+   * jogador está NA tela de personagem, e a sala continua aberta atrás dela.
+   */
+  private roomOpen=false;
+  setRoomOpen(open:boolean):void {this.roomOpen=open;}
 
   /**
    * SAIR.
@@ -571,6 +608,7 @@ export class MenuShell {
    */
   showRoom(code:string,roomName:string):void {
     if(!this.screens.has('sala'))return;
+    this.roomOpen=true;
     this.setRoomCode(code);
     this.salaTitle.textContent=(roomName||'SALA').toUpperCase();
     this.show('sala');

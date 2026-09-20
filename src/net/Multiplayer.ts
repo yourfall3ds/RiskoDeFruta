@@ -127,13 +127,23 @@ export function browserMultiplayer(): MultiplayerPort {
       void (async () => {
         const { ColyseusRoomBrowser } = await import('./RoomBrowser');
         if (disposed) return;
-        const browser = new ColyseusRoomBrowser(coopServerUrl(location.href));
+        /**
+         * No aplicativo instalado a lista é a SOMA dos anfitriões da rede local; no navegador é o
+         * servidor único de sempre. Quem decide é a existência da ponte do Electron, e as duas
+         * pontas são o mesmo `RoomBrowserLink` — por isso nada abaixo daqui muda.
+         */
+        const { NavegadorDaLan, ponteLan } = await import('./LanBrowser');
+        if (disposed) return;
+        const local = coopServerUrl(location.href);
+        const browser = ponteLan()
+          ? new NavegadorDaLan(local, url => new ColyseusRoomBrowser(url))
+          : new ColyseusRoomBrowser(local);
         live = browser;
         browser.onChange(() => { failure = browser.error ? 'NÃO CONSEGUI FALAR COM O SERVIDOR' : ''; for (const listener of listeners) listener(); });
         await browser.connect();
         failure = browser.error ? 'NÃO CONSEGUI FALAR COM O SERVIDOR' : '';
-        if (failure) log.aviso('servidor de salas fora do ar', { servidor: browser.url, motivo: browser.error });
-        else log.info('listagem de salas aberta', { servidor: browser.url, salas: browser.rooms.length });
+        if (failure) log.aviso('servidor de salas fora do ar', { servidor: local, motivo: browser.error });
+        else log.info('listagem de salas aberta', { servidor: local, salas: browser.rooms.length });
         for (const listener of listeners) listener();
       })();
       return link;
@@ -148,8 +158,11 @@ export function browserMultiplayer(): MultiplayerPort {
     joinRow(row: RoomRow, name: string): string {
       if (row.full) return 'ESSA SALA ESTÁ CHEIA';
       if (!row.seed) return 'NÃO CONSEGUI FALAR COM A SALA';
-      // A sala listada é desta rede, então o servidor é o mesmo da listagem.
-      startOnline({ code: row.code, seed: row.seed, name, server: coopServerUrl(location.href), roomName: row.roomName });
+      // O servidor sai da LINHA, não do endereço desta página: com a descoberta na LAN a lista
+      // mistura salas de máquinas diferentes, e usar `coopServerUrl` aqui mandaria o convidado ao
+      // servidor dele mesmo. `server` vazio continua significando "o servidor desta página", que é
+      // o caminho de navegador de sempre.
+      startOnline({ code: row.code, seed: row.seed, name, server: row.server || coopServerUrl(location.href), roomName: row.roomName });
       return '';
     },
     joinCode(code: string, name: string): string {
