@@ -33,6 +33,19 @@ import {findSafeRecovery,safeRecoverySupport} from './SafeRecovery';
  * `(0,0,1)`, e por isso `yaw` continua sendo o yaw global de sempre. Contrato completo (semântica de
  * `heading`/`yaw` para câmera e visual) em `.temp/real-game-surface-api.md`.
  */
+/**
+ * Teto do arremesso por explosão, em metros por segundo.
+ *
+ * Calibrado contra o salto normal: o salto de foguete a favor leva MAIS alto que um pulo, senão
+ * não seria mobilidade — mas um teto existe porque o mapa é um planeta com abismo em volta das
+ * ilhas, e um arremesso sem limite seria só uma forma cara de morrer.
+ */
+export const BLAST_IMPULSE_CAP=13;
+/** Quanto do impulso vira ALTURA. */
+export const BLAST_LIFT_SHARE=1;
+/** Quanto vira deslocamento lateral. Menor que a altura: o salto é para cima, não um arrastão. */
+export const BLAST_TANGENT_SHARE=.75;
+
 export class PlayerMotor {
   readonly position: Vec3;
   readonly previous: Vec3;
@@ -127,6 +140,34 @@ export class PlayerMotor {
     this.velocity.y=tangential.y+this.up.y*value;
     this.velocity.z=tangential.z+this.up.z*value;
   }
+  /**
+   * Arremesso por ONDA DE CHOQUE — o salto de foguete.
+   *
+   * `knockback` sozinho não serve: ele só escreve `push.x/z`, que é deslocamento TANGENTE. Uma
+   * explosão sob os pés produziria um empurrão lateral e nenhuma altura, e a promessa de "explosão
+   * vira mobilidade" morreria aí. Aqui a direção é decomposta na base do corpo: a parte ao longo
+   * de `up` vira ALTURA (pelo mesmo `leaveGround` do salto), a parte tangente vira empurrão.
+   *
+   * `Math.max(this.verticalSpeed, lift)` e não a soma: duas cápsulas do mesmo leque explodindo no
+   * mesmo quadro empilhariam altura e atirariam o jogador para fora do planeta. O maior impulso
+   * manda; o segundo não acrescenta.
+   *
+   * Não causa dano. Decisão de jogo, registrada aqui porque é regra: o fogo do próprio jogador já
+   * não o queima, e num mapa com abismo o preço de errar o salto já é a queda.
+   */
+  blastImpulse(direction:Vec3,strength:number):void {
+    const force=Math.max(0,Math.min(BLAST_IMPULSE_CAP,strength));
+    if(force<=0)return;
+    const radial=dot(direction,this.up);
+    const tangential=reject(direction,this.up);
+    const spread=length(tangential);
+    if(spread>1e-3)this.knockback(
+      {x:tangential.x/spread,y:tangential.y/spread,z:tangential.z/spread},force*BLAST_TANGENT_SHARE);
+    const lift=Math.max(0,radial)*force*BLAST_LIFT_SHARE;
+    // Abaixo de meio metro por segundo não é salto, é tremor: não vale soltar o corpo do chão.
+    if(lift>.5)this.leaveGround(Math.max(this.verticalSpeed,lift));
+  }
+
   /** Solta do apoio — empurrão, explosão, plataforma que some. */
   leaveGround(radialSpeed=0):void {
     this.grounded=false;this.launched=true;this.coyote=0;

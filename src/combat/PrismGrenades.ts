@@ -49,6 +49,8 @@ export interface GrenadeBody {
  * Ausente = cápsula comum, com os números de `PRISM_GRENADE`.
  */
 export interface GrenadePayload {
+  /** A explosão acende o chão onde bate. Ver `src/combat/GroundFire.ts`. */
+  readonly groundFire?: boolean;
   /** Multiplicador do raio da explosão. Quem lança é responsável por já aplicar o teto. */
   readonly radiusScale: number;
   /** Multiplicador do dano de contato direto e do estilhaço. */

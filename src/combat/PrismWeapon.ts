@@ -10,7 +10,7 @@ import {predictGrenadeFlight,type GrenadePrediction,type TrajectoryOptions} from
 import {PRISM_GRENADE,PRISM_MODES,type PrismMode,type PrismModeTuning} from './PrismTuning';
 import {
   INCENDIARY_TAG,PRISM_SKILL_BLAST_CAP,PRISM_SKILL_BLAST_TAGS,PRISM_SKILL_TAGS,
-  PrismSkillRunner,fanAngles,prismSkill,prismSkillDamage,
+  PrismSkillRunner,fanAngles,markStrikeTargets,prismSkill,prismSkillDamage,
   type PrismSkillPlan,type PrismSkillTier,
 } from './PrismSkills';
 
@@ -227,6 +227,35 @@ export class PrismWeapon {
   get skillActive(): boolean {return this.skills.active;}
   /** Nome na tela da habilidade no ar; `''` quando não há nenhuma. */
   get skillLabel(): string {return this.skills.label;}
+  /** A mecânica da habilidade no ar; `undefined` quando não há nenhuma. Leitura da apresentação. */
+  /** O ponto do cano AGORA — a apresentacao ancora a carga do feixe nele. */
+  muzzlePoint(): Vector3 {return this.muzzle().clone();}
+
+  get skillKind(): PrismSkillPlan['kind']|undefined {return this.skills.plan?.kind;}
+  /** `true` enquanto a habilidade no ar ainda carrega — nada saiu do cano. */
+  get skillCharging(): boolean {return this.skills.charging;}
+  /** Fração 0..1 da carga já cumprida; `1` fora de uma carga. */
+  get skillChargeProgress(): number {return this.skills.chargeProgress;}
+  /**
+   * O SEGMENTO do feixe de íons neste instante, ou `undefined`.
+   *
+   * Calculado na leitura (e não guardado) porque a mira muda por quadro: o feixe acompanha para
+   * onde o jogador está olhando enquanto dura, como o feixe da cenoura acompanha o alvo dela.
+   */
+  get beamSegment(): {from: Vector3; to: Vector3}|undefined {
+    const plan=this.skills.plan;
+    if(!plan||plan.kind!=='beam'||this.skills.charging)return undefined;
+    const tuning=this.tuning;
+    const from=this.muzzle().clone();
+    const direction=this.aim(from,tuning,false);
+    const blocked=this.services.traceWorld(from,direction,tuning.range);
+    return {from,to:blocked?blocked.point.clone():from.add(direction.scale(tuning.range))};
+  }
+  /** Os hostis marcados pela chuva de mísseis; vazio fora dela. A apresentação desenha o anel. */
+  get markedTargets(): readonly TrainingTarget[] {
+    if(this.skills.plan?.kind!=='strike')return [];
+    return this.strikeTargets.filter((target): target is TrainingTarget => target!==undefined);
+  }
   /** Segundos restantes da sobrecarga; `0` fora dela. */
   get overdriveRemaining(): number {return this.skills.remaining;}
 
@@ -248,6 +277,10 @@ export class PrismWeapon {
     for(let i=0;i<plan.ammoCost;i++)if(!this.magazine.consume())return false;
     this.trigger.release();
     this.skills.start(plan);
+    // A marcação acontece no ATO do pedido, não na primeira ogiva: é o que o anel em volta do alvo
+    // mostra durante os 0,8 s de espera. Escolher na emissão deixaria a espera sem imagem nenhuma —
+    // que é exatamente o defeito da sobrecarga que esta habilidade veio substituir.
+    if(plan.kind==='strike')this.strikeTargets=this.selectStrikeTargets(this.muzzle(),plan);
     this.skillReleases++;
     return true;
   }
@@ -467,18 +500,91 @@ export class PrismWeapon {
     this.rig.fire();
     this.camera.impulse(tuning.impulse*plan.impulseScale);
     if(plan.kind==='fan'){this.launchCapsule(origin,this.fanDirection(origin,tuning,plan,index),this.payloadOf(plan));return;}
+    if(plan.kind==='strike'){this.launchMissile(origin,tuning,plan,index);return;}
     const direction=plan.kind==='volley'
       ?this.volleyDirection(origin,tuning,plan,index)
       :this.aim(origin,tuning,plan.spreadDegrees>0,plan.spreadDegrees);
     this.hitscan(origin,direction,tuning,this.skillProfile(plan));
   }
 
-  /** Carga da cápsula de uma habilidade de leque, já com o teto de raio aplicado. */
+  /**
+   * Altura de onde o míssil cai, em metros acima do alvo marcado.
+   *
+   * Alto o bastante para ele aparecer vindo DE CIMA (e não brotar em cima da cabeça), e baixo o
+   * bastante para a queda caber na janela da habilidade: a 34 m/s com 26 m/s² de gravidade, são
+   * pouco mais de 0,7 s de voo.
+   */
+  private static readonly MISSILE_HEIGHT=34;
+
+  /** Alvos marcados pela chuva de mísseis; reconstruídos na PRIMEIRA emissão, como a salva. */
+  private strikeTargets: (TrainingTarget|undefined)[] = [];
+
+  /**
+   * UM míssil da chuva: cai na vertical LOCAL do alvo marcado `index`.
+   *
+   * Nenhuma física nova, de novo: o míssil é a MESMA cápsula da lança-granadas, só que largada de
+   * cima em vez de arremessada para a frente. Ela herda balística, colisão, destruição e explosão
+   * de graça — e a ogiva maior vem da carga, não de um caminho paralelo.
+   *
+   * "De cima" é `up` do ALVO, não `+Y` do mundo: no equador do planeta um míssil em `+Y` cairia
+   * deitado. É a mesma correção que o leque já faz em `fanDirection`.
+   *
+   * Sem alvo marcado (horda acabou, ou o marcado morreu na espera) o míssil cai à frente da mira,
+   * no alcance da forma — a habilidade já foi paga e não pode sumir sem efeito.
+   */
+  private launchMissile(origin: Vector3, tuning: PrismModeTuning, plan: PrismSkillPlan, index: number): void {
+    // Os alvos já foram escolhidos em `releaseSkill` — é a mesma lista que o anel desenhou.
+    const target=this.strikeTargets[index];
+    const ground=target
+      ?target.mesh.getBoundingInfo().boundingBox.centerWorld.clone()
+      :origin.add(this.aim(origin,tuning,false).scale(Math.min(tuning.range,plan.markRadius)));
+    const up=this.space.upAt(ground,this.scratchUp).clone();
+    const from=ground.add(up.scale(PrismWeapon.MISSILE_HEIGHT));
+    // Flash no alvo no instante em que o míssil parte: diz QUEM foi marcado, mesmo antes de a
+    // ogiva chegar. O marcador persistente da fase de carga é trabalho da apresentação.
+    this.services.effects.burst(ground,1.4,.25);
+    this.launchCapsule(from,up.scale(-1),this.payloadOf(plan));
+  }
+
+  /** Os hostis marcados: os `plan.shots` mais próximos dentro de `plan.markRadius`. */
+  private selectStrikeTargets(origin: Vector3, plan: PrismSkillPlan): (TrainingTarget|undefined)[] {
+    const pool=new Map<number,TrainingTarget>();
+    const candidates: {id:number; distance:number}[] = [];
+    for(const target of this.services.combatTargets){
+      if(!target.mesh.isPickable||!target.mesh.isEnabled())continue;
+      const centre=target.mesh.getBoundingInfo().boundingBox.centerWorld;
+      const distance=Vector3.Distance(origin,centre);
+      if(!(distance>1e-3))continue;
+      pool.set(target.id,target);
+      candidates.push({id:target.id,distance});
+    }
+    return markStrikeTargets(candidates,plan.shots,plan.markRadius).map(id=>pool.get(id));
+  }
+
+  /**
+   * Porta da cena para ACENDER O CHÃO: recebe o centro e o raio da explosão.
+   *
+   * Opcional de propósito — a arma não conhece a horda (é ela que tem os corpos para queimar), e o
+   * teste roda sem cena. Sem a porta ligada a habilidade continua explodindo; só não pinta fogo.
+   */
+  onGroundFire: ((centre: Vector3, radius: number) => void) | undefined;
+
+  /**
+   * Porta da ONDA DE CHOQUE: toda explosão avisa centro e raio.
+   *
+   * A arma não conhece o jogador (ele não é um ), então quem mede a distância e
+   * arremessa o corpo é a cena. Vale para granada, míssil e estilhaço — o salto de foguete não é
+   * privilégio da habilidade.
+   */
+  onBlastWave: ((centre: Vector3, radius: number) => void) | undefined;
+
+  /** Carga da cápsula de uma habilidade de leque ou da ogiva do míssil, com o teto de raio. */
   private payloadOf(plan: PrismSkillPlan): GrenadePayload {
     return {
       radiusScale:Math.min(PRISM_SKILL_BLAST_CAP,plan.blastRadiusScale),
       damageScale:plan.blastDamageScale,
       incendiary:plan.incendiary,
+      groundFire:plan.groundFire,
       attackId:plan.id,
     };
   }
@@ -646,6 +752,10 @@ export class PrismWeapon {
     // O centro do dano continua sendo o ponto de contato (é dali que a distância é medida); o que
     // muda é a ORIGEM do raio de visão. Sem esse recuo o raio nasceria EM CIMA da parede e a
     // própria parede em que a granada explodiu deixaria de bloquear quem está do outro lado dela.
+    // A explosão acende o CHÃO onde bateu, quando a carga pede. Porta opcional: sem cena ligada
+    // (testes, servidor) a habilidade continua funcionando e só não pinta fogo.
+    if(payload?.groundFire)this.onGroundFire?.(centre.clone(),radius);
+    this.onBlastWave?.(centre.clone(),radius);
     const eye=contact?centre.add(this.vector(normal).scale(.25)):centre;
     for(const target of this.services.combatTargets){
       if(!target.mesh.isPickable||!target.mesh.isEnabled())continue;

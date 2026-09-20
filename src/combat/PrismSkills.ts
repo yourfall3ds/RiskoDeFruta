@@ -32,8 +32,12 @@ export type PrismSkillTier = 2 | 3;
  * - `overdrive` — nenhuma emissão própria: abre uma JANELA em que o disparo normal muda.
  * - `volley` — N tiros instantâneos, cada um num ALVO diferente; sem alvo, vai para a frente.
  * - `fan`    — N cápsulas balísticas abertas em leque lateral.
+ * - `beam`   — CARREGA por `chargeSeconds` e então sustenta um feixe perfurante: as emissões são
+ *              os tiques de dano do feixe, todas pela mira do instante.
+ * - `strike` — MARCA os `shots` hostis mais próximos, espera `chargeSeconds`, e então cada emissão
+ *              é um míssil que cai na vertical LOCAL do alvo marcado e explode em área.
  */
-export type PrismSkillKind = 'burst' | 'overdrive' | 'volley' | 'fan';
+export type PrismSkillKind = 'burst' | 'overdrive' | 'volley' | 'fan' | 'beam' | 'strike';
 
 export interface PrismSkillPlan {
   /** Id estável; entra em `attackId` do dano e nos testes. */
@@ -65,10 +69,33 @@ export interface PrismSkillPlan {
   readonly rateScale: number;
   /** `fan`: abertura lateral TOTAL, em graus (metade para cada lado). */
   readonly fanDegrees: number;
-  /** Carga da cápsula (só `fan`): raio e dano da explosão, e se ela incendeia. */
+  /** Carga da cápsula (`fan`) e da ogiva (`strike`): raio e dano da explosão, e se ela incendeia. */
   readonly blastRadiusScale: number;
   readonly blastDamageScale: number;
   readonly incendiary: boolean;
+  /**
+   * Segundos ANTES da primeira emissão. Zero em tudo que sai no ato.
+   *
+   * É o que dá peso às duas habilidades novas: no `beam` é a carga de energia que o jogador vê e
+   * ouve subir; no `strike` é a janela entre marcar os alvos e os mísseis caírem. O relógio da
+   * emissão conta a partir daqui, não do `start` — ver `PrismSkillRunner.update`.
+   */
+  readonly chargeSeconds: number;
+  /**
+   * Raio de busca dos alvos do `strike`, em metros. Zero nas demais.
+   *
+   * A marcação escolhe os `shots` hostis VIVOS mais próximos dentro deste raio. Menos hostis que
+   * mísseis é caso normal (fim de horda): sobra míssil, e o que sobra cai à frente da mira.
+   */
+  readonly markRadius: number;
+  /**
+   * A explosão acende o CHÃO onde bate, além de danar quem está no raio.
+   *
+   * Separado de `incendiary` de propósito: aquele acende o CORPO atingido (queimadura por alvo,
+   * `EnemySwarm.hit`), este acende o TERRENO (área negada que sobrevive à explosão). Uma salva
+   * incendiária faz os dois; um míssil faz só o segundo.
+   */
+  readonly groundFire: boolean;
   /** Linha curta do painel de arma. */
   readonly hint: string;
 }
@@ -104,24 +131,31 @@ export const PRISM_SKILL_BLAST_TAGS: readonly string[] = ['explosive', 'skill'];
 function plan(values: PrismSkillPlan): PrismSkillPlan { return values; }
 
 const ASSAULT_II = plan({
-  id: 'prism_assault_burst', name: 'RAJADA CONTROLADA', mode: 0, tier: 2, kind: 'burst',
-  ammoCost: 6, ammoRequired: 6, shots: 6, interval: .07, damageScale: 2.4,
-  // Zero graus: o contrato da habilidade é "rajada CONTROLADA e mirada" — o assalto normal abre 1,7°.
-  spreadDegrees: 0, pierce: false, forceScale: 1.6, impulseScale: .8,
+  id: 'prism_assault_beam', name: 'CARGA DE ÍONS', mode: 0, tier: 2, kind: 'beam',
+  ammoCost: 8, ammoRequired: 8, shots: 12, interval: .05, damageScale: .85,
+  // Zero graus e perfurante: o feixe é uma LINHA, não uma rajada — atravessa a fila inteira.
+  spreadDegrees: 0, pierce: true, forceScale: .9, impulseScale: 1.2,
   seconds: 0, rateScale: 1, fanDegrees: 0,
   blastRadiusScale: 1, blastDamageScale: 1, incendiary: false,
-  hint: 'Q II · RAJADA MIRADA · 6 BALAS',
+  // A carga é o que separa esta habilidade da rajada que ela substituiu: 0,85 s de energia subindo
+  // no cano antes de o feixe abrir. Quem solta no susto ainda paga o tempo — não há disparo seco.
+  chargeSeconds: .85, markRadius: 0, groundFire: false,
+  hint: 'Q II · CARGA DE ÍONS · FEIXE PERFURANTE',
 });
 
 const ASSAULT_III = plan({
-  id: 'prism_assault_overdrive', name: 'SOBRECARGA DE DISPARO', mode: 0, tier: 3, kind: 'overdrive',
-  // Não retira munição: a sobrecarga é paga em MP e depois QUEIMA o carregador em tempo real.
-  // A exigência mínima existe para a janela não abrir com a arma praticamente vazia.
-  ammoCost: 0, ammoRequired: 8, shots: 0, interval: 0, damageScale: 1.5,
-  spreadDegrees: 0, pierce: false, forceScale: 1.3, impulseScale: .7,
-  seconds: 6, rateScale: 2.4, fanDegrees: 0,
-  blastRadiusScale: 1, blastDamageScale: 1, incendiary: false,
-  hint: 'Q III · SOBRECARGA · 6 s A 2,4×',
+  id: 'prism_assault_strike', name: 'CHUVA DE MÍSSEIS', mode: 0, tier: 3, kind: 'strike',
+  // Não retira munição: a marcação é paga em MP. A exigência mínima evita abrir com a arma vazia.
+  ammoCost: 0, ammoRequired: 4, shots: 3, interval: .12, damageScale: 1.2,
+  spreadDegrees: 0, pierce: false,
+  // Empurrão alto e tranco forte: é a promessa do pedido, e quem a cobra de verdade é o ramo
+  // explosivo de `enemyImpact` — aqui só se diz que este golpe é pesado.
+  forceScale: 3.2, impulseScale: 1.8,
+  seconds: 0, rateScale: 1, fanDegrees: 0,
+  blastRadiusScale: PRISM_SKILL_BLAST_CAP, blastDamageScale: 2.2, incendiary: false,
+  // 0,8 s entre marcar e cair: tempo de ver os três marcadores acenderem antes do céu responder.
+  chargeSeconds: .8, markRadius: 26, groundFire: true,
+  hint: 'Q III · MARCA 3 · MÍSSIL DO CÉU',
 });
 
 const SNIPER_II = plan({
@@ -130,6 +164,7 @@ const SNIPER_II = plan({
   spreadDegrees: 0, pierce: true, forceScale: 2.2, impulseScale: 1.6,
   seconds: 0, rateScale: 1, fanDegrees: 0,
   blastRadiusScale: 1, blastDamageScale: 1, incendiary: false,
+  chargeSeconds: 0, markRadius: 0, groundFire: false,
   hint: 'Q II · TIRO PESADO PERFURANTE · 2 BALAS',
 });
 
@@ -139,6 +174,7 @@ const SNIPER_III = plan({
   spreadDegrees: 0, pierce: true, forceScale: 1.8, impulseScale: 1.1,
   seconds: 0, rateScale: 1, fanDegrees: 0,
   blastRadiusScale: 1, blastDamageScale: 1, incendiary: false,
+  chargeSeconds: 0, markRadius: 0, groundFire: false,
   hint: 'Q III · SALVA MULTI-ALVO · 4 BALAS',
 });
 
@@ -148,6 +184,7 @@ const GRENADE_II = plan({
   spreadDegrees: 0, pierce: false, forceScale: 1, impulseScale: 1.4,
   seconds: 0, rateScale: 1, fanDegrees: 16,
   blastRadiusScale: 1, blastDamageScale: 1, incendiary: false,
+  chargeSeconds: 0, markRadius: 0, groundFire: false,
   hint: 'Q II · LEQUE DE 3 CÁPSULAS',
 });
 
@@ -158,6 +195,7 @@ const GRENADE_III = plan({
   spreadDegrees: 0, pierce: false, forceScale: 1.2, impulseScale: 1.8,
   seconds: 0, rateScale: 1, fanDegrees: 26,
   blastRadiusScale: PRISM_SKILL_BLAST_CAP, blastDamageScale: 1.5, incendiary: true,
+  chargeSeconds: 0, markRadius: 0, groundFire: true,
   hint: 'Q III · SALVA INCENDIÁRIA · 5 CÁPSULAS',
 });
 
@@ -206,6 +244,29 @@ export function prismSkillBlastRadius(plan: PrismSkillPlan): number {
   return PRISM_GRENADE.blastRadius * Math.min(PRISM_SKILL_BLAST_CAP, plan.blastRadiusScale);
 }
 
+/** Um candidato a alvo marcado. `id` é o do ator; a distância é medida por quem chama. */
+export interface StrikeCandidate { readonly id: number; readonly distance: number }
+
+/**
+ * Os alvos da CHUVA DE MÍSSEIS: os `count` mais próximos dentro de `radius`.
+ *
+ * Puro e determinístico de propósito — dois hostis à mesma distância desempatam pelo `id`, que é
+ * estável, e não pela ordem em que o chamador varreu a lista. Sem isso a mesma cena marcaria alvos
+ * diferentes conforme a horda reciclasse os atores, e a habilidade ficaria impossível de testar.
+ *
+ * Devolve MENOS que `count` quando não há hostis suficientes no raio; quem chama decide o que fazer
+ * com os mísseis que sobraram (hoje: caem à frente da mira).
+ */
+export function markStrikeTargets(candidates: readonly StrikeCandidate[], count: number, radius: number): number[] {
+  if (!(count > 0) || !(radius > 0)) return [];
+  return candidates
+    .filter(candidate => candidate.distance <= radius)
+    .slice()
+    .sort((a, b) => a.distance - b.distance || a.id - b.id)
+    .slice(0, count)
+    .map(candidate => candidate.id);
+}
+
 /**
  * O relógio de uma habilidade em curso.
  *
@@ -235,6 +296,22 @@ export class PrismSkillRunner {
   }
   /** Emissões já saídas nesta habilidade. */
   get shots(): number { return this.emitted; }
+  /**
+   * `true` enquanto a habilidade ainda está CARREGANDO — nada saiu do cano.
+   *
+   * O HUD e o rig leem isto para mostrar a energia subindo (feixe) ou os marcadores acendendo
+   * (mísseis). Uma habilidade sem `chargeSeconds` nunca passa por aqui.
+   */
+  get charging(): boolean {
+    const plan = this.current;
+    return plan !== undefined && plan.chargeSeconds > 0 && this.clock < plan.chargeSeconds;
+  }
+  /** Fração 0..1 da carga já cumprida; `1` quando não há carga ou ela terminou. */
+  get chargeProgress(): number {
+    const plan = this.current;
+    if (!plan || plan.chargeSeconds <= 0) return 1;
+    return Math.min(1, this.clock / plan.chargeSeconds);
+  }
   /** Nome na tela da habilidade no ar; `''` quando não há nenhuma. */
   get label(): string { return this.current?.name ?? ''; }
 
@@ -252,7 +329,10 @@ export class PrismSkillRunner {
       if (this.clock >= plan.seconds) this.cancel();
       return;
     }
-    while (this.emitted < plan.shots && this.clock >= this.emitted * plan.interval) {
+    // A carga desloca TODA a régua de emissão: a emissão `i` vence em `chargeSeconds + i·interval`.
+    // Sem o deslocamento, um feixe de carga longa cuspiria os doze tiques no primeiro passo e a
+    // carga viraria enfeite — o jogador veria a energia subir depois de o dano já ter saído.
+    while (this.emitted < plan.shots && this.clock >= plan.chargeSeconds + this.emitted * plan.interval) {
       emit(plan, this.emitted);
       this.emitted++;
     }
