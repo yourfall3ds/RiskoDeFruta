@@ -595,3 +595,30 @@ Called live during skill emission (`:174`). When player #2 of 4 disconnects, pla
 2. **Does the skill cinematic still freeze time?** Today it does (`worldDt=0`). §2.5 says no in co-op. If a freeze is wanted it becomes a design feature (host-only, or a vote), not a default.
 3. **Late join** — allow a 4th player to join a run in progress (inherits shared credits/XP, empty inventory), or `locked` once `phase=1`? Affects §7.1 visibility flags.
 4. **Friendly fire** — assumed off. The `blast` proc (`EnemySwarm.ts:529`) and `RicochetFan` would otherwise need victim filtering.
+
+---
+
+## DECISOES FECHADAS PELO DONO DO PRODUTO (2026-09-20)
+
+Estas nao sao mais questoes em aberto. Quem implementar segue isto.
+
+### Inventario: POR JOGADOR
+
+Cada jogador tem o proprio PlayerLoadout — itens, stats e nivel. NAO e' compartilhado.
+
+Motivo tecnico: hoje FarmSimulation.ts:158 escreve um unico stats compartilhado no motor
+de todos, o que deixaria os quatro jogadores mecanicamente IDENTICOS. Isso contraria o
+ProgressionState.inventory atual e o docs/MULTIPLAYER.md, que ficam obsoletos neste ponto.
+
+E' tambem o comportamento do Risk of Rain 2, que e' a referencia declarada do projeto.
+
+### Lobby: UNANIMIDADE ESTRITA, no modelo do Risk of Rain 2
+
+- A partida SO' comeca quando TODOS os jogadores conectados escolheram personagem E
+  confirmaram prontidao. Nao existe "comecar mesmo assim" nem maioria.
+- A escolha de personagem, o estado de pronto e as configuracoes do host sao sincronizados
+  em tempo real para todos na sala.
+- Qualquer evento que quebre a unanimidade ABORTA a partida de volta para o lobby: alguem
+  entrar, alguem tirar o pronto, alguem cair.
+- O host e' o primeiro jogador e e' o dono das configuracoes da run (seed, modo). Pedido de
+  configuracao vindo de quem nao e' host e' recusado no servidor, nao escondido na interface.
