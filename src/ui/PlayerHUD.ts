@@ -11,6 +11,9 @@ import { weaponReadout,type WeaponReadoutView } from './WeaponReadout';
 import { ClassSelect } from './ClassSelect';
 import { MenuShell } from './MenuShell';
 import type { LobbyLink } from '../net/LobbyLink';
+import { lobbyBlockerText } from '../net/LobbyStatus';
+import { browserMultiplayer,type MultiplayerPort } from '../net/Multiplayer';
+import { encodeRoomCode,formatRoomCode } from '../net/RoomCode';
 import { DEFAULT_PLAYER_CLASS,PLAYER_CLASSES,type PlayerClassId } from '../run/PlayerClass';
 
 /**
@@ -79,6 +82,7 @@ export class PlayerHUD {
     // Com sala, a lista é a VERDADE do servidor — inclusive a minha própria linha. Misturar a
     // escolha local com o roster remoto faria a tela mostrar um estado que o servidor não tem.
     this.menu?.setRoster(lobby.players.map(p=>({
+      id:p.id,
       name:p.self?`VOCÊ · ${p.name}`:p.name,
       pronto:p.ready,
       // Espalhamento condicional e não `classe:…|undefined`: com `exactOptionalPropertyTypes`,
@@ -99,13 +103,49 @@ export class PlayerHUD {
     this.lobby=lobby;
     this.menu?.setReadyHandler(()=>{lobby.chooseClass(this.playerClass);lobby.setReady(true);});
     lobby.chooseClass(this.playerClass);
+    // As ações da sala são da REDE; o menu só as dispara. Sair, encerrar e ser expulso terminam
+    // todos no mesmo lugar: de volta ao menu, com o motivo escrito (`onClosed`).
+    this.menu?.setRoomActions({
+      rename:name=>lobby.rename(name),
+      kick:id=>lobby.kick(id),
+      close:()=>lobby.closeRoom(),
+      leave:()=>{lobby.leaveRoom();this.coopExit('VOCÊ SAIU DA SALA');},
+    });
+    this.unsubscribeLobbyClosed=lobby.onClosed(reason=>this.coopExit(reason));
     this.unsubscribeLobby=lobby.onChange(()=>{
       this.refreshRoster();
       const mine=lobby.players.find(p=>p.self);
       this.menu?.setReadyLabel(lobby.phase==='playing'?'ENTRANDO…':mine?.ready?'AGUARDANDO A SALA':'PRONTO');
+      this.menu?.setHost(lobby.isHost);
+      this.menu?.setRoomStatus(lobbyBlockerText(lobby.players,lobby.phase));
+      this.menu?.setRoomCode(this.roomCode(lobby.address));
+      if(lobby.roomName)this.menu?.showRoomName(lobby.roomName);
       if(lobby.phase==='playing')this.menu?.startRun();
     });
+    this.menu?.setHost(lobby.isHost);
+    this.menu?.setRoomStatus(lobbyBlockerText(lobby.players,lobby.phase));
+    // Quem chegou aqui PELO MENU abre direto na sala: foi o que ele pediu dois cliques atrás. Quem
+    // chegou pela URL (`?online=1&seed=`) continua caindo na raiz, porque ali não houve sala
+    // nenhuma escolhida na interface — e é esse o caminho de desenvolvimento que não pode mudar.
+    if(this.multiplayer?.currentRoom())this.menu?.showRoom(this.roomCode(lobby.address),lobby.roomName);
     this.refreshRoster();
+  }
+  private unsubscribeLobbyClosed:(()=>void)|undefined;
+  /** O porto de multijogador, quando esta cena o oferece. */
+  private multiplayer:MultiplayerPort|undefined;
+  /** Sala acabou (saiu, expulso, encerrada): volta ao menu com o motivo escrito. */
+  private coopExit(reason:string):void {this.multiplayer?.backToMenu(reason);}
+  /**
+   * O CÓDIGO COMPLETO, montado só quando o endereço chega.
+   *
+   * O endereço é dito pelo servidor na boas-vindas — o cliente não tem como saber sozinho qual
+   * endereço serve ao AMIGO. Enquanto ele não chega, a tela mostra reticências em vez de um código
+   * pela metade, que é o que mandaria o convidado para a máquina errada.
+   */
+  private roomCode(address:string):string {
+    const room=this.multiplayer?.currentRoom()??'';
+    if(!room||!address)return '';
+    return formatRoomCode(encodeRoomCode({room,address,pageHost:location.hostname}));
   }
   /** A classe realmente em vigor; o painel de arma e a barra de carga falam por ela. */
   private playerClass:PlayerClassId=DEFAULT_PLAYER_CLASS;
@@ -238,6 +278,13 @@ export class PlayerHUD {
       // classe, e pegar o primeiro da árvore movia o elemento errado para a tela de opções.
       notes:[card.querySelector<HTMLElement>(':scope > small')],
     });
+    /**
+     * MULTIPLAYER no menu principal.
+     *
+     * Só nas cenas que oferecem escolha de personagem — o campo de treino não tem co-op, e um botão
+     * que leva a uma sala impossível é pior do que a sua ausência.
+     */
+    if(classPicker){this.multiplayer=browserMultiplayer();this.menu?.enableMultiplayer(this.multiplayer);}
     this.refreshRoster();
     /**
      * Abandonar a expedição: recarrega a página no MESMO seed.
@@ -462,5 +509,5 @@ export class PlayerHUD {
     if(error){this.diagnostic.textContent=`Falha ao carregar personagem: ${error}`;this.button.textContent='Recarregue a página para tentar novamente';}
     else if(pistols.cadence.shots+pistols.skillShots>0)this.diagnostic.textContent=`${pistols.hits} acertos · ${pistols.cadence.shots+pistols.skillShots} disparos · ${mp.releases} habilidades`;
   }
-  dispose(): void {this.unsubscribeLobby?.();this.unsubscribeLobby=undefined;this.lobby=undefined;window.removeEventListener('keydown',this.gateKey);this.onSkipIntro=undefined;this.skipButton.remove();this.classSelect?.dispose();this.journeyCard?.remove();document.body.classList.remove('game-menu-open','arrival-in-progress');this.element.remove();}
+  dispose(): void {this.unsubscribeLobby?.();this.unsubscribeLobby=undefined;this.unsubscribeLobbyClosed?.();this.unsubscribeLobbyClosed=undefined;this.lobby=undefined;window.removeEventListener('keydown',this.gateKey);this.onSkipIntro=undefined;this.skipButton.remove();this.classSelect?.dispose();this.journeyCard?.remove();document.body.classList.remove('game-menu-open','arrival-in-progress');this.element.remove();}
 }

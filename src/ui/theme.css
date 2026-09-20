@@ -2254,3 +2254,170 @@ body:has(#view) footer select {
   }
   .start-play:disabled { opacity: .7; }
 }
+
+/* ===============================================================================================
+   MULTIJOGADOR — nome, salas, sala
+
+   Nenhum componente novo: as telas de multijogador usam as MESMAS peças do resto do menu. O
+   CONFIRMAR é o verde do PRONTO (`rdf-menu-primary`), os links são `rdf-menu-link`, os painéis são
+   o mesmo vidro escuro dos cartões de classe e do roster. O que este bloco acrescenta é só
+   composição: as telas novas no seletor de `data-screen` e a grade das listas.
+
+   `clip-path` fica FORA dos botões, como no resto do arquivo: aplicado no próprio botão ele mata o
+   clique — isso foi medido, e é por isso que o chanfro mora nos pseudo-elementos.
+   =============================================================================================== */
+
+.rdf-menu[data-screen="nome"]         .rdf-screen[data-screen="nome"],
+.rdf-menu[data-screen="multijogador"] .rdf-screen[data-screen="multijogador"],
+.rdf-menu[data-screen="entrar"]       .rdf-screen[data-screen="entrar"],
+.rdf-menu[data-screen="sala"]         .rdf-screen[data-screen="sala"] {
+  display: grid;
+  gap: 14px;
+  animation: rdf-card-in .22s var(--rdf-ease) both;
+}
+
+/* CONFIRMAR / CRIAR SALA / ENTRAR / INICIAR: a mesma ação primária do PRONTO. */
+.rdf-menu-confirm {
+  --rdf-cut: var(--rdf-cut-lg);
+  justify-self: center;
+  width: min(340px, 100%);
+  margin-top: 2px;
+  font-family: var(--rdf-display);
+  font-size: clamp(13px, 1.2vw, 17px) !important;
+  letter-spacing: .14em !important;
+  padding: clamp(11px, 1.2vw, 15px) 22px !important;
+  color: var(--rdf-wheat-hot) !important;
+}
+.rdf-menu-confirm::before { background: var(--rdf-rind); }
+.rdf-menu-confirm::after {
+  background:
+    linear-gradient(90deg, var(--rdf-rind) 0 50%, transparent 50% 100%),
+    linear-gradient(180deg, #14352f, var(--rdf-soil));
+  background-size: 200% 100%, 100% 100%;
+  background-position: 100% 0, 0 0;
+  background-repeat: no-repeat;
+}
+.play-gate .rdf-menu-confirm {
+  background: #22c55e !important;
+  border-color: #22c55e !important;
+  color: #06220f !important;
+  font-weight: 700;
+}
+.play-gate .rdf-menu-confirm:hover:not(:disabled) {
+  background: #4ade80 !important;
+  border-color: #4ade80 !important;
+  color: #06220f !important;
+}
+
+/* CAMPO DE TEXTO — o único do menu inteiro, e por isso desenhado igual a um painel, não a um
+   input de navegador: filete fino, vidro escuro, texto na tipografia de interface. */
+.rdf-field {
+  justify-self: center;
+  width: min(340px, 100%);
+  padding: 12px 14px;
+  border: 1px solid #ffffff26;
+  border-radius: 0;
+  background: rgba(12,12,16,.85);
+  color: var(--rdf-ink);
+  font-family: var(--rdf-ui);
+  font-size: 14px;
+  letter-spacing: .14em;
+  text-align: center;
+  text-transform: uppercase;
+}
+.rdf-field::placeholder { color: var(--rdf-ink-faint); letter-spacing: .18em; }
+.rdf-field:focus { outline: none; border-color: var(--rdf-rind); }
+.rdf-field-code {
+  font-family: var(--rdf-display);
+  font-size: clamp(18px, 1.8vw, 24px);
+  letter-spacing: .3em;
+}
+
+/* SALAS — uma linha por sala: nome, anfitrião, lotação. Cheia aparece, mas não entra. */
+.rdf-rooms { justify-self: center; width: min(420px, 100%); text-align: left; }
+.rdf-rooms > small {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 10px;
+  letter-spacing: .26em;
+  color: var(--rdf-wheat);
+}
+.rdf-rooms-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
+.rdf-rooms-empty {
+  padding: 10px 12px;
+  border: 1px dashed #ffffff26;
+  font-size: 11px;
+  letter-spacing: .18em;
+  color: var(--rdf-ink-faint);
+}
+.rdf-room-join {
+  display: grid !important;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px !important;
+  font-size: 12px;
+  letter-spacing: .08em;
+  text-align: left;
+}
+.rdf-room-join > b { color: var(--rdf-ink); letter-spacing: .1em; }
+.rdf-room-join > i { font-style: normal; font-size: 10px; letter-spacing: .14em; color: var(--rdf-ink-faint); }
+.rdf-room-join > span { color: var(--rdf-rind); font-variant-numeric: tabular-nums; }
+.rdf-room.cheia .rdf-room-join > span { color: var(--rdf-pulp); }
+.rdf-rooms-notice { justify-self: center; color: var(--rdf-pulp-hot) !important; }
+
+/* AS QUATRO VAGAS — P1..P4, sempre as quatro, porque a sala tem quatro e ver as vazias é ver o
+   espaço que ainda cabe. */
+.rdf-slots {
+  list-style: none;
+  justify-self: center;
+  width: min(420px, 100%);
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 5px;
+  text-align: left;
+}
+.rdf-slot {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid #ffffff26;
+  background: rgba(12,12,16,.85);
+  font-size: 12px;
+}
+.rdf-slot > i { font-style: normal; font-size: 10px; letter-spacing: .2em; color: var(--rdf-wheat); }
+.rdf-slot > b { color: var(--rdf-ink); letter-spacing: .1em; }
+.rdf-slot > span { font-size: 11px; color: var(--rdf-rind); }
+.rdf-slot > em { font-style: normal; font-size: 9px; letter-spacing: .16em; color: var(--rdf-ink-faint); }
+.rdf-slot.pronto > em { color: var(--rdf-rind); }
+.rdf-slot.vazio > b { color: var(--rdf-ink-faint); letter-spacing: .06em; }
+.rdf-kick {
+  padding: 2px 8px !important;
+  font-size: 11px !important;
+  line-height: 1;
+  color: var(--rdf-pulp) !important;
+}
+
+/* O CÓDIGO — a única coisa desta tela que o jogador precisa copiar, e por isso a maior. */
+.rdf-code { justify-self: center; display: grid; gap: 4px; }
+.rdf-code > small { font-size: 10px; letter-spacing: .26em; color: var(--rdf-wheat); }
+.rdf-code-value {
+  font-family: var(--rdf-display);
+  font-size: clamp(22px, 2.6vw, 34px);
+  letter-spacing: .22em;
+  color: var(--rdf-wheat-hot);
+  text-shadow: 0 3px 18px #000a;
+  user-select: all;
+}
+.rdf-copy { justify-self: center; width: min(240px, 100%); }
+.rdf-sair { justify-self: center; }
+.rdf-sala-status { justify-self: center; max-width: 46ch; }
+
+/* Sem barra de rolagem em tela nenhuma: com quatro vagas, três botões e o código, a sala cabe —
+   e se um dia não couber, o que encolhe é o espaçamento, nunca o `overflow`. */
+.rdf-screen[data-screen="sala"],
+.rdf-screen[data-screen="multijogador"] { overflow: hidden; }

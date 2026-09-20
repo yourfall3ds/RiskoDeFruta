@@ -1,6 +1,7 @@
 import { FixedLoop } from '../core/FixedLoop';
 import { createSeed } from '../core/RunRNG';
 import { seedPolicy, type SeedPolicy } from '../run/AttemptSeed';
+import { coopHref } from '../net/OnlineIntent';
 import { createEngine } from '../engine/createEngine';
 import { SceneLifecycle } from '../engine/SceneLifecycle';
 import { DebugOverlay } from '../debug/DebugOverlay';
@@ -33,7 +34,7 @@ export class Application {
     this.session = createEngine(canvas);
     // Arranque comum sorteia semente nova mesmo com a semente da partida anterior ainda na URL;
     // `?replay=1` e `?online=1` continuam presos ao que a URL pede. Ver `AttemptSeed`.
-    this.policy = seedPolicy(location.href);
+    this.policy = seedPolicy(coopHref(location.href));
     this.seed = this.policy.seed;
     this.loop = new FixedLoop(dt => {
       const start=performance.now();try{this.lifecycle.fixedUpdate(dt);}finally{this.simulationMs+=performance.now()-start;}
@@ -83,7 +84,21 @@ export class Application {
   private adoptSeed(seed: string | undefined): void {
     if (!seed || seed === this.seed) return;
     this.seed = seed;
-    const url = new URL(location.href); url.searchParams.set('seed', seed); history.replaceState(null, '', url);
+    this.mirrorSeed(seed);
+  }
+  /**
+   * A semente na URL — **só numa URL que já é de desenvolvimento**.
+   *
+   * Espelhar sempre era o certo enquanto a única forma de jogar em dupla era mandar a URL: o QA
+   * precisa ver a semente em vigor e `jogar-coop.ps1` depende dela. Mas numa abertura comum isso
+   * escrevia `?seed=…` na barra de endereço de um jogador que nunca pediu semente nenhuma — e o
+   * pedido é que ele não veja seed em lugar nenhum. Com `?seed`, `?replay` ou `?online` já na URL,
+   * nada muda: quem abriu assim está exatamente atrás desse número.
+   */
+  private mirrorSeed(seed: string): void {
+    const url = new URL(location.href);
+    if (!url.searchParams.get('seed') && !url.searchParams.get('replay') && !url.searchParams.get('online')) return;
+    url.searchParams.set('seed', seed); history.replaceState(null, '', url);
   }
   private restart(seed: string): void {
     this.lifecycle.replace(() => {
@@ -96,7 +111,7 @@ export class Application {
       return scene;
     });
     this.seed = seed;
-    const url = new URL(location.href); url.searchParams.set('seed', seed); history.replaceState(null, '', url);
+    this.mirrorSeed(seed);
     this.loop.reset();
     this.foundation.setPaused(false);
     for(const [name,value] of this.settings)this.foundation.configure(name,value);

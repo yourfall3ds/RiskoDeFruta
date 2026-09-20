@@ -10,6 +10,7 @@ import type { EconomyRow, PurchaseChannel } from '../run/RunEconomy';
 import { RemotePlayers } from './RemotePlayers';
 import { Reconciliation, type Pose } from './Reconciliation';
 import type { LobbyLink } from './LobbyLink';
+import { readOnlineIntent } from './OnlineIntent';
 
 const DEFAULT_SERVER = 'ws://127.0.0.1:2567';
 
@@ -27,14 +28,25 @@ export class NetworkSession {
   replays = 0;
   status = 'conectando';
 
+  /**
+   * A sessão, se esta aba está online — pela URL (dev, testes, `jogar-coop.ps1`) OU pelo pedido que
+   * o MENU gravou (`OnlineIntent`). Os dois caminhos convergem aqui: o jogo continua conhecendo um
+   * só jeito de estar online, e a diferença é só quem pediu.
+   *
+   * O ENDEREÇO vem, em ordem: do `?server=` explícito, do código curto que o jogador colou (é ele
+   * que carrega o endereço do anfitrião) e, por último, do padrão local. A ordem importa — o padrão
+   * `127.0.0.1` só serve para quem hospeda, e era ele que mandava o convidado falar consigo mesmo.
+   */
   static fromLocation(scene: Scene, collision: CollisionWorld, shadows: ShadowGenerator, events: EventBus<GameEvents>, seed: string): NetworkSession | undefined {
     const params = new URL(location.href).searchParams;
-    if (!params.get('online')) return undefined;
-    return new NetworkSession(scene, collision, shadows, events, seed, params.get('server') || DEFAULT_SERVER);
+    const intent = readOnlineIntent();
+    if (!params.get('online') && !intent) return undefined;
+    const url = params.get('server') || intent?.server || DEFAULT_SERVER;
+    return new NetworkSession(scene, collision, shadows, events, seed, url, intent?.name ?? '', intent?.roomName ?? '');
   }
 
-  constructor(scene: Scene, collision: CollisionWorld, shadows: ShadowGenerator, events: EventBus<GameEvents>, seed: string, url: string) {
-    this.client = new NetworkClient(url, seed);
+  constructor(scene: Scene, collision: CollisionWorld, shadows: ShadowGenerator, events: EventBus<GameEvents>, seed: string, url: string, playerName = '', roomName = '') {
+    this.client = new NetworkClient(url, seed, playerName, roomName);
     this.remotes = new RemotePlayers(scene, collision, shadows, events);
     void this.client.connect().then(() => {
       this.status = 'online';

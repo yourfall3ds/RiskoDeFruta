@@ -8,6 +8,7 @@ import {DeathTimeline} from '../player/DeathTimeline';
 import {attemptSummary} from '../run/AttemptSummary';
 import {reviewSkyBlend} from '../rendering/SeamlessSky';
 import {NetworkSession} from '../net/NetworkSession';
+import {coopHref} from '../net/OnlineIntent';
 import {EconomyMirror} from '../run/RunEconomy';
 import {IntroSequence,type IntroCue} from '../player/IntroSequence';
 import {DropshipDeck} from '../world/DropshipDeck';
@@ -460,7 +461,7 @@ export class PlayerScene implements SceneModule {
 
     this.scene.skipPointerMovePicking=true;this.scene.skipPointerDownPicking=true;this.scene.skipPointerUpPicking=true;
 
-    this.attemptSeed=seed;this.seedLocked=seedPinned(location.href);
+    this.attemptSeed=seed;this.seedLocked=seedPinned(coopHref(location.href));
 
     const rng=new RunRNG(seed);this.rewardRng=rng.stream('loot');
 
@@ -469,7 +470,7 @@ export class PlayerScene implements SceneModule {
     const training=mode==='training';
 
     // Shared original gameplay, with the selected map and gravity adapter.
-    this.radial=usePlanetWorld(location.href);
+    this.radial=usePlanetWorld(coopHref(location.href));
 
     const planetWorld=this.radial?new PlanetWorld(this.scene,undefined,this.audio):undefined;
     const collision=this.collision=planetWorld?planetWorld.collision:new CollisionWorld();
@@ -490,7 +491,7 @@ export class PlayerScene implements SceneModule {
 
     this.yard=training?new TrainingYard(this.scene,shadows,rng)
       :planetWorld?planetWorld
-      :new FarmWorld(this.scene,collision,shadows,!new URLSearchParams(location.search).get('online'));
+      :new FarmWorld(this.scene,collision,shadows,!new URL(coopHref(location.href)).searchParams.get('online'));
 
     // O contrato de mundo: é o que a horda e as armas recebem, nos dois mapas.
     if(planetWorld)this.explorationMap=new ExplorationMap();
@@ -594,7 +595,7 @@ export class PlayerScene implements SceneModule {
       this.interactables?.attachAuthority(this.net.purchases);
       this.net.onPurchaseResolved(result=>this.interactables?.adoptPurchase(result));
     }
-    if(this.radial&&new URLSearchParams(location.search).get('online'))
+    if(this.radial&&new URL(coopHref(location.href)).searchParams.get('online'))
       this.networkNotice='Co-op ainda não roda no planeta (a réplica de rede é do motor plano) · use a fazenda';
 
     // Sem isto o leque do ricochete, o arremesso do carregador, a guinada do MP II e o arco da

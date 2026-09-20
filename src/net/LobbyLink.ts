@@ -25,9 +25,32 @@ export interface LobbyLink {
   readonly players: readonly LobbyPlayer[];
   readonly phase: LobbyPhase;
   readonly isHost: boolean;
+  /**
+   * O ENDEREÇO PÚBLICO da sala (`host:porta`), dito pelo próprio servidor.
+   *
+   * É o valor que entra no código curto. Deduzir daqui do cliente não serve: o cliente conhece o
+   * endereço por onde ELE entrou (`localhost`, para o anfitrião), e é justamente esse que não
+   * funciona para o convidado. Quem sabe o endereço certo é o servidor, que já o calcula para o
+   * `publicAddress` do Colyseus.
+   */
+  readonly address: string;
+  /** O nome da sala, editável pelo anfitrião. Vazio até a primeira réplica chegar. */
+  readonly roomName: string;
+  /** Motivo, quando a sala caiu ou nunca subiu. Vazio enquanto está tudo de pé. */
+  readonly failure: string;
   /** Devolve a função de cancelar a inscrição; o HUD a chama ao ser descartado. */
   onChange(listener: () => void): () => void;
   chooseClass(id: PlayerClassId): void;
   setReady(ready: boolean): void;
   setSetting(key: string, value: string): void;
+  /** Renomear a sala. Só o anfitrião é atendido — a recusa é do servidor, como qualquer ajuste. */
+  rename(name: string): void;
+  /** Expulsar. Só o anfitrião. */
+  kick(playerId: string): void;
+  /** Encerrar a sala para todos. Só o anfitrião. */
+  closeRoom(): void;
+  /** Sair por vontade própria. */
+  leaveRoom(): void;
+  /** A sala acabou (encerrada, expulso, queda). O argumento é o que dizer ao jogador. */
+  onClosed(listener: (reason: string) => void): () => void;
 }

@@ -34,7 +34,12 @@ export class NetworkClient implements LobbyLink {
   private readonly attached = new Set<PlayerState>();
   private seq = 0;
   error = '';
-  constructor(readonly url: string, readonly seed: string) {}
+  /** Endereço público da sala, dito pelo servidor na boas-vindas. Ver `LobbyLink.address`. */
+  address = '';
+  private closedReason = '';
+  private readonly closedListeners = new Set<(reason: string) => void>();
+  /** `name` viaja no `joinOrCreate`: é assim que `FarmRoom.onJoin` batiza o jogador. */
+  constructor(readonly url: string, readonly seed: string, readonly playerName = '', readonly roomLabel = '') {}
 
   get connected(): boolean { return !!this.room; }
   get sessionId(): string { return this.room?.sessionId ?? ''; }
@@ -49,12 +54,21 @@ export class NetworkClient implements LobbyLink {
   async connect(): Promise<void> {
     try {
       const client = new Client(this.url);
-      const room = await client.joinOrCreate<FarmState>('farm', { seed: this.seed });
+      const room = await client.joinOrCreate<FarmState>('farm', { seed: this.seed, name: this.playerName, roomName: this.roomLabel });
       this.room = room;
       this.input = room.input({ type: NetInput });
       this.predict = Predict.get(room);
-      room.onLeave(() => { this.room = undefined; this.input = undefined; });
+      room.onLeave(code => {
+        this.room = undefined; this.input = undefined;
+        // 4000 é o código com que a sala expulsa (`client.leave(4000)`); sem motivo dito antes, a
+        // queda é queda mesmo — e as três coisas precisam chegar à tela com nomes diferentes.
+        const reason = this.closedReason || (code === 4000 ? 'O ANFITRIÃO REMOVEU VOCÊ DA SALA' : 'A SALA FOI ENCERRADA');
+        for (const listener of this.closedListeners) listener(reason);
+      });
       room.onError((code, message) => { this.error = `sala ${code}: ${message ?? ''}`; });
+      // O endereço público chega na boas-vindas: é o que o código curto carrega.
+      room.onMessage('welcome', (payload: { address?: string }) => { this.address = String(payload?.address ?? ''); this.notifyLobby(); });
+      room.onMessage('roomClosed', (payload: { reason?: string }) => { this.closedReason = String(payload?.reason ?? 'O ANFITRIÃO ENCERROU A SALA'); });
       // Uma patch por 1/30 s reescreve o roster inteiro; o `lobbyKey` corta o ruído para o DOM só
       // ser reescrito quando nome, classe, prontidão ou fase realmente mudaram.
       room.onStateChange(() => this.notifyLobby());
@@ -172,8 +186,20 @@ export class NetworkClient implements LobbyLink {
   setReady(ready: boolean): void { this.room?.send('setReady', { ready }); }
   setSetting(key: string, value: string): void { this.room?.send('setSetting', { key, value }); }
 
+  /** O nome da sala é um AJUSTE da sala, então passa pelo mesmo `setSetting` já guardado por host. */
+  get roomName(): string { return this.room?.state.settings.get('roomName') ?? ''; }
+  rename(name: string): void { this.setSetting('roomName', name); }
+  kick(playerId: string): void { this.room?.send('kick', { playerId }); }
+  closeRoom(): void { this.room?.send('closeRoom', {}); }
+  leaveRoom(): void { this.closedReason = 'VOCÊ SAIU DA SALA'; void this.room?.leave(true); }
+  get failure(): string { return this.error; }
+  onClosed(listener: (reason: string) => void): () => void {
+    this.closedListeners.add(listener);
+    return () => this.closedListeners.delete(listener);
+  }
+
   private notifyLobby(): void {
-    const key = this.phase + '|' + this.players.map(p => `${p.entityId}:${p.name}:${p.classId ?? ''}:${p.ready ? 1 : 0}:${p.host ? 1 : 0}`).join(',');
+    const key = this.phase + '|' + this.address + '|' + this.roomName + '|' + this.players.map(p => `${p.entityId}:${p.name}:${p.classId ?? ''}:${p.ready ? 1 : 0}:${p.host ? 1 : 0}`).join(',');
     if (key === this.lobbyKey) return;
     this.lobbyKey = key;
     for (const listener of this.lobbyListeners) listener();
@@ -181,6 +207,7 @@ export class NetworkClient implements LobbyLink {
 
   dispose(): void {
     this.lobbyListeners.clear();
+    this.closedListeners.clear();
     this.predict?.dispose();
     void this.room?.leave(true);
     this.room = undefined; this.input = undefined; this.predict = undefined; this.attached.clear();

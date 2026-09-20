@@ -6,7 +6,7 @@ import { FarmState, PlayerState, EnemyState, CLASS_IDS, PHASE, enemyStateOrdinal
 import { NetInput, BUTTON, toFrame } from '../../src/net/NetInput';
 export { NetInput, BUTTON, toFrame };
 
-export interface FarmRoomOptions { seed?: string; name?: string }
+export interface FarmRoomOptions { seed?: string; name?: string; roomName?: string }
 const MAX_PLAYERS = 4;
 const TICK_HZ = 60;          // calibração do FixedLoop/PlayerMotor e dos 203 testes
 const PATCH_HZ = 30;         // estado na rede a 30 Hz; o cliente interpola
@@ -20,7 +20,17 @@ const PATCH_HZ = 30;         // estado na rede a 30 Hz; o cliente interpola
  */
 const COUNTDOWN_MS = 3000;
 /** Ajustes que o anfitrião pode mudar. Chave fora desta lista é recusada como qualquer outra. */
-const SETTINGS = new Set(['seed', 'mode']);
+const SETTINGS = new Set(['seed', 'mode', 'roomName']);
+
+/**
+ * O ENDEREÇO PÚBLICO desta instalação (`host:porta`), escrito por `server/index.ts`.
+ *
+ * A sala precisa DIZER esse endereço ao cliente, porque é ele que entra no código curto que o
+ * jogador compartilha — e o cliente não tem como descobri-lo sozinho: o anfitrião conhece apenas o
+ * `localhost` por onde ele mesmo entrou. Vem do ambiente e não de um `import` de `index.ts` para
+ * não arrastar o `listen()` para dentro dos testes.
+ */
+export function publicAddress(): string { return process.env['PUBLIC_ADDRESS'] ?? ''; }
 
 
 /** Lê os mesmos JSONs que `FarmWorld.load` busca por fetch; o servidor não carrega GLB. */
@@ -46,7 +56,7 @@ export function loadCollision(root = process.cwd()): CollisionData {
  * A simulação é `FarmSimulation`; aqui só entra rede, schema e reencaminhamento de eventos.
  */
 /** O que a listagem em tempo real mostra de cada sala, antes de alguém entrar nela. */
-export interface FarmRoomMetadata { seed: string; playerCount: number; maxClients: number; hostName: string; phase: number }
+export interface FarmRoomMetadata { seed: string; playerCount: number; maxClients: number; hostName: string; phase: number; roomName: string; address: string }
 
 export class FarmRoom extends Room<{ state: FarmState; input: NetInput; metadata: FarmRoomMetadata }> {
   maxClients = MAX_PLAYERS;
@@ -63,6 +73,8 @@ export class FarmRoom extends Room<{ state: FarmState; input: NetInput; metadata
     this.state.seed = seed;
     this.state.phase = PHASE.lobby;
     this.state.settings.set('seed', seed);
+    // Nome da sala: o que quem criou escreveu. Sem nada escrito, `onJoin` batiza pelo anfitrião.
+    if (options.roomName?.trim()) this.state.settings.set('roomName', options.roomName.trim().slice(0, 24));
     this.patchRate = 1000 / PATCH_HZ;
     const rewind = this.allowRewindState({ maxRewindMs: 500 });
     rewind.attachAll(this.state.players, { fields: ['x', 'y', 'z'] });
@@ -80,6 +92,9 @@ export class FarmRoom extends Room<{ state: FarmState; input: NetInput; metadata
     // Anfitrião é o primeiro a entrar. Escolher aqui e não no primeiro `setSetting` evita uma sala
     // sem dono enquanto ninguém mexe nos ajustes.
     if (!this.state.hostId) this.state.hostId = client.sessionId;
+    // Sala sem nome ganha o do anfitrião: "SALA DE LUCAS" é o que o dono descreveu, e renomear
+    // continua sendo um `setSetting` do anfitrião como qualquer outro ajuste.
+    if (!this.state.settings.get('roomName')) this.state.settings.set('roomName', `SALA DE ${state.name}`);
     this.state.playerCount = this.state.players.size;
     /**
      * UMA linha por entrada, com o `roomId`.
@@ -89,7 +104,7 @@ export class FarmRoom extends Room<{ state: FarmState; input: NetInput; metadata
      * A primeira checagem de qualquer playtest é: os quatro no mesmo `roomId`.
      */
     console.log(`[farm] ${this.roomId} · entrou ${client.sessionId} como entityId=${snapshot.entityId} · ${this.state.players.size}/${MAX_PLAYERS} na sala · seed=${this.sim.seed}`);
-    client.send('welcome', { seed: this.sim.seed, tick: this.sim.loop.tick, spawn: { x: snapshot.x, y: snapshot.y, z: snapshot.z }, entityId: snapshot.entityId, hostId: this.state.hostId });
+    client.send('welcome', { seed: this.sim.seed, tick: this.sim.loop.tick, spawn: { x: snapshot.x, y: snapshot.y, z: snapshot.z }, entityId: snapshot.entityId, hostId: this.state.hostId, address: publicAddress() });
     this.publish();
     // Uma entrada quebra a unanimidade que existia: quem chegou não está pronto.
     this.abortStart('jogador entrou');
@@ -168,6 +183,34 @@ export class FarmRoom extends Room<{ state: FarmState; input: NetInput; metadata
       if (this.state.phase !== PHASE.lobby) { client.send('settingRejected', { key, reason: 'phase' }); return; }
       if (!SETTINGS.has(key)) { client.send('settingRejected', { key, reason: 'key' }); return; }
       this.state.settings.set(key, String(message?.value ?? ''));
+      // O nome da sala é o que a LISTAGEM mostra; sem republicar, renomear só apareceria para quem
+      // já está dentro — que é justamente quem não precisa do nome.
+      if (key === 'roomName') this.publish();
+    });
+
+    /**
+     * EXPULSAR e ENCERRAR — as duas ações do anfitrião sobre a sala inteira.
+     *
+     * Ambas apenas DESLIGAM clientes. Nenhuma toca na fase, na unanimidade ou na contagem: a saída
+     * já passa por `onLeave`, que é onde a máquina de lobby existente reavalia tudo. Uma segunda
+     * máquina de estado aqui seria a forma mais rápida de desalinhar as duas.
+     */
+    this.onMessage('kick', (client: Client, message: { playerId?: unknown }) => {
+      if (client.sessionId !== this.state.hostId) return;
+      const target = String(message?.playerId ?? '');
+      if (!target || target === this.state.hostId) return;
+      const victim = this.clients.find(other => other.sessionId === target);
+      // 4000: código combinado com `NetworkClient.onLeave`, que é o que diferencia "expulso" de
+      // "a sala caiu" na tela de quem foi removido.
+      victim?.leave(4000);
+    });
+
+    this.onMessage('closeRoom', (client: Client) => {
+      if (client.sessionId !== this.state.hostId) return;
+      this.broadcast('roomClosed', { reason: 'O ANFITRIÃO ENCERROU A SALA' });
+      // `disconnect()` desliga todo mundo e descarta a sala — é o que impede a sala fantasma na
+      // listagem depois que o anfitrião desiste.
+      void this.disconnect();
     });
   }
 
@@ -215,7 +258,7 @@ export class FarmRoom extends Room<{ state: FarmState; input: NetInput; metadata
   private publish(): void {
     // A listagem é COSMÉTICA: uma falha dela (sala já em descarte, driver fora do ar) não pode
     // virar rejeição não tratada e derrubar o processo no meio de uma partida.
-    void this.setMetadata({ ...this.metadata, seed: this.sim.seed, playerCount: this.state.players.size, maxClients: MAX_PLAYERS, hostName: this.state.players.get(this.state.hostId)?.name ?? '', phase: this.state.phase }).catch(() => {});
+    void this.setMetadata({ ...this.metadata, seed: this.sim.seed, playerCount: this.state.players.size, maxClients: MAX_PLAYERS, hostName: this.state.players.get(this.state.hostId)?.name ?? '', phase: this.state.phase, roomName: this.state.settings.get('roomName') ?? '', address: publicAddress() }).catch(() => {});
   }
 
   private mirror(): void {
