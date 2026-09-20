@@ -126,7 +126,7 @@ describe('banco de sons de inimigos', () => {
   it('durações e ganhos ficam dentro dos limites combinados', () => {
     // Acertos frequentes (dano, camada de ruído) são curtos; ataques ficam abaixo de 1 s.
     const limits: Record<string, [number, number]> = {
-      hurt: [0.12, 0.65], heavy: [0.12, 0.65], pistol: [0.12, 0.65], swish: [0.12, 0.65], charge: [0.12, 0.65],
+      hurt: [0.12, 0.65], heavy: [0.12, 0.65], pistol: [0.12, 0.65], swish: [0.12, 0.65], throw: [0.12, 0.65], charge: [0.12, 0.65],
       growl: [0.15, 0.75], attack: [0.12, 0.98], spawn: [0.15, 1.05], death: [0.15, 1.05],
     };
     for (const [name, row] of Object.entries(REPORT)) {

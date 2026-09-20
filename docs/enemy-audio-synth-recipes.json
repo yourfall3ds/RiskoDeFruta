@@ -1,0 +1,793 @@
+{
+  "sobre": "Receitas de síntese das peças autorais do banco de sons de inimigos. Cada entrada traz a semente inteira, a ordem das chamadas ao gerador de ruído e cada operação com seus parâmetros — o bastante para reconstruir o áudio. O apelido da chave é o mesmo declarado em docs/enemy-audio-sources.json.",
+  "receitas": {
+    "synth-corn-throw-0": {
+      "ferramenta": {
+        "nome": "gerador de som (backend/engines/synth.py)",
+        "descricao": "síntese DSP determinística em numpy — osciladores, ruído, filtros de um polo, envelope ADSR-decay e saturação suave. Sem modelo generativo, sem material de terceiros, sem motor neural (backend/engines/neural.py e difusao_parcial.py não foram usados nesta entrega).",
+        "kind": "autoral",
+        "repositorio": "gerador de som",
+        "commit": "2a31aaa6f6a587d81fe936665a72b7ecc893967c",
+        "arquivo_das_primitivas": "backend/engines/synth.py",
+        "primitivas_usadas": [
+          "osc",
+          "sweep",
+          "noise",
+          "adsr_decay",
+          "lowpass",
+          "highpass",
+          "soft_clip"
+        ]
+      },
+      "arquitetura": "corpo grave dominante",
+      "duracao_s": 0.42,
+      "semente": 7000,
+      "ordem_das_chamadas_a_noise": [
+        "noise(n=18522, rng) — única chamada, usada em 'grunhido'"
+      ],
+      "operacoes_em_ordem": [
+        {
+          "passo": 1,
+          "tipo": "sweep",
+          "curva": "exp",
+          "f0_hz": 55,
+          "f1_hz": 150,
+          "n_amostras": 18522,
+          "obs": "gera a curva de frequência 'curve', reusada nos dois osciladores abaixo"
+        },
+        {
+          "tipo": "osc",
+          "forma_de_onda": "triangle",
+          "freq_inicial_hz": 55,
+          "freq_final_hz": 150,
+          "curva": "exp (via curve)",
+          "ganho_relativo": 0.65,
+          "obs": "body_tri = osc(triangle, curve)"
+        },
+        {
+          "tipo": "osc",
+          "forma_de_onda": "sine",
+          "freq_inicial_hz": 27.5,
+          "freq_final_hz": 75,
+          "curva": "exp (via curve*0.5 — uma oitava abaixo)",
+          "ganho_relativo": 0.35,
+          "obs": "body_sine = osc(sine, curve*0.5): subharmônico, reforça massa"
+        },
+        {
+          "tipo": "noise",
+          "gerador": "np.random.default_rng(semente)",
+          "tamanho_amostras": 18522,
+          "obs": "usado em 'grunhido' = lowpass(noise, 220Hz) * 0.06"
+        },
+        {
+          "tipo": "lowpass",
+          "corte_inicial_hz": 220,
+          "corte_final_hz": 220,
+          "obs": "aplicado ao noise cru antes de somar como grunhido"
+        },
+        {
+          "tipo": "adsr_decay",
+          "attack_ms": 45,
+          "curve": 1.6,
+          "obs": "envelope aplicado à SOMA (body_tri*0.65 + body_sine*0.35 + grunhido)"
+        },
+        {
+          "passo": 7,
+          "tipo": "soma",
+          "formula": "mix = body_tri*0.65 + body_sine*0.35 + grunhido"
+        },
+        {
+          "passo": 8,
+          "tipo": "soft_clip",
+          "drive": 1.6,
+          "entrada": "mix * env"
+        }
+      ],
+      "formula_resumo": "curve = sweep(55, 150, n, 'exp'); mix = osc('triangle', curve)*0.65 + osc('sine', curve*0.5)*0.35 + lowpass(noise(n, rng_seed=7000), 220, sr)*0.06; saida = soft_clip(mix * adsr_decay(n, sr, attack_ms=45.0, curve=1.6), drive=1.6)",
+      "n_amostras": 18522,
+      "sample_rate": 44100,
+      "pico_bruto_pre_normalizacao": 0.98339,
+      "normalizacao": {
+        "metodo": "escala linear para pico alvo, depois clip [-1,1]",
+        "pico_alvo": 0.84,
+        "formula": "saida_normalizada = clip(bruto * (0.84 / max(abs(bruto))), -1, 1)"
+      },
+      "export": {
+        "sample_rate_hz": 44100,
+        "canais": 1,
+        "wav_subtype": "PCM_16",
+        "ogg_subtype": "VORBIS"
+      },
+      "nome": "corn-throw-0",
+      "pico": 0.84,
+      "tamanho_wav_bytes": 37088,
+      "tamanho_ogg_bytes": 6964,
+      "distancia_minima_contra_irmaos": 0.3963,
+      "distancia_contra_existentes": {
+        "corn-shot-0.ogg": 1.2924,
+        "corn-shot-1.ogg": 1.3389
+      }
+    },
+    "synth-corn-throw-1": {
+      "ferramenta": {
+        "nome": "gerador de som (backend/engines/synth.py)",
+        "descricao": "síntese DSP determinística em numpy — osciladores, ruído, filtros de um polo, envelope ADSR-decay e saturação suave. Sem modelo generativo, sem material de terceiros, sem motor neural (backend/engines/neural.py e difusao_parcial.py não foram usados nesta entrega).",
+        "kind": "autoral",
+        "repositorio": "gerador de som",
+        "commit": "2a31aaa6f6a587d81fe936665a72b7ecc893967c",
+        "arquivo_das_primitivas": "backend/engines/synth.py",
+        "primitivas_usadas": [
+          "osc",
+          "sweep",
+          "noise",
+          "adsr_decay",
+          "lowpass",
+          "highpass",
+          "soft_clip"
+        ]
+      },
+      "arquitetura": "ar e atrito",
+      "duracao_s": 0.4,
+      "semente": 7001,
+      "ordem_das_chamadas_a_noise": [
+        "noise(n=17640, rng) — única chamada, sinal de base ('raw')"
+      ],
+      "operacoes_em_ordem": [
+        {
+          "tipo": "noise",
+          "gerador": "np.random.default_rng(semente)",
+          "tamanho_amostras": 17640,
+          "obs": "raw = noise(n, rng) — todo o corpo do som vem daqui"
+        },
+        {
+          "passo": 2,
+          "tipo": "sweep",
+          "curva": "exp",
+          "f0_hz": 300,
+          "f1_hz": 2600,
+          "n_amostras": 17640,
+          "obs": "'lo' — corte do highpass ao longo do tempo"
+        },
+        {
+          "passo": 3,
+          "tipo": "sweep",
+          "curva": "exp",
+          "f0_hz": 900,
+          "f1_hz": 7000,
+          "n_amostras": 17640,
+          "obs": "'hi' — corte do lowpass ao longo do tempo"
+        },
+        {
+          "tipo": "lowpass",
+          "corte_inicial_hz": 900,
+          "corte_final_hz": 7000,
+          "obs": "aplicado a 'raw', corte = curva 'hi'"
+        },
+        {
+          "tipo": "highpass",
+          "corte_inicial_hz": 300,
+          "corte_final_hz": 2600,
+          "obs": "aplicado ao resultado do lowpass, corte = curva 'lo' (banda passante resultante desliza pra cima)"
+        },
+        {
+          "passo": 6,
+          "tipo": "envelope_customizado",
+          "formula": "np.sin(linspace(0, pi, n)) ** 1.3",
+          "obs": "arco: sobe e desce, não é adsr_decay"
+        },
+        {
+          "passo": 7,
+          "tipo": "ganho_final",
+          "valor": 1.3
+        }
+      ],
+      "formula_resumo": "raw = noise(n, rng_seed=7001); banda = highpass(lowpass(raw, sweep(900,7000,n,'exp'), sr), sweep(300,2600,n,'exp'), sr); arco = sin(linspace(0, pi, n))**1.3; saida = banda * arco * 1.3",
+      "n_amostras": 17640,
+      "sample_rate": 44100,
+      "pico_bruto_pre_normalizacao": 0.726505,
+      "normalizacao": {
+        "metodo": "escala linear para pico alvo, depois clip [-1,1]",
+        "pico_alvo": 0.84,
+        "formula": "saida_normalizada = clip(bruto * (0.84 / max(abs(bruto))), -1, 1)"
+      },
+      "export": {
+        "sample_rate_hz": 44100,
+        "canais": 1,
+        "wav_subtype": "PCM_16",
+        "ogg_subtype": "VORBIS"
+      },
+      "nome": "corn-throw-1",
+      "pico": 0.84,
+      "tamanho_wav_bytes": 35324,
+      "tamanho_ogg_bytes": 7657,
+      "distancia_minima_contra_irmaos": 0.1792,
+      "distancia_contra_existentes": {
+        "corn-shot-0.ogg": 0.2391,
+        "corn-shot-1.ogg": 0.7495
+      }
+    },
+    "synth-corn-throw-2": {
+      "ferramenta": {
+        "nome": "gerador de som (backend/engines/synth.py)",
+        "descricao": "síntese DSP determinística em numpy — osciladores, ruído, filtros de um polo, envelope ADSR-decay e saturação suave. Sem modelo generativo, sem material de terceiros, sem motor neural (backend/engines/neural.py e difusao_parcial.py não foram usados nesta entrega).",
+        "kind": "autoral",
+        "repositorio": "gerador de som",
+        "commit": "2a31aaa6f6a587d81fe936665a72b7ecc893967c",
+        "arquivo_das_primitivas": "backend/engines/synth.py",
+        "primitivas_usadas": [
+          "osc",
+          "sweep",
+          "noise",
+          "adsr_decay",
+          "lowpass",
+          "highpass",
+          "soft_clip"
+        ]
+      },
+      "arquitetura": "estalo de saída",
+      "observacao_importante": "O patch ORIGINAL sintetiza 0.200s. O arquivo ENTREGUE foi recortado (ver bloco 'recorte' abaixo) para eliminar cauda audível além do teto de 30ms, usando o critério de silêncio do avaliador do jogo (piso = 2% do pico, não -60dB absoluto como na primeira tentativa — essa primeira tentativa deixava 63,4ms de material acima de 2% do pico ainda na cauda, e reprovou por isso). Para reconstruir o arquivo entregue: gere o original com a semente abaixo e aplique o recorte.",
+      "duracao_original_s": 0.2,
+      "duracao_entregue_s": 0.129909,
+      "semente": 7002,
+      "ordem_das_chamadas_a_noise": [
+        "noise(n=882, rng) — 1ª chamada, usada no 'estalo'",
+        "noise(n=7938, rng) — 2ª chamada, do MESMO stream (sem nova semente), usada na 'cauda'"
+      ],
+      "operacoes_em_ordem": [
+        {
+          "tipo": "noise",
+          "gerador": "np.random.default_rng(semente)",
+          "tamanho_amostras": 882,
+          "obs": "estalo_ruido, 1ª chamada do stream"
+        },
+        {
+          "tipo": "highpass",
+          "corte_inicial_hz": 1800,
+          "corte_final_hz": 1800,
+          "obs": "aplicado ao estalo_ruido"
+        },
+        {
+          "tipo": "adsr_decay",
+          "attack_ms": 0.2,
+          "curve": 10,
+          "obs": "estalo_env — ataque de 0,2ms, decaimento muito agressivo (curve=10)"
+        },
+        {
+          "passo": 4,
+          "tipo": "soft_clip",
+          "drive": 3,
+          "formula": "estalo = soft_clip(estalo_ruido * estalo_env * 1.4, drive=3.0)"
+        },
+        {
+          "tipo": "osc",
+          "forma_de_onda": "sine",
+          "freq_inicial_hz": 180,
+          "freq_final_hz": 90,
+          "curva": "exp",
+          "ganho_relativo": 0.5,
+          "obs": "cauda_tom, sweep 180->90Hz sobre n_cauda amostras"
+        },
+        {
+          "tipo": "noise",
+          "gerador": "np.random.default_rng(semente)",
+          "tamanho_amostras": 7938,
+          "obs": "cauda_ruido, 2ª chamada do MESMO stream"
+        },
+        {
+          "tipo": "lowpass",
+          "corte_inicial_hz": 500,
+          "corte_final_hz": 500,
+          "obs": "aplicado ao cauda_ruido"
+        },
+        {
+          "tipo": "adsr_decay",
+          "attack_ms": 1,
+          "curve": 3.5,
+          "obs": "cauda_env"
+        },
+        {
+          "passo": 9,
+          "tipo": "soma_e_ganho",
+          "formula": "cauda = (cauda_tom*0.5 + cauda_ruido_filtrado*0.5) * cauda_env * 0.5"
+        },
+        {
+          "passo": 10,
+          "tipo": "concatenacao",
+          "formula": "saida_original = concatenate([estalo, cauda])"
+        }
+      ],
+      "formula_resumo": "rng = default_rng(7002); n_estalo = round(0.02*sr); n_total = round(0.20*sr); n_cauda = n_total - n_estalo; estalo = soft_clip(highpass(noise(n_estalo, rng), 1800, sr) * adsr_decay(n_estalo, sr, 0.2, 10.0) * 1.4, 3.0); cauda_tom = osc('sine', sweep(180, 90, n_cauda, 'exp'), sr); cauda_ruido = lowpass(noise(n_cauda, rng), 500, sr); cauda = (cauda_tom*0.5 + cauda_ruido*0.5) * adsr_decay(n_cauda, sr, 1.0, 3.5) * 0.5; original_0_200s = concatenate([estalo, cauda])",
+      "recorte": {
+        "piso_criterio": "2% do pico do sinal original (0.02 * max(abs(sinal)))",
+        "piso_valor_absoluto": 0.02,
+        "pico_do_sinal_original": 1,
+        "amostra_ultimo_pico_acima_do_piso": 5066,
+        "cauda_preservada_ms": 15,
+        "amostra_de_corte_final": 5729,
+        "duracao_final_s": 0.1299092970521542,
+        "fade_de_saida_amostras": 662,
+        "fade_de_saida_ms": 15.011337868480727,
+        "forma_do_fade": "linear (1 -> 0)",
+        "aplicado_sobre": "original_0_200s, amostra a amostra, antes da normalização de pico",
+        "motivo": "critério de silêncio do juiz é piso = 2% do pico (constante SILENCE = 0.02), não -60dB. Entre -60dB (0.1% do pico) e 2% do pico ainda havia 63,4ms de material audível pelo critério dele; o teto de cauda de silêncio aceito é 30ms.",
+        "historico_de_tentativas": {
+          "piso_0.001_(-60dB, tentativa anterior)": {
+            "amostra_ultimo_pico": 7203,
+            "cauda_ms": 15,
+            "duracao_s": 0.1784
+          },
+          "piso_0.01_(-40dB, referencia)": {
+            "amostra_ultimo_pico": 5755,
+            "cauda_ms": 47.8,
+            "duracao_s": 0.1455
+          },
+          "piso_0.02_(-34dB, criterio do juiz, usado agora)": {
+            "amostra_ultimo_pico": 5066,
+            "cauda_ms": 63.4,
+            "duracao_s": 0.1299
+          }
+        }
+      },
+      "n_amostras_original": 8820,
+      "sample_rate": 44100,
+      "pico_bruto_pre_normalizacao": 1,
+      "normalizacao": {
+        "metodo": "escala linear para pico alvo, depois clip [-1,1]",
+        "pico_alvo": 0.84,
+        "formula": "saida_normalizada = clip(bruto * (0.84 / max(abs(bruto))), -1, 1)"
+      },
+      "export": {
+        "sample_rate_hz": 44100,
+        "canais": 1,
+        "wav_subtype": "PCM_16",
+        "ogg_subtype": "VORBIS"
+      },
+      "nome": "corn-throw-2",
+      "pico": 0.84,
+      "tamanho_wav_bytes": 11502,
+      "tamanho_ogg_bytes": 5066,
+      "distancia_minima_contra_irmaos": 0.3963,
+      "distancia_contra_existentes": {
+        "corn-shot-0.ogg": 1.4516,
+        "corn-shot-1.ogg": 0.972
+      }
+    },
+    "synth-corn-throw-3": {
+      "ferramenta": {
+        "nome": "gerador de som (backend/engines/synth.py)",
+        "descricao": "síntese DSP determinística em numpy — osciladores, ruído, filtros de um polo, envelope ADSR-decay e saturação suave. Sem modelo generativo, sem material de terceiros, sem motor neural (backend/engines/neural.py e difusao_parcial.py não foram usados nesta entrega).",
+        "kind": "autoral",
+        "repositorio": "gerador de som",
+        "commit": "2a31aaa6f6a587d81fe936665a72b7ecc893967c",
+        "arquivo_das_primitivas": "backend/engines/synth.py",
+        "primitivas_usadas": [
+          "osc",
+          "sweep",
+          "noise",
+          "adsr_decay",
+          "lowpass",
+          "highpass",
+          "soft_clip"
+        ]
+      },
+      "arquitetura": "rotação",
+      "duracao_s": 0.45,
+      "semente": 7003,
+      "ordem_das_chamadas_a_noise": [
+        "noise(n=19845, rng) — 1ª chamada, 'banda_grave'",
+        "noise(n=19845, rng) — 2ª chamada, do MESMO stream, 'banda_aguda'"
+      ],
+      "operacoes_em_ordem": [
+        {
+          "tipo": "noise",
+          "gerador": "np.random.default_rng(semente)",
+          "tamanho_amostras": 19845,
+          "obs": "banda_grave, 1ª chamada"
+        },
+        {
+          "tipo": "lowpass",
+          "corte_inicial_hz": 900,
+          "corte_final_hz": 900,
+          "obs": "sobre banda_grave"
+        },
+        {
+          "tipo": "highpass",
+          "corte_inicial_hz": 250,
+          "corte_final_hz": 250,
+          "obs": "sobre o resultado do lowpass (banda_grave final)"
+        },
+        {
+          "tipo": "noise",
+          "gerador": "np.random.default_rng(semente)",
+          "tamanho_amostras": 19845,
+          "obs": "banda_aguda, 2ª chamada do MESMO stream"
+        },
+        {
+          "tipo": "lowpass",
+          "corte_inicial_hz": 6500,
+          "corte_final_hz": 6500,
+          "obs": "sobre banda_aguda"
+        },
+        {
+          "tipo": "highpass",
+          "corte_inicial_hz": 2800,
+          "corte_final_hz": 2800,
+          "obs": "sobre o resultado do lowpass (banda_aguda final)"
+        },
+        {
+          "passo": 7,
+          "tipo": "sweep",
+          "curva": "exp",
+          "f0_hz": 4,
+          "f1_hz": 22,
+          "n_amostras": 19845,
+          "obs": "'taxa' do LFO de rotação, acelerando"
+        },
+        {
+          "tipo": "osc",
+          "forma_de_onda": "sine",
+          "freq_inicial_hz": 4,
+          "freq_final_hz": 22,
+          "curva": "exp (via taxa)",
+          "ganho_relativo": 1,
+          "obs": "LFO cru; lfo = 0.5 + 0.5*osc(sine, taxa)"
+        },
+        {
+          "passo": 9,
+          "tipo": "crossfade",
+          "formula": "corpo = banda_grave*(1-lfo) + banda_aguda*lfo"
+        },
+        {
+          "passo": 10,
+          "tipo": "envelope_customizado",
+          "formula": "arco = sin(linspace(0,pi,n))**1.1"
+        },
+        {
+          "passo": 11,
+          "tipo": "ganho_final",
+          "valor": 1.6
+        }
+      ],
+      "formula_resumo": "rng = default_rng(7003); banda_grave = highpass(lowpass(noise(n, rng), 900, sr), 250, sr); banda_aguda = highpass(lowpass(noise(n, rng), 6500, sr), 2800, sr); taxa = sweep(4, 22, n, 'exp'); lfo = 0.5 + 0.5*osc('sine', taxa, sr); corpo = banda_grave*(1-lfo) + banda_aguda*lfo; arco = sin(linspace(0,pi,n))**1.1; saida = corpo*arco*1.6",
+      "n_amostras": 19845,
+      "sample_rate": 44100,
+      "pico_bruto_pre_normalizacao": 0.901604,
+      "normalizacao": {
+        "metodo": "escala linear para pico alvo, depois clip [-1,1]",
+        "pico_alvo": 0.84,
+        "formula": "saida_normalizada = clip(bruto * (0.84 / max(abs(bruto))), -1, 1)"
+      },
+      "export": {
+        "sample_rate_hz": 44100,
+        "canais": 1,
+        "wav_subtype": "PCM_16",
+        "ogg_subtype": "VORBIS"
+      },
+      "nome": "corn-throw-3",
+      "pico": 0.84,
+      "tamanho_wav_bytes": 39734,
+      "tamanho_ogg_bytes": 8112,
+      "distancia_minima_contra_irmaos": 0.3818,
+      "distancia_contra_existentes": {
+        "corn-shot-0.ogg": 0.532,
+        "corn-shot-1.ogg": 0.2908
+      }
+    },
+    "synth-corn-throw-4": {
+      "ferramenta": {
+        "nome": "gerador de som (backend/engines/synth.py)",
+        "descricao": "síntese DSP determinística em numpy — osciladores, ruído, filtros de um polo, envelope ADSR-decay e saturação suave. Sem modelo generativo, sem material de terceiros, sem motor neural (backend/engines/neural.py e difusao_parcial.py não foram usados nesta entrega).",
+        "kind": "autoral",
+        "repositorio": "gerador de som",
+        "commit": "2a31aaa6f6a587d81fe936665a72b7ecc893967c",
+        "arquivo_das_primitivas": "backend/engines/synth.py",
+        "primitivas_usadas": [
+          "osc",
+          "sweep",
+          "noise",
+          "adsr_decay",
+          "lowpass",
+          "highpass",
+          "soft_clip"
+        ]
+      },
+      "arquitetura": "assobio tonal",
+      "duracao_s": 0.38,
+      "semente": 7004,
+      "ordem_das_chamadas_a_noise": [
+        "noise(n=16758, rng) — única chamada, usada em 'leve_ar'"
+      ],
+      "operacoes_em_ordem": [
+        {
+          "passo": 1,
+          "tipo": "sweep",
+          "curva": "exp",
+          "f0_hz": 260,
+          "f1_hz": 1100,
+          "n_amostras": 16758,
+          "obs": "'curva' — sweep principal do assobio"
+        },
+        {
+          "tipo": "osc",
+          "forma_de_onda": "sine",
+          "freq_inicial_hz": 22,
+          "freq_final_hz": 22,
+          "curva": "constante (LFO de vibrato)",
+          "ganho_relativo": 0.015,
+          "obs": "vibrato = 1.0 + 0.015*osc('sine', 22Hz, n): modula 'curva' multiplicativamente"
+        },
+        {
+          "tipo": "osc",
+          "forma_de_onda": "sine",
+          "freq_inicial_hz": 260,
+          "freq_final_hz": 1100,
+          "curva": "exp (via curva*vibrato)",
+          "ganho_relativo": 0.75,
+          "obs": "tom (parte 1) = osc('sine', curva*vibrato)"
+        },
+        {
+          "tipo": "osc",
+          "forma_de_onda": "saw",
+          "freq_inicial_hz": 130,
+          "freq_final_hz": 550,
+          "curva": "exp (via curva*0.5 — uma oitava abaixo)",
+          "ganho_relativo": 0.25,
+          "obs": "tom (parte 2) = osc('saw', curva*0.5)"
+        },
+        {
+          "tipo": "adsr_decay",
+          "attack_ms": 25,
+          "curve": 1.8,
+          "obs": "aplicado a 'tom' completo"
+        },
+        {
+          "tipo": "noise",
+          "gerador": "np.random.default_rng(semente)",
+          "tamanho_amostras": 16758,
+          "obs": "usado em leve_ar = lowpass(noise, 1500Hz) * 0.05"
+        },
+        {
+          "tipo": "lowpass",
+          "corte_inicial_hz": 1500,
+          "corte_final_hz": 1500,
+          "obs": "sobre o noise de 'leve_ar'"
+        },
+        {
+          "passo": 8,
+          "tipo": "soma_final",
+          "formula": "saida = tom*env + leve_ar"
+        }
+      ],
+      "formula_resumo": "rng = default_rng(7004); curva = sweep(260, 1100, n, 'exp'); vibrato = 1.0 + 0.015*osc('sine', 22.0, sr, n=n); tom = osc('sine', curva*vibrato, sr)*0.75 + osc('saw', curva*0.5, sr)*0.25; env = adsr_decay(n, sr, attack_ms=25.0, curve=1.8); leve_ar = lowpass(noise(n, rng), 1500, sr)*0.05; saida = tom*env + leve_ar",
+      "n_amostras": 16758,
+      "sample_rate": 44100,
+      "pico_bruto_pre_normalizacao": 0.820481,
+      "normalizacao": {
+        "metodo": "escala linear para pico alvo, depois clip [-1,1]",
+        "pico_alvo": 0.84,
+        "formula": "saida_normalizada = clip(bruto * (0.84 / max(abs(bruto))), -1, 1)"
+      },
+      "export": {
+        "sample_rate_hz": 44100,
+        "canais": 1,
+        "wav_subtype": "PCM_16",
+        "ogg_subtype": "VORBIS"
+      },
+      "nome": "corn-throw-4",
+      "pico": 0.84,
+      "tamanho_wav_bytes": 33560,
+      "tamanho_ogg_bytes": 8390,
+      "distancia_minima_contra_irmaos": 0.6657,
+      "distancia_contra_existentes": {
+        "corn-shot-0.ogg": 0.9324,
+        "corn-shot-1.ogg": 1.2712
+      }
+    },
+    "synth-corn-throw-5": {
+      "ferramenta": {
+        "nome": "gerador de som (backend/engines/synth.py)",
+        "descricao": "síntese DSP determinística em numpy — osciladores, ruído, filtros de um polo, envelope ADSR-decay e saturação suave. Sem modelo generativo, sem material de terceiros, sem motor neural (backend/engines/neural.py e difusao_parcial.py não foram usados nesta entrega).",
+        "kind": "autoral",
+        "repositorio": "gerador de som",
+        "commit": "2a31aaa6f6a587d81fe936665a72b7ecc893967c",
+        "arquivo_das_primitivas": "backend/engines/synth.py",
+        "primitivas_usadas": [
+          "osc",
+          "sweep",
+          "noise",
+          "adsr_decay",
+          "lowpass",
+          "highpass",
+          "soft_clip"
+        ]
+      },
+      "arquitetura": "impulsos granulares",
+      "duracao_s": 0.4,
+      "semente": 7005,
+      "ordem_das_chamadas_a_noise": [
+        "noise(n=529, rng) chamado uma vez POR GRÃO, na ordem da tabela 'graos' abaixo (21 grãos), sempre consumindo o MESMO stream"
+      ],
+      "operacoes_em_ordem": [
+        {
+          "passo": 1,
+          "tipo": "laço_de_graos",
+          "quantidade_graos": 21,
+          "por_grao": [
+            "noise(n=grao_n, rng)",
+            "lowpass(grao_ruido, cutoff_do_grao, sr)  # cutoff sobe com a posição no tempo",
+            "adsr_decay(grao_n, sr, attack_ms=0.5, curve=4.0)",
+            "grao = grao_ruido_filtrado * grao_env",
+            "concatenar grao, depois concatenar silêncio de tamanho round(sr*gap)",
+            "gap_seguinte = max(0.004, gap_atual * 0.82)  # espaçamento acelerando"
+          ]
+        },
+        {
+          "passo": 2,
+          "tipo": "concatenacao_final",
+          "obs": "corta ou preenche com zero até total_n amostras"
+        },
+        {
+          "passo": 3,
+          "tipo": "soft_clip",
+          "drive": 1.8,
+          "formula": "saida = soft_clip(concatenado*1.5, drive=1.8)"
+        }
+      ],
+      "tabela_de_graos": [
+        {
+          "indice": 0,
+          "posicao_amostra": 0,
+          "cutoff_lowpass_hz": 900,
+          "tamanho_grao_amostras": 529
+        },
+        {
+          "indice": 1,
+          "posicao_amostra": 1542,
+          "cutoff_lowpass_hz": 1179.7,
+          "tamanho_grao_amostras": 529
+        },
+        {
+          "indice": 2,
+          "posicao_amostra": 2901,
+          "cutoff_lowpass_hz": 1426.3,
+          "tamanho_grao_amostras": 529
+        },
+        {
+          "indice": 3,
+          "posicao_amostra": 4111,
+          "cutoff_lowpass_hz": 1645.8,
+          "tamanho_grao_amostras": 529
+        },
+        {
+          "indice": 4,
+          "posicao_amostra": 5198,
+          "cutoff_lowpass_hz": 1842.9,
+          "tamanho_grao_amostras": 529
+        },
+        {
+          "indice": 5,
+          "posicao_amostra": 6185,
+          "cutoff_lowpass_hz": 2022,
+          "tamanho_grao_amostras": 529
+        },
+        {
+          "indice": 6,
+          "posicao_amostra": 7089,
+          "cutoff_lowpass_hz": 2186,
+          "tamanho_grao_amostras": 529
+        },
+        {
+          "indice": 7,
+          "posicao_amostra": 7926,
+          "cutoff_lowpass_hz": 2337.8,
+          "tamanho_grao_amostras": 529
+        },
+        {
+          "indice": 8,
+          "posicao_amostra": 8707,
+          "cutoff_lowpass_hz": 2479.5,
+          "tamanho_grao_amostras": 529
+        },
+        {
+          "indice": 9,
+          "posicao_amostra": 9443,
+          "cutoff_lowpass_hz": 2613,
+          "tamanho_grao_amostras": 529
+        },
+        {
+          "indice": 10,
+          "posicao_amostra": 10148,
+          "cutoff_lowpass_hz": 2740.9,
+          "tamanho_grao_amostras": 529
+        },
+        {
+          "indice": 11,
+          "posicao_amostra": 10853,
+          "cutoff_lowpass_hz": 2868.8,
+          "tamanho_grao_amostras": 529
+        },
+        {
+          "indice": 12,
+          "posicao_amostra": 11558,
+          "cutoff_lowpass_hz": 2996.7,
+          "tamanho_grao_amostras": 529
+        },
+        {
+          "indice": 13,
+          "posicao_amostra": 12263,
+          "cutoff_lowpass_hz": 3124.6,
+          "tamanho_grao_amostras": 529
+        },
+        {
+          "indice": 14,
+          "posicao_amostra": 12968,
+          "cutoff_lowpass_hz": 3252.5,
+          "tamanho_grao_amostras": 529
+        },
+        {
+          "indice": 15,
+          "posicao_amostra": 13673,
+          "cutoff_lowpass_hz": 3380.4,
+          "tamanho_grao_amostras": 529
+        },
+        {
+          "indice": 16,
+          "posicao_amostra": 14378,
+          "cutoff_lowpass_hz": 3508.3,
+          "tamanho_grao_amostras": 529
+        },
+        {
+          "indice": 17,
+          "posicao_amostra": 15083,
+          "cutoff_lowpass_hz": 3636.1,
+          "tamanho_grao_amostras": 529
+        },
+        {
+          "indice": 18,
+          "posicao_amostra": 15788,
+          "cutoff_lowpass_hz": 3764,
+          "tamanho_grao_amostras": 529
+        },
+        {
+          "indice": 19,
+          "posicao_amostra": 16493,
+          "cutoff_lowpass_hz": 3891.9,
+          "tamanho_grao_amostras": 529
+        },
+        {
+          "indice": 20,
+          "posicao_amostra": 17198,
+          "cutoff_lowpass_hz": 4019.8,
+          "tamanho_grao_amostras": 529
+        }
+      ],
+      "parametro_gap_inicial_s": 0.028,
+      "parametro_gap_fator": 0.82,
+      "parametro_gap_minimo_s": 0.004,
+      "formula_resumo": "rng = default_rng(7005); gap = 0.028; partes = []; pos = 0; enquanto pos < round(sr*0.40): cutoff = 900 + 3200*(pos/total_n); grao = lowpass(noise(grao_n, rng), cutoff, sr) * adsr_decay(grao_n, sr, 0.5, 4.0); partes += [grao, zeros(round(sr*gap))]; gap = max(0.004, gap*0.82); pos += grao_n + round(sr*gap_anterior); saida = soft_clip(concatenate(partes)[:total_n] * 1.5, drive=1.8)",
+      "n_amostras": 17640,
+      "sample_rate": 44100,
+      "pico_bruto_pre_normalizacao": 1,
+      "normalizacao": {
+        "metodo": "escala linear para pico alvo, depois clip [-1,1]",
+        "pico_alvo": 0.84,
+        "formula": "saida_normalizada = clip(bruto * (0.84 / max(abs(bruto))), -1, 1)"
+      },
+      "export": {
+        "sample_rate_hz": 44100,
+        "canais": 1,
+        "wav_subtype": "PCM_16",
+        "ogg_subtype": "VORBIS"
+      },
+      "nome": "corn-throw-5",
+      "pico": 0.84,
+      "tamanho_wav_bytes": 35324,
+      "tamanho_ogg_bytes": 9022,
+      "distancia_minima_contra_irmaos": 0.1792,
+      "distancia_contra_existentes": {
+        "corn-shot-0.ogg": 0.3861,
+        "corn-shot-1.ogg": 0.9652
+      }
+    }
+  }
+}

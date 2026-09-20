@@ -113,7 +113,11 @@
   ],
   "enemy-eggplant-hurt": [
     "/audio/enemies/eggplant-hurt-0.ogg",
-    "/audio/enemies/eggplant-hurt-1.ogg"
+    "/audio/enemies/eggplant-hurt-1.ogg",
+    "/audio/enemies/eggplant-hurt-2.ogg",
+    "/audio/enemies/eggplant-hurt-3.ogg",
+    "/audio/enemies/eggplant-hurt-4.ogg",
+    "/audio/enemies/eggplant-hurt-5.ogg"
   ],
   "enemy-eggplant-death": [
     "/audio/enemies/eggplant-death-0.ogg",
@@ -239,10 +243,6 @@
     "/audio/enemies/eggplant-impact-0.ogg",
     "/audio/enemies/eggplant-impact-1.ogg"
   ],
-  "enemy-corn-pistol": [
-    "/audio/enemies/corn-shot-0.ogg",
-    "/audio/enemies/corn-shot-1.ogg"
-  ],
   "enemy-watermelon-heavy": [
     "/audio/enemies/watermelon-impact-0.ogg",
     "/audio/enemies/watermelon-impact-1.ogg"
@@ -288,5 +288,13 @@
   ],
   "player-fall": [
     "/audio/foley/player-fall-impact.wav"
+  ],
+  "enemy-corn-throw": [
+    "/audio/enemies/corn-throw-0.ogg",
+    "/audio/enemies/corn-throw-1.ogg",
+    "/audio/enemies/corn-throw-2.ogg",
+    "/audio/enemies/corn-throw-3.ogg",
+    "/audio/enemies/corn-throw-4.ogg",
+    "/audio/enemies/corn-throw-5.ogg"
   ]
 }

@@ -22,7 +22,7 @@ import { join, basename } from 'node:path';
 
 /** Bandas de duração por grupo, iguais às de `tests/enemy-audio-assets.test.ts`. */
 const DURATION = {
-  hurt: [0.12, 0.65], heavy: [0.12, 0.65], pistol: [0.12, 0.65], swish: [0.12, 0.65], charge: [0.12, 0.65],
+  hurt: [0.12, 0.65], heavy: [0.12, 0.65], pistol: [0.12, 0.65], swish: [0.12, 0.65], throw: [0.12, 0.65], charge: [0.12, 0.65],
   growl: [0.15, 0.75], strain: [0.15, 0.75], attack: [0.12, 0.98], spawn: [0.15, 1.05], death: [0.15, 1.05],
 };
 const PEAK = [0.30, 0.95];

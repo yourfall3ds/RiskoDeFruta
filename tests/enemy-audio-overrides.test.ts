@@ -101,8 +101,8 @@ it('o ruído do ataque é um evento próprio, com o grupo da espécie e sem a gr
   // O ataque e o ruído do milho apontam para grupos diferentes do manifest, e o ruído do milho
   // tem chave própria: mexer nele não mexe na pistola do jogador, que continua no grupo `pistol`.
   expect(resolveEnemyAudio(MANIFEST, 'corn', 'attack').group).toBe('enemy-corn-attack');
-  expect(resolveEnemyAudio(MANIFEST, 'corn', 'attack-layer').group).toBe('enemy-corn-pistol');
-  expect(MANIFEST['enemy-corn-pistol']).not.toEqual(MANIFEST['pistol']);
+  expect(resolveEnemyAudio(MANIFEST, 'corn', 'attack-layer').group).toBe('enemy-corn-throw');
+  expect(MANIFEST['enemy-corn-throw']).not.toEqual(MANIFEST['pistol']);
 });
 
 it('voz e ruído do ataque são silenciados e trocados de forma independente', async () => {
@@ -194,7 +194,7 @@ it('espelha a camada extra de impacto do ataque de cada espécie', () => {
     // Só o ataque soma camada.
     for (const event of ENEMY_AUDIO_EVENTS) if (event !== 'attack') expect(resolveEnemyAudio(MANIFEST, kind, event).layer).toBeUndefined();
   }
-  expect(ENEMY_ATTACK_LAYERS.corn).toBe('pistol');
+  expect(ENEMY_ATTACK_LAYERS.corn).toBe('throw');
   expect(ENEMY_ATTACK_LAYERS.tomato).toBe('swish');
   expect(ENEMY_ATTACK_LAYERS.carrot).toBe('charge');
   expect(ENEMY_ATTACK_LAYERS.eggplant).toBe('heavy');

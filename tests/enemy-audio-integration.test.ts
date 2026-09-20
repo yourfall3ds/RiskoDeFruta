@@ -34,7 +34,7 @@ function stubAudio(){
 
 const manifest={
   spawn:['/spawn.wav'],growl:['/growl.wav'],attack:['/attack.wav'],hurt:['/hurt.wav'],death:['/death.wav'],
-  swish:['/swish.wav'],heavy:['/heavy.wav'],pistol:['/pistol.wav'],charge:['/charge.wav'],impact:['/impact.wav'],
+  swish:['/swish.wav'],heavy:['/heavy.wav'],pistol:['/pistol.wav'],throw:['/throw.wav'],charge:['/charge.wav'],impact:['/impact.wav'],
   'enemy-corn-attack':['/corn-attack.wav'],
 };
 
@@ -90,7 +90,7 @@ describe('estúdio de sons ligado ao jogo',()=>{
     const overrides=new EnemyAudioOverrides({storage:null,channel:null,manifest});
     await overrides.ready;
     await overrides.setMuted('corn','attack-layer',true);
-    expect(ENEMY_ATTACK_LAYERS.corn).toBe('pistol'); // mesmo grupo do manifest
+    expect(ENEMY_ATTACK_LAYERS.corn).toBe('throw'); // agora com grupo próprio, sem compartilhar com a pistola do jogador
     const {audio,played}=makeAudio(overrides);
     await settled(audio,played);
     const before=played.length;

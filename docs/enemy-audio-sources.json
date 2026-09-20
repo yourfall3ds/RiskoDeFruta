@@ -160,5 +160,28 @@
       "break1": "ca1807a8008c74472042b8e1cc06ad723e00ff80a603879ebd7c2e5ba08573c4",
       "break2": "24e84b95c0fc94a1a5fb9e04edcdabbbfed987e787fcbd9c55c4651ced5c37f8"
     }
+  },
+  {
+    "author": "Darck (projeto \"gerador de som\", síntese DSP determinística)",
+    "license": "CC0",
+    "kind": "autoral",
+    "url": "https://github.com/yourfall3ds/RiskoDeFruta/blob/main/docs/enemy-audio-synth-recipes.json",
+    "files": [
+      "synth-corn-throw-0",
+      "synth-corn-throw-1",
+      "synth-corn-throw-2",
+      "synth-corn-throw-3",
+      "synth-corn-throw-4",
+      "synth-corn-throw-5"
+    ],
+    "use": "Arremesso de espiga do milho. Sintetizado do zero em osciladores, ruído e filtros — não há amostra de origem. A receita de cada peça (semente, ordem das chamadas ao gerador de ruído e cada operação com seus parâmetros) está no arquivo apontado pela url e reconstrói o áudio.",
+    "sha256": {
+      "synth-corn-throw-0": "1466ca9cb0d819247f4086cc287d819a95c44615e5efc020f801cc78dc6a4a9b",
+      "synth-corn-throw-1": "0ec84b710c4aa9795c521abd638d7eeb84e01ca7d5688f9fb8a105cfb191edaa",
+      "synth-corn-throw-2": "d0ed293bf088e2328bb40d0f6b5781fb5521e4559c50b4d6f37aaeeb785ed2e6",
+      "synth-corn-throw-3": "9f449609599f27a173b66273c353c9b9abf1aa9924032c576cea5b819ea48773",
+      "synth-corn-throw-4": "6c59d790f8bff3952990ecc853121ac711c0a4d09c84d27832a0ff7aeaa61768",
+      "synth-corn-throw-5": "da54a6dd93a01aac7f985aa2f2b5b3c21edf35519705b5e198d4f51e9c4d0d76"
+    }
   }
 ]

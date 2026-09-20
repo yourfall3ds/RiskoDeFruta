@@ -1161,6 +1161,116 @@
         "hitRock",
         "knock"
       ]
+    },
+    "corn-throw-0.ogg": {
+      "seconds": 0.42,
+      "peak": 0.84,
+      "rate": 44100,
+      "channels": 1,
+      "sha256": "6aacba75b9e1b411ce8b6c88409060af0a1309d2c99b313081c2c574173c226a",
+      "group": "enemy-corn-throw",
+      "sources": [
+        "synth-corn-throw-0"
+      ]
+    },
+    "corn-throw-1.ogg": {
+      "seconds": 0.4,
+      "peak": 0.84,
+      "rate": 44100,
+      "channels": 1,
+      "sha256": "279bfcec348c5f9893bd5d4d311afa2a047657a0d2b93b4d9d802ba8133eac82",
+      "group": "enemy-corn-throw",
+      "sources": [
+        "synth-corn-throw-1"
+      ]
+    },
+    "corn-throw-2.ogg": {
+      "seconds": 0.129909,
+      "peak": 0.84,
+      "rate": 44100,
+      "channels": 1,
+      "sha256": "029d89cbdb3014a37a823e50051d18e0927dc5bf3ba75ac99739dc4bc0cee0ca",
+      "group": "enemy-corn-throw",
+      "sources": [
+        "synth-corn-throw-2"
+      ]
+    },
+    "corn-throw-3.ogg": {
+      "seconds": 0.45,
+      "peak": 0.84,
+      "rate": 44100,
+      "channels": 1,
+      "sha256": "5b5060944229600ae1cd582ed6cf1a5215a52b6514adc8b4b205cdb1176de033",
+      "group": "enemy-corn-throw",
+      "sources": [
+        "synth-corn-throw-3"
+      ]
+    },
+    "corn-throw-4.ogg": {
+      "seconds": 0.38,
+      "peak": 0.84,
+      "rate": 44100,
+      "channels": 1,
+      "sha256": "aecbfd069705437d5c69e564d788dc4f11387c014fbf04774301559b292631c3",
+      "group": "enemy-corn-throw",
+      "sources": [
+        "synth-corn-throw-4"
+      ]
+    },
+    "corn-throw-5.ogg": {
+      "seconds": 0.4,
+      "peak": 0.84,
+      "rate": 44100,
+      "channels": 1,
+      "sha256": "c3c457ffee98058942944ea21d1382ddf967db15bc9e1d2c02f833d3d5501bb6",
+      "group": "enemy-corn-throw",
+      "sources": [
+        "synth-corn-throw-5"
+      ]
+    },
+    "eggplant-hurt-2.ogg": {
+      "seconds": 0.12,
+      "peak": 0.6438,
+      "rate": 44100,
+      "channels": 1,
+      "sha256": "9393218b73f7b261b3ff5f75a5de8656d9c1a149b7e30d338eca1fe83c6fe87d",
+      "group": "enemy-eggplant-hurt",
+      "sources": [
+        "wet6"
+      ]
+    },
+    "eggplant-hurt-3.ogg": {
+      "seconds": 0.15195,
+      "peak": 0.6909,
+      "rate": 44100,
+      "channels": 1,
+      "sha256": "26b2086056dd8a78f66f79535136a3234e05ac7c6aa520fbada6769d275f508d",
+      "group": "enemy-eggplant-hurt",
+      "sources": [
+        "wet7"
+      ]
+    },
+    "eggplant-hurt-4.ogg": {
+      "seconds": 0.12,
+      "peak": 0.6438,
+      "rate": 44100,
+      "channels": 1,
+      "sha256": "01b5790713d5d029f1e1e52ceb5ccd13042a8ea46dba002327d7afcf190da083",
+      "group": "enemy-eggplant-hurt",
+      "sources": [
+        "wet6"
+      ]
+    },
+    "eggplant-hurt-5.ogg": {
+      "seconds": 0.144535,
+      "peak": 0.6438,
+      "rate": 44100,
+      "channels": 1,
+      "sha256": "b5f1cc4ebc4c991c0199cb59e72ef5a05c9e868761d422dbfb68a4a8f928bfdc",
+      "group": "enemy-eggplant-hurt",
+      "sources": [
+        "wet6"
+      ]
     }
   }
 }

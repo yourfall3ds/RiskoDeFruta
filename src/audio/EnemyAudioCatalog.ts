@@ -105,7 +105,7 @@ export const ENEMY_AUDIO_EVENTS: readonly EnemyAudioEvent[] = ENEMY_AUDIO_EVENT_
  * milho não toca a pistola do jogador nem a cenoura o sino — só o nome do grupo é compartilhado.
  */
 export const ENEMY_ATTACK_LAYERS: Readonly<Record<EnemyAudioKind, string>> = {
-  eggplant: 'heavy', corn: 'pistol', watermelon: 'heavy', tomato: 'swish', carrot: 'charge', boss: 'heavy',
+  eggplant: 'heavy', corn: 'throw', watermelon: 'heavy', tomato: 'swish', carrot: 'charge', boss: 'heavy',
 };
 
 const EVENT_SPECS = new Map(ENEMY_AUDIO_EVENT_SPECS.map(spec => [spec.event, spec]));
