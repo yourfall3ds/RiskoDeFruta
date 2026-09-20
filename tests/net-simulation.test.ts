@@ -95,6 +95,32 @@ describe('simulação autoritativa da fazenda', () => {
     expect(z.players[0]!.x).not.toBe(x.players[0]!.x);
   });
 
+  it('itens são por jogador: quem pegou as botas anda mais que quem não pegou', async () => {
+    const sim = await make('loadout');
+    const a = sim.addPlayer('a'), b = sim.addPlayer('b');
+    // `boot` é +10% de caminhada. Com um `stats` único da sala, B andaria exatamente o mesmo que A.
+    sim.players.get('a')!.loadout.addItem('boot');
+    sim.applyInput('a', { frame: { ...EMPTY_INPUT, z: 1 }, yaw: 0, pitch: 0, seq: 1 });
+    sim.applyInput('b', { frame: { ...EMPTY_INPUT, z: 1 }, yaw: 0, pitch: 0, seq: 1 });
+    run(sim, 60);
+    const snap = sim.snapshot();
+    const da = snap.players.find(p => p.id === 'a')!.z - a.z, db = snap.players.find(p => p.id === 'b')!.z - b.z;
+    expect(da).toBeGreaterThan(db * 1.05);
+    expect(snap.players.find(p => p.id === 'a')!.inventory['boot']).toBe(1);
+    expect(snap.players.find(p => p.id === 'b')!.inventory['boot']).toBeUndefined();
+  });
+
+  it('entityId é atribuído na entrada e não renumera quando alguém sai', async () => {
+    const sim = await make('ids');
+    expect(sim.addPlayer('a').entityId).toBe(1);
+    expect(sim.addPlayer('b').entityId).toBe(2);
+    expect(sim.addPlayer('c').entityId).toBe(3);
+    sim.removePlayer('b');
+    const ids = Object.fromEntries(sim.snapshot().players.map(p => [p.id, p.entityId]));
+    expect(ids).toEqual({ a: 1, c: 3 });          // antes, C virava 2 ao recalcular pela ordem do mapa
+    expect(sim.addPlayer('d').entityId).toBe(2);  // o buraco é reaproveitado, mantendo a faixa 1..4
+  });
+
   it('avança a balsa uma vez por passo mesmo com vários jogadores', async () => {
     const sim = await make('ferry');
     sim.addPlayer('a'); sim.addPlayer('b'); sim.addPlayer('c');

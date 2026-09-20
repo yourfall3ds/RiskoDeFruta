@@ -1,0 +1,50 @@
+[
+  {
+    "uid": "0748471f99f2416a8b66b522c293720f",
+    "file": "public/models/farm-flowers.glb",
+    "bytes": 1185252,
+    "tris": 11502,
+    "trisOriginais": 11502,
+    "juntado": false,
+    "decimado": false,
+    "recentrado": true,
+    "ossos": 0,
+    "malhas": [
+      "Daisy_1_LOD0_Daisy_main_mat_0",
+      "Daisy_2_LOD0_Daisy_main_mat_0",
+      "Daisy_3_LOD0_Daisy_main_mat_0",
+      "Daisy_patch_big_1_LOD0_Daisy_main_mat_0",
+      "Daisy_patch_big_2_LOD0_Daisy_main_mat_0",
+      "Daisy_patch_big_3_LOD0_Daisy_main_mat_0",
+      "Daisy_patch_small_1_LOD0_Daisy_main_mat_0",
+      "Daisy_patch_small_2_LOD0_Daisy_main_mat_0",
+      "Daisy_patch_small_3_LOD0_Daisy_main_mat_0"
+    ],
+    "removidos": [
+      "Daisy_1_LOD1_Daisy_main_mat_0",
+      "Daisy_1_LOD2_Daisy 1_Billboard_Mat_0",
+      "Daisy_2_LOD1_Daisy_main_mat_0",
+      "Daisy_2_LOD2_Daisy 2_Billboard_Mat_0",
+      "Daisy_3_LOD1_Daisy_main_mat_0",
+      "Daisy_3_LOD2_Daisy 3_Billboard_Mat_0",
+      "Daisy_patch_big_1_LOD1_Daisy_main_mat_0",
+      "Daisy_patch_big_1_LOD2_Daisy patch big 1_Billboard_Mat_0",
+      "Daisy_patch_big_2_LOD1_Daisy_main_mat_0",
+      "Daisy_patch_big_2_LOD2_Daisy patch big 2_Billboard_Mat_0",
+      "Daisy_patch_big_3_LOD1_Daisy_main_mat_0",
+      "Daisy_patch_big_3_LOD2_Daisy patch big 3_Billboard_Mat_0",
+      "Daisy_patch_small_1_LOD1_Daisy_main_mat_0",
+      "Daisy_patch_small_1_LOD2_Daisy patch small 1_Billboard_Mat.001_",
+      "Daisy_patch_small_2_LOD1_Daisy_main_mat_0",
+      "Daisy_patch_small_2_LOD2_Daisy patch small 2_Billboard_Mat_0",
+      "Daisy_patch_small_3_LOD1_Daisy_main_mat_0",
+      "Daisy_patch_small_3_LOD2_Daisy patch small 3_Billboard_Mat_0"
+    ],
+    "texturasReduzidas": [],
+    "acoes": [],
+    "verificado": {
+      "animacoes": 0,
+      "juntas": 0
+    }
+  }
+]

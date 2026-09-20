@@ -98,6 +98,19 @@ export const ITEMS:readonly ItemDefinition[]=[
 {"id": "perk_88", "name": "Máscara de plumas", "description": "+15% de velocidade por unidade.", "icon": 88, "rarity": "uncommon", "stat": "moveSpeed", "value": 0.15},
 {"id": "perk_89", "name": "Trevo de gemas", "description": "+13% de chance de crítico antes dos retornos decrescentes por unidade.", "icon": 89, "rarity": "uncommon", "stat": "crit", "value": 0.13},
 ];
+/**
+ * A fórmula de atributos, SOZINHA — fora da classe que guarda o progresso.
+ *
+ * Ela foi extraída porque no cooperativo `nível` é da SALA e `inventário` é de CADA jogador
+ * (ver `PlayerLoadout`): os dois deixaram de morar no mesmo objeto, mas a conta continua sendo
+ * uma só. Duplicá-la seria garantir que as duas cópias divergissem no primeiro item novo.
+ */
+export function computeRunStats(level:number,inventory:ReadonlyMap<string,number>|undefined):RunStats {
+  const stats:RunStats={maxHP:130+(level-1)*12,damage:1+(level-1)*.045,attackSpeed:1,moveSpeed:1,sprintSpeed:1,jump:1,extraJumps:0,dodgeRecharge:1,crit:0,armor:0,regeneration:1,mp:1,skillCharges:0};
+  for(const item of ITEMS){const count=inventory?.get(item.id)??0;if(item.stat&&item.value)stats[item.stat]+=item.value*count;}
+  stats.crit=stats.crit/(1+stats.crit);return stats;
+}
+
 export class RunProgression {
   readonly inventory=new Map<string,number>();
   stage=1;level=1;xp=0;credits=0;totalKills=0;time=0;
@@ -105,11 +118,7 @@ export class RunProgression {
   constructor(private readonly events:EventBus<GameEvents>){}
   reset():void {this.inventory.clear();this.stage=1;this.level=1;this.xp=0;this.credits=0;this.totalKills=0;this.time=0;this.stats=this.computeStats();}
   get nextLevelXP():number{return Math.round(45*Math.pow(this.level,1.35));}
-  computeStats():RunStats {
-    const stats:RunStats={maxHP:130+(this.level-1)*12,damage:1+(this.level-1)*.045,attackSpeed:1,moveSpeed:1,sprintSpeed:1,jump:1,extraJumps:0,dodgeRecharge:1,crit:0,armor:0,regeneration:1,mp:1,skillCharges:0};
-    for(const item of ITEMS){const count=this.inventory?.get(item.id)??0;if(item.stat&&item.value)stats[item.stat]+=item.value*count;}
-    stats.crit=stats.crit/(1+stats.crit);return stats;
-  }
+  computeStats():RunStats {return computeRunStats(this.level,this.inventory);}
   addItem(id:string):void {if(!ITEMS.some(item=>item.id===id))throw new Error(`Unknown item ${id}`);const stacks=(this.inventory.get(id)??0)+1;this.inventory.set(id,stacks);this.stats=this.computeStats();this.events.emit('ItemPicked',{entityId:1,itemId:id});this.events.emit('ItemStackChanged',{entityId:1,itemId:id,stacks});}
   addXP(amount:number):void {this.xp+=Math.max(0,amount);while(this.xp>=this.nextLevelXP){this.xp-=this.nextLevelXP;this.level++;this.stats=this.computeStats();this.events.emit('LevelUp',{entityId:1,level:this.level});}this.stats=this.computeStats();}
   /**

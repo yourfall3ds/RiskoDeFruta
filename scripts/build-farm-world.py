@@ -55,6 +55,38 @@ def load_asset(name):
         except ReferenceError:pass
     o.parent=None;o.location=(0,0,-10000);return o,hi-lo
 assets={name:load_asset(name) for name in ['coast_land_rocks_02','fern_02','grass_medium_01','island_tree_01']}
+# ---- ZONAS RESERVADAS -------------------------------------------------------------------------
+# Onde existe estrutura, nada de vegetacao por cima.
+#
+# O script ja' montava `colliders` para a fisica, mas o espalhamento de arvore NUNCA consultava
+# essa lista. Era exatamente por isso que o carvalho das seis ilhas-satelite crescia atravessando
+# o telhado do celeiro: a arvore ia para `x-8`, a parede do celeiro esta' em `x-5`, e a copa na
+# escala 7 e' maior que os 3 m de folga.
+#
+# `reserve()` e' chamado pelas proprias estruturas, entao acrescentar um predio novo passa a
+# empurrar a vegetacao automaticamente — em vez de exigir que alguem lembre de ajustar uma
+# constante solta la' embaixo.
+keepouts=[]
+def reserve(x,z,half_x,half_z,margin=1.5):
+    """Registra a pegada de uma estrutura. `margin` e' o respiro entre a parede e qualquer planta."""
+    keepouts.append((x,z,half_x+margin,half_z+margin))
+def clear(x,z,radius=0.):
+    """Verdadeiro quando um objeto de raio `radius` cabe em (x,z) sem invadir estrutura."""
+    return all(abs(x-kx)>hx+radius or abs(z-kz)>hz+radius for kx,kz,hx,hz in keepouts)
+def clear_spot(x,z,radius,origin,step=1.5,tries=24):
+    """
+    Empurra (x,z) para LONGE de `origin` ate' caber.
+
+    Afastar radialmente, e nao sortear outro ponto, preserva a intencao da composicao autoral: a
+    arvore continua no mesmo lado da ilha que o autor escolheu, so' que fora do predio.
+    """
+    ox,oz=origin;dx,dz=x-ox,z-oz
+    length=math.hypot(dx,dz) or 1.
+    dx,dz=dx/length,dz/length
+    for i in range(tries):
+        px,pz=x+dx*step*i,z+dz*step*i
+        if clear(px,pz,radius):return px,pz
+    return x,z
 def instance(name,xyz,size,angle=0):
     template,dims=assets[name];o=bpy.data.objects.new(name,template.data);scene.collection.objects.link(o);o.location=pos(xyz);o.rotation_euler.z=angle
     if isinstance(size,tuple):o.scale=(size[0]/max(.01,dims.x),size[2]/max(.01,dims.y),size[1]/max(.01,dims.z))
@@ -78,6 +110,8 @@ def fence(a,b,h=0):
 def barn(x,z,h,scale=1):
     # Boarded gambrel barn with open door recess, braces, trim and cupola.
     w=10;d=10
+    # A pegada e' 10x10 (paredes em x±5, z±5); a reserva sai daqui para a vegetacao respeitar.
+    reserve(x,z,5*scale,5*scale)
     for side in [-1,1]:
         box('Barn side wall',(x+side*5,h+3,z),(0.2,6,10),red,solid=True)
         for i in range(26):box('Side wall batten',(x+side*5.13,h+3,z-5+i*.4),(.06,6,.07),red,.008)
@@ -101,6 +135,7 @@ def barn(x,z,h,scale=1):
         box('Lantern housing',(x+dx,h+2.8,z-5.45),(.25,.48,.26),roof)
         box('Warm lamp',(x+dx,h+2.8,z-5.6),(.17,.32,.09),lamp,0)
 def silo(x,z,h,r=1.7,height=10):
+    reserve(x,z,r,r)
     cylinder('Weathered agricultural silo',(x,h+height/2,z),r,height,metal,48)
     colliders.append({'id':'silo','min':{'x':x-r,'y':h,'z':z-r},'max':{'x':x+r,'y':h+height,'z':z+r}})
     for y in range(1,int(height),2):
@@ -109,6 +144,10 @@ def silo(x,z,h,r=1.7,height=10):
     for dx in [-.3,.3]:beam('Silo ladder',(x+dx,h+.3,z-r-.1),(x+dx,h+height,z-r-.1),.045,roof)
     for j in range(int(height/.35)):beam('Ladder rung',(x-.3,h+j*.35,z-r-.12),(x+.3,h+j*.35,z-r-.12),.03,roof)
 def windmill(x,z,h):
+    # A torre tem 2,8 m de base, mas a roda de 3 m de raio gira em z-1: a reserva cobre a roda,
+    # senao uma copa encostaria nas pas. O moinho nao tem colisor nenhum — mais um motivo para a
+    # reserva ser explicita aqui e nao derivada de `colliders`.
+    reserve(x,z-1,3.2,3.2)
     for dx in [-1,1]:
         for dz in [-1,1]:beam('Windmill tower',(x+dx*1.4,h,z+dz*1.4),(x+dx*.4,h+12,z+dz*.4),.14,wood)
     for y in [2,5,8]:
@@ -136,7 +175,11 @@ for i in range(105):
     x=random.uniform(-22,22);z=random.uniform(-23,18)
     if abs(x)<5.5:continue
     instance('grass_medium_01',(x,0,z),random.uniform(.3,.7),random.random()*math.tau)
-for x,z,y in [(-17,-5,0),(18,6,0),(-13,29,5),(13,40,5),(-20,10,0)]:instance('island_tree_01',(x,y,z),random.uniform(6,9),random.random()*math.tau)
+# Copa de ~3,5 m no topo da faixa de escala; e' esse o raio que precisa caber longe das paredes.
+for x,z,y in [(-17,-5,0),(18,6,0),(-13,29,5),(13,40,5),(-20,10,0)]:
+    size=random.uniform(6,9);canopy=size*.5
+    tx,tz=clear_spot(x,z,canopy,(0,35 if y>0 else 0))
+    instance('island_tree_01',(tx,y,tz),size,random.random()*math.tau)
 for i in range(24):
     a=i/24*math.tau;instance('fern_02',(math.cos(a)*22,0,math.sin(a)*24),1.2,a)
     if i%3==0:
@@ -144,7 +187,30 @@ for i in range(24):
         for j in range(3):
             bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2,radius=.25+j*.07,location=pos((x, -.3-j*.5,z)));o=bpy.context.object;o.scale=(1,.8,1.4);o.data.materials.append(purple);art.append(o)
 for x,z,y,rx,rz in [(-55,25,5,13,12),(53,50,11,14,13),(-38,83,18,11,10),(28,105,24,15,12),(-80,115,30,13,14),(85,110,22,16,15)]:
-    island(x,z,y,rx,rz,False);barn(x,z,y);silo(x+8,z+1,y,1.2,10);instance('island_tree_01',(x-8,y,z),7,.5)
+    island(x,z,y,rx,rz,False);barn(x,z,y);silo(x+8,z+1,y,1.2,10)
+    # AQUI estava o bug relatado. A arvore ia cravada em `x-8`: a 3 m da parede do celeiro, com
+    # copa de 3,5 m na escala 7. Medido, a copa entrava 0,5 m na parede — nas SEIS ilhas.
+    #
+    # Empurrar a arvore para fora nao resolve sozinho: estas ilhas tem raio 10 a 16, e nao cabe
+    # um celeiro de 10x10 MAIS uma arvore de escala 7 com folga. Ou a copa invade a parede, ou a
+    # arvore sai da terra e fica boiando no vazio.
+    #
+    # Entao a arvore passa a ser DIMENSIONADA pelo que a ilha comporta. Com `margem` de folga e a
+    # copa valendo metade da escala, as duas restricoes sao:
+    #     d >= 5 + margem + copa      (nao encostar no celeiro)
+    #     d + copa <= raio - 1        (a copa fica sobre a terra)
+    # que so' tem solucao quando `copa <= (raio - 6 - margem) / 2`. A ilha que nao comporta nem
+    # uma arvore pequena simplesmente nao recebe arvore — melhor um satelite sem arvore do que um
+    # satelite com arvore dentro do telhado.
+    margem=1.
+    raio=min(rx,rz)
+    copa=(raio-5-margem-1)/2
+    if copa>=1.2:
+        escala=min(7,copa*2)
+        copa=escala*.5
+        d=max(5+margem+copa,(5+margem+copa+raio-1-copa)/2)
+        tx,tz=x-d,z
+        instance('island_tree_01',(tx,y,tz),escala,.5)
 # Join authored structural meshes by material; retain shared scan geometry as instances.
 groups={}
 for obj in list(art):

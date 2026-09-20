@@ -10,6 +10,7 @@ import { createSeed } from '../core/RunRNG';
 import { weaponReadout,type WeaponReadoutView } from './WeaponReadout';
 import { ClassSelect } from './ClassSelect';
 import { MenuShell } from './MenuShell';
+import type { LobbyLink } from '../net/LobbyLink';
 import { DEFAULT_PLAYER_CLASS,PLAYER_CLASSES,type PlayerClassId } from '../run/PlayerClass';
 
 /**
@@ -73,7 +74,38 @@ export class PlayerHUD {
    * cooperativa estiver ligada ao menu, é esta chamada que ganha os outros jogadores.
    */
   private refreshRoster():void {
-    this.menu?.setRoster([{name:'VOCÊ',classe:PLAYER_CLASSES[this.playerClass].name,pronto:false}]);
+    const lobby=this.lobby;
+    if(!lobby){this.menu?.setRoster([{name:'VOCÊ',classe:PLAYER_CLASSES[this.playerClass].name,pronto:false}]);return;}
+    // Com sala, a lista é a VERDADE do servidor — inclusive a minha própria linha. Misturar a
+    // escolha local com o roster remoto faria a tela mostrar um estado que o servidor não tem.
+    this.menu?.setRoster(lobby.players.map(p=>({
+      name:p.self?`VOCÊ · ${p.name}`:p.name,
+      pronto:p.ready,
+      // Espalhamento condicional e não `classe:…|undefined`: com `exactOptionalPropertyTypes`,
+      // `undefined` NÃO é um valor válido para uma propriedade opcional.
+      ...(p.classId?{classe:PLAYER_CLASSES[p.classId].name}:{}),
+    })));
+  }
+  /** A sala, quando existe. `undefined` no single-player, que é o caminho padrão. */
+  private lobby:LobbyLink|undefined;
+  private unsubscribeLobby:(()=>void)|undefined;
+  /**
+   * Liga o menu à sala cooperativa.
+   *
+   * Chamado só por `PlayerScene` quando `?online` criou a sessão. O PRONTO deixa de começar a
+   * partida e passa a anunciar prontidão; quem larga é a sala, por unanimidade.
+   */
+  attachLobby(lobby:LobbyLink):void {
+    this.lobby=lobby;
+    this.menu?.setReadyHandler(()=>{lobby.chooseClass(this.playerClass);lobby.setReady(true);});
+    lobby.chooseClass(this.playerClass);
+    this.unsubscribeLobby=lobby.onChange(()=>{
+      this.refreshRoster();
+      const mine=lobby.players.find(p=>p.self);
+      this.menu?.setReadyLabel(lobby.phase==='playing'?'ENTRANDO…':mine?.ready?'AGUARDANDO A SALA':'PRONTO');
+      if(lobby.phase==='playing')this.menu?.startRun();
+    });
+    this.refreshRoster();
   }
   /** A classe realmente em vigor; o painel de arma e a barra de carga falam por ela. */
   private playerClass:PlayerClassId=DEFAULT_PLAYER_CLASS;
@@ -179,7 +211,7 @@ export class PlayerHUD {
     // A escolha de classe entra ANTES das opções de som/visual: é a primeira decisão da expedição.
     if(classPicker){
       this.playerClass=classPicker.initial;
-      this.classSelect=new ClassSelect(classPicker.initial,id=>{this.playerClass=id;classPicker.choose(id);this.refreshRoster();});
+      this.classSelect=new ClassSelect(classPicker.initial,id=>{this.playerClass=id;classPicker.choose(id);this.lobby?.chooseClass(id);this.refreshRoster();});
       this.element.querySelector('.gate-card .controls')!.after(this.classSelect.element);
       const controls=this.element.querySelector('.gate-card .controls')!;
       const help=document.createElement('details');help.className='class-controls-help';
@@ -430,5 +462,5 @@ export class PlayerHUD {
     if(error){this.diagnostic.textContent=`Falha ao carregar personagem: ${error}`;this.button.textContent='Recarregue a página para tentar novamente';}
     else if(pistols.cadence.shots+pistols.skillShots>0)this.diagnostic.textContent=`${pistols.hits} acertos · ${pistols.cadence.shots+pistols.skillShots} disparos · ${mp.releases} habilidades`;
   }
-  dispose(): void {window.removeEventListener('keydown',this.gateKey);this.onSkipIntro=undefined;this.skipButton.remove();this.classSelect?.dispose();this.journeyCard?.remove();document.body.classList.remove('game-menu-open','arrival-in-progress');this.element.remove();}
+  dispose(): void {this.unsubscribeLobby?.();this.unsubscribeLobby=undefined;this.lobby=undefined;window.removeEventListener('keydown',this.gateKey);this.onSkipIntro=undefined;this.skipButton.remove();this.classSelect?.dispose();this.journeyCard?.remove();document.body.classList.remove('game-menu-open','arrival-in-progress');this.element.remove();}
 }

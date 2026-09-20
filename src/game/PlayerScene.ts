@@ -554,6 +554,8 @@ export class PlayerScene implements SceneModule {
     // divergindo do servidor. Fingir compatibilidade aqui seria perder jogo em silêncio — quem
     // pedir `?online=1&world=planet` recebe o motivo escrito e joga na fazenda.
     this.net=this.radial?undefined:NetworkSession.fromLocation(this.scene,collision,shadows,this.events,seed);
+    // Sem sala o menu não muda de comportamento em nada: o PRONTO continua largando na hora.
+    if(this.net)this.hud.attachLobby(this.net.lobby);
     if(this.radial&&new URLSearchParams(location.search).get('online'))
       this.networkNotice='Co-op ainda não roda no planeta (a réplica de rede é do motor plano) · use a fazenda';
 

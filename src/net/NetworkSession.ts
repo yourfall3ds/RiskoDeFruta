@@ -8,6 +8,7 @@ import type { InputFrame } from '../input/InputFrame';
 import { NetworkClient } from './NetworkClient';
 import { RemotePlayers } from './RemotePlayers';
 import { Reconciliation, type Pose } from './Reconciliation';
+import type { LobbyLink } from './LobbyLink';
 
 const DEFAULT_SERVER = 'ws://127.0.0.1:2567';
 
@@ -38,6 +39,9 @@ export class NetworkSession {
   }
 
   get online(): boolean { return this.client.connected; }
+
+  /** O lobby, para o menu. É o `NetworkClient` por baixo — a interface só enxerga `LobbyLink`. */
+  get lobby(): LobbyLink { return this.client; }
 
   /** Depois de `motor.fixedUpdate`: envia a intenção e grava a pose prevista sob o mesmo seq. */
   afterStep(frame: InputFrame, yaw: number, pitch: number, motor: PlayerMotor): void {

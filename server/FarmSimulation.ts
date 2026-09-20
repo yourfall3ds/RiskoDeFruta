@@ -12,6 +12,7 @@ import { PistolCadence } from '../src/combat/PistolCadence';
 import { PistolMagazine } from '../src/combat/PistolMagazine';
 import { SkillTimeline, type SkillTier } from '../src/combat/SkillTimeline';
 import { RunProgression } from '../src/run/RunProgression';
+import { PlayerLoadout } from '../src/run/PlayerLoadout';
 import { IslandFerry } from '../src/world/IslandFerry';
 import { worldTerrain, sculptRegion, type OutcropShape } from '../src/world/terrain/WorldTerrain';
 import {applyInitialRockFix,type InitialRockFix} from '../src/world/terrain/InitialRocks';
@@ -76,19 +77,22 @@ export function mergeCollision(mesh: CollisionData['mesh'], solid: CollisionData
 export interface PlayerCommand { frame: InputFrame; yaw: number; pitch: number; seq: number }
 
 export interface PlayerSnapshot {
-  id: string; x: number; y: number; z: number; yaw: number; pitch: number; seq: number;
+  id: string; entityId: number; x: number; y: number; z: number; yaw: number; pitch: number; seq: number;
   hp: number; maxHP: number; grounded: boolean; sprinting: boolean; dodgeRemaining: number; charges: number; invulnerable: number;
-  ammo: number; reloading: boolean; mpSeconds: number; mpTier: MPTier; skillTier: SkillTier; skillElapsed: number; skillActive: boolean;
+  ammo: number; reloading: boolean; mpSeconds: number; mpTier: MPTier; skillTier: SkillTier; skillActive: boolean; skillElapsed: number;
+  /** Pilhas deste jogador; o inventário deixou de ser da sala (decisão de produto: loadout por jogador). */
+  inventory: Record<string, number>;
 }
 
 export interface Snapshot {
   seed: string; tick: number; time: number; stage: number; ferryTime: number;
-  credits: number; xp: number; level: number; totalKills: number; inventory: Record<string, number>;
+  credits: number; xp: number; level: number; totalKills: number;
   players: PlayerSnapshot[];
 }
 
-interface Player {
-  id: string; motor: PlayerMotor; mp: MPCharge; cadence: PistolCadence; magazine: PistolMagazine; skill: SkillTimeline;
+export interface Player {
+  id: string; entityId: number; motor: PlayerMotor; mp: MPCharge; cadence: PistolCadence; magazine: PistolMagazine; skill: SkillTimeline;
+  loadout: PlayerLoadout;
   input: InputFrame; yaw: number; pitch: number; seq: number; shots: number;
 }
 
@@ -133,8 +137,9 @@ export class FarmSimulation {
     if (this.players.has(id)) throw new Error(`Jogador duplicado ${id}`);
     const spawn = this.spawnPoint();
     const player: Player = {
-      id, motor: new PlayerMotor(this.collision, this.events, spawn), mp: new MPCharge(this.events), cadence: new PistolCadence(),
-      magazine: new PistolMagazine(), skill: new SkillTimeline(), input: EMPTY_INPUT, yaw: -.13, pitch: .02, seq: 0, shots: 0,
+      id, entityId: this.freeEntityId(), motor: new PlayerMotor(this.collision, this.events, spawn), mp: new MPCharge(this.events), cadence: new PistolCadence(),
+      magazine: new PistolMagazine(), skill: new SkillTimeline(), loadout: new PlayerLoadout(this.progression.level),
+      input: EMPTY_INPUT, yaw: -.13, pitch: .02, seq: 0, shots: 0,
     };
     player.motor.yaw = player.yaw;
     this.players.set(id, player);
@@ -155,10 +160,13 @@ export class FarmSimulation {
 
   /** Um passo fixo. Exposto para testes determinísticos. */
   step(dt: number): void {
-    const stats = this.progression.stats;
     const first = [...this.players.values()][0];
     if (first) { this.ferry.update(dt, first.motor); this.carryOtherRiders(first); }
     for (const player of this.players.values()) {
+      // Nível é da SALA, itens são do jogador: os atributos saem do loadout dele, nunca de um
+      // `stats` único — senão o item que um pegou buffaria os quatro.
+      player.loadout.refresh(this.progression.level);
+      const stats = player.loadout.stats;
       const m = player.motor;
       m.maxHP = stats.maxHP; m.moveMultiplier = stats.moveSpeed; m.jumpMultiplier = stats.jump; m.extraJumps = stats.extraJumps; m.rechargeMultiplier = stats.dodgeRecharge;
       m.armor = stats.armor; m.regeneration = stats.regeneration; player.cadence.rateMultiplier = stats.attackSpeed; player.mp.speedMultiplier = 1 + (stats.mp - 1) * .5;
@@ -171,7 +179,7 @@ export class FarmSimulation {
       const released = m.hp > 0 ? player.mp.update(dt, input.charging && !player.magazine.reloading && !player.skill.active) : 0;
       if (released) player.skill.start(released);
       // Timeline da skill é do servidor, com as durações fixas de SKILL_CUES; a voz e a cinemática ficam no cliente.
-      if (player.skill.active) player.skill.update(player.skill.elapsed + dt, tier => this.events.emit('SkillUsed', { entityId: this.entityId(player), skillId: tier === 1 ? 'ricochet_fan' : tier === 2 ? 'backflip_barrage' : 'harvest_storm' }));
+      if (player.skill.active) player.skill.update(player.skill.elapsed + dt, tier => this.events.emit('SkillUsed', { entityId: player.entityId, skillId: tier === 1 ? 'ricochet_fan' : tier === 2 ? 'backflip_barrage' : 'harvest_storm' }));
       const firing = input.fire && !input.charging && m.dodgeRemaining === 0 && m.hp > 0 && !player.skill.active;
       player.cadence.update(dt, firing, () => { if (player.magazine.consume()) player.shots++; });
       // Entradas de borda (jump/dodge/reload/interact) valem por um passo; movimento contínuo permanece até o próximo pacote.
@@ -185,7 +193,7 @@ export class FarmSimulation {
     return {
       seed: this.seed, tick: this.loop.tick, time: this.time, stage: this.progression.stage, ferryTime: this.ferry.time,
       credits: this.progression.credits, xp: this.progression.xp, level: this.progression.level, totalKills: this.progression.totalKills,
-      inventory: Object.fromEntries(this.progression.inventory), players: [...this.players.values()].map(p => this.snapshotPlayer(p)),
+      players: [...this.players.values()].map(p => this.snapshotPlayer(p)),
     };
   }
 
@@ -195,11 +203,24 @@ export class FarmSimulation {
   private snapshotPlayer(p: Player): PlayerSnapshot {
     const m = p.motor;
     return {
-      id: p.id, x: m.position.x, y: m.position.y, z: m.position.z, yaw: p.yaw, pitch: p.pitch, seq: p.seq,
+      id: p.id, entityId: p.entityId, x: m.position.x, y: m.position.y, z: m.position.z, yaw: p.yaw, pitch: p.pitch, seq: p.seq,
       hp: m.hp, maxHP: m.maxHP, grounded: m.grounded, sprinting: m.sprinting, dodgeRemaining: m.dodgeRemaining, charges: m.charges, invulnerable: m.invulnerable,
       ammo: p.magazine.ammo, reloading: p.magazine.reloading, mpSeconds: p.mp.seconds, mpTier: p.mp.tier,
       skillTier: p.skill.tier, skillElapsed: p.skill.elapsed, skillActive: p.skill.active,
+      inventory: Object.fromEntries(p.loadout.inventory),
     };
+  }
+
+  /**
+   * Menor id livre em 1..4, atribuído na entrada e NUNCA recalculado.
+   *
+   * A versão anterior devolvia `1 + indexOf(id)` a cada chamada: quando o jogador 2 de 4 saía, os
+   * jogadores 3 e 4 viravam 2 e 3 no meio da corrida — com contextos de dano carregando os ids
+   * antigos ainda em trânsito. Reaproveitar o buraco mantém a faixa 1..4 sem renumerar ninguém.
+   */
+  private freeEntityId(): number {
+    const taken = new Set([...this.players.values()].map(p => p.entityId));
+    for (let id = 1; ; id++) if (!taken.has(id)) return id;
   }
 
   /** Mesmo sorteio de `PlayerScene`: faixa em frente ao celeiro, altura pela colisão. */
@@ -221,7 +242,4 @@ export class FarmSimulation {
       if (rider) { this.collision.move(p, dx, dz, .34, 1.7, .35); p.y += dy; }
     }
   }
-
-  /** IDs numéricos estáveis por sessão para o `DamageContext`, que ainda espera números. */
-  private entityId(player: Player): number { return 1 + [...this.players.keys()].indexOf(player.id); }
 }

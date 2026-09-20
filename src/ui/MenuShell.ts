@@ -102,7 +102,20 @@ export class MenuShell {
       ready.type='button';
       ready.className='rdf-menu-primary rdf-menu-ready';
       ready.textContent='PRONTO';
-      ready.onclick=event=>{this.disableLobby();realStart?.call(play,event);};
+      /**
+       * `PointerEvent` e não `MouseEvent`: a assinatura de `onclick` na biblioteca DOM atual é
+       * `(ev: PointerEvent) => any`, e um `MouseEvent` não satisfaz o tipo. O evento sintético só
+       * existe para o caminho em que a SALA manda começar — aí não houve clique nenhum, mas o
+       * manipulador original de `PlayerHUD` espera receber um evento.
+       */
+      this.beginRun=event=>{this.disableLobby();realStart?.call(play,event??new PointerEvent('click'));};
+      this.readyButton=ready;
+      /**
+       * Com sala, o PRONTO deixa de começar a partida: ele ANUNCIA prontidão ao servidor, e quem
+       * larga é a sala inteira por unanimidade (ver `FarmRoom`). Sem sala — single-player, que é a
+       * esmagadora maioria das sessões — o clique continua começando a partida na hora.
+       */
+      ready.onclick=event=>{if(this.readyHandler)this.readyHandler();else this.beginRun?.(event);};
       /**
        * CONFIRMAR e VOLTAR ficam FORA do cartão, presos na tela.
        *
@@ -186,6 +199,24 @@ export class MenuShell {
    */
   private lobbyArmed=true;
   disableLobby():void {this.lobbyArmed=false;}
+
+  /** Largada de verdade: o que o PRONTO fazia sozinho antes de existir sala. */
+  /**
+   * Começa a partida de verdade. Sem argumento quando quem manda começar é a SALA (unanimidade
+   * atingida) — aí não existe clique, e o manipulador original recebe um evento sintético.
+   *
+   * O tipo é `PointerEvent` porque é o que a assinatura de `onclick` exige na biblioteca DOM
+   * atual; `MouseEvent` não satisfaz.
+   */
+  private beginRun:((event?:PointerEvent)=>void)|undefined;
+  private readyButton:HTMLButtonElement|undefined;
+  private readyHandler:(()=>void)|undefined;
+  /** Liga o PRONTO à sala. Sem chamada, o botão segue exatamente como era no single-player. */
+  setReadyHandler(handler:(()=>void)|undefined):void {this.readyHandler=handler;}
+  /** Chamado quando o SERVIDOR larga a corrida: entra em campo pelo mesmo caminho de sempre. */
+  startRun():void {this.beginRun?.();}
+  /** Rótulo do PRONTO, para o lobby dizer o que a sala está esperando. */
+  setReadyLabel(text:string):void {if(this.readyButton)this.readyButton.textContent=text;}
 
   /**
    * Quem está na sala.

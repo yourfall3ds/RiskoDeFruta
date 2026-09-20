@@ -1,7 +1,10 @@
 import { Client, Predict, type Room, type InputHandle } from '@colyseus/sdk';
 import type { FarmState, PlayerState } from '../../server/schema';
+import { CLASS_IDS, PHASE } from '../../server/schema';
 import { NetInput, writeInput } from './NetInput';
 import type { InputFrame } from '../input/InputFrame';
+import type { LobbyLink, LobbyPlayer, LobbyPhase } from './LobbyLink';
+import type { PlayerClassId } from '../run/PlayerClass';
 
 /**
  * Ligação com a sala `farm` via `@colyseus/sdk`, sem Babylon.
@@ -10,8 +13,11 @@ import type { InputFrame } from '../input/InputFrame';
  */
 export interface RemoteSample { x: number; y: number; z: number; yaw: number; state: PlayerState }
 
-export class NetworkClient {
+export class NetworkClient implements LobbyLink {
   room: Room<FarmState> | undefined;
+  private readonly lobbyListeners = new Set<() => void>();
+  /** Última leitura do lobby, para só avisar a interface quando algo de fato mudou. */
+  private lobbyKey = '';
   private input: InputHandle<NetInput> | undefined;
   private predict: Predict<FarmState> | undefined;
   private readonly attached = new Set<PlayerState>();
@@ -38,6 +44,10 @@ export class NetworkClient {
       this.predict = Predict.get(room);
       room.onLeave(() => { this.room = undefined; this.input = undefined; });
       room.onError((code, message) => { this.error = `sala ${code}: ${message ?? ''}`; });
+      // Uma patch por 1/30 s reescreve o roster inteiro; o `lobbyKey` corta o ruído para o DOM só
+      // ser reescrito quando nome, classe, prontidão ou fase realmente mudaram.
+      room.onStateChange(() => this.notifyLobby());
+      this.notifyLobby();
     } catch (error) { this.error = error instanceof Error ? error.message : 'Falha ao conectar'; throw error; }
   }
 
@@ -67,7 +77,40 @@ export class NetworkClient {
     return samples;
   }
 
+  // ---- lobby (`LobbyLink`) ------------------------------------------------------------------
+
+  get players(): readonly LobbyPlayer[] {
+    const room = this.room;
+    if (!room) return [];
+    const hostId = room.state.hostId;
+    return [...room.state.players.values()].map(p => ({
+      id: p.id, entityId: p.entityId, name: p.name,
+      classId: p.classChosen ? CLASS_IDS[p.classId] as PlayerClassId | undefined : undefined,
+      ready: p.ready, host: p.id === hostId, self: p.id === this.sessionId,
+    })).sort((a, b) => a.entityId - b.entityId);
+  }
+
+  get phase(): LobbyPhase { return this.room?.state.phase === PHASE.playing ? 'playing' : 'lobby'; }
+  get isHost(): boolean { return !!this.room && this.room.state.hostId === this.sessionId; }
+
+  onChange(listener: () => void): () => void {
+    this.lobbyListeners.add(listener);
+    return () => this.lobbyListeners.delete(listener);
+  }
+
+  chooseClass(id: PlayerClassId): void { this.room?.send('chooseClass', { classId: id }); }
+  setReady(ready: boolean): void { this.room?.send('setReady', { ready }); }
+  setSetting(key: string, value: string): void { this.room?.send('setSetting', { key, value }); }
+
+  private notifyLobby(): void {
+    const key = this.phase + '|' + this.players.map(p => `${p.entityId}:${p.name}:${p.classId ?? ''}:${p.ready ? 1 : 0}:${p.host ? 1 : 0}`).join(',');
+    if (key === this.lobbyKey) return;
+    this.lobbyKey = key;
+    for (const listener of this.lobbyListeners) listener();
+  }
+
   dispose(): void {
+    this.lobbyListeners.clear();
     this.predict?.dispose();
     void this.room?.leave(true);
     this.room = undefined; this.input = undefined; this.predict = undefined; this.attached.clear();
