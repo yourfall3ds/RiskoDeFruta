@@ -399,9 +399,39 @@ export class MenuShell {
     screen.append(this.heading('QUAL É O SEU NOME?'),input,confirmar,this.back());
   }
 
-  /** A tela de multijogador: criar, entrar, e as salas que existem AGORA. */
+  /**
+   * A tela de multijogador: AS SALAS primeiro, criar depois, e o código bem no fim.
+   *
+   * ## A inversão
+   *
+   * Antes, `ENTRAR EM SALA` abria um campo de código (`3ZP5-VR2M-OYAG`). Isso é a porta dos fundos
+   * na frente da casa: a pergunta que o jogador faz ao clicar em "entrar em sala" é *quais salas
+   * existem*, e a resposta tem de ser a LISTA — nomes, anfitriões, lotação, clicáveis. O código
+   * continua existindo, porque ele resolve o caso que a lista não alcança (alguém de fora do
+   * servidor desta instalação), mas como caminho secundário, atrás de `TENHO UM CÓDIGO`.
+   *
+   * ## Por que agora dá para prometer a lista
+   *
+   * A lista é do `LobbyRoom`, que vive num servidor. Enquanto cada jogador subia o próprio, a lista
+   * era estruturalmente vazia para todos — e era por isso que o código tinha de ser a porta
+   * principal. Com `VITE_SERVER` apontando para um servidor comum (ver `ServerAddress` e
+   * `.env.example`), todo mundo cai no mesmo lugar e a lista passa a ter o que mostrar.
+   */
   private buildBrowserScreen():void {
     const screen=this.makeScreen('multijogador');
+
+    // ---- as salas: o conteúdo PRINCIPAL da tela ---------------------------------------------
+    const caixa=document.createElement('div');
+    caixa.className='rdf-rooms';
+    const rotulo=document.createElement('small');
+    rotulo.textContent='ENTRAR EM SALA';
+    this.roomsList.className='rdf-rooms-list';
+    this.roomsNotice.className='rdf-menu-warning rdf-rooms-notice';
+    this.roomsNotice.hidden=true;
+    caixa.append(rotulo,this.roomsList);
+    this.renderRooms([]);
+
+    // ---- criar: a outra metade, abaixo da lista ----------------------------------------------
     const nomeSala=document.createElement('input');
     nomeSala.type='text';nomeSala.className='rdf-field';nomeSala.maxLength=24;
     nomeSala.autocomplete='off';nomeSala.spellcheck=false;
@@ -413,31 +443,21 @@ export class MenuShell {
       const port=this.port;if(!port)return;
       port.create(port.savedName(),nomeSala.value.trim());
     };
-    const entrar=document.createElement('button');
-    entrar.type='button';entrar.className='rdf-menu-link';entrar.textContent='ENTRAR EM SALA';
-    entrar.onclick=()=>this.show('entrar');
 
-    const caixa=document.createElement('div');
-    caixa.className='rdf-rooms';
-    const rotulo=document.createElement('small');
-    // HONESTO: o `LobbyRoom` é o do servidor do anfitrião, então a listagem alcança esta rede e só
-    // ela. Quem joga com alguém de fora usa o CÓDIGO, que carrega o endereço. Fingir descoberta
-    // global aqui produziria a pior tela possível: uma lista eternamente vazia sem explicação.
-    rotulo.textContent='SALAS NESTA REDE';
-    this.roomsList.className='rdf-rooms-list';
-    this.roomsNotice.className='rdf-menu-warning rdf-rooms-notice';
-    this.roomsNotice.hidden=true;
-    const dica=document.createElement('p');
-    dica.className='rdf-menu-note';
-    dica.textContent='Para jogar com alguém de fora da sua rede, peça o CÓDIGO da sala e use ENTRAR EM SALA.';
-    caixa.append(rotulo,this.roomsList,dica);
-    this.renderRooms([]);
-    screen.append(this.heading('MULTIPLAYER'),this.roomsNotice,nomeSala,criar,entrar,caixa,this.back());
+    // ---- o código: caminho secundário, e escrito como tal -------------------------------------
+    const codigo=document.createElement('button');
+    codigo.type='button';codigo.className='rdf-menu-link rdf-tenho-codigo';codigo.textContent='TENHO UM CÓDIGO';
+    codigo.onclick=()=>this.show('entrar');
+
+    screen.append(this.heading('MULTIPLAYER'),this.roomsNotice,caixa,nomeSala,criar,codigo,this.back());
   }
 
-  /** Entrar por código — o que o amigo ditou. */
+  /** Entrar por código — o que o amigo de fora ditou. Secundário, e a volta é para a LISTA. */
   private buildJoinScreen():void {
     const screen=this.makeScreen('entrar');
+    const dica=document.createElement('p');
+    dica.className='rdf-menu-note';
+    dica.textContent='O código serve para entrar numa sala que não aparece na lista — a de alguém que joga noutro servidor.';
     const input=document.createElement('input');
     input.type='text';input.className='rdf-field rdf-field-code';input.maxLength=32;
     input.placeholder='X7K2-V4TQ-F9CM';input.autocomplete='off';input.spellcheck=false;
@@ -452,7 +472,11 @@ export class MenuShell {
     };
     confirmar.onclick=tentar;
     input.onkeydown=event=>{if(event.key==='Enter'){event.preventDefault();tentar();}};
-    screen.append(this.heading('ENTRAR EM SALA'),input,erro,confirmar,this.back());
+    // VOLTAR aqui é voltar para a LISTA, não para a raiz: quem veio do código veio de lá.
+    const voltar=document.createElement('button');
+    voltar.type='button';voltar.className='rdf-menu-back';voltar.textContent='◂ VER AS SALAS';
+    voltar.onclick=()=>this.show('multijogador');
+    screen.append(this.heading('ENTRAR COM CÓDIGO'),dica,input,erro,confirmar,voltar);
   }
 
   /** A sala: quem está dentro, o código para compartilhar e a largada. */
@@ -574,13 +598,29 @@ export class MenuShell {
     }
   }
 
-  /** A lista de salas. Cheia (4/4) aparece, mas não entra: o botão fica desabilitado e diz por quê. */
-  private renderRooms(rooms:readonly RoomRow[]):void {
+  /**
+   * A lista de salas.
+   *
+   * Três estados, e eles TÊM de ser distinguíveis — foi pedido explicitamente. "Nenhuma sala
+   * aberta" e "não consegui falar com o servidor" produzem a mesma lista vazia na tela e significam
+   * coisas opostas: na primeira, criar uma sala resolve; na segunda, criar não vai adiantar nada.
+   *
+   * Sala cheia (4/4) APARECE — ver a lotação é informação — mas não entra: o botão desabilitado é a
+   * recusa, e entrar mesmo assim só produziria uma rejeição do servidor sem explicação.
+   */
+  private renderRooms(rooms:readonly RoomRow[],erro=''):void {
     this.roomsList.replaceChildren();
+    if(erro){
+      const quebrado=document.createElement('li');
+      quebrado.className='rdf-rooms-empty rdf-rooms-broken';
+      quebrado.textContent='NÃO CONSEGUI FALAR COM O SERVIDOR';
+      this.roomsList.append(quebrado);
+      return;
+    }
     if(!rooms.length){
       const vazio=document.createElement('li');
       vazio.className='rdf-rooms-empty';
-      vazio.textContent='NENHUMA SALA ABERTA';
+      vazio.textContent='NENHUMA SALA ABERTA · CRIE A SUA';
       this.roomsList.append(vazio);
       return;
     }
@@ -590,23 +630,34 @@ export class MenuShell {
       const botao=document.createElement('button');
       botao.type='button';
       botao.className='rdf-room-join';
-      // Sala cheia APARECE — ver "4/4" é informação — mas não entra. O botão desabilitado é a
-      // recusa; entrar mesmo assim só produziria uma rejeição do servidor sem explicação.
       botao.disabled=room.full;
       botao.innerHTML='<b></b><i></i><span></span>';
       botao.querySelector('b')!.textContent=room.roomName;
       botao.querySelector('i')!.textContent=room.hostName;
       botao.querySelector('span')!.textContent=`${room.players}/${room.max}`;
-      botao.onclick=()=>{
-        const port=this.port;if(!port||room.full)return;
-        // A sala pode ter sumido entre o desenho da lista e o clique. O motivo vem do porto e é
-        // dito ali mesmo, sem sair da tela — travar esperando seria o pior dos dois.
-        const motivo=port.joinRow(room,port.savedName());
-        if(motivo)this.setBrowserNotice(motivo);
-      };
+      if(room.full)botao.title='Sala cheia';
+      botao.onclick=()=>this.enterRoom(room);
       item.append(botao);
       this.roomsList.append(item);
     }
+  }
+
+  /**
+   * O clique numa linha da lista.
+   *
+   * A lista é VIVA (eventos do `LobbyRoom`, nunca sondagem), mas viva não é instantânea: entre o
+   * desenho da linha e o clique cabe a sala encher, entrar em partida ou o anfitrião encerrar. Por
+   * isso a linha clicada é reconferida contra a lista DESTE instante antes de qualquer navegação —
+   * e a recusa é dita ali mesmo, sem sair da tela, com a lista já atualizada à vista.
+   */
+  private enterRoom(room:RoomRow):void {
+    const port=this.port;if(!port)return;
+    const agora=this.browser?.rooms;
+    const atual=agora?agora.find(linha=>linha.roomId===room.roomId):room;
+    if(!atual){this.setBrowserNotice('ESSA SALA NÃO EXISTE MAIS');this.renderRooms(agora??[],this.browser?.error??'');return;}
+    if(atual.full){this.setBrowserNotice('ESSA SALA ENCHEU');this.renderRooms(agora??[],this.browser?.error??'');return;}
+    const motivo=port.joinRow(atual,port.savedName());
+    if(motivo)this.setBrowserNotice(motivo);
   }
 
   /** Abre a listagem ao vivo enquanto a tela está à vista, e fecha ao sair. Uma conexão, não mais. */
@@ -617,8 +668,9 @@ export class MenuShell {
       if(this.browser)return;
       this.browser=port.browse();
       const pintar=():void=>{
-        this.renderRooms(this.browser?.rooms??[]);
         const erro=this.browser?.error??'';
+        // Vazio e QUEBRADO não podem parecer a mesma coisa: o erro entra na lista E no aviso.
+        this.renderRooms(this.browser?.rooms??[],erro);
         if(erro)this.setBrowserNotice(erro);
       };
       this.unsubscribeBrowser=this.browser.onChange(pintar);

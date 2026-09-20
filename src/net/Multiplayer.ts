@@ -14,6 +14,11 @@ import type { RoomBrowserLink, RoomRow } from './RoomBrowser';
 import { DEFAULT_COOP_PORT, decodeRoomCode, generateRoomPart, roomPart, seedForCode } from './RoomCode';
 import { loadPlayerName, savePlayerName } from './PlayerName';
 import { clearOnlineIntent, readCoopNotice, readOnlineIntent, writeCoopNotice, writeOnlineIntent, type OnlineIntent } from './OnlineIntent';
+import { configuredServerUrl, hasSharedServer, serverUrlFor } from './ServerAddress';
+import { relaunch } from './Relaunch';
+import { logger } from '../core/Log';
+
+const log = logger('menu');
 
 export interface MultiplayerPort {
   /** O nome salvo, ou `''` na primeira vez — é isso que decide se a pergunta aparece. */
@@ -38,21 +43,18 @@ export interface MultiplayerPort {
 export { DEFAULT_COOP_PORT };
 
 /**
- * O endereço do servidor de salas, deduzido de onde a página veio.
+ * O endereço do servidor de salas, em três camadas: `?server=`, `VITE_SERVER` e o host da página.
  *
- * Quem hospeda abre `localhost`, quem entra abre o IP da LAN do anfitrião — nos dois casos o
- * servidor Colyseus está na MESMA máquina que serviu a página. Deduzir em vez de perguntar é o que
- * permite a promessa da tela: o jogador nunca digita nem lê endereço nenhum.
+ * A resolução mora em `ServerAddress` — aqui ficou só o nome pelo qual o menu já a conhecia. A
+ * camada do meio é a que faz a LISTA valer alguma coisa: sem um servidor comum, cada jogador só
+ * enxerga as salas da própria máquina. Ver `.env.example`.
  */
 export function coopServerUrl(href: string, port = DEFAULT_COOP_PORT): string {
-  try {
-    const url = new URL(href);
-    const explicit = url.searchParams.get('server');
-    if (explicit) return explicit;
-    const protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
-    return `${protocol}//${url.hostname || '127.0.0.1'}:${port}`;
-  } catch { return `ws://127.0.0.1:${port}`; }
+  return serverUrlFor(href, configuredServerUrl(), port);
 }
+
+/** `true` quando este build aponta para um servidor compartilhado. A tela diz isso ao jogador. */
+export function sharedServerConfigured(): boolean { return hasSharedServer(); }
 
 /** Uma sala que ainda não está em uso entre as visíveis. */
 export function pickRoomPart(taken: readonly string[] = [], random: () => number = Math.random): string {
@@ -65,15 +67,21 @@ export function pickRoomPart(taken: readonly string[] = [], random: () => number
 }
 
 /**
- * A entrada de fato: grava a intenção e recarrega numa URL LIMPA.
+ * A entrada de fato: grava a intenção e relança o jogo.
  *
- * Recarregar é deliberado. A sessão de rede é montada no construtor da cena (`PlayerScene`), junto
- * com o mundo, a colisão e a horda — abrir uma sala com a cena já de pé significaria reconstruir
- * tudo isso vivo, que é justamente a cirurgia de gameplay que este trabalho não pode fazer. O
- * jogador vê a tela de carregamento do jogo, que ele já conhece, e não uma URL.
+ * "Relançar" era, até aqui, `location.assign()` — uma recarga de página inteira, e a maior parte
+ * dos ~40 s que o jogador esperava para entrar numa sala. A cena PRECISA ser reconstruída (o mapa
+ * fora do co-op é o planeta e dentro é a fazenda; ver `Relaunch`), mas a página não: o motor, os
+ * shaders e os módulos já avaliados podem ficar de pé.
+ *
+ * Por isso a ordem: primeiro pergunta se alguém sabe relançar em processo (`Application` sabe) e,
+ * só se não houver ninguém, recarrega como sempre. A queda importa — é ela que mantém o caminho de
+ * URL (`?online=1&seed=`) e os testes funcionando sem nada registrado.
  */
 export function startOnline(intent: OnlineIntent, target: { assign(url: string): void; pathname: string } = location): void {
   writeOnlineIntent(intent);
+  log.info('entrando na sala', { codigo: intent.code, servidor: intent.server, sala: intent.roomName });
+  if (relaunch('entrar')) return;
   target.assign(target.pathname);
 }
 
@@ -101,9 +109,11 @@ export function browserMultiplayer(): MultiplayerPort {
         if (disposed) return;
         const browser = new ColyseusRoomBrowser(coopServerUrl(location.href));
         live = browser;
-        browser.onChange(() => { failure = browser.error ? 'NÃO CONSEGUI FALAR COM O SERVIDOR DE SALAS' : ''; for (const listener of listeners) listener(); });
+        browser.onChange(() => { failure = browser.error ? 'NÃO CONSEGUI FALAR COM O SERVIDOR' : ''; for (const listener of listeners) listener(); });
         await browser.connect();
-        failure = browser.error ? 'NÃO CONSEGUI FALAR COM O SERVIDOR DE SALAS' : '';
+        failure = browser.error ? 'NÃO CONSEGUI FALAR COM O SERVIDOR' : '';
+        if (failure) log.aviso('servidor de salas fora do ar', { servidor: browser.url, motivo: browser.error });
+        else log.info('listagem de salas aberta', { servidor: browser.url, salas: browser.rooms.length });
         for (const listener of listeners) listener();
       })();
       return link;
@@ -133,6 +143,9 @@ export function browserMultiplayer(): MultiplayerPort {
     backToMenu(notice: string): void {
       clearOnlineIntent();
       if (notice) writeCoopNotice(notice);
+      log.info('voltando ao menu', { motivo: notice || 'sem motivo' });
+      // Mesma economia da entrada: a cena volta a ser a do menu sem a página inteira recarregar.
+      if (relaunch('sair')) return;
       location.assign(location.pathname);
     },
     notice: () => readCoopNotice(),

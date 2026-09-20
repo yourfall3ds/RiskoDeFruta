@@ -8,6 +8,10 @@ import './ui/theme.css';
 // vez só, porque os botões do menu são movidos entre telas e recriados.
 import {uiSound} from './ui/UiSound';
 uiSound.attach();
+// O log do cliente, ligado pela URL: `?debug=1` (ou `?log=info`) abre a torneira; sem nada, só erro
+// e aviso chegam ao console. Ver `core/Log`.
+import {configureLog,logLevelFromLocation} from './core/Log';
+configureLog({level:logLevelFromLocation(location.href)});
 
 if(new URLSearchParams(location.search).has('qaBoot')){
   traceBoot('entry');

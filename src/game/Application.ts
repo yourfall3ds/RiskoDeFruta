@@ -2,6 +2,8 @@ import { FixedLoop } from '../core/FixedLoop';
 import { createSeed } from '../core/RunRNG';
 import { seedPolicy, type SeedPolicy } from '../run/AttemptSeed';
 import { coopHref } from '../net/OnlineIntent';
+import { setRelaunchHandler, type RelaunchReason } from '../net/Relaunch';
+import { log, logger } from '../core/Log';
 import { createEngine } from '../engine/createEngine';
 import { SceneLifecycle } from '../engine/SceneLifecycle';
 import { DebugOverlay } from '../debug/DebugOverlay';
@@ -47,6 +49,18 @@ export class Application {
       configure: (name,value) => {if(['distance','fov','shake'].includes(name))this.settings.set(name,value);this.foundation.configure(name,value);},
     });
     document.addEventListener('visibilitychange', this.visibility);
+    /**
+     * ENTRAR NUMA SALA DEIXA DE RECARREGAR A PÁGINA.
+     *
+     * O menu gravava a intenção e chamava `location.assign()`: contexto WebGL destruído, shaders
+     * recompilados, módulos reavaliados, motor reconstruído — a maior fatia dos ~40 s de espera,
+     * toda ela gasta para recriar objetos idênticos. A CENA precisa ser refeita (fora do co-op o
+     * mapa é o planeta, dentro é a fazenda: dois adaptadores de mundo distintos), mas a PÁGINA não.
+     *
+     * `restart` é o mesmo caminho que `F1 → reiniciar` percorre desde sempre; aqui ele só passa a
+     * ser usado também quando a resposta a "que mundo é este?" muda. Ver `net/Relaunch`.
+     */
+    setRelaunchHandler(reason => this.relaunch(reason));
     this.session.engine.runRenderLoop(() => {
       if (document.hidden) return;
       this.simulationMs=0;this.presentationMs=0;
@@ -54,6 +68,9 @@ export class Application {
       else this.loop.frame(performance.now() / 1000);
       this.timingFrames++;this.timingSimulation+=this.simulationMs;this.timingPresentation+=this.presentationMs;
       const measuredAt=performance.now();
+      // Telemetria agregada: o que acontece por quadro virou contador, e o contador é publicado a
+      // cada N segundos. Uma linha por quadro seria a enchente que o pedido proíbe.
+      log.flush(measuredAt,undefined,'telemetria-cliente');
       if(measuredAt-this.timingSince>=500){
         this.timingAverage={simulation:this.timingSimulation/this.timingFrames,presentation:this.timingPresentation/this.timingFrames};
         this.timingFrames=0;this.timingSimulation=0;this.timingPresentation=0;this.timingSince=measuredAt;
@@ -100,6 +117,30 @@ export class Application {
     if (!url.searchParams.get('seed') && !url.searchParams.get('replay') && !url.searchParams.get('online')) return;
     url.searchParams.set('seed', seed); history.replaceState(null, '', url);
   }
+  /**
+   * Refaz a cena no lugar, depois de a intenção de co-op ter sido gravada ou apagada.
+   *
+   * Adiado por um turno do laço de eventos de propósito: quem chama é o manipulador de clique de um
+   * botão que vive DENTRO da cena que está prestes a ser descartada, e destruir o alvo do evento no
+   * meio do despacho é a receita de um erro difícil de ler.
+   *
+   * A cena velha é descartada ANTES de a nova nascer — o contrário do que `SceneLifecycle.replace`
+   * faz sozinho, e aqui é o certo: as duas cenas montam interface no `document.body`, e um instante
+   * com dois menus vivos deixa classes de corpo e o vídeo do portão disputando o mesmo DOM. Entre o
+   * descarte e a reconstrução não corre quadro nenhum, porque o bloco é síncrono.
+   */
+  private relaunch(reason: RelaunchReason): void {
+    if (this.disposed) return;
+    setTimeout(() => {
+      if (this.disposed) return;
+      const started = performance.now();
+      this.lifecycle.dispose();
+      const seed = seedPolicy(coopHref(location.href)).seed;
+      this.restart(seed);
+      logger('app').info('cena refeita sem recarregar a página', { motivo: reason, seed, ms: Math.round(performance.now() - started) });
+    }, 0);
+  }
+
   private restart(seed: string): void {
     this.lifecycle.replace(() => {
       // The simplified sandbox is available only through the explicit preview route.
@@ -119,6 +160,7 @@ export class Application {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    setRelaunchHandler(undefined);
     document.removeEventListener('visibilitychange', this.visibility);
     this.session.engine.stopRenderLoop();
     this.debug.dispose(); this.lifecycle.dispose(); this.session.dispose();

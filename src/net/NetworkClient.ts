@@ -10,6 +10,9 @@ import type { LobbyLink, LobbyPlayer, LobbyPhase } from './LobbyLink';
 import type { PlayerClassId } from '../run/PlayerClass';
 import type { EconomyRow } from '../run/RunEconomy';
 import type { ItemDefinition } from '../run/RunProgression';
+import { logger } from '../core/Log';
+
+const log = logger('rede');
 
 /** O veredito de uma compra, como ele viaja. Nenhum campo daqui vira decisão no cliente. */
 export interface PurchaseVerdict {
@@ -36,6 +39,8 @@ export class NetworkClient implements LobbyLink {
   error = '';
   /** Endereço público da sala, dito pelo servidor na boas-vindas. Ver `LobbyLink.address`. */
   address = '';
+  /** Meu número de entidade na sala (1..4), dito na boas-vindas. Diagnóstico; nenhuma regra o lê. */
+  entityId = 0;
   private closedReason = '';
   private readonly closedListeners = new Set<(reason: string) => void>();
   /** `name` viaja no `joinOrCreate`: é assim que `FarmRoom.onJoin` batiza o jogador. */
@@ -54,21 +59,44 @@ export class NetworkClient implements LobbyLink {
   async connect(): Promise<void> {
     try {
       const client = new Client(this.url);
+      log.info('conectando', { servidor: this.url, seed: this.seed, nome: this.playerName });
       const room = await client.joinOrCreate<FarmState>('farm', { seed: this.seed, name: this.playerName, roomName: this.roomLabel });
       this.room = room;
       this.input = room.input({ type: NetInput });
       this.predict = Predict.get(room);
+      log.info('entrei na sala', { roomId: room.roomId, sessionId: room.sessionId, servidor: this.url });
       room.onLeave(code => {
         this.room = undefined; this.input = undefined;
         // 4000 é o código com que a sala expulsa (`client.leave(4000)`); sem motivo dito antes, a
         // queda é queda mesmo — e as três coisas precisam chegar à tela com nomes diferentes.
         const reason = this.closedReason || (code === 4000 ? 'O ANFITRIÃO REMOVEU VOCÊ DA SALA' : 'A SALA FOI ENCERRADA');
+        // Saída pedida é `info`; queda é `aviso`. O código do WebSocket viaja junto porque é ele
+        // que distingue "o anfitrião encerrou" de "a rede caiu" num relato de jogador.
+        if (this.closedReason) log.info('saí da sala', { codigo: code, motivo: reason });
+        else log.aviso('a sala caiu', { codigo: code, motivo: reason });
         for (const listener of this.closedListeners) listener(reason);
       });
-      room.onError((code, message) => { this.error = `sala ${code}: ${message ?? ''}`; });
+      room.onError((code, message) => { this.error = `sala ${code}: ${message ?? ''}`; log.erro('erro da sala', { codigo: code, mensagem: message ?? '' }); });
       // O endereço público chega na boas-vindas: é o que o código curto carrega.
-      room.onMessage('welcome', (payload: { address?: string }) => { this.address = String(payload?.address ?? ''); this.notifyLobby(); });
+      room.onMessage('welcome', (payload: { address?: string; entityId?: number }) => {
+        this.address = String(payload?.address ?? '');
+        this.entityId = Number(payload?.entityId ?? 0);
+        log.info('boas-vindas', { roomId: this.roomId, entityId: this.entityId, endereco: this.address });
+        this.notifyLobby();
+      });
       room.onMessage('roomClosed', (payload: { reason?: string }) => { this.closedReason = String(payload?.reason ?? 'O ANFITRIÃO ENCERROU A SALA'); });
+      /**
+       * A morte anunciada pelo servidor.
+       *
+       * O SDK reclama em voz alta quando chega mensagem sem `onMessage` registrado — e estava
+       * reclamando desta a cada abate, poluindo o console de quem depura. Registrar aqui não é
+       * silenciar: a morte é DECIDIDA no servidor (contrato §20.5) e o cliente só precisa saber
+       * disso para contar e mostrar. A apresentação do corpo continua vindo do `alive` replicado,
+       * não daqui, para não existirem dois caminhos anunciando a mesma morte.
+       */
+      room.onMessage('PlayerKilled', (payload: { entityId?: number; by?: number }) => {
+        log.info('jogador abatido', { vitima: Number(payload?.entityId ?? 0), por: Number(payload?.by ?? 0) });
+      });
       // Uma patch por 1/30 s reescreve o roster inteiro; o `lobbyKey` corta o ruído para o DOM só
       // ser reescrito quando nome, classe, prontidão ou fase realmente mudaram.
       room.onStateChange(() => this.notifyLobby());
@@ -92,12 +120,27 @@ export class NetworkClient implements LobbyLink {
     predict.tick(now);
     const samples: RemoteSample[] = [];
     const seen = new Set<PlayerState>();
-    for (const [id, state] of room.state.players) {
-      if (id === this.sessionId) continue;
+    /**
+     * `forEach`, e não `for...of`, e com guarda.
+     *
+     * `MapSchema` não é iterável por desestruturação nesta versão do schema: `for (const [id, state]
+     * of room.state.players)` lançava `players is not iterable` a CADA QUADRO, e o laço de render
+     * morria junto — o jogo entrava na sala e travava sem nada na tela explicando. `enemies()`
+     * abaixo sempre usou `.values()` e por isso nunca quebrou; esta era a única leitura fora do
+     * padrão.
+     *
+     * A guarda existe porque o primeiro quadro depois do `join` pode chegar antes do primeiro patch
+     * de estado: aí `players` ainda é indefinido, e devolver lista vazia é o comportamento certo —
+     * ninguém para desenhar ainda.
+     */
+    const players = room.state?.players;
+    if (!players) return [];
+    players.forEach((state: PlayerState, id: string) => {
+      if (id === this.sessionId) return;
       seen.add(state);
       if (!this.attached.has(state)) { predict.attach(state, { x: 'lerp', y: 'lerp', z: 'lerp', yaw: { mode: 'lerp', angle: true } }); this.attached.add(state); }
       samples.push({ x: predict.value(state, 'x'), y: predict.value(state, 'y'), z: predict.value(state, 'z'), yaw: predict.value(state, 'yaw'), state });
-    }
+    });
     for (const state of this.attached) if (!seen.has(state)) { predict.detach(state); this.attached.delete(state); }
     return samples;
   }
