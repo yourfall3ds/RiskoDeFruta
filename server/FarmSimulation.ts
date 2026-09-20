@@ -21,8 +21,14 @@ import { worldTerrain, sculptRegion, type OutcropShape } from '../src/world/terr
 import {applyInitialRockFix,type InitialRockFix} from '../src/world/terrain/InitialRocks';
 import { EMPTY_INPUT, type InputFrame } from '../src/input/InputFrame';
 import { EnemySimulation, type EnemyRow, type SimulatedPlayer } from './EnemySimulation';
+import { ChestEconomy, type PurchaseResult } from './ChestEconomy';
+import { MELEE_TUNING } from '../src/player/PlayerTuning';
+import { meleeReaches } from '../src/combat/UnarmedCombat';
+import { ENEMIES } from '../src/run/MonsterDirector';
+import { ENEMY_AFFIXES } from '../src/enemies/EnemyAffixes';
 export { EMPTY_INPUT };
 export type { EnemyRow };
+export type { PurchaseResult };
 
 /** Geometria de colisão já lida do disco: os mesmos JSONs que `FarmWorld.load` busca por fetch. */
 export interface CollisionData {
@@ -98,6 +104,8 @@ export interface PlayerSnapshot {
 export interface Snapshot {
   seed: string; tick: number; time: number; stage: number; ferryTime: number;
   credits: number; xp: number; level: number; totalKills: number;
+  /** Compras já resolvidas pela sala e os baús consumidos. O cliente EXIBE; nunca decide com eles. */
+  purchases: number; usedChests: string[];
   players: PlayerSnapshot[];
   /** A horda autoritativa. Antes o schema declarava `EnemyState` e NADA a preenchia (armadilha 8.6). */
   enemies: EnemyRow[];
@@ -131,6 +139,15 @@ export class FarmSimulation {
    * cliente lutava contra uma horda privada e dois jogadores nunca matavam o mesmo inimigo.
    */
   readonly enemies: EnemySimulation;
+  /**
+   * A ECONOMIA DE BAÚS, AUTORITATIVA (contrato §21.3).
+   *
+   * Ela é DAQUI porque `credits`, `xp`, `level` e `stage` são um agregado só (§21.4): decidir a
+   * compra no cliente deixaria a carteira e a progressão derivadas de um espelho.
+   */
+  readonly chests = new ChestEconomy();
+  /** Golpes de melee já resolvidos, contados para o diagnóstico. Nenhuma regra lê este número. */
+  melees = 0;
   /** Eventos cosméticos de um frame acumulados desde o último `drain()`; a sala reencaminha como mensagens. */
   private readonly outbox: { type: keyof GameEvents; payload: unknown }[] = [];
   time = 0;
@@ -297,6 +314,86 @@ export class FarmSimulation {
   }
 
   /**
+   * A TENTATIVA DE COMPRA DE UM BAÚ (contrato §21.3).
+   *
+   * O cliente manda `{interactableId, requestId}` e mais nada. Tudo o que decide mora aqui: jogador,
+   * baú, distância, estado, custo, débito, marcação e sorteio — nesta ordem. O saldo que a tela do
+   * jogador mostra é espelho e não participa da decisão; um pedido com saldo obsoleto é uma recusa
+   * barata, que é exatamente o modelo do §20.22 com dinheiro no lugar de morte.
+   *
+   * A recompensa sai do domínio `interactable`, o MESMO que o cliente sempre usou: migrar a decisão
+   * não pode mudar um bit do que um baú concede com a mesma semente.
+   */
+  requestPurchase(id: string, message: { interactableId?: unknown; requestId?: unknown }): PurchaseResult | undefined {
+    const player = this.players.get(id);
+    // Jogador desconhecido: a sala não responde nada. Não existe pedido sem dono.
+    if (!player) return undefined;
+    const interactableId = String(message?.interactableId ?? '');
+    const requestId = `${player.entityId}:${String(message?.requestId ?? '')}`;
+    const result = this.chests.purchase({
+      requestId, entityId: player.entityId, interactableId,
+      position: player.motor.position, stage: this.progression.stage,
+      credits: this.progression.credits,
+      rng: this.rng.stream('interactable'),
+      randomItem: stream => this.progression.randomItem(stream),
+      // Pela porta da progressão, nunca escrevendo `credits` de fora: carteira tem um dono só.
+      debit: amount => { this.progression.credits -= amount; },
+      // Itens são de CADA sobrevivente (ver `PlayerLoadout`); créditos e XP é que são da sala.
+      grant: item => { player.loadout.addItem(item.id); },
+    });
+    return result;
+  }
+
+  /**
+   * A TENTATIVA DE MELEE (contrato §20.22 e §22.2).
+   *
+   * O cliente manda que socou; ele NÃO manda dano, alvo nem resultado, e não precisa se achar vivo
+   * para mandar — pedido obsoleto vira recusa aqui. O servidor mede alcance e cone pelo MESMO
+   * `meleeReaches` do cliente, testa oclusão pela mesma varredura do `hitscan` e entra pela MESMA
+   * porta de dano. Não há segundo pipeline: nem HP, nem morte, nem RNG próprios.
+   *
+   * O golpe é a primeira etapa do combo, fixa. A máquina de combos é apresentação e fica no cliente:
+   * o marco pede que o soco do P2 machuque, não que a coreografia seja replicada.
+   */
+  requestMelee(id: string, message: { requestId?: unknown }): number {
+    const player = this.players.get(id);
+    if (!player) return 0;
+    const m = player.motor;
+    // Morto não soca, e quem está esquivando também não: a mesma condição que o cliente usa para
+    // animar, decidida AQUI, onde ela é verdade.
+    if (m.hp <= 0 || m.dodgeRemaining > 0) return 0;
+    const step = MELEE_TUNING.steps[0]!;
+    const yaw = player.yaw;
+    const chest = { x: m.position.x, y: m.position.y + 1.1, z: m.position.z };
+    const combatEventId = `${player.entityId}:melee:${String(message?.requestId ?? '')}`;
+    let hits = 0;
+    for (const actor of this.enemies.actors) {
+      if (!actor.active || actor.health.dead) continue;
+      const radius = ENEMIES[actor.kind].radius * ENEMY_AFFIXES[actor.variant].scale;
+      if (!meleeReaches(step, m.position, yaw, actor.position, radius)) continue;
+      const target = { x: actor.position.x, y: actor.position.y + 1, z: actor.position.z };
+      const to = { x: target.x - chest.x, y: target.y - chest.y, z: target.z - chest.z };
+      // Mesma conta de oclusão do `hitscan`: um modelo de mundo só para o soco divergiria do tiro.
+      if (this.enemies.occluded(chest, to)) continue;
+      const length = Math.hypot(to.x, to.y, to.z) || 1;
+      const push = { x: to.x / length, y: 0, z: to.z / length };
+      const finalDamage = step.damage * player.loadout.stats.damage;
+      const applied = this.enemies.applyDamage(actor.id, {
+        attackerId: player.entityId, victimId: actor.id, sourceId: 'unarmed_' + step.id, attackId: step.id,
+        baseDamage: step.damage, finalDamage, crit: false, procCoefficient: .8, procChainDepth: 0,
+        damageTags: ['melee'],
+        hitPosition: target, hitNormal: { x: -push.x, y: -push.y, z: -push.z },
+        forceDirection: push, forceMagnitude: step.force,
+        // Um id por VÍTIMA: o mesmo pedido acertando dois corpos não pode ser recusado no segundo,
+        // e o pedido repetido continua sendo recusado em ambos.
+        combatEventId: `${combatEventId}:${actor.id}`,
+      });
+      if (applied) { hits++; this.melees++; }
+    }
+    return hits;
+  }
+
+  /**
    * Os jogadores como a IA os enxerga — `getLivingPlayers()` do contrato §9.
    *
    * Devolve TODOS (a política de alvo precisa distinguir "morreu" de "saiu da corrida"), com
@@ -319,6 +416,7 @@ export class FarmSimulation {
     return {
       seed: this.seed, tick: this.loop.tick, time: this.time, stage: this.progression.stage, ferryTime: this.ferry.time,
       credits: this.progression.credits, xp: this.progression.xp, level: this.progression.level, totalKills: this.progression.totalKills,
+      purchases: this.chests.purchases, usedChests: this.chests.usedIds(),
       players: [...this.players.values()].map(p => this.snapshotPlayer(p)),
       enemies: this.enemies.rows(), kills: this.enemies.kills,
     };

@@ -89,6 +89,13 @@ export const DropState = schema({
 /** Contadores da SALA. O inventário saiu daqui e virou `PlayerState.inventory` — itens são por jogador. */
 export const ProgressionState = schema({
   credits: t.uint32(), xp: t.uint32(), level: t.uint16(), totalKills: t.uint32(),
+  /**
+   * Compras de baú já RESOLVIDAS pela sala.
+   *
+   * Existe para o cliente poder provar "exatamente uma compra" sem contar cliques locais — um
+   * contador de tentativas no cliente contaria o pedido, não a compra.
+   */
+  purchases: t.uint16(),
 }, 'ProgressionState');
 
 export const FarmState = schema({
@@ -108,6 +115,11 @@ export const FarmState = schema({
   warnings: t.array(WarningState),
   projectiles: t.array(ProjectileState),
   interactables: t.array(InteractableState),
+  /**
+   * Os baús JÁ CONSUMIDOS, por id. É a lista que faz as quatro telas mostrarem a mesma tampa aberta
+   * (§22.2, linha "baús usados"). Cresce só quando o servidor resolve uma compra.
+   */
+  usedChests: t.array('string'),
   drops: t.array(DropState),
 }, 'FarmState');
 export type FarmState = InstanceType<typeof FarmState>;

@@ -393,6 +393,13 @@ export class EnemySimulation {
   }
 
   /**
+   * Cobertura entre dois pontos — a MESMA varredura que o `hitscan` e a linha de visão do windup
+   * usam, com o mesmo raio. Ela é pública para o melee do servidor não escrever uma segunda conta
+   * de oclusão: dois modelos de mundo divergem, e o soco atravessaria a parede que a bala respeita.
+   */
+  occluded(from:Vec3,to:Vec3):boolean {return this.space.sweepTime(from,to,.05)!==undefined;}
+
+  /**
    * Reserva um `combatEventId`. `false` = já foi resolvido, e o chamador desiste.
    *
    * O conjunto é PODADO por tamanho em vez de por tempo: um id velho o bastante para sair daqui já

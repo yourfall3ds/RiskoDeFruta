@@ -8,6 +8,14 @@ import { NetInput, writeInput } from './NetInput';
 import type { InputFrame } from '../input/InputFrame';
 import type { LobbyLink, LobbyPlayer, LobbyPhase } from './LobbyLink';
 import type { PlayerClassId } from '../run/PlayerClass';
+import type { EconomyRow } from '../run/RunEconomy';
+import type { ItemDefinition } from '../run/RunProgression';
+
+/** O veredito de uma compra, como ele viaja. Nenhum campo daqui vira decisão no cliente. */
+export interface PurchaseVerdict {
+  ok: boolean; interactableId: string; requestId: string; entityId: number;
+  cost: number; credits: number; item?: ItemDefinition; empty?: boolean; reason?: string;
+}
 
 /**
  * Ligação com a sala `farm` via `@colyseus/sdk`, sem Babylon.
@@ -100,6 +108,43 @@ export class NetworkClient implements LobbyLink {
       targetPlayerId: e.targetPlayerId, alive: e.alive,
     });
     return rows;
+  }
+
+  /**
+   * A ECONOMIA AUTORITATIVA, decodificada para a APRESENTAÇÃO (contrato §21.2).
+   *
+   * Até o bloco F `FarmRoom` publicava `credits`, `xp`, `level` e `totalKills` e nada no cliente os
+   * adotava: o saldo era calculado, transportado — e ignorado. Este é o leitor que faltava. Ele
+   * devolve `undefined` enquanto não há sala: silêncio não é saldo zero, e quem exibe precisa
+   * distinguir os dois.
+   */
+  economy(): EconomyRow | undefined {
+    const room = this.room;
+    if (!room) return undefined;
+    // O filho do schema só existe depois da primeira patch. Devolver zeros aqui seria inventar um
+    // saldo: silêncio não é carteira vazia, e quem exibe precisa distinguir os dois.
+    const p = room.state?.progression as FarmState['progression'] | undefined;
+    if (!p) return undefined;
+    return { credits: p.credits, xp: p.xp, level: p.level, totalKills: p.totalKills, stage: room.state.stage, purchases: p.purchases };
+  }
+
+  /** Os baús que o SERVIDOR marcou consumidos. Apresentação: a tampa abre igual nas quatro telas. */
+  usedChests(): string[] {
+    const room = this.room;
+    return room ? [...room.state.usedChests] : [];
+  }
+
+  /** A TENTATIVA de compra. Não devolve sucesso: o veredito chega por `purchaseResolved`. */
+  buyChest(interactableId: string, requestId: string): void {
+    this.room?.send('buyChest', { interactableId, requestId });
+  }
+
+  /** A TENTATIVA de melee. Pedido possivelmente obsoleto; o servidor responde recusando (§20.22). */
+  melee(requestId: string): void { this.room?.send('melee', { requestId }); }
+
+  /** Veredito de uma compra, vindo do servidor. O chamador APRESENTA o que veio. */
+  onPurchaseResolved(listener: (result: PurchaseVerdict) => void): void {
+    this.room?.onMessage('purchaseResolved', listener);
   }
 
   // ---- lobby (`LobbyLink`) ------------------------------------------------------------------

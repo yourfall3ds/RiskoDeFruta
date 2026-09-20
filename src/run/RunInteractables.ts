@@ -7,7 +7,7 @@ import type {WorldSite} from '../world/GameWorld';
 import {RadialProps} from '../physics/RadialProps';
 import {RunRNG} from '../core/RunRNG';
 import {DistrictContracts} from './DistrictContracts';
-import {BARN_CHESTS,barnChestColliders,CITY_CHESTS,cityChestColliders,FRONTIER_CHESTS,frontierChestColliders,HIGHLAND_CHESTS,highlandChestColliders,ROOTWOOD_CHESTS,rootwoodChestColliders} from '../world/ExplorationSites';
+import {barnChestColliders,cityChestColliders,frontierChestColliders,highlandChestColliders,rootwoodChestColliders} from '../world/ExplorationSites';
 import type {BoxCollider} from '../physics/CollisionWorld';
 import {LootDrops} from './LootDrops';
 import type {CollisionWorld} from '../physics/CollisionWorld';
@@ -29,6 +29,8 @@ import type { EventBus } from '../core/EventBus';
 import type { GameEvents } from '../core/contracts';
 import type { RandomStream } from '../core/RunRNG';
 import { type ItemDefinition,type RunProgression } from './RunProgression';
+import {BASE_COST,HOME_CHESTS,SITE_CHESTS,chestName,chestPrice as priceOf} from './ChestCatalog';
+import type {PurchaseChannel} from './RunEconomy';
 
 export interface Interactable {id:string;name:string;kind:'supply'|'shop'|'altar';x:number;z:number;y:number;cost:number;used:boolean;loot?:ItemDefinition;ejected?:boolean;root?:TransformNode;openClips?:AnimationGroup[];opening?:number;
   /** Quantas vezes ESTE interativo já foi comprado. Só o altar passa de 1 — ver `chestPrice`. */
@@ -55,47 +57,20 @@ export interface LootPlacementSource {
   readonly structures?:readonly {readonly id:string;readonly position:Vec3;readonly up?:Vec3}[];
 }
 
-/** Custo base por tipo. É o mesmo número de sempre, agora num lugar só. */
-const BASE_COST={altar:25,shop:45,supply:30} as const;
-/**
- * Preço PROGRESSIVO dos baús.
- *
- * O mapa tem dezenas de baús e o preço deles era fixo dentro do estágio, então a corrida ótima era
- * literalmente correr abrindo tudo: cada baú custava o mesmo do primeiro e nenhum deles era uma
- * escolha. Agora cada compra encarece as SEGUINTES, do jeito clássico de roguelite: o primeiro baú
- * continua ao alcance de poucos abates e o décimo cobra farm de verdade.
- *
- *   preço = base × (1 + (estágio − 1) × STAGE_STEP) × GROWTH^(comprados no estágio)
- *
- * Com `GROWTH = 1.22`, uma caixa de suprimentos no estágio 1 vai a 30 · 37 · 45 · 54 · 66 · 81 · 99
- * · 121 · 147 · 180: dez caixas custam ~860 créditos, contra ~300 antes. O teto existe para o preço
- * nunca virar um número que nenhuma partida alcança — passado ele, o baú deixa de ser a compra
- * interessante e o jogador escolhe guardar (créditos viram XP no embarque).
- *
- * O altar mantém a escalada PRÓPRIA dele (×1,6 por oferta), que é o risco dele; as duas contas se
- * multiplicam em vez de uma sobrescrever a outra.
- */
-export const CHEST_PRICE_GROWTH=1.22,CHEST_PRICE_STAGE_STEP=.3,CHEST_PRICE_CAP=14,ALTAR_REUSE_GROWTH=1.6;
-/** Preço de um interativo pelo que já foi comprado nesta fase. Puro, para o teste de curva. */
-export function chestPrice(kind:Interactable['kind'],stage:number,opened:number,uses=0):number {
-  const s=Number.isFinite(stage)?Math.max(1,Math.floor(stage)):1;
-  const n=Number.isFinite(opened)?Math.min(CHEST_PRICE_CAP,Math.max(0,Math.floor(opened))):0;
-  const u=Number.isFinite(uses)?Math.max(0,Math.floor(uses)):0;
-  // A escalada por REUSO é só do altar: ele é o único que continua comprável depois de usado.
-  const reuse=kind==='altar'?Math.pow(ALTAR_REUSE_GROWTH,u):1;
-  return Math.round(BASE_COST[kind]*(1+(s-1)*CHEST_PRICE_STAGE_STEP)*Math.pow(CHEST_PRICE_GROWTH,n)*reuse);
-}
-const nameOf=(kind:Interactable['kind']):string=>
-  kind==='altar'?'Altar de risco':kind==='shop'?'Baú reforçado':'Caixa de suprimentos';
+// Catálogo, preço e nome moram em `ChestCatalog` desde o bloco F: o servidor cobra pela MESMA
+// fórmula e valida a MESMA lista. Reexportados aqui porque a curva e o HUD sempre os leram deste
+// módulo — mudar o caminho de importação de meia dúzia de arquivos não acrescentaria autoridade.
+export {CHEST_PRICE_GROWTH,CHEST_PRICE_STAGE_STEP,CHEST_PRICE_CAP,ALTAR_REUSE_GROWTH,chestPrice} from './ChestCatalog';
+const nameOf=chestName;
 export class RunInteractables {
   readonly entries:Interactable[]=[];nearest:Interactable|undefined;message='';messageTime=0;ready=false;error='';private disposed=false;private rewardRetry=0;
   /** Compras já feitas NESTA fase. É o expoente do preço progressivo — ver `chestPrice`. */
   opened=0;
   /** Preço que o PRÓXIMO baú comum vai cobrar. Diagnóstico e HUD. */
-  get nextSupplyCost():number {return chestPrice('supply',this.run.stage,this.opened);}
+  get nextSupplyCost():number {return priceOf('supply',this.run.stage,this.opened);}
   /** Repõe o preço de tudo o que ainda não foi comprado. Idempotente. */
   private reprice():void {
-    for(const entry of this.entries)entry.cost=chestPrice(entry.kind,this.run.stage,this.opened,entry.uses??0);
+    for(const entry of this.entries)entry.cost=priceOf(entry.kind,this.run.stage,this.opened,entry.uses??0);
   }
   private readonly rift:TransformNode;private riftLight:PointLight;private time=0;
   readonly drops:LootDrops;
@@ -127,9 +102,10 @@ export class RunInteractables {
   private readonly scene:Scene;
   constructor(scene:Scene,private readonly player:PlayerMotor,private readonly run:RunProgression,private readonly events:EventBus<GameEvents>,private readonly rng:RandomStream,private readonly world:CollisionWorld){
     this.scene=scene;this.drops=new LootDrops(scene,world);
-    for(const [index,x,z,y,kind] of [[0,-5,-13,0,'supply'],[1,5,1,0,'shop'],[2,-9,29,5,'altar'],[3,7,29,5,'supply'],[4,-45,3,0,'supply'],[5,44,10,2,'shop']] as const){this.entries.push({id:`${kind}-${index}`,name:nameOf(kind),kind,x,z,y,cost:BASE_COST[kind],used:false});}
+    // A lista é a do `ChestCatalog` — a MESMA que o servidor valida em `ChestEconomy`.
+    for(const spec of HOME_CHESTS)this.entries.push({...spec,name:nameOf(spec.kind),cost:BASE_COST[spec.kind],used:false});
     this.homeCount=this.entries.length;
-    for(const site of [...CITY_CHESTS,...FRONTIER_CHESTS,...HIGHLAND_CHESTS,...ROOTWOOD_CHESTS,...BARN_CHESTS])this.entries.push({...site,name:nameOf(site.kind),cost:BASE_COST[site.kind],used:false});
+    for(const spec of SITE_CHESTS)this.entries.push({...spec,name:nameOf(spec.kind),cost:BASE_COST[spec.kind],used:false});
     this.extraColliders.push(...cityChestColliders(),...frontierChestColliders(),...highlandChestColliders(),...rootwoodChestColliders(),...barnChestColliders());world.movingBoxes.push(...this.extraColliders);
     this.rift=new TransformNode('stage-wormhole',scene);this.rift.position.set(0,7.6,33);const material=new StandardMaterial('rift-energy',scene);material.emissiveColor=new Color3(.34,.07,1);material.disableLighting=true;
     for(let i=0;i<4;i++){const ring=CreateTorus('wormhole-ring',{diameter:4+i*.13,thickness:.065,tessellation:80},scene);ring.parent=this.rift;ring.rotation.x=Math.PI/2+i*.08;ring.material=material;ring.isPickable=false;}
@@ -359,12 +335,54 @@ export class RunInteractables {
   /** Fase nova (ou tentativa nova): tudo fechado e o preço progressivo de volta ao primeiro baú. */
   reset():void {this.rewardRetry=0;this.contracts.reset();this.drops.clear();this.nearest=undefined;this.messageTime=0;this.opened=0;for(const e of this.entries){e.used=false;e.opening=0;delete e.loot;e.ejected=false;e.uses=0;this.lid(e,0);}this.reprice();this.rift.setEnabled(false);}
   get atRift():boolean{return Math.hypot(this.player.position.x,this.player.position.z-33)<3&&this.player.position.y>3;}
+  /**
+   * Liga a COMPRA AUTORITATIVA (contrato §21.3).
+   *
+   * Com um canal ligado, `buy()` deixa de ser uma decisão e vira uma TENTATIVA: nenhum crédito é
+   * debitado aqui, nenhum item é rolado aqui, e nem sequer se compara saldo com custo — o saldo que
+   * esta tela conhece é espelho, e espelho não autoriza ação (§21.6). O servidor responde, e a
+   * resposta chega por `adoptPurchase`.
+   */
+  attachAuthority(channel:PurchaseChannel|undefined):void {this.authority=channel;}
+  private authority:PurchaseChannel|undefined;
+  /** Sequência local só para identificar o pedido; não é autoridade nenhuma. */
+  private requests=0;
+  /** Pedidos enviados e ainda sem resposta. Diagnóstico e prova de "exatamente uma compra". */
+  sentRequests=0;
+
+  /**
+   * O RESULTADO AUTORITATIVO DE UMA COMPRA, apresentado.
+   *
+   * Só apresentação: abre a tampa, ejeta o item que o SERVIDOR sorteou e escreve a mensagem. Nada
+   * aqui recalcula preço, saldo ou sorteio — se recalculasse, seria a segunda economia.
+   */
+  adoptPurchase(result:{interactableId:string;ok:boolean;item?:ItemDefinition;empty?:boolean;reason?:string}):void {
+    const entry=this.entries.find(e=>e.id===result.interactableId);
+    if(!entry)return;
+    if(!result.ok){
+      this.message=result.reason==='credits'?'Créditos insuficientes':'Compra recusada';
+      this.messageTime=2;return;
+    }
+    if(entry.kind==='altar'){
+      if(result.item){this.drops.eject(result.item,{x:entry.x,y:entry.y,z:entry.z},this.player.position);this.message='O altar concedeu um item';}
+      else this.message='O altar consumiu a oferta';
+    } else {
+      entry.used=true;entry.opening=0;entry.ejected=false;
+      if(result.item)entry.loot=result.item;else delete entry.loot;
+      this.message='Baú aberto · recolha o item quando cair';
+    }
+    entry.uses=(entry.uses??0)+1;
+    this.messageTime=3;
+  }
+
   buy(_option=0):boolean {
     const collected=this.drops.take(this.player.position);
     if(collected){this.run.addItem(collected.id);this.message=collected.name+' recolhido';this.messageTime=3;return true;}
     const entry=this.nearest;
     if(!entry||entry.used)return false;
     const range=this.reach(entry);if(range.planar>=3||range.height>=2)return false;
+    // COM AUTORIDADE: só a tentativa sai daqui. Sem comparar saldo, sem debitar, sem rolar item.
+    if(this.authority){this.authority.request(entry.id,`buy:${++this.requests}`);this.sentRequests++;return true;}
     if(this.run.credits<entry.cost){this.message='Créditos insuficientes';this.messageTime=2;return false;}
     this.run.credits-=entry.cost;
     // Cada compra encarece as seguintes: é o que transforma "abra todos" numa escolha.

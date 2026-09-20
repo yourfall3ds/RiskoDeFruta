@@ -8,6 +8,7 @@ import {DeathTimeline} from '../player/DeathTimeline';
 import {attemptSummary} from '../run/AttemptSummary';
 import {reviewSkyBlend} from '../rendering/SeamlessSky';
 import {NetworkSession} from '../net/NetworkSession';
+import {EconomyMirror} from '../run/RunEconomy';
 import {IntroSequence,type IntroCue} from '../player/IntroSequence';
 import {DropshipDeck} from '../world/DropshipDeck';
 import {SaucerRaid} from '../run/SaucerRaid';
@@ -370,6 +371,14 @@ export class PlayerScene implements SceneModule {
   private wildlife:FarmWildlife|undefined;
   /** Sessão online (`?online=1`): predição local, reconciliação e remotos. `undefined` no single-player. */
   private net:NetworkSession|undefined;
+  /**
+   * O ESPELHO DA ECONOMIA (contrato §21.2).
+   *
+   * Objeto separado do `RunProgression` de propósito: adotar o saldo dentro dele faria a carteira
+   * replicada virar pré-condição e depois estado mutável — a correção proibida do §21.1. Aqui ele
+   * só é escrito por `adopt` e só é lido pelo HUD.
+   */
+  readonly economy=new EconomyMirror();
 
   private charging=false;
 
@@ -568,6 +577,12 @@ export class PlayerScene implements SceneModule {
     this.net=this.radial?undefined:NetworkSession.fromLocation(this.scene,collision,shadows,this.events,seed);
     // Sem sala o menu não muda de comportamento em nada: o PRONTO continua largando na hora.
     if(this.net)this.hud.attachLobby(this.net.lobby);
+    // ECONOMIA AUTORITATIVA (contrato §21). Com sala, a compra vira pedido e o veredito volta
+    // replicado; o espelho `economy` é só o que a tela EXIBE, e nenhuma regra daqui o lê.
+    if(this.net){
+      this.interactables?.attachAuthority(this.net.purchases);
+      this.net.onPurchaseResolved(result=>this.interactables?.adoptPurchase(result));
+    }
     if(this.radial&&new URLSearchParams(location.search).get('online'))
       this.networkNotice='Co-op ainda não roda no planeta (a réplica de rede é do motor plano) · use a fazenda';
 
@@ -839,7 +854,13 @@ export class PlayerScene implements SceneModule {
     if(!this.unarmed.armed&&input.fire&&canAct)this.unarmed.strike();
     const meleeWasActive=this.unarmed.active;
     this.unarmed.update(dt);
-    if(this.unarmed.active&&!meleeWasActive)this.audio.meleeSwing();
+    if(this.unarmed.active&&!meleeWasActive){
+      this.audio.meleeSwing();
+      // A JANELA ATIVA ABRIU: a tentativa sai UMA vez por etapa do combo. O cliente não confere se
+      // o alvo está vivo, nem se ele próprio está — o servidor responde inválido (§20.22). Offline
+      // `net` não existe e `resolveMelee` abaixo continua sendo a decisão, como sempre foi.
+      this.net?.melee(`${this.unarmed.strikes}`);
+    }
     if(this.unarmed.active)this.resolveMelee();
     // As duas armas partilham as mesmas condições de tiro; o que muda é QUAL delas está na mão.
     // As habilidades de MP continuam sendo das pistolas: enquanto uma está no ar, a PRISM não
@@ -883,6 +904,12 @@ export class PlayerScene implements SceneModule {
       // A fenda fixa do celeiro só continua existindo nos modos legados (`?mode=horde`/`classic`).
       // Na expedição o estágio termina no PRÓPRIO cálice, onde quer que ele tenha caído.
       const riftReady=expedition?false:this.enemies.bossDeadTime>=5;
+      // A economia autoritativa é ADOTADA (copiada) e os baús consumidos são apresentados abertos.
+      // Nenhuma regra abaixo lê estes números — eles vão para a tela e param aí.
+      if(this.net){
+        this.economy.adopt(this.net.economy());
+        for(const id of this.net.usedChests()){const e=this.interactables!.entries.find(entry=>entry.id===id);if(e&&!e.used&&e.kind!=='altar')e.used=true;}
+      }
       this.interactables!.update(dt,riftReady);
       if(input.interact!==undefined){
         if(riftReady&&this.interactables!.atRift)this.advanceLegacyStage();
@@ -1100,7 +1127,7 @@ export class PlayerScene implements SceneModule {
       }
 
       // Distâncias e alcance de interação usam o corpo do jogador; a câmera só orienta a seta.
-      this.runHUD!.update(this.progression,this.enemies,this.interactables!,this.camera.camera,{objectives:this.objectives,resonance:this.resonance,mp:this.mp,player:this.player.position,weather:this.weather,journey:this.journey});
+      this.runHUD!.update(this.progression,this.enemies,this.interactables!,this.camera.camera,{objectives:this.objectives,resonance:this.resonance,mp:this.mp,player:this.player.position,weather:this.weather,journey:this.journey},this.economy);
       if(this.journey.active){
         this.hud.setObjective(`${this.journey.label} · ${this.journey.detail}`);
       } else if(this.objectives.planned){

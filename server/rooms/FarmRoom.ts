@@ -81,6 +81,14 @@ export class FarmRoom extends Room<{ state: FarmState; input: NetInput; metadata
     // sem dono enquanto ninguém mexe nos ajustes.
     if (!this.state.hostId) this.state.hostId = client.sessionId;
     this.state.playerCount = this.state.players.size;
+    /**
+     * UMA linha por entrada, com o `roomId`.
+     *
+     * A sala é registrada com `filterBy(['seed'])`, e quando dois clientes caem em salas DIFERENTES
+     * o sintoma é "ninguém vê ninguém" — indistinguível de replicação, presença ou join quebrados.
+     * A primeira checagem de qualquer playtest é: os quatro no mesmo `roomId`.
+     */
+    console.log(`[farm] ${this.roomId} · entrou ${client.sessionId} como entityId=${snapshot.entityId} · ${this.state.players.size}/${MAX_PLAYERS} na sala · seed=${this.sim.seed}`);
     client.send('welcome', { seed: this.sim.seed, tick: this.sim.loop.tick, spawn: { x: snapshot.x, y: snapshot.y, z: snapshot.z }, entityId: snapshot.entityId, hostId: this.state.hostId });
     this.publish();
     // Uma entrada quebra a unanimidade que existia: quem chegou não está pronto.
@@ -94,6 +102,7 @@ export class FarmRoom extends Room<{ state: FarmState; input: NetInput; metadata
     this.state.playerCount = this.state.players.size;
     // Queda do anfitrião promove o próximo do mapa (ordem de entrada), não deixa a sala sem dono.
     if (this.state.hostId === client.sessionId) this.state.hostId = [...this.state.players.keys()][0] ?? '';
+    console.log(`[farm] ${this.roomId} · saiu ${client.sessionId} · ${this.state.players.size}/${MAX_PLAYERS} na sala`);
     this.publish();
     /**
      * Uma queda CANCELA a largada mesmo que os restantes continuem unânimes.
@@ -126,6 +135,29 @@ export class FarmRoom extends Room<{ state: FarmState; input: NetInput; metadata
       if (!player || this.state.phase !== PHASE.lobby) return;
       player.ready = message?.ready !== false;
       this.evaluateStart();
+    });
+
+    /**
+     * COMPRA DE BAÚ — protocolo, não checagem local (contrato §21.3).
+     *
+     * A sala não valida nada aqui: ela repassa a tentativa e devolve o veredito. Quem decide é
+     * `FarmSimulation.requestPurchase`, que é onde a carteira autoritativa mora.
+     */
+    this.onMessage('buyChest', (client: Client, message: { interactableId?: unknown; requestId?: unknown }) => {
+      const result = this.sim.requestPurchase(client.sessionId, message ?? {});
+      // O veredito volta para QUEM pediu; o que os outros precisam ver (saldo, baú aberto) viaja
+      // pelo schema, não por mensagem — evento é efêmero, estado é replicado (§18.10).
+      if (result) client.send('purchaseResolved', result);
+    });
+
+    /**
+     * MELEE — a intenção chega, o servidor resolve (contrato §20.22).
+     *
+     * Um pedido de quem já morreu, ou apontado para o vazio, é recusado de graça: o cliente nunca
+     * precisou conferir o próprio espelho antes de mandar.
+     */
+    this.onMessage('melee', (client: Client, message: { requestId?: unknown }) => {
+      this.sim.requestMelee(client.sessionId, message ?? {});
     });
 
     this.onMessage('setSetting', (client: Client, message: { key?: unknown; value?: unknown }) => {
@@ -191,6 +223,10 @@ export class FarmRoom extends Room<{ state: FarmState; input: NetInput; metadata
     s.tick = snap.tick; s.time = snap.time; s.stage = snap.stage; s.ferryTime = snap.ferryTime;
     const p = s.progression;
     p.credits = snap.credits; p.xp = snap.xp; p.level = snap.level; p.totalKills = snap.totalKills;
+    p.purchases = snap.purchases;
+    // Cópia, e só cópia: a lista cresce no servidor quando uma compra é resolvida, e aqui ela só
+    // atravessa para a rede. Nenhuma regra nasce de ler este array.
+    if (s.usedChests.length !== snap.usedChests.length) { s.usedChests.clear(); for (const id of snap.usedChests) s.usedChests.push(id); }
     for (const player of snap.players) {
       const t = s.players.get(player.id);
       if (!t) continue;

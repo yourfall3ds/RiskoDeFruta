@@ -5,7 +5,8 @@ import type { EventBus } from '../core/EventBus';
 import type { GameEvents } from '../core/contracts';
 import type { PlayerMotor } from '../player/PlayerMotor';
 import type { InputFrame } from '../input/InputFrame';
-import { NetworkClient } from './NetworkClient';
+import { NetworkClient, type PurchaseVerdict } from './NetworkClient';
+import type { EconomyRow, PurchaseChannel } from '../run/RunEconomy';
 import { RemotePlayers } from './RemotePlayers';
 import { Reconciliation, type Pose } from './Reconciliation';
 import type { LobbyLink } from './LobbyLink';
@@ -35,7 +36,11 @@ export class NetworkSession {
   constructor(scene: Scene, collision: CollisionWorld, shadows: ShadowGenerator, events: EventBus<GameEvents>, seed: string, url: string) {
     this.client = new NetworkClient(url, seed);
     this.remotes = new RemotePlayers(scene, collision, shadows, events);
-    void this.client.connect().then(() => { this.status = 'online'; }).catch(() => { this.status = 'falha: ' + this.client.error; });
+    void this.client.connect().then(() => {
+      this.status = 'online';
+      // A assinatura só pode existir depois da sala; até lá os vereditos ainda não têm por onde vir.
+      this.client.onPurchaseResolved(result => { for (const listener of this.purchaseListeners) listener(result); });
+    }).catch(() => { this.status = 'falha: ' + this.client.error; });
   }
 
   get online(): boolean { return this.client.connected; }
@@ -83,6 +88,32 @@ export class NetworkSession {
   enemies(): readonly import('../game/EnemySwarm').ReplicatedEnemy[] | undefined {
     return this.online ? this.client.enemies() : undefined;
   }
+
+  /**
+   * A economia autoritativa deste tique, ou `undefined` enquanto a sala não está de pé.
+   *
+   * Mesmo contrato de `enemies()`: `undefined` é "ainda não há servidor" e não autoriza a tela a
+   * exibir zero. Quem consome adota a última linha conhecida.
+   */
+  economy(): EconomyRow | undefined { return this.online ? this.client.economy() : undefined; }
+
+  /** Os baús que o servidor marcou consumidos. Apresentação pura. */
+  usedChests(): string[] { return this.online ? this.client.usedChests() : []; }
+
+  /**
+   * O canal de compra (contrato §21.3). Existe só quando há servidor: offline a decisão continua
+   * sendo local e legítima, porque ali não há duas telas para divergir.
+   */
+  get purchases(): PurchaseChannel | undefined {
+    return this.online ? { request: (id, requestId) => this.client.buyChest(id, requestId) } : undefined;
+  }
+
+  private readonly purchaseListeners = new Set<(result: PurchaseVerdict) => void>();
+  /** Quem quiser APRESENTAR o veredito de uma compra se inscreve aqui. */
+  onPurchaseResolved(listener: (result: PurchaseVerdict) => void): void { this.purchaseListeners.add(listener); }
+
+  /** Manda o soco. Sem conferir espelho nenhum antes — a recusa é do servidor (§20.22). */
+  melee(requestId: string): void { if (this.online) this.client.melee(requestId); }
 
   /** Por frame de render: interpola e apresenta os remotos. */
   render(dt: number): void {

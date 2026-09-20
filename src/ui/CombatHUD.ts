@@ -1,4 +1,4 @@
-import {ItemPickupNotice} from './ItemPickupNotice';
+﻿import {ItemPickupNotice} from './ItemPickupNotice';
 import {Vector3,Matrix} from '@babylonjs/core/Maths/math.vector';
 import type {Camera} from '@babylonjs/core/Cameras/camera';
 import type {EnemySwarm} from '../game/EnemySwarm';
@@ -14,6 +14,7 @@ import type {WeatherCycle} from '../world/WeatherCycle';
 import {radialSurfaceOf,type EnemySurface} from '../enemies/EnemySpace';
 import type {Vec3} from '../core/contracts';
 import {objectiveBearing} from './ObjectiveBearing';
+import type {EconomyMirror} from '../run/RunEconomy';
 
 const COMPASS=['↑','↗','→','↘','↓','↙','←','↖'] as const;
 const bearingArrow=(from:{x:number;z:number},to:{x:number;z:number},heading:number)=>COMPASS[Math.round(((Math.atan2(to.x-from.x,to.z-from.z)*180/Math.PI-heading+720)%360)/45)%8]!;
@@ -167,7 +168,15 @@ export class RunHUD {
   * `camera` orienta apenas a seta da bússola. Toda distância e todo alcance de interação usam
   * `player`, senão o marco “acende” pela posição da câmera, que fica metros atrás do corpo.
   */
- update(run:RunProgression,swarm:EnemySwarm,interact:RunInteractables,camera:Camera,expedition?:{objectives:ExpeditionObjectives;resonance:HarvestResonance;mp:MPCharge;player:{x:number;y:number;z:number};weather?:WeatherCycle;journey?:StageJourneyView}):void {
+ update(run:RunProgression,swarm:EnemySwarm,interact:RunInteractables,camera:Camera,expedition?:{objectives:ExpeditionObjectives;resonance:HarvestResonance;mp:MPCharge;player:{x:number;y:number;z:number};weather?:WeatherCycle;journey?:StageJourneyView},economy?:EconomyMirror):void {
+  /**
+   * O SALDO EXIBIDO (contrato §21.2).
+   *
+   * Com sala, quem manda é o espelho replicado: a carteira do `RunProgression` local deixou de
+   * receber recompensa quando a horda migrou, e mostrar aquele zero seria mentir para o jogador.
+   * Isto é APRESENTAÇÃO — o número aparece e não decide nada; quem decide a compra é o servidor.
+   */
+  const credits=economy?.adopted?economy.credits:run.credits;
   if(run.time>=this.lastUpdate&&run.time-this.lastUpdate<UPDATE_PERIOD)return;this.lastUpdate=run.time;
   // Sem fiação nova: quem tem a horda já tem o referencial dela. Na fazenda isto é `undefined` e
   // todos os marcadores seguem pelo caminho plano literal.
@@ -176,7 +185,7 @@ export class RunHUD {
   const f=camera.getForwardRay().direction,heading=(Math.atan2(f.x,f.z)*180/Math.PI+360)%360,seconds=Math.floor(run.time);
   this.objectiveForward.copyFrom(f);
   this.bearing.set(`${['N','NE','L','SE','S','SO','O','NO'][Math.round(heading/45)%8]} · ${Math.round(heading)}°`);
-  this.clockPanel.set(`<b>◷ ${String(Math.floor(seconds/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}</b><span>ESTÁGIO ${run.stage} · ${expedition?.objectives.planned?(expedition.objectives.phase==='extract'?'EMBARQUE LIBERADO':expedition.objectives.phase==='boss'?'HORDA FINAL':['NORMAL','CRESCENTE','DIFÍCIL','CAÓTICA','EXTREMA'][Math.min(4,swarm.director.state)]):['NORMAL','CRESCENTE','DIFÍCIL','CAÓTICA','PRAGA ALFA','FENDA'][swarm.director.state]}</span><strong>◈ ${run.credits} CRÉDITOS</strong><em class="run-weather">${expedition?.weather?.label??''}</em>`);
+  this.clockPanel.set(`<b>◷ ${String(Math.floor(seconds/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}</b><span>ESTÁGIO ${run.stage} · ${expedition?.objectives.planned?(expedition.objectives.phase==='extract'?'EMBARQUE LIBERADO':expedition.objectives.phase==='boss'?'HORDA FINAL':['NORMAL','CRESCENTE','DIFÍCIL','CAÓTICA','EXTREMA'][Math.min(4,swarm.director.state)]):['NORMAL','CRESCENTE','DIFÍCIL','CAÓTICA','PRAGA ALFA','FENDA'][swarm.director.state]}</span><strong>◈ ${credits} CRÉDITOS</strong><em class="run-weather">${expedition?.weather?.label??''}</em>`);
   this.renderExpedition(expedition,heading);
   this.mission.set(expedition?.journey?.active?`${expedition.journey.label} · ${expedition.journey.destination}`
    :expedition?.objectives.planned?this.expeditionMission(expedition.objectives,expedition.player,heading):swarm.director.hordeMode?(swarm.director.intermission>0?'PRÓXIMA HORDA EM '+Math.ceil(swarm.director.intermission)+' s':swarm.director.wave%5===0?'ELIMINE O CHEFE E SUA HORDA':'SOBREVIVA À HORDA '+swarm.director.wave):swarm.bossDeadTime>=5?'ENTRE NA FENDA · CELEIRO':swarm.bossDeadTime>=0?'PRAGA ALFA DERROTADA':swarm.boss?'ELIMINE A PRAGA ALFA':['LOCALIZE A PRAGA ALFA','CONTENHA A INFESTAÇÃO','SOBREVIVA AO SURTO','RESISTA À COLHEITA FINAL','A PRAGA ALFA SE APROXIMA'][swarm.director.state]??'');
@@ -194,7 +203,7 @@ export class RunHUD {
   const rewardHint=reward?`<span class="wave-reward-guide"><b>◈ RECOMPENSA DA HORDA</b><br>${reward.drop.item.name}<br><small>${reward.drop.waveField} · ${COMPASS[Math.round(((Math.atan2(reward.drop.landing.x-camera.position.x,reward.drop.landing.z-camera.position.z)*180/Math.PI-heading+720)%360)/45)%8]} ${Math.round(reward.distance)} m · [E] recolher</small></span>`:'';
   const contract=interact.districtContract;
   const bonus=contract?`<small>${contract.contract.name}: ${contract.opened}/${contract.required} baús → item bônus.</small>`:'';
-  this.contract.set('<small>FIQUE MAIS FORTE</small><b>Abata → ganhe créditos → abra baús</b>'+(nearChest?`<span>${lootArrow} BAÚ · ${Math.round(nearChest.d)} m · ${nearChest.entry.cost} créditos</span><small>${run.credits>=nearChest.entry.cost?'Você pode abrir este baú. Aproxime-se e aperte [E].':`Faltam ${nearChest.entry.cost-run.credits} créditos: derrote mais frutas.`} Depois, [E] recolhe o item.</small>`:'<span>Baús esgotados: procure o cálice para avançar.</span>')+'<small>Explore as pontes → encontre e ative o cálice → encha de suco e derrote o chefe → [E] embarque.</small>'+bonus+rewardHint);
+  this.contract.set('<small>FIQUE MAIS FORTE</small><b>Abata → ganhe créditos → abra baús</b>'+(nearChest?`<span>${lootArrow} BAÚ · ${Math.round(nearChest.d)} m · ${nearChest.entry.cost} créditos</span><small>${credits>=nearChest.entry.cost?'Você pode abrir este baú. Aproxime-se e aperte [E].':`Faltam ${nearChest.entry.cost-credits} créditos: derrote mais frutas.`} Depois, [E] recolhe o item.</small>`:'<span>Baús esgotados: procure o cálice para avançar.</span>')+'<small>Explore as pontes → encontre e ative o cálice → encha de suco e derrote o chefe → [E] embarque.</small>'+bonus+rewardHint);
 
   text(this.xpText,`NV. ${run.level} · ${run.xp} / ${run.nextLevelXP} XP`);css(this.xpFill,'width',pct(run.xp/run.nextLevelXP*100));
   this.hostiles.set(`<span>ONDA ${swarm.director.hordeMode?swarm.director.wave:Math.floor(swarm.director.time/36)+1}</span><b>${swarm.count} / ${swarm.populationCap}</b><small>${swarm.kills} abatidos · ${swarm.director.hordeMode?(swarm.director.intermission>0?(swarm.director.completedWaves>0?'RECOLHA O ITEM · PREPARE-SE':'PREPARE-SE'):Math.max(0,swarm.director.waveQuota-swarm.director.spawned)+' por nascer'):(swarm.director.time%36>27?'REAGRUPE-SE':'HORDA ATIVA')}</small>`);
