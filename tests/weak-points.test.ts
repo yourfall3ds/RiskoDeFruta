@@ -142,8 +142,26 @@ describe('geometria pura do ponto fraco', () => {
     expect(weakPointEligible(7, 0, ['bullet'])).toBe(false);                // dano de inimigo
   });
 
-  it('cada espécie do catálogo tem zona declarada e o tomate é pelas ASAS', () => {
+  it('cada espécie da fazenda tem zona declarada e o tomate é pelas ASAS', () => {
+    /**
+     * As seis espécies trazidas pelos discos voadores estão de fora, explicitamente.
+     *
+     * Cada zona acima nasceu de uma MEDIÇÃO do rig daquele modelo: qual osso domina quantos
+     * vértices, onde a silhueta se destaca, onde a asa deixa de encostar no tronco. Os alienígenas
+     * são rigs de terceiros com 250 a 744 ossos e convenções de nome incompatíveis (`DEF-HEAD_08`,
+     * `MCH-WGT-hips`), então declarar `bones: ['Head']` para eles seria chute — casaria com nada,
+     * ou com um osso de mecanismo cuja posição não descreve o corpo.
+     *
+     * A lista é escrita à mão, e não derivada de `SAUCER_SPECIES`, porque o valor dela está em
+     * doer: uma espécie nova da fazenda continua obrigada a ter zona, e dar ponto fraco aos
+     * alienígenas é trabalho de medição pendente, com render na mão.
+     */
+    const SEM_ZONA_MEDIDA:readonly EnemyKind[]=['grey','invader','demon','predator','strutter','hound'];
     for (const kind of Object.keys(ENEMIES) as EnemyKind[]) {
+      if (SEM_ZONA_MEDIDA.includes(kind)) {
+        expect(WEAK_POINTS[kind], `${kind} não pode ter zona chutada`).toBeUndefined();
+        continue;
+      }
       expect(WEAK_POINTS[kind], kind).toBeDefined();
       expect(WEAK_POINTS[kind]!.bones.length, kind).toBeGreaterThan(0);
       expect(WEAK_POINTS[kind]!.radius, kind).toBeGreaterThan(0);

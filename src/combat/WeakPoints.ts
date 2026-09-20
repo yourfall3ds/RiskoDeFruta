@@ -85,6 +85,26 @@ export const WEAK_POINTS: Readonly<Record<EnemyKind, WeakPointZone | undefined>>
     id: 'boss_crown', label: 'coroa da Praga Alfa',
     bones: ['Bone_006', 'Bone_007', 'Bone_008', 'Bone_009'], radius: 0.19,
   },
+  /**
+   * As seis espécies trazidas pelos discos voadores NÃO têm zona de ponto fraco.
+   *
+   * Não é esquecimento nem preguiça: cada zona acima nasceu de uma medição do rig específico
+   * daquele modelo — qual osso domina quantos vértices, onde a silhueta se destaca, onde a asa
+   * deixa de encostar no tronco. Os alienígenas são rigs de terceiros com 250 a 744 ossos e
+   * convenções de nome completamente diferentes (`DEF-HEAD_08`, `MCH-WGT-hips`), então inventar
+   * `bones: ['Head']` aqui seria chute: ou não casaria com osso nenhum, ou casaria com um osso de
+   * mecanismo cuja posição não descreve o corpo.
+   *
+   * `undefined` é o valor honesto e já tratado por `resolveWeakPoint`: a espécie simplesmente não
+   * disputa ponto fraco, e o dano nela é o normal. Dar zona a elas é trabalho de medição, com
+   * render na mão, igual ao que foi feito para as seis originais.
+   */
+  grey: undefined,
+  invader: undefined,
+  demon: undefined,
+  predator: undefined,
+  strutter: undefined,
+  hound: undefined,
 };
 
 export interface WeakPointSphere {
