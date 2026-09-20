@@ -14,7 +14,8 @@
     "test": "vitest run",
     "server": "tsx --tsconfig server/tsconfig.json server/index.ts",
     "server:typecheck": "tsc --noEmit -p server/tsconfig.json",
-    "assets:audit": "node scripts/audit-assets.mjs"
+    "assets:audit": "node scripts/audit-assets.mjs",
+    "audio:audit": "node scripts/audit-audio-candidates.mjs"
   },
   "dependencies": {
     "@babylonjs/core": "9.25.0",
