@@ -29,3 +29,4 @@ tools/asset-gen/vendor/
 tools/partcrafter/.venv/
 tools/partcrafter/results/
 public/pc-preview/
+tools/partcrafter/
