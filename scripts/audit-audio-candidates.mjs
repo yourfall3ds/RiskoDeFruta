@@ -94,14 +94,29 @@ function fft(re, im) {
 }
 
 /**
- * Impressão digital: energia em 24 bandas logarítmicas, por quadro, médias em 3 terços do som.
+ * Impressão digital: energia em bandas logarítmicas ao longo do tempo, mais a TRAJETÓRIA do brilho.
  *
- * Três terços e não a média inteira porque dois sons podem ter o MESMO espectro médio e envelopes
- * completamente diferentes — e é o envelope que o ouvido usa para dizer "de novo esse". O vetor
- * final tem 72 posições e é normalizado, então a comparação é de forma, não de volume.
+ * Os segmentos temporais existem porque dois sons podem ter o mesmo espectro médio e envelopes
+ * completamente diferentes — e é o envelope que o ouvido usa para dizer "de novo esse".
+ *
+ * O centroide por segmento foi acrescentado depois de uma falha MEDIDA: com três segmentos e só as
+ * bandas, um assobio e a sua INVERSÃO EXATA NO TEMPO mediam 0,063 de distância — abaixo do limiar,
+ * ou seja, o juiz dizia que subir e descer eram o mesmo som. Para varredura (arremesso, passagem,
+ * carga) a direção é a identidade inteira do efeito, e energia média por banda não a enxerga.
+ *
+ * O centroide é o "brilho" do quadro: subindo ao longo do tempo é um apito que sobe, descendo é um
+ * que desce. Ele entra com peso alto de propósito — é a única parte do vetor que distingue os dois.
  */
+const SEGMENTOS = 6;
+/** Peso do centroide contra as bandas. Alto porque é ele que carrega a direção da varredura. */
+const PESO_CENTROIDE = 2.5;
+/** Peso da INCLINACAO do brilho. Dominante de proposito: e a assinatura da direcao. */
+const PESO_INCLINACAO = 14;
+
 function fingerprint(samples, rate) {
-  const size = 1024, hop = 512, bands = 24, thirds = [[], [], []];
+  const size = 1024, hop = 512, bands = 24;
+  const thirds = Array.from({length: SEGMENTOS}, () => []);
+  const centroides = Array.from({length: SEGMENTOS}, () => []);
   const re = new Float64Array(size), im = new Float64Array(size);
   const edges = [];
   for (let b = 0; b <= bands; b++) edges.push(Math.round(20 * Math.pow(rate / 2 / 20, b / bands) / (rate / size)));
@@ -115,13 +130,25 @@ function fingerprint(samples, rate) {
       for (let k = lo; k < hi; k++) sum += re[k] * re[k] + im[k] * im[k];
       frame[b] = Math.log10(1 + sum / (hi - lo));
     }
-    const at = Math.min(2, Math.floor(start / Math.max(1, samples.length - size + 1) * 3));
+    // Centroide: media das bandas ponderada pela energia. E o 'brilho' do quadro.
+    let soma = 0, peso = 0;
+    for (let b = 0; b < bands; b++) {soma += frame[b] * b; peso += frame[b];}
+    const at = Math.min(SEGMENTOS - 1, Math.floor(start / Math.max(1, samples.length - size + 1) * SEGMENTOS));
     thirds[at].push(frame);
+    centroides[at].push(peso > 1e-9 ? soma / peso / (bands - 1) : 0);
   }
   const vector = [];
   for (const third of thirds) {
     for (let b = 0; b < bands; b++) vector.push(third.length ? third.reduce((s, f) => s + f[b], 0) / third.length : 0);
   }
+  // A INCLINACAO do brilho: um numero so, que TROCA DE SINAL quando o tempo inverte. E o que
+  // separa subir de descer com forca — os valores por segmento sozinhos ficam abafados pelas 144
+  // dimensoes de banda, por mais peso que levem.
+  const medio = centroides.map(seg => seg.length ? seg.reduce((a, b) => a + b, 0) / seg.length : 0);
+  vector.push((medio[medio.length - 1] - medio[0]) * PESO_INCLINACAO);
+  // A trajetoria do brilho, um numero por segmento: e o que enxerga subir contra descer.
+  for (const seg of centroides)
+    vector.push((seg.length ? seg.reduce((a, b) => a + b, 0) / seg.length : 0) * PESO_CENTROIDE);
   const norm = Math.hypot(...vector) || 1;
   return vector.map(v => v / norm);
 }
