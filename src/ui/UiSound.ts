@@ -31,7 +31,35 @@
 
 type Voz='hover'|'click'|'pick'|'back'|'ready';
 
-/** Receita de cada voz: frequências, duração e timbre. */
+/**
+ * De onde vem cada voz, no FOLEY REAL do jogo.
+ *
+ * A primeira versão sintetizava tudo com osciladores. Soava a Atari — e com razão: onda quadrada
+ * com envelope é literalmente a técnica dos consoles de 8 bits. Som de interface de jogo moderno
+ * (Risk of Rain 2, Fortnite) não é bipe: é FOLEY curto, mecânico, com corpo e transiente — um
+ * estalo de metal, uma trava de ferrolho, um clique seco.
+ *
+ * O jogo já tem essa biblioteca: `public/audio/foley-manifest.json`, com 60+ grupos gravados. A
+ * interface passa a beber dela em vez de inventar som. Zero download novo (os arquivos já são
+ * baixados pelo jogo), e o menu passa a soar como o MESMO jogo que está por trás dele.
+ *
+ * A escolha de cada grupo é por TRANSIENTE, não por nome:
+ * - `casing` (cápsula batendo no chão) é o tinido metálico curto — o "tic" do passar de mouse.
+ * - `reload` (ferrolho) é o clique mecânico com corpo — o clique de verdade.
+ * - `melee-swing` é o corte de ar — o voltar.
+ * - `charge` tem a subida — a confirmação.
+ * `rate` afina cada um para cima, encurtando e deixando mais seco: foley de arma tocado a 1,5×
+ * vira exatamente o "tique" curto de interface.
+ */
+const FOLEY:Readonly<Record<Voz,{grupo:string;ganho:number;rate:number}>>={
+  hover: {grupo:'casing',      ganho:.30, rate:1.55},
+  click: {grupo:'reload',      ganho:.55, rate:1.45},
+  pick:  {grupo:'reload',      ganho:.70, rate:1.15},
+  back:  {grupo:'melee-swing', ganho:.45, rate:1.60},
+  ready: {grupo:'charge',      ganho:.65, rate:1.30},
+};
+
+/** Receita da síntese: só entra se o foley não carregar (arquivo ausente, rede, formato). */
 const VOZES:Readonly<Record<Voz,{de:number;para:number;dur:number;tipo:OscillatorType;ganho:number;brilho:number}>>={
   /** Passar o mouse: curto, agudo, quase um tique. Tem de ser quase subliminar. */
   hover: {de:1180,para:1460,dur:.055,tipo:'triangle',ganho:.16,brilho:2600},
@@ -116,10 +144,60 @@ export class UiSound {
    * O envelope usa `exponentialRampToValueAtTime` porque rampa LINEAR até zero produz um clique
    * audível na ponta — o próprio corte vira um estalo. Por isso o alvo é 0,0001 e não 0.
    */
+  /**
+   * Amostras decodificadas, por voz. Carregadas UMA vez, no primeiro gesto do usuário — nunca
+   * antes, porque decodificar áudio antes de existir contexto é trabalho jogado fora.
+   */
+  private readonly amostras=new Map<Voz,AudioBuffer[]>();
+  private carregando=false;
+  private async carregarFoley():Promise<void> {
+    if(this.carregando||!this.contexto)return;
+    this.carregando=true;
+    try{
+      const resposta=await fetch('/audio/foley-manifest.json');
+      if(!resposta.ok)return;
+      const manifesto=await resposta.json() as Record<string,string[]>;
+      for(const [voz,receita] of Object.entries(FOLEY) as [Voz,typeof FOLEY[Voz]][]){
+        const arquivos=manifesto[receita.grupo];
+        if(!arquivos?.length)continue;
+        // Até três variações por voz: o suficiente para não repetir, sem custo de memória.
+        const escolhidos=arquivos.slice(0,3);
+        const buffers:AudioBuffer[]=[];
+        for(const caminho of escolhidos){
+          try{
+            const bruto=await fetch(caminho);
+            if(!bruto.ok)continue;
+            buffers.push(await this.contexto.decodeAudioData(await bruto.arrayBuffer()));
+          }catch{/* um arquivo ausente não pode derrubar o conjunto */}
+        }
+        if(buffers.length)this.amostras.set(voz,buffers);
+      }
+    }catch{/* sem foley: a síntese assume */}
+  }
+
   tocar(voz:Voz):void {
     if(this.volume<=0||!this.garantirContexto())return;
     const ctx=this.contexto!,mestre=this.mestre!;
     if(ctx.state==='suspended')void ctx.resume();
+    if(!this.carregando)void this.carregarFoley();
+
+    // ---- caminho normal: foley do próprio jogo -----------------------------------------------
+    const banco=this.amostras.get(voz);
+    if(banco?.length){
+      const receita=FOLEY[voz];
+      const fonte=ctx.createBufferSource();
+      fonte.buffer=banco[Math.floor(Math.random()*banco.length)]!;
+      // Afinação para cima encurta e seca o som; ±4% de variação por disparo evita a repetição
+      // mecânica que cansa o ouvido num botão clicado dezenas de vezes.
+      fonte.playbackRate.value=receita.rate*(1+(Math.random()-.5)*.08);
+      const ganho=ctx.createGain();
+      ganho.gain.value=receita.ganho;
+      fonte.connect(ganho);ganho.connect(mestre);
+      fonte.start();
+      return;
+    }
+
+    // ---- degradação: a síntese, enquanto o foley não chegou ----------------------------------
     const receita=VOZES[voz],t=ctx.currentTime;
     // Desafinação de ±1,5%: o mesmo som duas vezes seguidas nunca é exatamente o mesmo.
     const desvio=1+(Math.random()-.5)*.03;

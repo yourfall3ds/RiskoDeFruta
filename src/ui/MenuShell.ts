@@ -34,7 +34,7 @@
  * outras — sem `style.display` espalhado pelo TypeScript.
  */
 
-export type MenuScreen='raiz'|'personagem'|'opcoes';
+export type MenuScreen='raiz'|'personagem'|'opcoes'|'abandonar';
 
 export class MenuShell {
   readonly element=document.createElement('div');
@@ -118,6 +118,47 @@ export class MenuShell {
     }
 
     card.append(this.element);
+  }
+
+  /**
+   * ABANDONAR EXPEDIÇÃO — só existe com uma partida em curso, e sempre com confirmação.
+   *
+   * Confirmação não é burocracia aqui: o botão fica na pausa, a um clique de distância de
+   * "CONTINUAR", e abandonar joga fora a expedição inteira — itens, estágio e progresso. Um
+   * clique errado ali custa a sessão toda. A pergunta fica numa TELA, igual às outras, em vez de
+   * um `confirm()` do navegador, que quebraria a apresentação e é bloqueável.
+   */
+  private abandonLink:HTMLButtonElement|undefined;
+  enableAbandon(onAbandon:()=>void):void {
+    if(this.abandonLink)return;
+    const link=document.createElement('button');
+    link.type='button';
+    link.className='rdf-menu-link rdf-menu-abandon';
+    link.textContent='ABANDONAR EXPEDIÇÃO';
+    link.onclick=()=>this.show('abandonar');
+    // Antes do SAIR: a ordem da pilha é continuar → ajustar → abandonar → sair do jogo.
+    this.nav.insertBefore(link,this.nav.querySelector('.rdf-menu-quit'));
+    this.abandonLink=link;
+
+    const screen=this.makeScreen('abandonar');
+    const aviso=document.createElement('p');
+    aviso.className='rdf-menu-warning';
+    aviso.textContent='Você perde os itens, o estágio e todo o progresso desta expedição. Não dá para voltar atrás.';
+    const sim=document.createElement('button');
+    sim.type='button';
+    sim.className='rdf-menu-danger';
+    sim.textContent='SIM, ABANDONAR';
+    sim.onclick=()=>onAbandon();
+    const nao=document.createElement('button');
+    nao.type='button';
+    nao.className='rdf-menu-back';
+    nao.textContent='CONTINUAR JOGANDO';
+    nao.onclick=()=>this.show('raiz');
+    screen.append(this.heading('ABANDONAR?'),aviso,sim,nao);
+  }
+  /** Some com a opção quando não há partida em curso (menu inicial e tela de derrota). */
+  setAbandonVisible(visible:boolean):void {
+    if(this.abandonLink)this.abandonLink.hidden=!visible;
   }
 
   /**

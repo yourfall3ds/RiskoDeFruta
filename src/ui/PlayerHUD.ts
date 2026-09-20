@@ -207,6 +207,17 @@ export class PlayerHUD {
       notes:[card.querySelector<HTMLElement>(':scope > small')],
     });
     this.refreshRoster();
+    /**
+     * Abandonar a expedição: recarrega a página no MESMO seed.
+     *
+     * Recarregar e não desmontar a cena por dentro porque "abandonar" significa jogar fora todo o
+     * estado da tentativa — progressão, itens, horda, estágio, clima e a própria cena 3D. O
+     * caminho que já existe e é comprovadamente limpo para isso é o mesmo de `NOVA EXPEDIÇÃO`,
+     * que também troca a partida por uma navegação. Mantendo o seed, o jogador volta ao menu da
+     * MESMA rota, e não a um mundo sorteado de novo.
+     */
+    this.menu?.enableAbandon(()=>{location.assign(location.href);});
+    this.menu?.setAbandonVisible(false);
   }
 
   /**
@@ -235,8 +246,67 @@ export class PlayerHUD {
   hit(context:DamageContext,yaw:number,hp:number,maxHP:number):void {this.damage.hit(context.finalDamage,Math.min(1,(hp+context.finalDamage)/maxHP),context.forceDirection,yaw);}
   /** `true` depois de `ready()`: a barra não volta se um carregamento tardio chamar `loading`. */
   private loaded=false;
-  loading(done:number,total:number,label:string):void {if(this.loaded)return;const progress=this.element.querySelector('.loading-progress') as HTMLElement;progress.hidden=false;(progress.querySelector('i') as HTMLElement).style.width=Math.floor(done/total*100)+'%';progress.querySelector('b')!.textContent=Math.floor(done/total*100)+'%';progress.querySelector('.loading-stage')!.textContent=label;this.gate.classList.add('loading');}
-  ready(): void {this.loading(1,1,'ROTA PRONTA · EQUIPAMENTO PRONTO');this.gate.classList.remove('loading');
+  /**
+   * Progresso do carregamento.
+   *
+   * ## Por que o número precisava de tratamento
+   *
+   * A origem do dado é uma contagem de ETAPAS booleanas (dez bandeiras em `PlayerScene`), então o
+   * valor cru só existe em múltiplos de 10%, e várias bandeiras viram verdadeiras no mesmo quadro.
+   * O resultado na tela era um salto de 70% para 90% com segundos de imobilidade no meio — que é
+   * exatamente a leitura de "isto não está ligado em nada".
+   *
+   * ## O que é feito aqui, e o que NÃO é
+   *
+   * O alvo continua sendo a verdade medida: nada é inventado e o número nunca ultrapassa a etapa
+   * realmente concluída em mais do que a regra abaixo permite. Duas correções:
+   *
+   * 1. **Interpolação**: o mostrador persegue o alvo em vez de saltar, a ~90% da diferença por
+   *    segundo. Uma etapa que conclui instantaneamente ainda leva alguns quadros para aparecer.
+   * 2. **Rastejo dentro da etapa**: enquanto uma etapa demorada não termina, o mostrador avança
+   *    devagar dentro da faixa DELA, sem nunca chegar ao fim da faixa. É a diferença entre
+   *    "travou" e "trabalhando" — e continua honesto, porque a faixa só fecha quando a etapa
+   *    fecha de verdade.
+   *
+   * O valor nunca anda para trás, mesmo que uma bandeira oscile.
+   */
+  private shownProgress=0;
+  private progressTarget=0;
+  private progressRaf=0;
+  private progressLast=0;
+  loading(done:number,total:number,label:string):void {
+    if(this.loaded)return;
+    const progress=this.element.querySelector('.loading-progress') as HTMLElement;
+    progress.hidden=false;
+    this.progressTarget=total>0?Math.max(0,Math.min(1,done/total)):0;
+    // A largura de uma etapa. O rastejo nunca cruza essa fronteira.
+    const passo=total>0?1/total:1;
+    progress.querySelector('.loading-stage')!.textContent=label;
+    this.gate.classList.add('loading');
+    if(this.progressRaf)return;
+    const tick=(agora:number):void=>{
+      if(this.loaded||this.disposedHud){this.progressRaf=0;return;}
+      const dt=this.progressLast?Math.min(.1,(agora-this.progressLast)/1000):.016;
+      this.progressLast=agora;
+      // Teto do rastejo: a etapa corrente mais 85% dela — perto do fim, sem tocá-lo.
+      const teto=Math.min(1,this.progressTarget+passo*.85);
+      const alvo=Math.max(this.progressTarget,Math.min(teto,this.shownProgress+dt*passo*.22));
+      this.shownProgress=Math.max(this.shownProgress,this.shownProgress+(alvo-this.shownProgress)*Math.min(1,dt*3.2));
+      const pct=Math.min(100,Math.floor(this.shownProgress*100));
+      const barra=progress.querySelector('i') as HTMLElement|null;
+      if(barra)barra.style.width=pct+'%';
+      const numero=progress.querySelector('b');
+      if(numero)numero.textContent=pct+'%';
+      this.progressRaf=requestAnimationFrame(tick);
+    };
+    this.progressRaf=requestAnimationFrame(tick);
+  }
+  private disposedHud=false;
+  ready(): void {
+    // O laço de animação para aqui: `loaded` fica verdadeiro logo abaixo e o quadro seguinte sai
+    // sozinho, mas cancelar explicitamente evita um quadro órfão entre as duas coisas.
+    if(this.progressRaf){cancelAnimationFrame(this.progressRaf);this.progressRaf=0;}
+    this.loading(1,1,'ROTA PRONTA · EQUIPAMENTO PRONTO');this.gate.classList.remove('loading');
     // A barra terminada continuava desenhada a 100% por cima do menu pronto. `.loading` só escondia
     // os controles; o próprio bloco de progresso nunca saía.
     (this.element.querySelector('.loading-progress') as HTMLElement).hidden=true;this.loaded=true;
@@ -307,7 +377,9 @@ export class PlayerHUD {
     // A partida começou por QUALQUER caminho (lobby, atalho de Enter, retomada): o desvio do
     // lobby sai de cena para sempre nesta sessão, senão a pausa passaria a abrir a escolha de
     // classe em vez de retomar.
-    if(active)this.menu?.disableLobby();this.syncClassSelect();}
+    if(active)this.menu?.disableLobby();
+    // Abandonar só faz sentido com expedição em curso: aparece a partir da primeira pausa.
+    this.menu?.setAbandonVisible(this.entered&&!this.dead);this.syncClassSelect();}
   /**
    * `weapon` é o painel já resolvido (ver `weaponReadout`). Quando ausente, o painel cai no texto
    * das pistolas de sempre — é o caminho do pátio de treino e de qualquer cena sem a PRISM.

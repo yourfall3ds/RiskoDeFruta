@@ -669,6 +669,7 @@ button:disabled::after  { background-position: 100% 0, 0 0; }
 .rdf-screen { display: none; }
 .rdf-menu[data-screen="raiz"]       .rdf-screen[data-screen="raiz"],
 .rdf-menu[data-screen="personagem"] .rdf-screen[data-screen="personagem"],
+.rdf-menu[data-screen="abandonar"]  .rdf-screen[data-screen="abandonar"],
 .rdf-menu[data-screen="opcoes"]     .rdf-screen[data-screen="opcoes"] {
   display: grid;
   gap: 14px;
@@ -771,13 +772,27 @@ body.rdf-quit::after {
    ----------------------------------------------------------------------------------------------- */
 .play-gate:not(.defeated):not([hidden]):has(.rdf-menu[data-screen="personagem"]) {
   place-items: center start !important;
-  padding-left: clamp(24px, 6vw, 110px) !important;
+  padding-left: clamp(12px, 2vw, 32px) !important;
   /* A vinheta também desencosta: escurecer o meio apagaria o personagem. */
-  background: linear-gradient(90deg, #04101af2 0 38%, #04101a99 55%, transparent 78%) !important;
+  background: linear-gradient(90deg, #04101af2 0 30%, #04101a8c 46%, transparent 62%) !important;
 }
+/* ESTREITO de propósito. O personagem fica em torno do CENTRO da tela — é ali que ele está de pé
+   no convés, em pose de espera, e é dali que ele sai correndo ao começar. Um cartão de 520px
+   encostado à esquerda ainda alcançava o meio e tapava exatamente ele. Em ~34% da largura o
+   cartão termina antes do terço central, e o palco fica livre. */
 .play-gate:has(.rdf-menu[data-screen="personagem"]) .gate-card {
-  width: min(520px, 46vw) !important;
+  width: min(430px, 34vw) !important;
+  padding: clamp(16px, 1.6vw, 24px) clamp(16px, 1.6vw, 22px) !important;
 }
+/* Nessa largura os dois cartões de classe empilham em vez de espremer. */
+.play-gate:has(.rdf-menu[data-screen="personagem"]) .class-select-options {
+  grid-template-columns: 1fr 1fr !important;
+  gap: 8px !important;
+}
+.play-gate:has(.rdf-menu[data-screen="personagem"]) .class-option { padding: 12px 10px 10px !important; }
+.play-gate:has(.rdf-menu[data-screen="personagem"]) .class-option strong { margin: -12px -10px 6px; font-size: clamp(12px,1.05vw,15px); }
+.play-gate:has(.rdf-menu[data-screen="personagem"]) .class-option em { font-size: 11px; }
+.play-gate:has(.rdf-menu[data-screen="personagem"]) .class-option span { font-size: 11px; }
 
 /* O título duplicado some: `ESCOLHA SEU PERSONAGEM` (do lobby) e `ESCOLHA SUA CLASSE` (do bloco
    de classes) diziam a mesma coisa, uma embaixo da outra. Fica o do lobby. */
@@ -882,6 +897,46 @@ body.rdf-quit::after {
 }
 .rdf-menu-ready:hover:not(:disabled) { color: var(--rdf-ink-invert) !important; }
 
+/* Abandonar: a única ação em polpa na pilha, porque é a única destrutiva. */
+.rdf-menu-abandon { color: var(--rdf-pulp) !important; }
+.rdf-menu-abandon::before { background: #e2704f66; }
+.rdf-menu-abandon:hover:not(:disabled)::after {
+  background:
+    linear-gradient(90deg, var(--rdf-pulp) 0 50%, transparent 50% 100%),
+    linear-gradient(180deg, #2a1a1e, var(--rdf-soil));
+  background-size: 200% 100%, 100% 100%;
+  background-position: 0 0, 0 0;
+}
+.rdf-menu-warning {
+  justify-self: center;
+  max-width: 44ch;
+  margin: 0 !important;
+  font-size: 13px !important;
+  line-height: 1.5 !important;
+  color: var(--rdf-ink-soft) !important;
+}
+.rdf-menu-danger {
+  --rdf-cut: var(--rdf-cut-lg);
+  justify-self: center;
+  width: min(340px, 100%);
+  margin-top: 4px;
+  font-family: var(--rdf-display);
+  font-size: clamp(13px, 1.2vw, 17px) !important;
+  letter-spacing: .14em !important;
+  padding: 13px 22px !important;
+  color: var(--rdf-pulp-hot) !important;
+}
+.rdf-menu-danger::before { background: var(--rdf-pulp); }
+.rdf-menu-danger::after {
+  background:
+    linear-gradient(90deg, var(--rdf-pulp) 0 50%, transparent 50% 100%),
+    linear-gradient(180deg, #2a1416, var(--rdf-soil));
+  background-size: 200% 100%, 100% 100%;
+  background-position: 100% 0, 0 0;
+  background-repeat: no-repeat;
+}
+.rdf-menu-danger:hover:not(:disabled) { color: var(--rdf-ink-invert) !important; }
+
 .rdf-roster {
   justify-self: center;
   width: min(420px, 100%);
@@ -970,18 +1025,22 @@ body.rdf-quit::after {
    Ele corre sempre, independente do progresso: é essa a informação que a porcentagem não dá
    quando trava num passo longo.
    ----------------------------------------------------------------------------------------------- */
-/* Corre PARADO, À DIREITA do número — a ordem do anexo: "51%" e o boneco logo depois. */
+/* Corre PARADO, À DIREITA do número e na MESMA linha — a ordem do anexo: "51%" e o boneco.
+   `scale(1.4)` aumenta o boneco em 40% sem mexer nas 14 coordenadas das sombras: o desenho é
+   feito numa grade de 4px, e reescrever cada coordenada para 5,6px quebraria o alinhamento em
+   pixel que faz ele parecer sprite. A transformação escala o conjunto inteiro de uma vez. */
 .rdf-runner {
   position: relative;
   grid-column: 3;
   grid-row: 2;
-  align-self: end;
+  align-self: center;
   width: 4px;
   height: 4px;
-  /* O boneco é desenhado em sombras a partir deste ponto de 4px; a margem reserva a caixa que as
-     sombras ocupam (16px de largura, 24px de altura) para ele não invadir a coluna vizinha. */
-  margin: 0 14px 6px 0;
+  /* A caixa das sombras (16×24px) mais a folga da escala; sem isto o boneco invade o número. */
+  margin: 10px 12px 0 2px;
   background: transparent;
+  transform: scale(1.4);
+  transform-origin: center bottom;
   animation: rdf-run-legs .16s steps(1) infinite;
 }
 /* Quadro A e quadro B da passada. As coordenadas são múltiplos de 4px = o "pixel" do boneco. */
@@ -1014,10 +1073,12 @@ body.rdf-quit::after {
 
 .loading-progress {
   display: grid !important;
-  /* passo | corredor | porcentagem — cada um na sua coluna, sem sobreposição por margem. */
+  /* passo | porcentagem | corredor — os três na MESMA linha, alinhados pela base do texto.
+     A barra saiu: com o número e o corredor juntos, ela era um terceiro indicador dizendo o que
+     os outros dois já diziam, e era a peça que mais ocupava espaço para menos informação. */
   grid-template-columns: 1fr auto auto;
   align-items: center;
-  gap: 4px 12px;
+  gap: 4px 14px;
   padding: 12px 16px !important;
   border: var(--rdf-hair) solid var(--rdf-line) !important;
   background: linear-gradient(180deg, #08202ef2, #04121cf7) !important;
@@ -1056,16 +1117,9 @@ body.rdf-quit::after {
   color: var(--rdf-wheat-hot);
   font-variant-numeric: tabular-nums;
 }
-.loading-progress .loading-track {
-  position: relative;          /* âncora do corredor */
-  grid-column: 1 / -1;
-  grid-row: 3;
-  height: 10px !important;
-  border-radius: 0 !important;
-  background: #00000066 !important;
-  /* SEM `overflow:hidden`: o corredor mora em cima da barra, fora dela. Quem precisa recortar é
-     o preenchimento, e ele recorta sozinho por ter largura própria. */
-}
+/* A barra sai de cena. Não é removida do DOM porque `loading()` escreve a largura em
+   `querySelector('i')` a cada passo; sumir com o elemento quebraria o carregamento. */
+.loading-progress .loading-track { display: none !important; }
 /* O talo. Listra diagonal correndo por dentro = leitura imediata de "está trabalhando", mesmo
    quando a porcentagem fica parada num passo demorado. */
 .loading-progress .loading-track i {
