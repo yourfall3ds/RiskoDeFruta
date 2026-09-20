@@ -730,3 +730,51 @@ está em 20, o cliente tenta comprar de 30. O servidor rejeita: nenhum débito, 
 cliente converge para 20.
 
 Espelho atrasado não autoriza ação. É a mesma frase do §20.22, com saldo no lugar de morte.
+
+## 22. `MULTIPLAYER_JOGAVEL_01` — O MARCO QUE MANDA A PARTIR DE AGORA
+
+**Regra do projeto: tudo que não impede 2–4 pessoas de entrarem na mesma partida e jogarem juntas
+fica para depois.**
+
+A auditoria dos §20 e §21 já cumpriu o papel: tirou as bombas que fariam o multiplayer parecer
+funcionar por cinco minutos e depois virar desync. O risco agora é o oposto — achar dívida
+infinitamente e nunca jogar. Os §20 e §21 passam a ser **direção e dívida registrada**, não lista de
+tarefas.
+
+**Bloco E** fecha com os três números do §20.20 e nada mais.
+
+**Bloco F** é economia **mínima**, só este fluxo:
+
+```text
+matar → servidor recompensa → credits/xp/level replicados → cliente exibe
+→ comprar baú vira request → servidor valida e debita → servidor gera recompensa → cliente recebe
+```
+
+Fora de escopo agora, por decisão explícita: `MonsterDirector.credits` (é orçamento da horda),
+`PlanetRun`, expedição, `PlanetScene`, `PlayerScene:2033`, e as demais das 48 mutações.
+
+### 22.1 O marco
+
+Quatro clientes, em sequência: entrar na mesma sala → ver os outros andando → ver a mesma horda →
+atirar nos mesmos inimigos → dar e receber dano → matar o mesmo inimigo **uma vez** → ganhar crédito
+→ comprar item ou baú → ver o resultado nos outros clientes → morrer → continuar a partida sem
+desync.
+
+### 22.2 O teste que fecha o marco
+
+Host + P2 + P3 + P4, 30 a 60 s de horda: P1 atira, P2 dá melee, P3 toma dano, P4 mata inimigo; dois
+jogadores atacam o **mesmo** inimigo simultaneamente; um compra baú; um morre; a partida continua.
+
+Ao final:
+
+```text
+enemy count   servidor == P1 == P2 == P3 == P4
+alive/dead    servidor == todos
+credits       servidor == dono
+xp/level      servidor == dono
+baús usados   servidor == todos
+kills         servidor == todos
+```
+
+**Não precisa** estar bonito, ter lobby definitivo, reconnect perfeito, `PlanetScene` migrada, as 48
+mutações corrigidas nem a dívida conhecida resolvida. **Precisa dar para jogar.**
