@@ -112,7 +112,19 @@ export class RunProgression {
   }
   addItem(id:string):void {if(!ITEMS.some(item=>item.id===id))throw new Error(`Unknown item ${id}`);const stacks=(this.inventory.get(id)??0)+1;this.inventory.set(id,stacks);this.stats=this.computeStats();this.events.emit('ItemPicked',{entityId:1,itemId:id});this.events.emit('ItemStackChanged',{entityId:1,itemId:id,stacks});}
   addXP(amount:number):void {this.xp+=Math.max(0,amount);while(this.xp>=this.nextLevelXP){this.xp-=this.nextLevelXP;this.level++;this.stats=this.computeStats();this.events.emit('LevelUp',{entityId:1,level:this.level});}this.stats=this.computeStats();}
-  reward(elite=false,multiplier=1):void {this.totalKills++;this.credits+=Math.round((elite?50:8+this.stage*2)*multiplier);this.addXP(Math.round((elite?90:10+this.stage*2)*multiplier));}
+  /**
+   * Paga um abate. `bounty` é OPCIONAL e aditivo: sem ele a conta é literalmente a de antes
+   * (`8 + estágio×2` créditos, `10 + estágio×2` de XP), então nenhum chamador existente muda de
+   * comportamento sem pedir. Quem passa `bounty` — hoje a horda, com `killBounty(espécie, estágio)`
+   * — paga por espécie. `multiplier` continua sendo o ouro do afixo.
+   */
+  reward(elite=false,multiplier=1,bounty?:{credits:number;xp:number}):void {
+    this.totalKills++;
+    const credits=bounty?bounty.credits:elite?50:8+this.stage*2;
+    const xp=bounty?bounty.xp:elite?90:10+this.stage*2;
+    this.credits+=Math.round(credits*multiplier);
+    this.addXP(Math.round(xp*multiplier));
+  }
   purchase(cost:number,itemId:string):boolean {if(this.credits<cost)return false;this.credits-=cost;this.addItem(itemId);return true;}
   randomItem(rng:RandomStream):ItemDefinition {
     const rarity=rng.next()<.24?'uncommon':'common';

@@ -34,6 +34,8 @@ export class PrismRig {
  private volume=.55;
  constructor(private scene:Scene,private visual:CharacterVisual){this.root=new TransformNode('prism-equipped',scene);this.root.setEnabled(false);}
  get busy():boolean{return this.action==='transform';}
+ get firing():boolean{return this.visual.rifleFiring;}
+ set firing(value:boolean){this.visual.rifleFiring=value;}
  get enabled():boolean{return this.visible;}
  set enabled(value:boolean){const changed=this.visible!==value;this.visible=value;this.visual.rifleEquipped=value;this.root.setEnabled(value&&this.ready);if(changed&&!value)this.audio?.stop();}
  get muzzle():Vector3|undefined {this.muzzleNode?.computeWorldMatrix(true);return this.muzzleNode?.getAbsolutePosition().clone();}
@@ -46,10 +48,12 @@ export class PrismRig {
   for(const clip of asset.animationGroups){clip.stop();this.clips.set(clip.name,clip);}
   this.muzzleNode=asset.transformNodes.find(n=>n.name==='SOCKET_muzzle');
   this.support=asset.transformNodes.find(n=>n.name==='SOCKET_hand_L');
+  // Compact receiver support: the workshop socket was beyond this avatar's arm reach.
+  if(this.support)this.support.position.set(.35,.55,0);
   this.magazine=asset.transformNodes.find(n=>n.name==='Magazine_reload');
   this.charge=asset.transformNodes.find(n=>n.name==='FX_charge');
   this.luminous=asset.materials.filter((m):m is PBRMaterial=>m instanceof PBRMaterial&&m.emissiveColor.r+m.emissiveColor.g+m.emissiveColor.b>0).map(material=>({material,base:material.emissiveColor.clone()}));
-  this.root.scaling.setAll(.16);
+  this.root.scaling.setAll(.14);
   // Babylon's left-handed glTF conversion reflects X: -X becomes grip +Z.
   this.root.rotationQuaternion=Quaternion.RotationYawPitchRoll(Math.PI/2,0,0);
   this.ready=true;this.setMode(0);this.root.setEnabled(this.visible);
@@ -69,7 +73,7 @@ export class PrismRig {
   if(!this.ready||!this.visible||this.busy||this.action==='reload')return false;
   this.audio?.stop();this.action='transform';this.clock=0;this.sample(CHANGES[this.mode],0);this.sound('user-transform');return true;
  }
- fire():void {if(!this.ready||!this.visible||this.busy)return;this.action='fire';this.clock=0;this.sample(PHASES[this.mode]+'_Fire',0);this.sound((['assault','sniper','grenade'] as const)[this.mode]);}
+ fire():void {if(!this.ready||!this.visible||this.busy)return;this.visual.fireRifle();this.action='fire';this.clock=0;this.sample(PHASES[this.mode]+'_Fire',0);this.sound((['assault','sniper','grenade'] as const)[this.mode]);}
  impact(mode:0|1|2):void {void this.audio?.resume().then(()=>{if(!this.disposed)this.audio?.play((['impact-small','impact-ion','explosion'] as const)[mode]);}).catch(()=>{});}
  setVolume(value:number):void {this.volume=Math.max(0,Math.min(1,value));this.audio?.volume(this.volume);}
  stopAudio():void {this.audio?.stop();}

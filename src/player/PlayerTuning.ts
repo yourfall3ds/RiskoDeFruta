@@ -17,11 +17,18 @@ export const PLAYER_TUNING = {
   dashDoubleTapSeconds: 0.28, dashDistance: 5.2, dashSeconds: 0.26, dashCooldownSeconds: 1.45, dashAirCharges: 1,
 } as const;
 export const CAMERA_TUNING = {
-  distance: 2.25, shoulderOffset: .72, pivotHeight: 1.50, fov: 60 * Math.PI / 180, smoothing: 0.06,
+  distance: 2.25, shoulderOffset: .82, pivotHeight: 1.50, fov: 60 * Math.PI / 180, smoothing: 0.06,
   radius: 0.25, near: 0.08, sensitivity: 0.0022, pitchMin: -1.1, pitchMax: 1.1,
   defaultPitch: 0.02, shake: 0.35,
   // Acompanhamento amortecido com antecipação moderada e abertura de FOV na corrida.
   lookAheadMeters: 0.55, lookAheadSmoothing: 0.22, sprintFovDegrees: 6, fovSmoothing: 0.35,
+  /**
+   * Suavização da mira apurada (ADS), em segundos de constante de tempo.
+   *
+   * Mais curta que a da corrida de propósito: entrar na mira tem de ser imediato o bastante para
+   * servir de reação, mas não instantâneo — um corte seco de FOV embrulha o estômago.
+   */
+  aimFovSmoothing: 0.10,
 } as const;
 export const PISTOL_TUNING = { rate: 3.3, damage: 12, spreadDegrees: 1.5, range: 180, tracerSeconds: 0.045, recoilSeconds: 0.10 } as const;
 // Combate desarmado alternável (tecla V). Cadência inicial lenta, conforme pedido.

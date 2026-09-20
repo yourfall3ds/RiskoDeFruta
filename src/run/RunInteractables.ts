@@ -31,6 +31,8 @@ import type { RandomStream } from '../core/RunRNG';
 import { type ItemDefinition,type RunProgression } from './RunProgression';
 
 export interface Interactable {id:string;name:string;kind:'supply'|'shop'|'altar';x:number;z:number;y:number;cost:number;used:boolean;loot?:ItemDefinition;ejected?:boolean;root?:TransformNode;openClips?:AnimationGroup[];opening?:number;
+  /** Quantas vezes ESTE interativo já foi comprado. Só o altar passa de 1 — ver `chestPrice`. */
+  uses?:number;
   /** Vertical LOCAL do baú. Ausente no mundo plano, onde ela é sempre `+Y`. */
   up?:Vec3;
   /** Sítio que hospeda o baú, quando ele veio de colocação por mapa. */
@@ -55,10 +57,46 @@ export interface LootPlacementSource {
 
 /** Custo base por tipo. É o mesmo número de sempre, agora num lugar só. */
 const BASE_COST={altar:25,shop:45,supply:30} as const;
+/**
+ * Preço PROGRESSIVO dos baús.
+ *
+ * O mapa tem dezenas de baús e o preço deles era fixo dentro do estágio, então a corrida ótima era
+ * literalmente correr abrindo tudo: cada baú custava o mesmo do primeiro e nenhum deles era uma
+ * escolha. Agora cada compra encarece as SEGUINTES, do jeito clássico de roguelite: o primeiro baú
+ * continua ao alcance de poucos abates e o décimo cobra farm de verdade.
+ *
+ *   preço = base × (1 + (estágio − 1) × STAGE_STEP) × GROWTH^(comprados no estágio)
+ *
+ * Com `GROWTH = 1.22`, uma caixa de suprimentos no estágio 1 vai a 30 · 37 · 45 · 54 · 66 · 81 · 99
+ * · 121 · 147 · 180: dez caixas custam ~860 créditos, contra ~300 antes. O teto existe para o preço
+ * nunca virar um número que nenhuma partida alcança — passado ele, o baú deixa de ser a compra
+ * interessante e o jogador escolhe guardar (créditos viram XP no embarque).
+ *
+ * O altar mantém a escalada PRÓPRIA dele (×1,6 por oferta), que é o risco dele; as duas contas se
+ * multiplicam em vez de uma sobrescrever a outra.
+ */
+export const CHEST_PRICE_GROWTH=1.22,CHEST_PRICE_STAGE_STEP=.3,CHEST_PRICE_CAP=14,ALTAR_REUSE_GROWTH=1.6;
+/** Preço de um interativo pelo que já foi comprado nesta fase. Puro, para o teste de curva. */
+export function chestPrice(kind:Interactable['kind'],stage:number,opened:number,uses=0):number {
+  const s=Number.isFinite(stage)?Math.max(1,Math.floor(stage)):1;
+  const n=Number.isFinite(opened)?Math.min(CHEST_PRICE_CAP,Math.max(0,Math.floor(opened))):0;
+  const u=Number.isFinite(uses)?Math.max(0,Math.floor(uses)):0;
+  // A escalada por REUSO é só do altar: ele é o único que continua comprável depois de usado.
+  const reuse=kind==='altar'?Math.pow(ALTAR_REUSE_GROWTH,u):1;
+  return Math.round(BASE_COST[kind]*(1+(s-1)*CHEST_PRICE_STAGE_STEP)*Math.pow(CHEST_PRICE_GROWTH,n)*reuse);
+}
 const nameOf=(kind:Interactable['kind']):string=>
   kind==='altar'?'Altar de risco':kind==='shop'?'Baú reforçado':'Caixa de suprimentos';
 export class RunInteractables {
   readonly entries:Interactable[]=[];nearest:Interactable|undefined;message='';messageTime=0;ready=false;error='';private disposed=false;private rewardRetry=0;
+  /** Compras já feitas NESTA fase. É o expoente do preço progressivo — ver `chestPrice`. */
+  opened=0;
+  /** Preço que o PRÓXIMO baú comum vai cobrar. Diagnóstico e HUD. */
+  get nextSupplyCost():number {return chestPrice('supply',this.run.stage,this.opened);}
+  /** Repõe o preço de tudo o que ainda não foi comprado. Idempotente. */
+  private reprice():void {
+    for(const entry of this.entries)entry.cost=chestPrice(entry.kind,this.run.stage,this.opened,entry.uses??0);
+  }
   private readonly rift:TransformNode;private riftLight:PointLight;private time=0;
   readonly drops:LootDrops;
   readonly contracts=new DistrictContracts();
@@ -128,6 +166,8 @@ export class RunInteractables {
     // chão nenhum — seriam fantasmas inalcançáveis. Eles são realocados preservando id, tipo,
     // custo e o estado de usado.
     this.relocateHome(source);
+    // Os baús do mapa nascem com o preço da fase E do que já foi comprado nela.
+    this.reprice();
     if(this.ready)this.buildRoots();
     this.rebuildProps();
     this.contracts.configureSource({
@@ -316,7 +356,8 @@ export class RunInteractables {
     this.message='RECOMPENSA · '+site.name+' · recolha '+item.name+' no chão';this.messageTime=7;
     return true;
   }
-  reset():void {this.rewardRetry=0;this.contracts.reset();this.drops.clear();this.nearest=undefined;this.messageTime=0;for(const e of this.entries){e.used=false;e.opening=0;delete e.loot;e.ejected=false;this.lid(e,0);e.cost=Math.round(BASE_COST[e.kind]*(1+(this.run.stage-1)*.3));}this.rift.setEnabled(false);}
+  /** Fase nova (ou tentativa nova): tudo fechado e o preço progressivo de volta ao primeiro baú. */
+  reset():void {this.rewardRetry=0;this.contracts.reset();this.drops.clear();this.nearest=undefined;this.messageTime=0;this.opened=0;for(const e of this.entries){e.used=false;e.opening=0;delete e.loot;e.ejected=false;e.uses=0;this.lid(e,0);}this.reprice();this.rift.setEnabled(false);}
   get atRift():boolean{return Math.hypot(this.player.position.x,this.player.position.z-33)<3&&this.player.position.y>3;}
   buy(_option=0):boolean {
     const collected=this.drops.take(this.player.position);
@@ -326,8 +367,11 @@ export class RunInteractables {
     const range=this.reach(entry);if(range.planar>=3||range.height>=2)return false;
     if(this.run.credits<entry.cost){this.message='Créditos insuficientes';this.messageTime=2;return false;}
     this.run.credits-=entry.cost;
-    if(entry.kind==='altar'){entry.cost=Math.ceil(entry.cost*1.6);if(this.rng.next()<.58){const item=this.run.randomItem(this.rng);this.drops.eject(item,{x:entry.x,y:entry.y,z:entry.z},this.player.position);this.message='O altar concedeu um item';}else this.message='O altar consumiu a oferta';}
+    // Cada compra encarece as seguintes: é o que transforma "abra todos" numa escolha.
+    this.opened++;entry.uses=(entry.uses??0)+1;
+    if(entry.kind==='altar'){if(this.rng.next()<.58){const item=this.run.randomItem(this.rng);this.drops.eject(item,{x:entry.x,y:entry.y,z:entry.z},this.player.position);this.message='O altar concedeu um item';}else this.message='O altar consumiu a oferta';}
     else{entry.used=true;entry.opening=0;entry.ejected=false;entry.loot=this.run.randomItem(this.rng);this.message='Baú aberto · recolha o item quando cair';}
+    this.reprice();
     if(entry.kind!=='altar'){const contract=this.contracts.recordOpened(entry.id);if(contract){const reward=this.run.randomItem(this.rng);
       // Espelho do jogador através do baú: o bônus cai do lado oposto. Num mundo curvo o espelho
       // precisa da componente vertical também, senão ele mira para dentro da casca.

@@ -48,9 +48,17 @@ export class ThirdPersonCamera implements GameCamera {
   /** 0..1 — quanto do FOV extra de corrida está aplicado; alimentado por `setSprint`. */
   sprintBlendTarget=0;
   private baseFov:number=t.fov;
+  /** Alvo da mira apurada e a aproximação já suavizada. `1` = sem mira. */
+  private aimZoom=1;
+  private aimBlend=1;
   setSprint(sprinting:boolean):void {this.sprintBlendTarget=sprinting?1:0;}
   /** Ajuste de diagnóstico; a abertura de corrida continua somando sobre este valor. */
   setFovDegrees(degrees:number):void {this.baseFov=degrees*Math.PI/180;}
+  /**
+   * Mira apurada. É um ALVO, não um incremento: o FOV do quadro é sempre recalculado a partir do
+   * base, então repetir a chamada não fecha a lente mais um pouco a cada vez.
+   */
+  setAimZoom(zoom:number):void {this.aimZoom=Number.isFinite(zoom)?Math.max(1,zoom):1;}
   constructor(private readonly scene: Scene,private readonly world: CollisionWorld) {
     this.camera=new FreeCamera('player-camera',Vector3.Zero(),scene);
     this.camera.minZ=t.near;this.camera.maxZ=1200;this.camera.fov=t.fov;
@@ -89,19 +97,23 @@ export class ThirdPersonCamera implements GameCamera {
     this.pivot.z+=(position.z+this.lead.z-this.pivot.z)*factor;
     // Abertura de FOV na corrida, contínua nos dois sentidos e independente da taxa de quadros.
     this.fovBlend+=(this.sprintBlendTarget-this.fovBlend)*(this.initialized?1-Math.exp(-step/t.fovSmoothing):1);
-    this.camera.fov=this.baseFov+this.fovBlend*t.sprintFovDegrees*Math.PI/180;
+    // A mira fecha a lente SOBRE o resultado anterior, por divisão, e o valor é sempre reconstruído
+    // a partir do base — é o que impede o FOV derivar depois de dezenas de miradas.
+    this.aimBlend+=(this.aimZoom-this.aimBlend)*(this.initialized?1-Math.exp(-step/t.aimFovSmoothing):1);
+    this.camera.fov=2*Math.atan(Math.tan((this.baseFov+this.fovBlend*t.sprintFovDegrees*Math.PI/180)/2)/Math.max(1,this.aimBlend));
     this.yawValue=yaw;
     this.forward.set(Math.sin(yaw)*Math.cos(pitch),-Math.sin(pitch),Math.cos(yaw)*Math.cos(pitch));
     // Keep the reference's left-third composition even in the narrow app preview.
     const aspect=this.camera.getEngine().getAspectRatio(this.camera);
     const shoulder=t.shoulderOffset*Math.min(1,aspect/(16/9));
-    const delta=this.forward.scale(-this.preferredDistance).addInPlaceFromFloats(Math.cos(yaw)*shoulder,0,-Math.sin(yaw)*shoulder);
+    const aimDistance=this.preferredDistance*(1-.32*Math.min(1,(this.aimBlend-1)/.32));
+    const delta=this.forward.scale(-aimDistance).addInPlaceFromFloats(Math.cos(yaw)*shoulder,0,-Math.sin(yaw)*shoulder);
     const hit=this.world.sweepSphere(this.pivot,delta,t.radius,true);
-    let allowed=hit?Math.max(.15,this.preferredDistance*hit.time-.08):this.preferredDistance;
+    let allowed=hit?Math.max(.15,aimDistance*hit.time-.08):aimDistance;
     const ground=this.world.groundAt(this.pivot.x+delta.x,this.pivot.z+delta.z);
-    if(delta.y<0 && this.pivot.y+delta.y<ground+t.radius) allowed=Math.min(allowed,Math.max(.15,(this.pivot.y-ground-t.radius)/-delta.y*this.preferredDistance));
+    if(delta.y<0 && this.pivot.y+delta.y<ground+t.radius) allowed=Math.min(allowed,Math.max(.15,(this.pivot.y-ground-t.radius)/-delta.y*aimDistance));
     this.distance=allowed<this.distance?allowed:this.distance+(allowed-this.distance)*factor;
-    this.camera.position.copyFrom(this.pivot).addInPlace(delta.scale(this.distance/this.preferredDistance));
+    this.camera.position.copyFrom(this.pivot).addInPlace(delta.scale(this.distance/aimDistance));
     this.kick*=Math.exp(-dt*30);
     this.camera.setTarget(this.camera.position.add(this.forward).addInPlaceFromFloats(0,this.kick+this.hurtKick,0));
     this.camera.rotation.z=this.horizon.update(position,yaw,pitch,dt)+this.hurtKick*this.hurtSide*.4;this.hurtKick*=Math.exp(-dt*9);

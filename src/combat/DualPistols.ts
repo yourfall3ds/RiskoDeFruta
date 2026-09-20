@@ -478,9 +478,29 @@ export class DualPistols implements CombatServices {
     if(!outcome)return false;
     this.sceneryHits++;return true;
   }
+  /**
+   * Erro COMPARTILHADO.
+   *
+   * `targetPick` é chamado uma vez por ator por raio, e um disparo comum já lança dois raios
+   * (mira da câmera e raio do cano) — com a horda cheia isso eram dezenas de `PickingInfo` e de
+   * `Vector3` descartados por tiro, a 6,6 tiros por segundo, só para todos responderem "não
+   * acertei". Nenhum chamador guarda um `PickingInfo` que não acertou (todos testam `.hit` antes),
+   * então o caso de erro devolve sempre o mesmo objeto e nada é alocado.
+   */
+  private static readonly MISS=new PickingInfo();
+  /** Rascunhos do teste de caixa; nenhum deles sobrevive à chamada. */
+  private readonly boxMin=new Vector3();private readonly boxMax=new Vector3();private readonly travel=new Vector3();
   private targetPick(ray:Ray,target:TrainingTarget,padding=0):PickingInfo {
     // Bounding volumes are updated by the animated actor. No per-shot CPU skinning or triangle walk.
-    const box=target.mesh.getBoundingInfo().boundingBox,hit=sweepBox(ray.origin,ray.direction.scale(ray.length),{id:String(target.id),min:box.minimumWorld.add(new Vector3(-padding,-padding,-padding)),max:box.maximumWorld.add(new Vector3(padding,padding,padding))});const result=new PickingInfo();if(hit&&padding>0){const contact=ray.origin.add(ray.direction.scale(hit.time*ray.length)),surface=Vector3.Clamp(contact,box.minimumWorld,box.maximumWorld),delta=surface.subtract(ray.origin),length=delta.length();if(length>.001){const cover=this.worldPick(new Ray(ray.origin,delta.scale(1/length),length));if(cover&&cover.distance<length-.015)return result;}}if(hit){result.hit=true;result.distance=hit.time*ray.length;result.pickedMesh=target.mesh;result.pickedPoint=ray.origin.add(ray.direction.scale(result.distance));result.getNormal=()=>new Vector3(hit.normal.x,hit.normal.y,hit.normal.z);}return result;
+    const box=target.mesh.getBoundingInfo().boundingBox;
+    this.boxMin.copyFromFloats(box.minimumWorld.x-padding,box.minimumWorld.y-padding,box.minimumWorld.z-padding);
+    this.boxMax.copyFromFloats(box.maximumWorld.x+padding,box.maximumWorld.y+padding,box.maximumWorld.z+padding);
+    ray.direction.scaleToRef(ray.length,this.travel);
+    const hit=sweepBox(ray.origin,this.travel,{id:String(target.id),min:this.boxMin,max:this.boxMax});
+    if(!hit)return DualPistols.MISS;
+    if(padding>0){const contact=ray.origin.add(ray.direction.scale(hit.time*ray.length)),surface=Vector3.Clamp(contact,box.minimumWorld,box.maximumWorld),delta=surface.subtract(ray.origin),length=delta.length();if(length>.001){const cover=this.worldPick(new Ray(ray.origin,delta.scale(1/length),length));if(cover&&cover.distance<length-.015)return DualPistols.MISS;}}
+    const result=new PickingInfo();
+    result.hit=true;result.distance=hit.time*ray.length;result.pickedMesh=target.mesh;result.pickedPoint=ray.origin.add(ray.direction.scale(result.distance));result.getNormal=()=>new Vector3(hit.normal.x,hit.normal.y,hit.normal.z);return result;
   }
   private aimPick(ray:Ray):PickingInfo|null {
     let hit=this.worldPick(ray);for(const target of this.yard.targets){if(!target.mesh.isPickable||!target.mesh.isEnabled())continue;const candidate=this.targetPick(ray,target);if(candidate.hit&&(!hit||candidate.distance<hit.distance))hit=candidate;}return hit;
@@ -506,7 +526,8 @@ export class DualPistols implements CombatServices {
     this.audio.shot(targets.length>0);
   }
   private damageTarget(target:TrainingTarget,hit:Vector3,dir:Vector3,damage:number,id:string): void {
-    const context:DamageContext={attackerId:1,victimId:target.id,sourceId:id,attackId:id,baseDamage:damage,finalDamage:damage,crit:false,procCoefficient:id==='ricochet_fan'?.3:1,procChainDepth:0,damageTags:['bullet','skill'],hitPosition:{x:hit.x,y:hit.y,z:hit.z},hitNormal:{x:-dir.x,y:-dir.y,z:-dir.z},forceDirection:{x:dir.x,y:dir.y,z:dir.z},forceMagnitude:5};
+    // `hitDirection` é o MESMO raio que produziu `hit`, e é o par que o teste de ponto fraco usa.
+    const context:DamageContext={attackerId:1,victimId:target.id,sourceId:id,attackId:id,baseDamage:damage,finalDamage:damage,crit:false,procCoefficient:id==='ricochet_fan'?.3:1,procChainDepth:0,damageTags:['bullet','skill'],hitPosition:{x:hit.x,y:hit.y,z:hit.z},hitNormal:{x:-dir.x,y:-dir.y,z:-dir.z},forceDirection:{x:dir.x,y:dir.y,z:dir.z},hitDirection:{x:dir.x,y:dir.y,z:dir.z},forceMagnitude:5};
     this.events.emit('DamageDealt',context);target.onHit?.(context);target.hits++;this.hits++;this.hitTime=.12;target.ring?.scaling.setAll(1.15);this.effects.impact(hit,dir.negate());
     // Impacto audível por habilidade: o som do disparo não substitui o do acerto.
     this.audio.skillImpact?.(id);
@@ -533,7 +554,10 @@ export class DualPistols implements CombatServices {
     if(result?.hit&&!target&&!this.destroyScenery(hit,result.getNormal(true)??dir.negate(),dir,t.damage,this.pickTriangle.get(result)))this.effects.mark(hit,result.getNormal(true)??dir.negate());
     if(target) {
       const normal=result?.getNormal(true)??this.space.upAt(hit);
-      const context: DamageContext={attackerId:1,victimId:target.id,sourceId:'dual_pistols',attackId:side===0?'right':'left',baseDamage:t.damage,finalDamage:t.damage,crit:false,procCoefficient:1,procChainDepth:0,damageTags:['bullet'],hitPosition:{x:hit.x,y:hit.y,z:hit.z},hitNormal:{x:normal.x,y:normal.y,z:normal.z},forceDirection:{x:dir.x,y:dir.y,z:dir.z},forceMagnitude:2};
+      // `forceDirection` continua sendo o rumo da CÂMERA (é o tranco, e nada mudou nele);
+      // `hitDirection` é o raio que saiu do CANO — o mesmo que produziu `hit`. A poucos metros os
+      // dois diferem em graus, e é o segundo que diz de que lado a bala entrou no corpo.
+      const context: DamageContext={attackerId:1,victimId:target.id,sourceId:'dual_pistols',attackId:side===0?'right':'left',baseDamage:t.damage,finalDamage:t.damage,crit:false,procCoefficient:1,procChainDepth:0,damageTags:['bullet'],hitPosition:{x:hit.x,y:hit.y,z:hit.z},hitNormal:{x:normal.x,y:normal.y,z:normal.z},forceDirection:{x:dir.x,y:dir.y,z:dir.z},hitDirection:{x:ray.direction.x,y:ray.direction.y,z:ray.direction.z},forceMagnitude:2};
       this.events.emit('DamageDealt',context);target.onHit?.(context);target.hits++;this.hits++;this.hitTime=.12;
       target.ring?.scaling.setAll(1.08);
     }

@@ -16,7 +16,7 @@ import type {Scene} from '@babylonjs/core/scene';
 import {CollisionWorld} from '../physics/CollisionWorld';
 import type {TotemProgress} from '../run/ExpeditionObjectives';
 import type {Vec3} from '../core/contracts';
-import {HarvestChaliceVisual,CHALICE_NODES} from '../vfx/HarvestChaliceVisual';
+import {HarvestChaliceVisual,CHALICE_NODES,type ChaliceVisualOptions} from '../vfx/HarvestChaliceVisual';
 
 /** Linguagem de cor pedida pela direção: âmbar disponível, menta carregando, núcleo escuro concluído. */
 export const TOTEM_COLORS={available:'#ffb23c',charging:'#5ff0c0',paused:'#d8894a',complete:'#2f4a46'} as const;
@@ -29,6 +29,29 @@ export const TOTEM_COLORS={available:'#ffb23c',charging:'#5ff0c0',paused:'#d8894
  * registra colisor nenhum — quem atravessa o marco caminha pelo terreno real.
  */
 export const TOTEM_ENERGY_HEIGHT=1.25;
+
+/**
+ * Tentativas de carga do sítio antes de declarar falha.
+ *
+ * Uma leitura de rede perdida não pode custar a expedição, e cada tentativa recomeça com objetos
+ * NOVOS: `HarvestChaliceVisual.load` memoriza a própria promessa, então repetir na mesma instância
+ * devolveria para sempre a primeira falha.
+ */
+export const SITE_LOAD_ATTEMPTS=3;
+
+/** Estado da carga do sítio, para a interface e para o F1 dizerem a verdade. */
+export type SiteLoadStatus='idle'|'loading'|'ready'|'failed';
+
+/** Altura autoral do quad do feixe e o centro que o deixa saindo do chão. */
+export const BEAM_HEIGHT=15,BEAM_CENTRE=7.2;
+/**
+ * Altura do FAROL antes da descoberta.
+ *
+ * Curto de propósito: cinco metros é o bastante para o copo se anunciar dentro da ilha (e para o
+ * jogador que olha de uma ponte vizinha), e pouco o bastante para não ser um pilar visível do outro
+ * lado do planeta. Ele respeita a profundidade da cena — ver `update`.
+ */
+export const BEACON_HEIGHT=5;
 
 interface TotemVisual {
   root:TransformNode;
@@ -56,6 +79,20 @@ export class ExpeditionSites {
   private readonly releaseCollision:(()=>void)[]=[];
   private disposed=false;
   ready=false;error='';
+  /**
+   * `ready` só é verdade com o SELO e TODOS os cálices na cena.
+   *
+   * Antes, `load` marcava pronto assim que o selo de runas chegava e largava
+   * `void chalice.load()` no ar: um GLB de cálice que falhasse deixava o sítio com runas no chão,
+   * uma luz de alcance 14 e NENHUM copo — que é exatamente o "cálice inexistente" relatado. Agora a
+   * promessa de `load` só resolve com o sítio inteiro montado, e quem chama pode esperar por ela.
+   */
+  status:SiteLoadStatus='idle';
+  /** Quantas tentativas de carga foram gastas; diagnóstico de QA no F1. */
+  attempts=0;
+  /** Versão da carga: uma carga antiga que resolva depois de `dispose`/recarga não escreve nada. */
+  private loadVersion=0;
+  private visible=true;
   private clock=0;
   constructor(
     private readonly scene:Scene,
@@ -65,6 +102,11 @@ export class ExpeditionSites {
      * Presente e esférico ⇒ o cálice fica DE PÉ na ilha e o limite acompanha o convés curvo.
      */
     private readonly surface?:SurfaceFrame,
+    /** Injeção de asset para teste offline; o jogo usa o padrão (`/models/harvest-chalice.glb`). */
+    private readonly chaliceOptions?:ChaliceVisualOptions,
+    /** Injeção do selo de runas para teste offline. */
+    private readonly sealSource:string|ArrayBufferView='/models/arcane-skill-ritual.glb',
+    private readonly sealExtension?:string,
   ){}
 
   /** Aviso de QA quando algo do sítio não pôde ser montado neste mapa. */
@@ -80,26 +122,95 @@ export class ExpeditionSites {
   /** Centro de cada cálice, em MUNDO, para montar o corpo orientado. */
   private readonly chaliceAnchors:Vec3[]=[];
 
-  async load(totems:readonly TotemProgress[]):Promise<void>{
-    try{
-      const container=await LoadAssetContainerAsync('/models/arcane-skill-ritual.glb',this.scene);
-      if(this.disposed){container.dispose();return;}
-      this.container=container;
-      for(const totem of totems){
-        this.visuals.push(this.build(totem));
-        const chalice=new HarvestChaliceVisual(this.scene);
-        chalice.place(totem.site.position);
-        if(this.surface)this.surface.orient(chalice.root,totem.site.position,this.surface.basis(totem.site.position,{x:0,y:0,z:1}).forward);
-        this.chalices.push(chalice);
-        // Each cup owns its morph targets; cloned managers would fill all four cups at once.
-        void chalice.load().then(ready=>{
-          if(this.disposed)return;
-          if(ready)this.attachChaliceCollision(chalice,totem.site.index);
-          else this.error=chalice.error;
-        }).catch(error=>{if(!this.disposed)this.error=String(error);});
+  /**
+   * Monta o sítio inteiro e só então promete `true`.
+   *
+   * Contrato: `false` significa "não há sítio" — sem copo, sem corpo sólido, `ready === false` e
+   * `error` preenchido. Quem chama NÃO pode liberar o estágio nesse caso. Uma carga abandonada
+   * (dispose, ou um `load` mais novo) também devolve `false` sem escrever em nada.
+   */
+  async load(totems:readonly TotemProgress[]):Promise<boolean>{
+    if(this.disposed)return false;
+    const version=++this.loadVersion;
+    this.status='loading';this.error='';this.notice='';this.ready=false;this.attempts=0;
+    for(let attempt=1;attempt<=SITE_LOAD_ATTEMPTS;attempt++){
+      this.attempts=attempt;
+      let failure='';
+      try{
+        const built=await this.attemptLoad(totems,version);
+        if(this.disposed||version!==this.loadVersion)return false;
+        if(built){this.ready=true;this.status='ready';this.error='';this.applyVisibility();return true;}
+        failure=this.error||'sítio da expedição não montou';
+      }catch(error){
+        if(this.disposed||version!==this.loadVersion)return false;
+        failure=error instanceof Error?error.message:String(error);
       }
-      this.ready=true;
-    }catch(error){if(!this.disposed)this.error=String(error);}
+      this.error=`${failure} (tentativa ${attempt}/${SITE_LOAD_ATTEMPTS})`;
+      // Estado parcial fora antes de repetir: nada de selo órfão nem meio copo em cena.
+      this.teardownBuilt();
+      if(this.disposed||version!==this.loadVersion)return false;
+    }
+    this.ready=false;this.status='failed';
+    return false;
+  }
+
+  /** Uma tentativa completa: selo, cálices e corpos sólidos. Lança para a política de repetição. */
+  private async attemptLoad(totems:readonly TotemProgress[],version:number):Promise<boolean>{
+    const container=await LoadAssetContainerAsync(this.sealSource,this.scene,
+      this.sealExtension?{pluginExtension:this.sealExtension}:undefined);
+    if(this.disposed||version!==this.loadVersion){container.dispose();return false;}
+    this.container=container;
+    const pending:Promise<boolean>[]=[];
+    for(const totem of totems){
+      this.visuals.push(this.build(totem));
+      // Each cup owns its morph targets; cloned managers would fill all four cups at once.
+      const chalice=new HarvestChaliceVisual(this.scene,this.chaliceOptions);
+      chalice.place(totem.site.position);
+      if(this.surface)this.surface.orient(chalice.root,totem.site.position,this.surface.basis(totem.site.position,{x:0,y:0,z:1}).forward);
+      this.chalices.push(chalice);
+      pending.push(chalice.load());
+    }
+    const loaded=await Promise.all(pending);
+    if(this.disposed||version!==this.loadVersion)return false;
+    for(let i=0;i<loaded.length;i++){
+      if(loaded[i])continue;
+      throw Error(`cálice ${totems[i]?.site.name??i} não carregou: ${this.chalices[i]?.error||'modelo indisponível'}`);
+    }
+    // `error` de um cálice PRONTO é aviso (ex.: líquido sem morph targets), não falha do sítio.
+    const warnings=this.chalices.map(chalice=>chalice.error).filter(Boolean);
+    if(warnings.length)this.notice=warnings.join(' · ');
+    for(let i=0;i<this.chalices.length;i++){
+      const totem=totems[i];
+      if(totem)this.attachChaliceCollision(this.chalices[i]!,totem.site.index);
+    }
+    return true;
+  }
+
+  /** Desmonta o que esta tentativa criou, mantendo a instância viva para a próxima. */
+  private teardownBuilt():void{
+    for(const release of this.releaseCollision)release();
+    this.releaseCollision.length=0;
+    for(const chalice of this.chalices)chalice.dispose();
+    this.chalices.length=0;
+    for(const visual of this.visuals)disposeVisual(visual);
+    this.visuals.length=0;
+    this.chaliceAnchors.length=0;
+    this.container?.dispose();this.container=undefined;
+  }
+
+  /**
+   * Esconde o sítio inteiro.
+   *
+   * A cena carrega o sítio do PRÓXIMO estágio antes de aplicar o plano; sem isto o copo apareceria
+   * na ilha de destino durante a viagem, e o do estágio anterior continuaria em cena ao mesmo tempo.
+   */
+  setVisible(visible:boolean):void{
+    if(this.visible===visible)return;
+    this.visible=visible;this.applyVisibility();
+  }
+  private applyVisibility():void{
+    for(const visual of this.visuals){visual.root.setEnabled(this.visible);visual.boundary.setEnabled(false);visual.light.setEnabled(this.visible);}
+    for(const chalice of this.chalices)chalice.setVisible(this.visible);
   }
 
   private attachChaliceCollision(chalice:HarvestChaliceVisual,index:number):void {
@@ -192,8 +303,8 @@ export class ExpeditionSites {
 
     const beamTexture=new Texture('/textures/expedition-beam.svg',scene);beamTexture.hasAlpha=true;
     const beamMaterial=this.tinted(`totem-beam-${index}`,beamTexture,TOTEM_COLORS.available);
-    const beam=CreatePlane(`totem-beam-mesh-${index}`,{width:2.1,height:15},scene);
-    beam.parent=energy;beam.position.y=7.2;beam.material=beamMaterial;beam.isPickable=false;
+    const beam=CreatePlane(`totem-beam-mesh-${index}`,{width:2.1,height:BEAM_HEIGHT},scene);
+    beam.parent=energy;beam.position.y=BEAM_CENTRE;beam.material=beamMaterial;beam.isPickable=false;
     // `BILLBOARDMODE_Y` gira em torno do `Y` do MUNDO: num mapa esférico o feixe deita junto com a
     // ilha. `ALL` encara a câmera em qualquer vertical, que é o que o feixe sempre quis dizer.
     beam.billboardMode=this.surface&&this.surface.kind!=='flat'?Mesh.BILLBOARDMODE_ALL:Mesh.BILLBOARDMODE_Y;
@@ -244,11 +355,15 @@ export class ExpeditionSites {
 
     const light=new PointLight(`totem-light-${index}`,new Vector3(at.x,at.y+2.2,at.z),scene);
     light.diffuse=Color3.FromHexString(TOTEM_COLORS.available);light.range=14;light.intensity=1.4;
+    // Quem manda em feixe e limite é `update`, e ele só roda com o sítio PRONTO e visível. Sem estes
+    // dois desligamentos um quad de 15 m piscaria entre a montagem e o primeiro quadro.
+    beam.setEnabled(false);boundary.setEnabled(false);
+    if(!this.visible){root.setEnabled(false);light.setEnabled(false);}
     return {root,energy,beam,core,boundary,light,beamMaterial,coreMaterial,boundaryMaterial};
   }
 
   update(dt:number,totems:readonly TotemProgress[],activeIndex:number,harvestProgress=0,discovered=false):void{
-    if(!this.ready)return;
+    if(!this.ready||!this.visible)return;
     this.clock+=dt;
     for(let i=0;i<this.visuals.length;i++){
       const visual=this.visuals[i]!,totem=totems[i];
@@ -262,14 +377,22 @@ export class ExpeditionSites {
       visual.boundaryMaterial.emissiveColor=color;visual.light.diffuse=color;
       const pulse=.5+.5*Math.sin(this.clock*(charging?4.5:1.6));
       // Concluído mantém só luz residual; o feixe some para não competir com os marcos pendentes.
-      visual.beamMaterial.alpha=complete?.06:(charging?.3+.26*pulse:.26+.14*pulse);
+      // Search is about finding the cup among the islands, not following a global pillar of light.
+      // Antes da descoberta o feixe vira um FAROL de 5 m, e — o que importa mais — volta ao grupo de
+      // renderização 0: o Babylon limpa a profundidade antes do grupo 1, então ali o feixe desenharia
+      // ATRAVÉS das ilhas e entregaria o destino de qualquer ponto do planeta. No grupo 0 ele é um
+      // objeto como qualquer outro: o relevo o esconde, e quem chega perto o vê.
+      const found=discovered||charging||complete||state==='paused';
+      const group=found?1:0;
+      if(visual.beam.renderingGroupId!==group)visual.beam.renderingGroupId=group;
+      visual.beam.position.y=found?BEAM_CENTRE:BEACON_HEIGHT/2;
+      visual.beamMaterial.alpha=complete?.06:found?(charging?.3+.26*pulse:.26+.14*pulse):.2+.12*pulse;
       visual.coreMaterial.alpha=0;
       visual.boundaryMaterial.alpha=complete?.08:(charging?.42+.3*progress:.3+.08*pulse);
       visual.light.intensity=complete?.5:charging?1.6+1.4*progress:1.2+.5*pulse;
-      visual.beam.scaling.y=complete?.2:charging?.72+.5*progress:1;
-      // Search is about finding the cup among the islands, not following a global pillar of light.
-      // Once discovered, the beacon helps return to the event without revealing it at spawn.
-      visual.beam.setEnabled(!complete&&(discovered||charging||state==='paused'));
+      visual.beam.scaling.y=complete?.2:found?(charging?.72+.5*progress:1):BEACON_HEIGHT/BEAM_HEIGHT;
+      // Concluído é a única vez que o feixe sai de cena: o copo cheio já é o destino anunciado.
+      visual.beam.setEnabled(!complete);
       // O limite só aparece quando a área importa: durante a carga do próprio marco.
       visual.boundary.setEnabled(charging||i===activeIndex);
       // Apenas a energia gira e flutua; a base de runas permanece imóvel.
@@ -280,14 +403,14 @@ export class ExpeditionSites {
   }
   positionOf(index:number):Vector3|undefined {return this.visuals[index]?.root.position;}
   dispose():void{
-    this.disposed=true;
-    for(const release of this.releaseCollision)release();this.releaseCollision.length=0;
-    for(const chalice of this.chalices)chalice.dispose();this.chalices.length=0;
-    for(const visual of this.visuals){
-      visual.light.dispose();visual.beam.dispose();visual.core.dispose();visual.boundary.dispose();
-      visual.beamMaterial.dispose();visual.coreMaterial.dispose();visual.boundaryMaterial.dispose();
-      visual.energy.dispose();visual.root.dispose();
-    }
-    this.visuals.length=0;this.container?.dispose();this.container=undefined;this.ready=false;
+    this.disposed=true;this.loadVersion++;
+    this.teardownBuilt();
+    this.ready=false;this.status='idle';
   }
+}
+
+function disposeVisual(visual:TotemVisual):void{
+  visual.light.dispose();visual.beam.dispose();visual.core.dispose();visual.boundary.dispose();
+  visual.beamMaterial.dispose();visual.coreMaterial.dispose();visual.boundaryMaterial.dispose();
+  visual.energy.dispose();visual.root.dispose();
 }

@@ -7,11 +7,13 @@ import type {RunInteractables} from '../run/RunInteractables';
 import {ENEMY_AFFIXES} from '../enemies/EnemyAffixes';
 import {ENEMIES} from '../run/MonsterDirector';
 import {perkIcon} from './PerkIcons';
-import type {ExpeditionObjectives} from '../run/ExpeditionObjectives';
+import {CHALICE_SIGNAL_SECONDS,type ExpeditionObjectives} from '../run/ExpeditionObjectives';
 import type {HarvestResonance} from '../run/HarvestResonance';
 import type {MPCharge} from '../combat/MPCharge';
 import type {WeatherCycle} from '../world/WeatherCycle';
 import {radialSurfaceOf,type EnemySurface} from '../enemies/EnemySpace';
+import type {Vec3} from '../core/contracts';
+import {objectiveBearing} from './ObjectiveBearing';
 
 const COMPASS=['↑','↗','→','↘','↓','↙','←','↖'] as const;
 const bearingArrow=(from:{x:number;z:number},to:{x:number;z:number},heading:number)=>COMPASS[Math.round(((Math.atan2(to.x-from.x,to.z-from.z)*180/Math.PI-heading+720)%360)/45)%8]!;
@@ -136,6 +138,7 @@ export class RunHUD {
   */
  private surface:EnemySurface|undefined;
  private surfaceOverride:EnemySurface|undefined;
+ private readonly objectiveForward=new Vector3(0,0,1);
  /** Porto opcional: quem passar um `FlatSurface` continua no caminho plano literal. */
  useSurface(surface:EnemySurface|undefined):void {this.surfaceOverride=radialSurfaceOf(surface);}
  constructor(){
@@ -171,9 +174,10 @@ export class RunHUD {
   this.surface=this.surfaceOverride??swarm.surface;
   const key=[...run.inventory].join();if(key!==this.inventoryKey){this.inventoryKey=key;this.inventory.set([...run.inventory].slice(0,12).map(([id,count])=>{const item=ITEMS.find(x=>x.id===id)!;return `<div title="${item.name}: ${item.description}"><i class="item-icon" style='${perkIcon(item.icon)}'></i><b>×${count}</b></div>`;}).join('')+(run.inventory.size>12?'<small class=inventory-more>+'+(run.inventory.size-12)+' ITENS · TAB</small>':''));}
   const f=camera.getForwardRay().direction,heading=(Math.atan2(f.x,f.z)*180/Math.PI+360)%360,seconds=Math.floor(run.time);
+  this.objectiveForward.copyFrom(f);
   this.bearing.set(`${['N','NE','L','SE','S','SO','O','NO'][Math.round(heading/45)%8]} · ${Math.round(heading)}°`);
   this.clockPanel.set(`<b>◷ ${String(Math.floor(seconds/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}</b><span>ESTÁGIO ${run.stage} · ${expedition?.objectives.planned?(expedition.objectives.phase==='extract'?'EMBARQUE LIBERADO':expedition.objectives.phase==='boss'?'HORDA FINAL':['NORMAL','CRESCENTE','DIFÍCIL','CAÓTICA','EXTREMA'][Math.min(4,swarm.director.state)]):['NORMAL','CRESCENTE','DIFÍCIL','CAÓTICA','PRAGA ALFA','FENDA'][swarm.director.state]}</span><strong>◈ ${run.credits} CRÉDITOS</strong><em class="run-weather">${expedition?.weather?.label??''}</em>`);
-  this.renderExpedition(expedition,camera,heading);
+  this.renderExpedition(expedition,heading);
   this.mission.set(expedition?.journey?.active?`${expedition.journey.label} · ${expedition.journey.destination}`
    :expedition?.objectives.planned?this.expeditionMission(expedition.objectives,expedition.player,heading):swarm.director.hordeMode?(swarm.director.intermission>0?'PRÓXIMA HORDA EM '+Math.ceil(swarm.director.intermission)+' s':swarm.director.wave%5===0?'ELIMINE O CHEFE E SUA HORDA':'SOBREVIVA À HORDA '+swarm.director.wave):swarm.bossDeadTime>=5?'ENTRE NA FENDA · CELEIRO':swarm.bossDeadTime>=0?'PRAGA ALFA DERROTADA':swarm.boss?'ELIMINE A PRAGA ALFA':['LOCALIZE A PRAGA ALFA','CONTENHA A INFESTAÇÃO','SOBREVIVA AO SURTO','RESISTA À COLHEITA FINAL','A PRAGA ALFA SE APROXIMA'][swarm.director.state]??'');
 
@@ -217,10 +221,12 @@ export class RunHUD {
    this.lift(l.position,(1-l.time)*.8,this.anchor);
    if(!project(this.anchor.x,this.anchor.y,this.anchor.z))continue;
    const marker=this.damage.take();
-   classes(marker.root,l.crit?'crit':'');
+   // Acerto direto no ponto fraco tem classe PRÓPRIA: o jogador precisa distinguir "tive sorte no
+   // crítico" de "acertei a asa". Mesmo pool de nós, nenhuma alocação nova.
+   classes(marker.root,l.weak?'crit weak':l.crit?'crit':'');
    css(marker.root,'left',pct(this.screen.x/width*100));css(marker.root,'top',pct(this.screen.y/height*100));
    css(marker.root,'opacity',String(Math.round(Math.min(1,l.time*3)*100)/100));
-   text(marker.root,`${l.amount}${l.crit?'!':''}`);
+   text(marker.root,`${l.amount}${l.weak?'✦':l.crit?'!':''}`);
   }
   this.damage.end();
   const near=this.selectNearby(swarm,camera);
@@ -328,11 +334,18 @@ export class RunHUD {
   // Copy do MODO em curso: o texto antigo prometia chefe a cada cinco ondas mesmo na expedição.
   this.statsPanel.set(`<h2>EXTERMINADOR · NÍVEL ${run.level}</h2><p>${brief}</p><dl>${rows.map(([label,value])=>`<dt>${label}</dt><dd>${value}</dd>`).join('')}</dl><small>Dourado: defesa e ouro · Gigante: atributos ×3 · Luminoso: dano e ataque extra</small><div class=inventory-detail>${[...run.inventory].map(([id,count])=>{const item=ITEMS.find(i=>i.id===id)!;return `<div title="${item.description}"><i class=item-icon style='${perkIcon(item.icon)}'></i><span>${item.name}<small>×${count} · ${item.description}</small></span></div>`;}).join('')}</div>`);
  }
+ private objectiveArrow(from:Vec3,to:Vec3,heading:number):string {
+  const surface=radialSurfaceOf(this.surface);
+  return surface?objectiveBearing(from,to,this.objectiveForward,surface.up(from)):bearingArrow(from,to,heading);
+ }
+ private objectiveDistance(from:Vec3,to:Vec3):number {
+  return this.surface?.planarDistance(from,to)??Math.hypot(to.x-from.x,to.z-from.z);
+ }
  private expeditionMission(objectives:ExpeditionObjectives,player:{x:number;y:number;z:number},heading:number):string {
   if(objectives.phase==='extract'){
    const chalice=objectives.totems[0];
    if(objectives.collectable(player))return '[E] RECOLHER O SUCO · EMBARCAR';
-   return chalice?`VOLTE AO CÁLICE · ${bearingArrow(player,chalice.site.position,heading)} ${Math.round(Math.hypot(chalice.site.position.x-player.x,chalice.site.position.z-player.z))} m`:'VOLTE AO CÁLICE';
+   return chalice?`VOLTE AO CÁLICE · ${this.objectiveArrow(player,chalice.site.position,heading)} ${Math.round(this.objectiveDistance(player,chalice.site.position))} m`:'VOLTE AO CÁLICE';
   }
   const current=objectives.current;
   if(objectives.phase==='boss'){
@@ -344,31 +357,34 @@ export class RunHUD {
   const next=objectives.nearestPending(player);
   if(next){
    if(objectives.interactable(player))return `[E] ATIVE O CÁLICE · ${next.totem.site.name}`;
-   return `SIGA ${bearingArrow(player,next.totem.site.position,heading)} ${next.totem.site.name} · ${Math.round(next.distance)} m`;
+   return `SIGA ${this.objectiveArrow(player,next.totem.site.position,heading)} ${next.totem.site.name} · ${Math.round(next.distance)} m`;
   }
   return 'EXPLORE AS ILHAS · ENCONTRE O CÁLICE';
  }
  /** Busca, destino descoberto, carga da horda final e ressonância. */
- private renderExpedition(expedition:{objectives:ExpeditionObjectives;resonance:HarvestResonance;mp:MPCharge;player:{x:number;y:number;z:number};weather?:WeatherCycle;journey?:StageJourneyView}|undefined,camera:Camera,heading:number):void {
+ private renderExpedition(expedition:{objectives:ExpeditionObjectives;resonance:HarvestResonance;mp:MPCharge;player:{x:number;y:number;z:number};weather?:WeatherCycle;journey?:StageJourneyView}|undefined,heading:number):void {
   const objectives=expedition?.objectives;
   shown(this.routeBox,Boolean(objectives?.planned));shown(this.meterBox,Boolean(objectives?.planned));
   if(!expedition||!objectives?.planned)return;
-  const player=expedition.player,eye=camera.position,pending=objectives.nearestPending(player);
+  const player=expedition.player,pending=objectives.nearestPending(player);
   const marks=objectives.discovered?objectives.totems.map(totem=>{
-   const distance=Math.hypot(totem.site.position.x-player.x,totem.site.position.z-player.z);
+   const distance=this.objectiveDistance(player,totem.site.position);
    const percent=Math.round(totem.charged/totem.site.juiceTarget*100);
    const label=totem.state==='complete'?'CHEIO':totem.state==='charging'?`${Math.floor(totem.charged)}/${totem.site.juiceTarget} SUCO · ${percent}%`:totem.charged>0?`PAUSADO ${percent}%`:`${totem.site.juiceTarget} SUCO`;
-   return `<li class="totem-${totem.state}${pending?.totem===totem?' totem-target':''}"><b>${totem.site.index+1}</b><span>${totem.site.name}<small>${label}</small></span><em>${bearingArrow(eye,totem.site.position,heading)} ${Math.round(distance)} m</em><i style="width:${Math.min(100,percent)}%"></i></li>`;
+   return `<li class="totem-${totem.state}${pending?.totem===totem?' totem-target':''}"><b>${totem.site.index+1}</b><span>${totem.site.name}<small>${label}</small></span><em>${this.objectiveArrow(player,totem.site.position,heading)} ${Math.round(distance)} m</em><i style="width:${Math.min(100,percent)}%"></i></li>`;
   }).join(''):'';
-  const header=expedition.journey?.active?'CONCLUSÃO DO ESTÁGIO':objectives.phase==='extract'?'PRONTO PARA EMBARCAR':objectives.phase==='boss'?'HORDA FINAL':objectives.discovered?'CÁLICE ENCONTRADO':'BUSCA DO CÁLICE';
+  const header=expedition.journey?.active?'CONCLUSÃO DO ESTÁGIO':objectives.phase==='extract'?'PRONTO PARA EMBARCAR':objectives.phase==='boss'?'HORDA FINAL':objectives.discovered?(objectives.signalAcquired?'SINAL DO CÁLICE':'CÁLICE ENCONTRADO'):'BUSCA DO CÁLICE';
   const footer=expedition.journey?.active?expedition.journey.detail
    :objectives.messageTime>0?objectives.message
    :objectives.phase==='extract'?(objectives.collectable(player)?'[E] recolhe o suco e chama a nave. A expedição continua em outro bioma.':'Recolha a recompensa e volte ao cálice para embarcar.')
    :objectives.interactable(player)?'[E] Ativar inicia a horda final com chefe. Prepare seus itens antes.'
    :objectives.current?.state==='complete'?'O cálice está cheio. Derrote a Praga Alfa para poder embarcar.'
    :objectives.current?`${objectives.bossDefeated?'Chefe derrotado. ':''}Elimine frutas próximas dentro da área para coletar suco.`
+   // A busca nunca é infinita: o sinal chega depois de `CHALICE_SIGNAL_SECONDS` de exploração e a
+   // dica passa a dizer de onde veio o rumo, em vez de prometer um feixe que não existia ainda.
+   :objectives.signalAcquired?'Sinal adquirido: o cálice está marcado no mapa (TAB). Siga o rumo e ative quando estiver preparado.'
    :objectives.discovered?'Siga o feixe âmbar até o cálice. Ative quando estiver preparado.'
-    :'Explore as ilhas e suas pontes para encontrar o cálice. Abra baús e melhore seus equipamentos pelo caminho.';
+    :`Explore as ilhas e suas pontes para encontrar o cálice — o sinal o revela em ${Math.max(0,Math.ceil((CHALICE_SIGNAL_SECONDS-objectives.searchSeconds)/60))} min de busca. Abra baús e melhore seus equipamentos pelo caminho.`;
   this.route.set(`<small>${header}</small><ul>${marks}</ul><span class="route-hint">${footer}</span>`);
   const resonance=expedition.resonance;
   const charges=expedition.mp.maxCharges

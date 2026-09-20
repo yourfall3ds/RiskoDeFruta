@@ -63,11 +63,29 @@ import { PrismShotVisuals } from '../combat/PrismShotVisuals';
 
 import { weaponReadout } from '../ui/WeaponReadout';
 
+import { AimState,aimKindFor,type AimView } from '../combat/AimState';
+
+import { TrajectoryRefreshGate } from '../combat/GrenadeTrajectory';
+
+import { TrajectoryView } from '../vfx/TrajectoryView';
+
+import { ScopeOcclusion } from '../camera/ScopeOcclusion';
+
+// Visual da mira apurada (retículo, alça, luneta e indicador de queda). O dono da interface é quem
+// escreve o arquivo; a cena só publica o estado por `update({active,kind,zoom})`.
+import { WeaponAimOverlay } from '../ui/WeaponAimOverlay';
+
+import { CAMERA_TUNING } from '../player/PlayerTuning';
+
+import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
+
 import { WeaponAudio } from '../audio/WeaponAudio';
 
 import { PlayerHUD } from '../ui/PlayerHUD';
 
-import { MPCharge } from '../combat/MPCharge';
+import { MPCharge,MP_COSTS } from '../combat/MPCharge';
+
+import { PlayerClassChoice,PLAYER_CLASSES,type PlayerClassId } from '../run/PlayerClass';
 
 import { EnemyReview } from './EnemyReview';
 
@@ -83,7 +101,7 @@ import { FootingPresentation } from '../world/FootingPresentation';
 
 import { RunHUD } from '../ui/RunHUD';
 
-import { ExpeditionObjectives,findTotemSite,FINAL_CHALICE_JUICE,TOTEM_RADIUS,type TotemSite } from '../run/ExpeditionObjectives';
+import { ExpeditionObjectives,findTotemSite,FINAL_CHALICE_JUICE,TOTEM_RADIUS,isOuterDeck,CHALICE_SIGNAL_SECONDS,DECK_TOLERANCE,type TotemSite } from '../run/ExpeditionObjectives';
 
 import { StageJourney,type JourneyCue } from '../stages/StageJourney';
 
@@ -134,6 +152,7 @@ import {pickIslands, RADIAL_ISLAND_POOL} from '../stages/IslandPool';
 import { PlayerRagdoll } from '../player/PlayerRagdoll';
 
 import { addRagdollTerrain } from '../physics/RagdollWorld';
+import { exposeQA } from '../debug/FreezeTrace';
 
 import { LoadAssetContainerAsync } from '@babylonjs/core/Loading/sceneLoader';
 
@@ -230,12 +249,25 @@ export class PlayerScene implements SceneModule {
   readonly weapons: DualPistols;private readonly skillAura:SkillAura;
 
   /**
-   * A PRISM equipada: o rig autoral (Codex) mais o backend de jogo.
+   * A CLASSE escolhida no menu, antes de entrar em campo.
    *
-   * As pistolas **não saem**: `B` alterna as duas armas e as três habilidades de MP continuam
-   * sendo de pistola, com clipe, voz e coreografia próprios — enquanto uma delas está no ar a cena
-   * devolve as pistolas às mãos (ver `syncWeapons`). A PRISM é o disparo básico padrão assim que o
-   * rig carrega; se o GLB não subir, o jogo continua inteiro com as pistolas de sempre.
+   * Persistente por design (ver `PlayerClassChoice`): ela atravessa estágios, viagens e RENASCER —
+   * a mesma tentativa repetida é a mesma classe. Só voltar ao menu destranca a escolha, e é por
+   * isso que **não existe tecla de troca de arma**: a decisão foi tomada uma vez, fora do campo.
+   */
+  private readonly classChoice=new PlayerClassChoice(undefined,location.href);
+  /** `true` quando a classe é Soldado E a PRISM subiu. Sem rig, o soldado joga nas pistolas. */
+  private get soldier():boolean {return this.classChoice.id==='soldier'&&this.prism.ready;}
+  get playerClass():PlayerClassId {return this.classChoice.id;}
+
+  /**
+   * A PRISM do SOLDADO: o rig autoral (Codex) mais o backend de jogo.
+   *
+   * Uma arma por classe, sem troca em campo. O pistoleiro nunca a equipa; o soldado nunca larga
+   * dela. As três habilidades autorais de pistola (leque, barragem e tempestade) continuam sendo do
+   * PISTOLEIRO — o soldado tem as seis próprias da PRISM (`src/combat/PrismSkills.ts`) e nunca
+   * dispara uma cinemática de pistola. Se o GLB do rig não subir, o soldado cai nas pistolas com o
+   * motivo escrito no F1, em vez de entrar em campo desarmado.
    */
   readonly prism: PrismWeapon;
   private readonly prismRig: PrismRig;
@@ -272,6 +304,16 @@ export class PlayerScene implements SceneModule {
   readonly objectives=new ExpeditionObjectives();
   readonly resonance=new HarvestResonance();
   private expeditionSites:ExpeditionSites|undefined;
+  /**
+   * Sítio do próximo estágio JÁ MONTADO e escondido, esperando o plano ser aplicado.
+   *
+   * O cálice deixou de ser carregado "depois, se der": ele é uma exigência do plano. `planReady` só
+   * fica verdadeiro quando o copo está na ilha, então uma falha de GLB agora segura a viagem (com
+   * motivo na tela e nova tentativa) em vez de entregar um estágio sem objetivo visível.
+   */
+  private pendingSites:ExpeditionSites|undefined;
+  /** Motivo real da última falha de montagem do sítio; aparece no F1 e no rótulo de carga. */
+  private siteError='';
   private readonly directorMode:DirectorMode;
   private bossRequestClock=0;
   private readonly collision:CollisionWorld;
@@ -320,6 +362,25 @@ export class PlayerScene implements SceneModule {
   private net:NetworkSession|undefined;
 
   private charging=false;
+
+  // ---- mira apurada (ADS) --------------------------------------------------------------------
+  /**
+   * O botão direito virou MIRA e o `Q` virou a carga do especial.
+   *
+   * O estado da mira vive em `AimState` (regra pura, testável) e é aplicado por quadro na
+   * apresentação, nunca no passo fixo: a mira é enquadramento, não simulação — e o passo fixo fica
+   * RETIDO durante entrada, viagem, revisão e morte, que são justamente os estados em que a mira
+   * tem de ser cancelada. Deixá-la na apresentação é o que faz o cancelamento acontecer mesmo
+   * quando a simulação está parada.
+   */
+  private readonly aim=new AimState();
+  private readonly aimOverlay=new WeaponAimOverlay();
+  private readonly trajectory:TrajectoryView;
+  private readonly trajectoryGate=new TrajectoryRefreshGate();
+  private readonly scopeOcclusion:ScopeOcclusion;
+  /** Botão direito preso e entalhes de roda do último quadro de entrada lido. */
+  private aimHeld=false;
+  private aimWheel=0;
 
   /** Continuação enfileirada na janela final da habilidade; consome uma carga de verdade. */
   private continuationTier:SkillTier|undefined;
@@ -440,7 +501,9 @@ export class PlayerScene implements SceneModule {
     this.hud=new PlayerHUD(()=>{if(this.progression.time===0)this.events.emit('StageStarted',{stageId:String(this.progression.stage),seed:this.seed});this.started=true;
       // Sem o GLB da nave não existe deck para correr: a entrada cai direto no mergulho original.
       if(!this.hasArrived){this.hasArrived=true;this.intro.start(Boolean(this.dropship?.ready));}
-      this.audio.unlock();this.audio.setActive(true);void this.input.capture();},!training,{volume:value=>{this.audio.setVolume(value);this.prismRig?.setVolume(value);},quality:balanced=>applyLightingQuality(this.scene,balanced)},this.directorMode);
+      this.audio.unlock();this.audio.setActive(true);void this.input.capture();},!training,{volume:value=>{this.audio.setVolume(value);this.prismRig?.setVolume(value);},quality:balanced=>applyLightingQuality(this.scene,balanced)},this.directorMode,
+      // A seleção de classe só existe no jogo de verdade; o pátio de treino não tem expedição.
+      {initial:this.classChoice.id,choose:id=>{this.classChoice.choose(id);this.applyPlayerClass();}});
     this.hud.onSkipIntro=()=>this.skipIntro();
 
     const canvas=engine.getRenderingCanvas()!;canvas.tabIndex=0;
@@ -496,12 +559,17 @@ export class PlayerScene implements SceneModule {
     // ele qual for, para o jogador não entrar em campo com a arma padrão ainda no ar.
     void this.prismRig.load().then(()=>{
       if(this.disposed)return;
-      // Padrão pedido: a PRISM já vem equipada quando o rig sobe.
-      this.prism.setEquipped(true);
+      // A PRISM entra nas mãos só se a CLASSE for Soldado. O pistoleiro nunca a equipa.
+      this.applyPlayerClass();
     }).catch((error:unknown)=>{
       if(!this.disposed)this.prismError=error instanceof Error?error.message:'Falha no rig da PRISM';
-    }).finally(()=>{if(!this.disposed){this.prismSettled=true;this.checkReady();}});
+    }).finally(()=>{if(!this.disposed){this.prismSettled=true;this.applyPlayerClass();this.checkReady();}});
     void this.prismVisuals.load();
+
+    // Arco previsto do lança-granadas e a lente limpa da luneta. Os dois são apresentação de MIRA:
+    // não colidem, não são atingíveis e não entram na lista de alvos.
+    this.trajectory=new TrajectoryView(this.scene);
+    this.scopeOcclusion=new ScopeOcclusion(()=>this.scopeCandidates());
 
     this.abyss=new AbyssPresentation(this.scene,this.player);this.footing=new FootingPresentation(this.scene,this.player,collision,this.audio);
 
@@ -568,12 +636,32 @@ export class PlayerScene implements SceneModule {
       this.prism.suppressed=true;this.prism.cancel();this.weapons.concealed=false;
       // A captura vem ANTES de tudo: `started=false`, `sprinting=false` e o cancelamento das
       // habilidades mexem no corpo, e a velocidade do instante do golpe é o que dá peso à queda.
+      this.cancelAim();
       this.startPlayerRagdoll(context);this.deathFlight.start(this.player.position,this.player.yaw,{up:this.player.up,forward:this.player.forward});this.intro.abort();this.meleeReview.exit();this.deathSummary=this.summarize();this.cancelCinematic();this.weapons.cancelSkills();this.started=false;this.player.sprinting=false;this.input.clear();if(document.pointerLockElement)document.exitPointerLock();this.audio.setActive(true);this.audio.fatalImpact();this.camera.hurt(.32,1);this.hud.fatalReaction(true);});
 
     this.camera.update(this.player.position,this.input.yaw,this.input.pitch,1/60);
 
     void this.visual.load();
 
+    // Porta de diagnóstico do congelamento na morte do chefe (`?qaFreeze=1`). Só publica
+    // referências já existentes; nenhuma regra do jogo lê daqui. Ver `src/debug/FreezeTrace.ts`.
+    exposeQA('scene',this);
+    exposeQA('swarm',()=>this.enemies);
+    exposeQA('objectives',()=>this.objectives);
+    exposeQA('killBoss',()=>{
+      const swarm=this.enemies;
+      if(!(swarm instanceof EnemySwarm))return 'sem horda nesta cena';
+      this.objectives.phase='boss';
+      if(!swarm.boss&&!swarm.requestBoss())return 'não consegui invocar a Praga Alfa';
+      this.objectives.bossSpawned=true;
+      const boss=swarm.boss;
+      if(!boss)return 'invocada, mas sem referência ainda — chame de novo';
+      boss.target.onHit?.({attackerId:1,victimId:boss.id,sourceId:'qa_freeze',attackId:'qa',
+        baseDamage:9e9,finalDamage:9e9,crit:false,procCoefficient:0,procChainDepth:0,damageTags:['qa'],
+        hitPosition:{x:boss.root.position.x,y:boss.root.position.y,z:boss.root.position.z},hitNormal:{x:0,y:1,z:0},
+        forceDirection:{x:0,y:1,z:0},hitDirection:{x:0,y:1,z:0},forceMagnitude:2});
+      return 'golpe fatal aplicado';
+    });
   }
 
   fixedUpdate(dt: number): void {
@@ -590,17 +678,20 @@ export class PlayerScene implements SceneModule {
     const trace=this.tracedFixed<3?(stage:string):void=>traceBoot(`fixo#${this.tracedFixed}:${stage}`):undefined;
     if(trace){this.tracedFixed++;trace('entrou');}
 
-    const input=this.paused?EMPTY_INPUT:this.input.read();if(this.reloadRunReview>0){this.reloadRunReview=Math.max(0,this.reloadRunReview-dt);input.x=0;input.z=1;input.fire=false;input.charging=false;this.player.sprinting=true;}this.charging=input.charging;
+    const input=this.paused?EMPTY_INPUT:this.input.read();if(this.reloadRunReview>0){this.reloadRunReview=Math.max(0,this.reloadRunReview-dt);input.x=0;input.z=1;input.fire=false;input.charging=false;input.aim=false;this.player.sprinting=true;}this.charging=input.charging;
+    // A mira é RESOLVIDA na apresentação (ver `updateAimState`); aqui só se guarda a intenção lida.
+    // Os entalhes de roda somam entre passos fixos porque um quadro pode conter vários.
+    this.aimHeld=Boolean(input.aim);this.aimWheel+=input.zoomDelta??0;
 
     const stats=this.progression.stats;this.player.maxHP=stats.maxHP;this.player.moveMultiplier=stats.moveSpeed;this.player.sprintMultiplier=stats.sprintSpeed;this.player.jumpMultiplier=stats.jump;this.player.extraJumps=stats.extraJumps;this.player.rechargeMultiplier=stats.dodgeRecharge;this.player.armor=stats.armor;this.player.regeneration=stats.regeneration;this.weapons.cadence.rateMultiplier=stats.attackSpeed;this.prism.rateMultiplier=stats.attackSpeed;this.mp.speedMultiplier=1+(stats.mp-1)*.5;this.mp.setMaxCharges(stats.skillCharges);
 
-    if(this.cancelVersion!==this.input.cancelVersion){this.mp.cancel();this.cancelVersion=this.input.cancelVersion;}
+    // Foco perdido, `Esc` ou pausa: a entrada foi zerada, e a mira vai junto — segurar o botão
+    // direito não pode sobreviver a uma janela que deixou de receber eventos de soltar.
+    if(this.cancelVersion!==this.input.cancelVersion){this.mp.cancel();this.cancelAim();this.cancelVersion=this.input.cancelVersion;}
 
     this.world.fixedUpdate(dt,this.player);
 
-    // `B` troca a arma da mão. A recarga em curso da arma que sai é cancelada SEM devolver bala —
-    // ver `PrismWeapon.setEquipped` e a guarda de `concealed` em `DualPistols.fixedUpdate`.
-    if(input.swapWeapon&&this.unarmed.armed)this.swapWeapon();
+    // Não existe troca de arma em campo: a arma é a da CLASSE escolhida no menu (ver `classChoice`).
     // `R` vai para a arma que está na mão; a PRISM recebe o pedido dentro do próprio passo.
     if(input.reload&&this.unarmed.armed&&!this.prism.equipped)this.weapons.requestReload();
     // Online: reconcilia com o último seq confirmado antes de prever o passo seguinte; depois envia a intenção deste passo.
@@ -623,9 +714,23 @@ export class PlayerScene implements SceneModule {
       this.continuationTier=this.cinematic.tier;
     }
 
-    const released=this.player.hp>0?this.mp.update(dt,this.unarmed.armed&&input.charging&&!this.weapons.magazine.reloading&&!this.cinematic.active):0;
+    // O `Q` do SOLDADO é outro jogo: nível I transforma (grátis), níveis II e III são as habilidades
+    // da FORMA que está nas mãos. Nenhuma cinemática de pistola é disparada por ele.
+    const prismSpecial=this.soldier&&this.prism.equipped;
+    const chargingAllowed=this.unarmed.armed&&!this.cinematic.active&&(prismSpecial?!this.prism.busy&&!this.prism.reloading&&!this.prism.skillActive:!this.weapons.magazine.reloading);
+    const released=this.player.hp>0?this.mp.update(dt,chargingAllowed&&input.charging,prismSpecial):0;
 
-    if(released){void this.requestSkill(released);return;}
+    if(released){
+      if(prismSpecial){
+        this.syncWeapons();
+        if(released===1)this.prism.requestMode();
+        // Recusada (sem munição, recarregando, transformando): o MP volta. A barra é descontada na
+        // SOLTURA do `Q`, então cobrar por uma habilidade que não saiu seria roubo silencioso.
+        else if(!this.prism.releaseSkill(released===2?2:3)){this.mp.gain(MP_COSTS[released-1]!);this.audio.dodge();}
+        else this.audio.skill(`prism_skill_${released}`);
+      } else void this.requestSkill(released);
+      return;
+    }
 
     if(input.stance&&this.unarmed.toggle()){this.mp.cancel();this.weapons.cancelSkills();this.prism.cancel();this.weapons.holstered=!this.unarmed.armed;this.audio.dodge();}
     this.unarmed.rateMultiplier=stats.attackSpeed;
@@ -643,8 +748,10 @@ export class PlayerScene implements SceneModule {
     this.syncWeapons();
     const armed=this.unarmed.armed&&!input.charging&&this.player.dodgeRemaining===0&&this.player.hp>0;
     this.weapons.fixedUpdate(dt,input.fire&&armed&&this.weapons.ready&&!this.prism.equipped);
+    this.prism.aiming=this.aimHeld&&this.aimAllowed;
     this.prism.fixedUpdate(dt,{fire:input.fire,reload:Boolean(input.reload)&&this.unarmed.armed,
-      cycle:Boolean(input.cycleMode)&&this.unarmed.armed,canAct:armed&&!this.weapons.skillActive});
+      // `cycle` já não tem tecla: a forma avança pelo `Q` no nível I (e pelo botão de QA no F1).
+      cycle:false,canAct:armed&&!this.weapons.skillActive});
 
     trace?.('armas:depois');
     if(this.enemies instanceof EnemySwarm){
@@ -768,6 +875,7 @@ export class PlayerScene implements SceneModule {
     this.hud.arrivalReveal(this.intro.holdsControl&&this.started&&!this.paused,this.intro.reveal);
     this.hud.skipIntro(this.intro.holdsControl&&this.started&&!this.paused);
     const flight=this.intro.flight;
+    this.visual.riflePresentation=!this.started||this.intro.standby;
     this.visual.arrivalPose=introPose?{
       sway:introPose.roll,rootLift:introPose.stride?0:flight.rootLift,
       height:flight.height,recovery:flight.recovery,dive:flight.dive,
@@ -783,14 +891,19 @@ export class PlayerScene implements SceneModule {
       ?(stage:string):void=>traceBoot(`quadro#${this.tracedRender}:${stage}`):undefined;
     if(draw){this.tracedRender++;draw('entrou');}
     const poseDt=this.death.active?deathDt:this.intro.standby?dt:animDt*slow;
-    const aiming=!this.player.sprinting||this.charging;
+    const aiming=!this.player.sprinting||this.charging||(this.aimHeld&&this.aimAllowed);
+    this.visual.rifleAiming=this.aimHeld&&this.aimAllowed;
+    this.prism.aiming=this.visual.rifleAiming;
     if(this.avatar)this.avatar.update(this.player,alpha,poseDt,aiming,this.charging,this.input.pitch,this.mp.seconds/2.6,this.camera.forward);
     else this.visual.update(this.player,alpha,poseDt,aiming,this.charging,this.input.pitch,this.mp.seconds/2.6);
     draw?.('avatar:depois');
     this.net?.render(animDt);
 
     draw?.('câmera:antes');
-    this.camera.setSprint(this.player.sprinting&&this.started&&!this.paused);
+    // A mira apurada entra ANTES da câmera: `setAimZoom` só deixa um ALVO, e é `camera.update` que
+    // interpola o FOV a partir do base neste mesmo quadro.
+    const aimView=this.updateAimState(dt);
+    this.camera.setSprint(this.player.sprinting&&this.started&&!this.paused&&!aimView.active);
     this.camera.update(this.visual.position,this.input.yaw,this.input.pitch,dt,this.started&&!this.intro.visible?this.player.velocity:undefined);
 
     const shot=this.intro.shot(stagingOrigin,stagingYaw);
@@ -807,7 +920,8 @@ export class PlayerScene implements SceneModule {
     if(this.ragdollOwnsBody){
       // Enquadramento no quadril do cadáver, que é o que o jogador quer ver.
       const focus=this.playerRagdoll.focus;
-      this.camera.skillClose({x:focus.x,y:focus.y,z:focus.z},this.player.yaw,1,this.death.progress);
+      // skillClose expects a foot anchor and raises its target by 1.05 m. The corpse focus is already its hips.
+      this.camera.skillClose(this.liftWorld(focus,-.95),this.player.yaw,1,this.death.progress);
     }
     else if(this.death.active)this.camera.skillClose(this.deathFlight.position,this.player.yaw,1,this.death.progress);
     if(this.cinematic.preparing)this.camera.skillClose(this.visual.position,this.castYaw,this.cinematic.tier,this.cinematic.progress);
@@ -826,6 +940,9 @@ export class PlayerScene implements SceneModule {
     // A pose do rig da PRISM tem de vir DEPOIS da pose do corpo: ela pendura a arma no punho já
     // amostrado do quadro. Com o cadáver no comando não existe punho vivo para pendurar.
     this.prism.updatePresentation(this.playerRagdoll.active?0:worldDt);
+    // Depois da pose do rig: a prévia da granada sai da BOCA já amostrada deste quadro, e a lente
+    // da luneta só sabe o que a bloqueia depois que corpo e arma foram colocados.
+    this.updateAimPresentation(aimView,dt);
     this.skillAura.update(this.cinematic,this.visual.position,this.weapons);
     this.elements.update(this.poseReview?0:animDt);if(this.intro.phase==='dive'&&introPose)this.elements.aura('fire',[this.liftWorld(introPose.position,.4)],flight.elapsed,1);
     if(this.elementPreview&&animDt>0){this.elementClock-=animDt;if(this.elementClock<=0){this.elementClock=1.6;const ahead=this.visual.position.add(this.camera.forward.scale(2.4));const at=this.liftWorld({x:ahead.x,y:ahead.y,z:ahead.z},0);this.elements.emit(this.elementPreview,new Vector3(at.x,at.y,at.z));}}
@@ -870,7 +987,7 @@ export class PlayerScene implements SceneModule {
             ?(this.objectives.collectable(this.player.position)?'[E] Recolher o suco e embarcar'
               :`Volte ao cálice e embarque · ${target?Math.round(Math.hypot(target.site.position.x-this.player.position.x,target.site.position.z-this.player.position.z)):0} m`)
           :this.objectives.phase==='boss'?'Horda final · encha o cálice e derrote o chefe'
-          :this.objectives.discovered&&pending?`Cálice encontrado · ${Math.round(pending.distance)} m`
+          :this.objectives.discovered&&pending?`${this.objectives.signalAcquired?'Sinal do cálice':'Cálice encontrado'} · ${pending.totem.site.name} · ${Math.round(pending.distance)} m`
           :'Explore as ilhas · saqueie baús e encontre o cálice');
       }
       this.hud.stageJourney(this.journey);
@@ -894,25 +1011,132 @@ export class PlayerScene implements SceneModule {
    */
   private syncWeapons():void {
     const performing=this.cinematic.active||this.skillPending||this.weapons.skillActive;
+    const down=this.player.hp<=0||this.death.active||this.playerRagdoll.active;
     this.prism.holstered=!this.unarmed.armed;
     this.prism.suppressed=performing||this.intro.holdsControl||this.journey.holdsControl
-      ||this.meleeReview.active||this.poseReview||this.player.hp<=0||this.death.active||this.playerRagdoll.active;
-    this.weapons.concealed=this.prism.live;
+      ||this.meleeReview.active||this.poseReview||down;
+    // Soldado: as pistolas ficam escondidas o tempo TODO, e não só quando a PRISM está no ar. Sem
+    // este `||` elas reapareceriam nas mãos durante a entrada pela nave e a viagem — que é
+    // exatamente quando a PRISM está suprimida. O cadáver continua recebendo o par de pistolas
+    // (o `PlayerKilled` desliga `concealed` de propósito), e é por isso que `down` sai daqui.
+    this.weapons.concealed=this.prism.live||(this.soldier&&this.prism.equipped&&!down);
   }
 
   /**
-   * `B`: troca a arma da mão.
+   * Aplica a CLASSE escolhida: quem nasce nas mãos e o que o `Q` vai fazer.
    *
-   * A recarga da arma que SAI é cancelada sem devolver munição, e o carregador dela congela
-   * enquanto estiver escondida. Sem as duas coisas, alternar viraria uma recarga instantânea das
-   * duas armas — o exploit óbvio de um inventário com duas armas e um botão de troca.
+   * Chamada no menu (a cada escolha), quando o rig da PRISM termina de carregar e a cada reinício
+   * de tentativa. É idempotente de propósito: `setEquipped` recusa o que já vale, e por isso pode
+   * ser chamada de qualquer um desses pontos sem cancelar recarga nem munição por engano.
+   *
+   * Degradação escrita: Soldado sem rig (`prism.ready === false`) recebe as pistolas e o motivo
+   * aparece no F1 — entrar em campo desarmado nunca é uma opção.
    */
-  private swapWeapon():void {
-    if(!this.prism.ready||this.prism.busy)return;
-    this.weapons.magazine.cancel();
-    this.prism.toggleEquipped();
+  private applyPlayerClass():void {
+    const soldier=this.soldier;
+    if(this.prism.equipped!==soldier){
+      this.prism.setEquipped(soldier);
+      this.prism.cancel();
+      this.weapons.magazine.cancel();
+      this.weapons.cancelSkills();
+      this.mp.cancel();
+      this.cancelAim();
+    }
     this.syncWeapons();
-    this.audio.dodge();
+    this.hud?.showPlayerClass(this.classChoice.id);
+  }
+
+  // ---------------------------------------------------------------- mira apurada (ADS)
+
+  /**
+   * Pode mirar NESTE quadro?
+   *
+   * É a lista inteira dos cancelamentos pedidos, num lugar só. Tudo o que retém o controle, tudo o
+   * que tira a arma das mãos e tudo o que já é uma ação exclusiva desliga a mira — inclusive o
+   * menu aberto, que aqui aparece como `!started` (é o mesmo sinal que o HUD usa para pôr
+   * `body.game-menu-open`). Com o menu na tela a mira nem chega a mudar de estado: ela é solta e
+   * fica solta enquanto ele estiver lá.
+   */
+  private get aimAllowed():boolean {
+    if(!this.started||this.paused)return false;
+    if(this.player.hp<=0||this.death.active||this.playerRagdoll.active)return false;
+    if(this.intro.holdsControl||this.journey.holdsControl||this.meleeReview.active||this.poseReview)return false;
+    // Habilidade de MP: preparação, atuação e a própria carga do `Q`.
+    if(this.cinematic.active||this.skillPending||this.weapons.skillActive||this.charging)return false;
+    // Punhos (`V`) e combo em curso.
+    if(!this.unarmed.armed||this.unarmed.busy||this.player.dodgeRemaining>0)return false;
+    // Recarga da arma na mão e transformação da PRISM.
+    if(this.prism.equipped)return !this.prism.busy&&!this.prism.reloading;
+    return !this.weapons.magazine.reloading;
+  }
+
+  /**
+   * Resolve a mira do quadro: estado, aproximação da câmera, sensibilidade e sobreposição visual.
+   *
+   * A roda é lida aqui e ZERADA aqui, sempre — mesmo quando o modo em vigor não a usa. É assim que
+   * rolar a roda com a granada na mão não guarda uma aproximação que apareceria de surpresa ao
+   * trocar para o sniper.
+   */
+  private updateAimState(dt:number):AimView {
+    const wheel=this.aimWheel;this.aimWheel=0;
+    const view=this.aim.update({
+      hold:this.aimHeld,
+      kind:aimKindFor({prismReady:this.prism.ready,prismEquipped:this.prism.equipped,prismMode:this.prism.mode}),
+      allowed:this.aimAllowed,
+      wheel,
+    });
+    this.camera.setAimZoom(view.zoom);
+    // Sensibilidade INVERSAMENTE proporcional à aproximação: o mesmo gesto de pulso varre o mesmo
+    // ângulo de TELA com ou sem luneta. Vale para as duas câmeras, porque a radial converte o
+    // acumulador de volta a pixels dividindo pela constante de sintonia, não por este valor.
+    this.input.sensitivity=CAMERA_TUNING.sensitivity*this.aim.sensitivityScale;
+    this.aimOverlay.update(view);
+    void dt;
+    return view;
+  }
+
+  /**
+   * A parte da mira que depende de corpo e arma já colocados: a trajetória prevista da cápsula e a
+   * lente limpa da luneta.
+   */
+  private updateAimPresentation(view:AimView,dt:number):void {
+    // Luneta: só o sniper esconde o que está colado na lente, e só enquanto estiver mirando.
+    this.scopeOcclusion.apply(this.aim.scoped&&this.prism.live,this.camera.camera.position);
+    if(!view.active||view.kind!=='grenade'||!this.prism.live){
+      this.trajectory.hide();this.trajectoryGate.reset();return;
+    }
+    // O porteiro cobra o custo: no máximo dez integrações por segundo, e nenhuma com o cano e a
+    // mira parados. O olho e a frente da câmera são o par barato que resume as duas coisas.
+    const eye=this.camera.camera.position,look=this.camera.forward;
+    if(!this.trajectoryGate.due(dt,{x:eye.x,y:eye.y,z:eye.z},{x:look.x,y:look.y,z:look.z}))return;
+    const prediction=this.prism.previewGrenade();
+    if(!prediction){this.trajectory.hide();return;}
+    // `impact` ausente = estopim estourado no ar (ou arco truncado): arco desenhado, chão NÃO
+    // marcado. Marcar um ponto de queda que não existe seria pior do que não marcar nada.
+    this.trajectory.show(prediction.points,prediction.impact);
+  }
+
+  /** Solta a mira agora e apaga tudo o que ela desenha. Foco perdido, pausa, morte, reinício. */
+  private cancelAim():void {
+    this.aimHeld=false;this.aimWheel=0;
+    this.aim.cancel();
+    this.camera.setAimZoom(1);
+    this.input.sensitivity=CAMERA_TUNING.sensitivity;
+    this.scopeOcclusion.restore();
+    this.trajectory.hide();
+    this.trajectoryGate.reset();
+    this.aimOverlay.update(this.aim.view());
+  }
+
+  /**
+   * As malhas que podem tapar a lente: o corpo do exterminador e o rig da PRISM.
+   *
+   * As pistolas ficam de fora porque elas não têm luneta — `AIM_MODES.pistols.scope` é `false`, e
+   * esconder o que não atrapalha só criaria um piscar sem motivo.
+   */
+  private *scopeCandidates():Iterable<AbstractMesh> {
+    for(const mesh of this.visual.meshes)yield mesh;
+    if(this.prism.ready)for(const mesh of this.prismRig.root.getChildMeshes())yield mesh;
   }
 
   /**
@@ -921,20 +1145,33 @@ export class PlayerScene implements SceneModule {
    * enche carregador nenhum.
    */
   private prismDebug():string {
+    const cls=`Classe ${PLAYER_CLASSES[this.classChoice.id].name}`;
     if(!this.prism.ready)
-      return `PRISM: ${this.prismError||(this.prismSettled?'rig indisponível':'carregando')} · jogo nas pistolas`;
+      return `${cls} · PRISM: ${this.prismError||(this.prismSettled?'rig indisponível':'carregando')}`
+        +`${this.classChoice.id==='soldier'?' · SOLDADO REBAIXADO ÀS PISTOLAS':' · jogo nas pistolas'}`;
+    if(!this.prism.equipped)
+      return `${cls} · PRISM fora da tentativa (arma da classe: pistolas duplas)`;
+    const skillII=this.prism.skillFor(2),skillIII=this.prism.skillFor(3);
     const ammo=[0,1,2].map(mode=>this.prism.arsenal.magazineOf(mode as 0|1|2))
       .map(magazine=>`${magazine.ammo}/${magazine.capacity}`).join(' · ');
-    return `PRISM ${this.prism.equipped?'EQUIPADA':'guardada'} · ${this.prism.tuning.name}`
+    return `${cls} · Q II ${skillII.name} (${skillII.ammoCost||skillII.ammoRequired} mun · 55 MP)`
+      +` · Q III ${skillIII.name} (${skillIII.ammoCost||skillIII.ammoRequired} mun · 100 MP)`
+      +`${this.prism.skillActive?` · NO AR: ${this.prism.skillLabel}${this.prism.overdriveRemaining>0?` ${this.prism.overdriveRemaining.toFixed(1)} s`:''}`:''}`
+      +` · habilidades soltas ${this.prism.skillReleases}`
+      +`\nPRISM ${this.prism.equipped?'EQUIPADA':'guardada'} · ${this.prism.tuning.name}`
       +`${this.prism.busy?' · TRANSFORMANDO':this.prism.reloading?` · recarregando ${Math.round(this.prism.magazine.progress*100)}%`:''}`
       +` · carregadores ${ammo} · disparos ${this.prism.shots} · explosões ${this.prism.blasts}`
       +` · cápsulas no ar ${this.prism.grenades.count}`
-      +`${this.prismVisuals.error?` · projéteis: ${this.prismVisuals.error}`:''}`;
+      +`${this.prismVisuals.error?` · projéteis: ${this.prismVisuals.error}`:''}`
+      +`\nMira ${this.aim.active?`${this.aim.kind} · ${this.aim.zoom.toFixed(2)}×`:'livre'}`
+      +` · luneta ${this.aim.scoped?`aberta (${this.scopeOcclusion.count} malhas ocultas)`:'fechada'}`
+      +` · trajetória ${this.trajectory.active?'desenhada':'oculta'}`;
   }
 
   /** Painel de arma: nome, munição e os controles que valem agora (ver `weaponReadout`). */
   private weaponReadout() {
     return weaponReadout({
+      playerClass:this.classChoice.id,
       holstered:!this.unarmed.armed,
       prismReady:this.prism.ready,prismEquipped:this.prism.equipped,prismMode:this.prism.mode,
       prismAmmo:this.prism.magazine.ammo,prismCapacity:this.prism.magazine.capacity,
@@ -942,6 +1179,10 @@ export class PlayerScene implements SceneModule {
       prismBusy:this.prism.busy,
       pistolAmmo:this.weapons.magazine.ammo,pistolCapacity:this.weapons.magazine.capacity,
       pistolReloading:this.weapons.magazine.reloading,pistolProgress:this.weapons.magazine.progress,
+      aiming:this.aim.active,
+      // Uma habilidade no ar manda no painel e na barra de carga, seja de qual classe for.
+      activeSkill:this.prism.skillActive?this.prism.skillLabel
+        :this.weapons.stormRemaining>0?'TEMPESTADE DA COLHEITA':'',
     });
   }
 
@@ -1109,7 +1350,10 @@ export class PlayerScene implements SceneModule {
    */
   private localRagdollTerrain(centre:Vec3):(()=>void)|undefined {
     const world=this.yard instanceof PlanetWorld?this.yard:undefined;
-    const patch=world?.trianglePatch(centre,14);
+    // Teto de triângulos: medido no asset real, um raio de 14 m numa ilha densa devolve mais de
+    // 100 mil triângulos, e transformar isso num corpo de malha de Havok trava o quadro da MORTE —
+    // justamente o quadro em que o jogador está olhando. Ver `PlanetCollision.trianglesAround`.
+    const patch=world?.trianglePatch(centre,14,6000);
     if(!patch)return undefined;
     try{return addRagdollTerrain(this.scene,`player-corpse-${Math.round(performance.now())}`,patch);}
     catch{return undefined;}
@@ -1361,9 +1605,21 @@ export class PlayerScene implements SceneModule {
         if(this.disposed||version!==this.planVersion)return;
         if(!loaded)throw Error(`A região ${biome.name} não carregou`);
       }
+      // Plan against the same restored scenery that the destination will display.
+      if(this.yard instanceof PlanetWorld)this.yard.restoreScenery();
+      // Temporary cups/chests from the previous stage must not become the new site's ground.
+      this.collision.detachRadialProps('expedition-sites');
+      this.collision.detachRadialProps('loot');
       const setup=this.buildStageSetup(stage);
       if(this.disposed||version!==this.planVersion)return;
       if(!setup)throw Error(`Sem par de ilhas válido em ${biome.name}`);
+      if(!isOuterDeck(this.world.surface,setup.site.position)){
+        this.stagePlans.delete(stage);this.planAttempt++;
+        throw Error(`Cálice sem superfície externa válida em ${setup.site.name}`);
+      }
+      // O cálice entra AQUI, esperado de verdade. Falhar aqui é falhar o plano.
+      await this.prepareExpeditionSite(setup,version);
+      if(this.disposed||version!==this.planVersion)return;
       this.planError='';this.pendingSetup=setup;
       if(this.journey.active)this.journey.routeReady();
       else this.applyStageSetup(setup,false);
@@ -1378,6 +1634,34 @@ export class PlayerScene implements SceneModule {
   }
 
   /**
+   * Monta o sítio do cálice do plano ANTES de o plano valer, e o deixa escondido.
+   *
+   * É a correção central do relatório "não existe cálice nenhum no mapa". Antes, `applyStageSetup`
+   * ligava `planReady` e largava `void sites.load(...)`: o selo de runas podia chegar, o copo não, e
+   * o estágio ficava jogável com um objetivo invisível — sem erro na tela, sem nova tentativa.
+   * Agora `ExpeditionSites.load` é esperado, já repete sozinho `SITE_LOAD_ATTEMPTS` vezes, e uma
+   * falha vira exceção: a viagem espera e tenta outro plano, o arranque mostra o motivo, e
+   * inventário/nível/classe não são tocados porque nada foi consumido.
+   *
+   * Fica invisível até a aplicação: durante a viagem o sítio do estágio ANTERIOR ainda está em cena,
+   * e dois copos ao mesmo tempo seria pior que nenhum.
+   */
+  private async prepareExpeditionSite(setup:StageSetup,version:number):Promise<void> {
+    this.pendingSites?.dispose();this.pendingSites=undefined;
+    const sites=new ExpeditionSites(this.scene,this.collision,this.world.surface);
+    sites.setVisible(false);
+    // O mesmo formato que `objectives.setSites([site])` produz: um marco, índice 0, vazio.
+    const built=await sites.load([{site:{...setup.site,index:0},charged:0,state:'available'}]);
+    if(this.disposed||version!==this.planVersion){sites.dispose();return;}
+    if(!built){
+      this.siteError=sites.error||'cálice da colheita não carregou';
+      sites.dispose();
+      throw Error(`Cálice não montou em ${setup.site.name} · ${this.siteError}`);
+    }
+    this.siteError='';this.pendingSites=sites;
+  }
+
+  /**
    * Aplica o plano: cálice, partida, mira e — na chegada — o avanço de estágio e a entrada pela nave.
    *
    * `arrival` separa os dois usos. No arranque (e ao reiniciar) só posiciona; na chegada de uma
@@ -1388,6 +1672,13 @@ export class PlayerScene implements SceneModule {
   private applyStageSetup(setup:StageSetup,arrival:boolean):void {
     if(this.disposed)return;
     const {plan,site}=setup;
+    const prepared=this.pendingSites;
+    if(!prepared?.ready){
+      this.planError='O cálice ainda não está pronto';this.planReady=false;
+      if(this.journey.active)this.journey.returnToTravel(this.planError);
+      else this.planRetry=2;
+      return;
+    }
     if(arrival){
       if(this.journey.consumeAdvance())this.progression.advanceStage();
       if(this.enemies instanceof EnemySwarm)this.enemies.nextStage();
@@ -1398,11 +1689,13 @@ export class PlayerScene implements SceneModule {
     // estágio anterior continuaria sólido no ar sobre uma ilha que ninguém mais visita.
     this.collision.detachRadialProps('expedition-sites');
     this.expeditionSites?.dispose();
-    this.expeditionSites=new ExpeditionSites(this.scene,this.collision,this.world.surface);
+    // Only a fully loaded site may commit a stage transition.
+    this.expeditionSites=prepared;
+    this.pendingSites=undefined;
+    this.expeditionSites.setVisible(true);
     // O corpo do cálice entra no referencial pela mesma porta do baú. Um id por sítio, então
     // trocar de estágio substitui o registro em vez de empilhar cálices invisíveis.
     this.collision.attachRadialProps('expedition-sites',this.expeditionSites.props);
-    void this.expeditionSites.load(this.objectives.totems);
     this.stageSetup=setup;this.pendingSetup=undefined;this.planReady=true;this.planError='';
     this.spawn.set(plan.spawn.x,plan.spawn.y,plan.spawn.z);
     // Fora da chegada, um plano que resolve tarde nunca teleporta um jogo já em curso.
@@ -1485,7 +1778,12 @@ export class PlayerScene implements SceneModule {
     const objectives=this.objectives;
     objectives.chargeMultiplier=this.resonance.chargeMultiplier;
     this.resonance.update(dt);
-    objectives.update(dt,this.player.position,this.player.hp>0);
+    // `searching` é o único relógio que revela o rumo do cálice por tempo. Só conta exploração de
+    // verdade: menu, entrada pela nave, viagem, pausa, revisão e morte NÃO creditam segundo nenhum,
+    // senão o sinal chegaria durante uma cinemática e entregaria o destino antes do primeiro passo.
+    const searching=this.started&&!this.paused&&this.player.hp>0
+      &&!this.intro.holdsControl&&!this.journey.holdsControl&&!this.meleeReview.active&&!this.poseReview;
+    objectives.update(dt,this.player.position,this.player.hp>0,searching);
     // Exploração mantém a abertura suave; o evento eleva a reposição e o teto de hostis.
     // O acréscimo da horda final cresce com o NÍVEL do exterminador em vez do `+12` fixo de antes,
     // então ativar o cálice cedo traz uma horda proporcionalmente menor — sem portão de nível.
@@ -1648,7 +1946,9 @@ export class PlayerScene implements SceneModule {
     // O clone volta a ficar escondido e o rig vivo reaparece — sem realocar nada.
     this.playerRagdoll.reset();this.visual.root.setEnabled(true);
     if(this.yard instanceof PlanetWorld)this.yard.restoreScenery();
-    this.cancelCinematic();this.runHUD?.clearItemPickups();this.progression.reset();this.weapons.resetAttempt();this.prism.resetAttempt();this.visual.resetAttempt();this.mp.cancel();this.mp.current=this.mp.maximum;this.mp.releases=0;this.mp.speedMultiplier=1;
+    // A CLASSE sobrevive ao RENASCER: é a mesma expedição tentada de novo. `resetAttempt` da PRISM
+    // devolve a arma às mãos por padrão, então `applyPlayerClass` volta a mandar logo em seguida.
+    this.cancelCinematic();this.runHUD?.clearItemPickups();this.progression.reset();this.weapons.resetAttempt();this.prism.resetAttempt();this.applyPlayerClass();this.visual.resetAttempt();this.mp.cancel();this.mp.current=this.mp.maximum;this.mp.releases=0;this.mp.speedMultiplier=1;
     if(this.enemies instanceof EnemySwarm)this.enemies.nextStage();this.interactables?.reset();this.objectives.reset();this.resonance.reset();this.slowMotion.reset();this.weather.reset();this.unarmed.resetAttempt();this.weapons.holstered=false;this.bossRequestClock=0;
     // A viagem volta ao zero e o estágio 1 é replanejado: nada de herdar a partida do estágio onde
     // a tentativa terminou.
@@ -1668,7 +1968,7 @@ export class PlayerScene implements SceneModule {
     this.player.maxHP=this.progression.stats.maxHP;this.player.moveMultiplier=1;this.player.jumpMultiplier=1;this.player.extraJumps=0;this.player.rechargeMultiplier=1;this.player.armor=0;this.player.regeneration=1;this.player.debugInvincible=false;
     this.player.arriveAt(this.spawn);this.player.jumps=0;this.player.dodges=0;this.player.respawns=0;this.player.solidRecoveries=0;this.player.wallJumps=0;
     // A entrada volta ao zero: nada de corpo suspenso, câmera presa ou deck sobrando em cena.
-    this.reloadRunReview=0;this.intro.reset();this.endMeleeReview();this.dropship?.update(0,false);this.hasArrived=false;this.paused=false;this.input.clear();this.input.yaw=-.13;this.input.pitch=.02;this.camera.update(this.player.position,this.input.yaw,this.input.pitch,1);
+    this.reloadRunReview=0;this.intro.reset();this.endMeleeReview();this.dropship?.update(0,false);this.hasArrived=false;this.paused=false;this.input.clear();this.cancelAim();this.input.yaw=-.13;this.input.pitch=.02;this.camera.update(this.player.position,this.input.yaw,this.input.pitch,1);
     // The retry button must wait for the NEW island before starting the arrival cinematic.
     await destination;
     if(this.stagePlanRequired&&!this.planReady)throw Error(this.planError||'A nova ilha ainda não carregou. Tente novamente.');
@@ -1676,7 +1976,7 @@ export class PlayerScene implements SceneModule {
   private cancelCinematic():void{this.continuationTier=undefined;this.chargingPressed=false;this.elements?.clear();this.auraClock=0;this.auraLast=-1;this.poseReview=false;this.castVersion++;this.skillPending=false;this.cinematic.cancel();this.visual.endPreparation();this.audio.cancelVoice();}
 
   get isPaused():boolean {return this.paused;}
-  setPaused(paused: boolean): void {this.paused=paused;this.input.clear();this.mp.cancel();this.prism.trigger.release();if(paused)this.prismRig.stopAudio();this.audio.setActive(!paused&&(this.started||this.death.active));}
+  setPaused(paused: boolean): void {this.paused=paused;this.input.clear();this.mp.cancel();this.cancelAim();this.prism.trigger.release();if(paused)this.prismRig.stopAudio();this.audio.setActive(!paused&&(this.started||this.death.active));}
 
   /**
    * Linha de diagnóstico do plano em vigor: bioma, ilha de partida, ilha do cálice e a distância
@@ -1685,19 +1985,45 @@ export class PlayerScene implements SceneModule {
   get stagePlanDescription():string {
     if(this.directorMode!=='expedition')return 'Rota de estágio: modo legado (campo fixo)';
     const setup=this.stageSetup;
-    if(!setup)return `Rota de estágio: ${this.planError||(this.planning?'planejando…':'sem plano')}`;
+    if(!setup)return `Rota de estágio: ${this.planError||(this.planning?'planejando…':'sem plano')} · ${this.chaliceDescription}`;
     const {plan}=setup;
     // O comprimento que importa é o PERCORRIDO; a reta vai junto só para comparar. `shortfall`
     // aparece escrito porque um cálice abaixo do piso nunca pode passar despercebido.
     return `Rota de estágio: ${plan.biome.name} · partida ${plan.spawnIsland.name} · cálice ${plan.chaliceIsland.name}`
       +` · caminhada ${Math.round(plan.routeLength)} m (mínimo ${plan.minRoute})${plan.shortfall?' · ABAIXO DO PISO':''}`
       +` · reta ${Math.round(plan.distance)} m (mínimo ${plan.biome.separation})`
-      +` · semente ${this.attemptSeed}${this.seedLocked?' (presa)':''} · viagem ${this.journey.phase}`;
+      +` · semente ${this.attemptSeed}${this.seedLocked?' (presa)':''} · viagem ${this.journey.phase}`
+      +`\n${this.chaliceDescription}`;
+  }
+
+  /**
+   * Estado REAL do cálice em campo: carga, colocação e busca.
+   *
+   * Existe porque o sintoma relatado era indistinguível de "mapa sem cálice". Com esta linha o QA vê
+   * na hora se o copo está montado, onde ele está, de quanto é a distância e quanto falta para o
+   * sinal revelar o rumo — sem abrir o console.
+   */
+  private get chaliceDescription():string {
+    const sites=this.expeditionSites,totem=this.objectives.totems[0];
+    const load=sites?`${sites.status}${sites.attempts>1?` (${sites.attempts} tentativas)`:''}`:'sem sítio';
+    const failure=this.siteError||sites?.error||'';
+    const notice=sites?.notice?` · aviso ${sites.notice}`:'';
+    if(!totem)return `Cálice: ${load}${failure?` · ERRO ${failure}`:''}${notice}`;
+    const at=totem.site.position;
+    const distance=Math.round(this.world.surface.planarDistance(this.player.position,at));
+    const support=this.world.surface.support(at,.05,DECK_TOLERANCE);
+    const deck=support&&Math.abs(this.world.surface.heightGap(support.point,at))<=DECK_TOLERANCE?`convés ok (desnível ${this.world.surface.heightGap(support.point,at).toFixed(2)} m)`
+      :'SEM CONVÉS SOB O CÁLICE';
+    const reveal=this.objectives.discovered
+      ?(this.objectives.signalAcquired?'revelado pelo sinal':'descoberto em campo')
+      :`sinal em ${Math.max(0,Math.ceil(CHALICE_SIGNAL_SECONDS-this.objectives.searchSeconds))} s de busca`;
+    return `Cálice: ${load} · ${totem.site.name} (${at.x.toFixed(1)}, ${at.y.toFixed(1)}, ${at.z.toFixed(1)})`
+      +` · ${distance} m · ${deck} · ${reveal}${failure?` · ERRO ${failure}`:''}${notice}`;
   }
 
   /** O plano do estágio é exigência de arranque: sem ele o objetivo ficaria indefinido. */
   private get stagePlanRequired():boolean {return this.directorMode==='expedition';}
-  private get stagePlanSettled():boolean {return !this.stagePlanRequired||this.planReady;}
+  private get stagePlanSettled():boolean {return !this.stagePlanRequired||(this.planReady&&Boolean(this.expeditionSites?.ready));}
   /**
    * Pede o plano do estágio corrente quando as dependências ficam prontas.
    * Idempotente: um pedido em curso ou um plano válido não disparam outro.
@@ -1719,7 +2045,9 @@ export class PlayerScene implements SceneModule {
     // quanto com a carga falhada — o jogo então começa com as pistolas e o motivo fica no F1.
     const stages=[this.visual?.ready,this.weapons?.ready,this.skillAura?.ready,!(this.yard instanceof FarmWorld)||this.yard.ready,(!(this.enemies instanceof EnemySwarm)||this.enemies.ready),!(this.enemies instanceof EnemySwarm)||this.enemies.navigationReady,!this.interactables||this.interactables.ready,deckReady,planned,this.prismSettled];
     const label=this.planError?`FALHA NA ROTA · ${this.planError} · tentando de novo`
-      :!planned?'SORTEANDO ILHA DE PARTIDA E CÁLICE'
+      // O cálice é etapa de carga como qualquer outra: se ele não montou, o rótulo diz isso.
+      :this.siteError&&!planned?`CARREGANDO O CÁLICE · ${this.siteError}`
+      :!planned?'SORTEANDO ILHA DE PARTIDA E MONTANDO O CÁLICE'
       :stages.every(Boolean)?'PREPARANDO LUZ E MATERIAIS':'CARREGANDO FAZENDAS E ROTAS';
     this.hud?.loading(stages.filter(Boolean).length,stages.length,label);for(const material of this.scene.materials){const lit=material as typeof material & {maxSimultaneousLights?:number};if(lit.maxSimultaneousLights!==undefined&&lit.maxSimultaneousLights>4){lit.unfreeze();lit.maxSimultaneousLights=4;}}if(this.visual?.ready&&this.weapons?.ready&&this.skillAura?.ready&&(!(this.yard instanceof FarmWorld)||this.yard.ready)&&(!(this.enemies instanceof EnemySwarm)||(this.enemies.ready&&this.enemies.navigationReady))&&(!this.interactables||this.interactables.ready)&&deckReady&&planned&&this.prismSettled){if(this.warming)return;this.warming=true;this.scene.executeWhenReady(()=>{if(!this.disposed)this.hud.ready();});}}
 
@@ -1791,9 +2119,10 @@ export class PlayerScene implements SceneModule {
     if(name==='shake')this.camera.shake=value;
 
     // Os três atalhos da PRISM passam pelas MESMAS portas das teclas; nada de caminho paralelo.
-    if(name==='prism-swap')this.swapWeapon();
     if(name==='prism-mode')this.prism.requestMode();
     if(name==='prism-reload')this.prism.requestReload();
+    // As habilidades do soldado pelo F1, pela MESMA porta do `Q` (munição cobrada, recusa honesta).
+    if(name==='prism-skill2'||name==='prism-skill3')this.prism.releaseSkill(name==='prism-skill2'?2:3);
     if(name==='reload-run'&&!this.net){this.reloadRunReview=2;this.player.sprinting=true;this.weapons.magazine.ammo=Math.min(20,this.weapons.magazine.ammo);this.weapons.requestReload();}
     if(name==='reload'){this.weapons.magazine.ammo=Math.min(20,this.weapons.magazine.ammo);this.weapons.requestReload();}
     if(name==='heal')this.player.hp=this.player.maxHP;
@@ -1889,7 +2218,8 @@ export class PlayerScene implements SceneModule {
   dispose(): void {if(this.disposed)return;this.disposed=true;
     // Invalida qualquer carregamento de destino em voo: o `.then` tardio vê a versão mudada e sai.
     this.planVersion++;this.planning=false;this.journey.reset();this.pendingSetup=undefined;this.stagePlans.clear();
-    this.weatherView?.dispose();this.weatherView=undefined;this.dropship?.dispose();this.dropship=undefined;this.collision.detachRadialProps('expedition-sites');this.collision.detachRadialProps('loot');this.expeditionSites?.dispose();this.expeditionSites=undefined;this.playerRagdoll.dispose();this.avatar?.dispose();this.net?.dispose();this.cancelCinematic();this.cutIn.dispose();this.skillAura.dispose();this.elements.dispose();this.world.dispose();this.input.dispose();this.enemies.dispose();this.explorationMap?.dispose();this.runHUD?.dispose();this.interactables?.dispose();this.events.clear();this.prism.dispose();this.prismVisuals.dispose();this.prismRig.dispose();this.weapons.dispose();this.footing.dispose();this.abyss?.dispose();this.visual.dispose();this.audio.dispose();this.hud.dispose();this.instrumentation.dispose();this.scene.dispose();}
+    this.cancelAim();this.aimOverlay.dispose();this.trajectory.dispose();this.scopeOcclusion.dispose();
+    this.weatherView?.dispose();this.weatherView=undefined;this.dropship?.dispose();this.dropship=undefined;this.collision.detachRadialProps('expedition-sites');this.collision.detachRadialProps('loot');this.expeditionSites?.dispose();this.expeditionSites=undefined;this.pendingSites?.dispose();this.pendingSites=undefined;this.playerRagdoll.dispose();this.avatar?.dispose();this.net?.dispose();this.cancelCinematic();this.cutIn.dispose();this.skillAura.dispose();this.elements.dispose();this.world.dispose();this.input.dispose();this.enemies.dispose();this.explorationMap?.dispose();this.runHUD?.dispose();this.interactables?.dispose();this.events.clear();this.prism.dispose();this.prismVisuals.dispose();this.prismRig.dispose();this.weapons.dispose();this.footing.dispose();this.abyss?.dispose();this.visual.dispose();this.audio.dispose();this.hud.dispose();this.instrumentation.dispose();this.scene.dispose();}
 
 }
 

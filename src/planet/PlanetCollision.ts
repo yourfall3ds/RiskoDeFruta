@@ -54,9 +54,21 @@ export class PlanetCollision {
   /** Triângulos hoje removidos por destruição. */
   get disabledCount(): number {return this.masked;}
 
-  /** Compact live geometry for local Havok bodies; traverses the existing BVH. */
-  trianglesAround(centre: Vec3, radius: number): {positions: number[]; indices: number[]} {
+  /**
+   * Compact live geometry for local Havok bodies; traverses the existing BVH.
+   *
+   * `maxTriangles` é um TETO DE CUSTO, não uma regra de jogo: a malha que sai daqui vira um corpo
+   * estático de Havok (`PhysicsShapeType.MESH`), e construir esse corpo é trabalho síncrono que
+   * cresce com a contagem de triângulos. Numa ilha densa uma esfera de 16 m pode conter dezenas de
+   * milhares de triângulos, e foi isso que transformou "um cadáver caiu" em um congelamento de
+   * quadro. Estourado o teto, a varredura PARA e devolve o que já juntou — a travessia da BVH é
+   * espacialmente coerente, então o que sobra é um pedaço contíguo em volta do ponto, não um
+   * recorte salpicado. O limite honesto: um cadáver num aglomerado extremo pode ficar com chão
+   * físico menor que o raio pedido.
+   */
+  trianglesAround(centre: Vec3, radius: number, maxTriangles = Infinity): {positions: number[]; indices: number[]} {
     const positions:number[]=[],indices:number[]=[],vertices=new Map<number,number>();
+    const budget=Math.max(1,maxTriangles);
     const overlaps=(n:{minX:number;minY:number;minZ:number;maxX:number;maxY:number;maxZ:number}):boolean=>{
       const x=Math.max(n.minX-centre.x,0,centre.x-n.maxX);
       const y=Math.max(n.minY-centre.y,0,centre.y-n.maxY);
@@ -64,9 +76,11 @@ export class PlanetCollision {
       return x*x+y*y+z*z<=radius*radius;
     };
     const visit=(node:Node):void=>{
+      if(indices.length>=budget*3)return;
       if(!overlaps(node))return;
       if(node.left&&node.right){visit(node.left);visit(node.right);return;}
       for(let i=node.start;i<node.end;i++){
+        if(indices.length>=budget*3)return;
         const triangle=this.order[i]!;
         if(this.isTriangleDisabled(triangle))continue;
         this.load(triangle);

@@ -1,3 +1,4 @@
+import {RocketExplosion} from './RocketExplosion';
 import {Vector3,Quaternion} from '@babylonjs/core/Maths/math.vector';
 import {TransformNode} from '@babylonjs/core/Meshes/transformNode';
 import {LoadAssetContainerAsync} from '@babylonjs/core/Loading/sceneLoader';
@@ -32,7 +33,8 @@ export class PrismShotVisuals {
   private disposed=false;
   ready=false;
   error='';
-  constructor(private readonly scene:Scene){}
+  private readonly rocket:RocketExplosion;
+  constructor(private readonly scene:Scene){this.rocket=new RocketExplosion(scene);}
   async load():Promise<void> {
     try{
       const container=await LoadAssetContainerAsync('/models/weapons/prism-shots.glb?v=incendiary-2',this.scene);
@@ -132,19 +134,7 @@ export class PrismShotVisuals {
   explosion(point:Vector3,up:Vector3,radius:number):void {
     if(!this.ready)return;
     const at=point.clone(),vertical=safeDirection(up);
-    this.emit('Nova',at,vertical,.8,(t,node)=>{
-      node.position.copyFrom(at);
-      node.scaling.setAll(radius*(.2+Math.sin(Math.min(1,t)*Math.PI*.7)*.95));
-      for(const mesh of node.getChildMeshes()){mesh.visibility=Math.min(1,(1-t)*2);mesh.billboardMode=7;}
-    });
-    for(let i=0;i<5;i++){
-      const base=at.add(spoke(i,5,vertical,radius*.22));
-      this.emit('Smoke',base,vertical,1.6,(t,node)=>{
-        node.position.copyFrom(base).addInPlace(vertical.scale(t*1.7));
-        node.scaling.setAll(.3+t*1.8);
-        for(const mesh of node.getChildMeshes()){mesh.visibility=Math.sin(Math.PI*t)*.32;mesh.billboardMode=7;}
-      });
-    }
+    this.rocket.emit(at,vertical,radius);
     for(let i=0;i<14;i++){
       const spread=spoke(i,14,vertical,radius*.85);
       const origin=at.clone();
@@ -156,6 +146,7 @@ export class PrismShotVisuals {
   }
   update(dt:number):void {
     if(dt<=0)return;
+    this.rocket.update(dt);
     for(let i=this.live.length-1;i>=0;i--){
       const fx=this.live[i]!;
       fx.age+=dt;
@@ -166,12 +157,13 @@ export class PrismShotVisuals {
   }
   /** Some com tudo que está vivo. Morte, reinício de tentativa e troca de estágio. */
   clear():void {
+    this.rocket.clear();
     for(const fx of this.live)fx.node.dispose();
     this.live.length=0;
     for(const node of this.capsules.values())node.dispose();
     this.capsules.clear();
   }
-  dispose():void {this.disposed=true;this.clear();this.container?.dispose();this.container=undefined;this.templates.clear();this.ready=false;}
+  dispose():void {this.disposed=true;this.clear();this.rocket.dispose();this.container?.dispose();this.container=undefined;this.templates.clear();this.ready=false;}
 }
 
 /** Direção unitária utilizável; `+X` quando o vetor é degenerado. */

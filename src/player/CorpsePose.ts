@@ -129,6 +129,117 @@ export function boneWorld(bone: Bone, root: TransformNode, into = new Matrix()):
 }
 
 /**
+ * Eixos do personagem MEDIDOS no rig no instante da morte — não presumidos a partir do mundo.
+ *
+ * O cadáver pode morrer de lado, de cabeça para baixo ou numa parede do planeta; qualquer "para o
+ * lado" escrito em coordenadas de mundo estaria errado nessas horas. Aqui os eixos saem das posições
+ * dos próprios ossos: a coluna (quadril→cabeça) e a linha dos ombros.
+ */
+export interface BodyFrame {
+  /** Do quadril para a cabeça, normalizado. */
+  readonly up: Vector3;
+  /** Do ombro DIREITO para o ESQUERDO, já ortogonal a `up`. */
+  readonly side: Vector3;
+  /**
+   * Terceiro eixo da base, `up × side`. É ortogonal aos outros dois — **não** afirmo que aponta
+   * para a frente do personagem; quem usa só precisa de uma direção transversal consistente.
+   */
+  readonly cross: Vector3;
+}
+
+/**
+ * Mede `BodyFrame` num esqueleto. `undefined` quando falta quadril, cabeça ou um dos ombros, ou
+ * quando o rig está degenerado — quem chama decide o que fazer, em vez de receber eixos inventados.
+ */
+export function bodyFrame(skeleton: Skeleton, root: TransformNode): BodyFrame | undefined {
+  root.computeWorldMatrix(true);
+  skeleton.computeAbsoluteMatrices(true);
+  const at = (name: string): Vector3 | undefined => skeleton.bones.find(b => b.name === name)?.getAbsolutePosition(root);
+  const hips = at('Hips'), head = at('Head'), left = at('LeftArm'), right = at('RightArm');
+  if (!hips || !head || !left || !right) return undefined;
+  const up = head.subtract(hips), side = left.subtract(right);
+  if (up.lengthSquared() < 1e-8 || side.lengthSquared() < 1e-8) return undefined;
+  up.normalize();
+  // Gram-Schmidt: a linha dos ombros raramente é perpendicular à coluna, e a base precisa ser.
+  side.subtractInPlace(up.scale(Vector3.Dot(up, side)));
+  if (side.lengthSquared() < 1e-8) return undefined;
+  side.normalize();
+  return {up, side, cross: Vector3.Cross(up, side).normalize()};
+}
+
+/**
+ * Gira um osso NO LUGAR por uma rotação dada em espaço de MUNDO, escrevendo só a rotação local.
+ *
+ * A translação é reposta depois da rotação, então a articulação não sai do lugar: só a orientação
+ * muda, e os ossos filhos acompanham pela hierarquia. A escala não é tocada — o `local` aqui é
+ * `mundo desejado × inverso(mundo do pai)`, e a reflexão do glTF (`det = −1`) que existe nos dois
+ * lados se cancela, que é o que impede a explosão de escala descrita no topo deste arquivo.
+ */
+export function rotateBoneInWorld(bone: Bone, root: TransformNode, rotation: Quaternion): void {
+  const world = boneWorld(bone, root, Matrix.Identity());
+  const pivot = world.getTranslation();
+  const spin = Matrix.Identity();
+  Matrix.FromQuaternionToRef(rotation, spin);
+  const desired = world.multiply(spin);
+  desired.setTranslation(pivot);
+  const parent = bone.getParent();
+  const parentWorld = parent ? boneWorld(parent, root, Matrix.Identity()) : root.getWorldMatrix();
+  const local = desired.multiply(Matrix.Invert(parentWorld));
+  const q = new Quaternion();
+  local.decompose(undefined, q);
+  q.normalize();
+  const node = bone.getTransformNode();
+  if (node) (node.rotationQuaternion ??= new Quaternion()).copyFrom(q);
+  else bone.rotationQuaternion = q;
+}
+
+/** Um membro para abrir: o osso, o filho que dá a direção, e para onde ir — em MUNDO. */
+export interface LimbOpening {
+  /** Osso raiz do membro (ombro, coxa). */
+  readonly bone: string;
+  /** Osso filho que define a direção atual do membro (cotovelo, joelho, mão). */
+  readonly tip: string;
+  /** Direção desejada, em MUNDO. Não precisa vir normalizada. */
+  readonly towards: Vector3;
+  /** Fração do caminho até `towards`. Saturada em [0, 1]; `1` seria uma pose FORÇADA. */
+  readonly blend: number;
+  /** Teto absoluto do giro, em graus. */
+  readonly maxDegrees: number;
+}
+
+/**
+ * Abre um membro uma FRAÇÃO do caminho até uma direção — o contrário de impor uma pose.
+ *
+ * Existe porque a pose copiada na morte é a de segurar a arma com as duas mãos: cotovelos colados no
+ * tronco, mãos juntas na frente do peito. Girar o membro uma fração até uma direção aberta desfaz o
+ * aperto sem apagar a pose da morte (corrida, salto, giro continuam lá).
+ *
+ * Devolve o ângulo REALMENTE aplicado, em radianos — `0` quando o osso ou o filho não existem, a
+ * direção é degenerada, ou não há nada a girar. Nunca lança.
+ */
+export function openLimb(skeleton: Skeleton, root: TransformNode, opening: LimbOpening): number {
+  const bone = skeleton.bones.find(b => b.name === opening.bone);
+  const tip = skeleton.bones.find(b => b.name === opening.tip);
+  if (!bone || !tip) return 0;
+  root.computeWorldMatrix(true);
+  skeleton.computeAbsoluteMatrices(true);
+  const from = tip.getAbsolutePosition(root).subtract(bone.getAbsolutePosition(root));
+  const to = opening.towards.clone();
+  if (from.lengthSquared() < 1e-10 || to.lengthSquared() < 1e-10) return 0;
+  from.normalize(); to.normalize();
+  const axis = Vector3.Cross(from, to);
+  if (axis.lengthSquared() < 1e-10) return 0;   // já alinhado, ou oposto exato: sem eixo definido
+  const blend = Math.max(0, Math.min(1, opening.blend));
+  const full = Math.acos(Math.max(-1, Math.min(1, Vector3.Dot(from, to))));
+  const angle = Math.min(full * blend, Math.max(0, opening.maxDegrees) * Math.PI / 180);
+  if (!(angle > 1e-4)) return 0;
+  rotateBoneInWorld(bone, root, Quaternion.RotationAxis(axis.normalize(), angle));
+  skeleton.prepare(true);
+  skeleton.computeAbsoluteMatrices(true);
+  return angle;
+}
+
+/**
  * Rotação de mundo de um osso SEM escala e SEM reflexão.
  *
  * A raiz do glTF tem determinante −1; decompor a matriz de mundo direto devolveria escala negativa e

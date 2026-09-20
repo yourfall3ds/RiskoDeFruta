@@ -1,0 +1,10 @@
+# PRISM — referência de pegada com duas mãos
+
+Gerada com a ferramenta integrada de imagens em 18/09/2026, a partir da captura do usuário.
+Imagem: prism-two-handed-reference.png
+
+## Prompt final
+Use case: stylized-concept. Generate a polished 3D character pose reference based on the supplied screenshot. Preserve exactly the farm gunslinger character identity: straw hat, opaque green visor, white armored sleeves, green armored trousers, brown gloves and boots, green backpack. Preserve the PRISM sci-fi assault rifle design: purple metal plates, black and silver receiver, cyan circular reactor, purple plated barrel and shoulder stock. Remove all game UI. Full body front three-quarter view on neutral gray studio background. Correct the awkward grip into an anatomically plausible relaxed TWO-HANDED rifle ready carry across the lower chest: right hand firmly wrapped around actual pistol grip behind magazine, right elbow bent down naturally, buttstock against right upper chest/shoulder; LEFT hand clearly visible cupping the underside of the fore-end ahead of the magazine, left elbow below it, fingers around the supporting surface. Rifle muzzle points toward viewer's right and slightly down, show lateral silhouette rather than muzzle-on. Face unobscured. Both hands in physical contact with the weapon, no floating hands, no hands gripping the magazine, no impossible wrists, no extra limbs. Keep gun proportions reasonably similar to screenshot. This image is a practical target for reproducing the skeleton pose in the actual game, not a redesign. Detailed materials and soft studio light.
+
+## Aplicação no jogo
+Pose de apresentação em CharacterVisual: cano inclinado aproximadamente 25 graus abaixo da horizontal, arma atravessada à frente do peito, punho direito reposicionado e mão esquerda seguindo o socket de apoio via IK. Mantém as proporções do modelo real e os controles em jogo. A referência gerada não é uma captura do jogo; sua geometria e dedos não são reproduzidos exatamente pelo rig existente.

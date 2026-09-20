@@ -10,7 +10,7 @@ import {GameInput, type InputFrame} from '../input/GameInput';
 import {PLAYER_TUNING, CAMERA_TUNING} from '../player/PlayerTuning';
 import {MPCharge, type MPTier} from '../combat/MPCharge';
 import {RunProgression} from '../run/RunProgression';
-import {MonsterDirector, finalHordePressure, type EnemyKind} from '../run/MonsterDirector';
+import {MonsterDirector, finalHordePressure, killBounty, type EnemyKind} from '../run/MonsterDirector';
 import {WeaponAudio} from '../audio/WeaponAudio';
 import {FootstepSync, type FootSample} from '../animation/FootstepSync';
 import {PlanetFrame, add, cross, dot, length, normalize, reject, scale, sub, transport} from '../planet/PlanetFrame';
@@ -628,7 +628,8 @@ export class PlanetScene implements SceneModule {
     if (!enemies) return;
     const actor = enemies.actors.find(entry => entry.id === context.victimId);
     const elite = actor?.boss === true;
-    this.progression.reward(elite);
+    // Mesmo pagamento por espécie do jogo real — ver `killBounty`.
+    this.progression.reward(elite, 1, elite || !actor ? undefined : killBounty(actor.kind, this.progression.stage));
     objective?.registerKill(elite ? 'boss' : actor?.kind ?? 'eggplant');
     if (!elite) return;
     objective?.registerBossDefeat();

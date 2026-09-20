@@ -19,9 +19,11 @@ it('failed payment does not advance a contract; successful completion drops a ph
  const engine=new NullEngine(),scene=new Scene(engine),events=new EventBus<GameEvents>(),world=new CollisionWorld();world.surfaces.push({id:'district',x:100,z:8,width:70,depth:60,height:2});const player=new PlayerMotor(world,events,{x:97,y:2,z:-9}),run=new RunProgression(events),chests=new RunInteractables(scene,player,run,events,new RandomStream(714),world);
  try{
   chests.update(0,false);expect(chests.nearest?.id).toBe('seeds-courtyard');expect(chests.buy()).toBe(false);expect(chests.contracts.completedCount).toBe(0);expect(chests.districtContract?.opened).toBe(0);
-  run.credits=200;expect(chests.buy()).toBe(true);chests.update(.4,false);expect(chests.drops.active).toHaveLength(1);
-  Object.assign(player.position,{x:82,y:2,z:13});chests.update(0,false);expect(chests.nearest?.id).toBe('seeds-west-market');expect(chests.buy()).toBe(true);expect(run.credits).toBe(125);expect(chests.contracts.completedCount).toBe(1);expect(run.inventory.size).toBe(0);expect(chests.drops.active).toHaveLength(2);expect(chests.buy()).toBe(false);
-  chests.update(1,false);expect(chests.drops.active).toHaveLength(3);const bonus=chests.drops.active[1]!;expect(bonus.landed).toBe(true);Object.assign(player.position,{x:bonus.landing.x,y:2,z:bonus.landing.z});expect(chests.buy()).toBe(true);expect([...run.inventory.values()].reduce((a,b)=>a+b,0)).toBe(1);expect(run.credits).toBe(125);
+  // Os preços são PROGRESSIVOS (cada compra encarece as seguintes), então o teste soma o que foi
+  // realmente cobrado em vez de fixar um total — o contrato aqui é de contrato de distrito, não de tabela.
+  run.credits=200;const first=chests.nearest!.cost;expect(chests.buy()).toBe(true);chests.update(.4,false);expect(chests.drops.active).toHaveLength(1);
+  Object.assign(player.position,{x:82,y:2,z:13});chests.update(0,false);expect(chests.nearest?.id).toBe('seeds-west-market');const second=chests.nearest!.cost;expect(second).toBeGreaterThan(0);expect(chests.buy()).toBe(true);expect(run.credits).toBe(200-first-second);expect(chests.contracts.completedCount).toBe(1);expect(run.inventory.size).toBe(0);expect(chests.drops.active).toHaveLength(2);expect(chests.buy()).toBe(false);
+  chests.update(1,false);expect(chests.drops.active).toHaveLength(3);const bonus=chests.drops.active[1]!;expect(bonus.landed).toBe(true);Object.assign(player.position,{x:bonus.landing.x,y:2,z:bonus.landing.z});expect(chests.buy()).toBe(true);expect([...run.inventory.values()].reduce((a,b)=>a+b,0)).toBe(1);expect(run.credits).toBe(200-first-second);
   chests.reset();expect(chests.contracts.completedCount).toBe(0);expect(chests.drops.active).toHaveLength(0);
  }finally{chests.dispose();scene.dispose();engine.dispose();}
 });

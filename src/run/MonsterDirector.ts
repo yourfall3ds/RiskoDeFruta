@@ -51,6 +51,33 @@ export function finalHordePressure(level:number):number {
   const l=Number.isFinite(level)?Math.max(1,Math.floor(level)):1;
   return Math.max(FINAL_HORDE_PRESSURE_MIN,Math.min(FINAL_HORDE_PRESSURE_MAX,FINAL_HORDE_PRESSURE_MIN+Math.floor((l-1)/2)));
 }
+/**
+ * Recompensa de um abate, por ESPÉCIE.
+ *
+ * Antes toda praga pagava o mesmo (`8 + estágio×2` créditos), e a horda inicial é quase toda
+ * berinjela — a praga mais barata do catálogo. O resultado era que andar pelas ilhas matando o que
+ * aparecia já pagava baú atrás de baú sem escolha nenhuma, que é o relato. Agora o pagamento segue
+ * o `cost` do catálogo, que é o mesmo número que o diretor usa para decidir o que pode nascer:
+ *
+ *   créditos = round((BASE + cost × PER_COST) × (1 + (estágio − 1) × STAGE_BONUS))
+ *
+ * Por espécie no estágio 1: berinjela 7, milho/cenoura 9, tomate 11, melancia 15. A berinjela
+ * pagava 10 e passa a pagar 7; a melancia, que custa quatro vezes mais para o diretor e aguenta
+ * 240 de vida, passa a pagar mais que ela. O XP segue a mesma curva com base própria, então a
+ * progressão de nível não é punida junto com a de créditos.
+ *
+ * A Praga Alfa continua no caminho de elite (`reward(true, …)`), com os mesmos 50/90 de antes.
+ */
+export const KILL_CREDIT_BASE=4,KILL_CREDIT_PER_COST=.9,KILL_XP_BASE=6,KILL_XP_PER_COST=.9,KILL_STAGE_BONUS=.25;
+export function killBounty(kind:EnemyKind,stage:number):{credits:number;xp:number} {
+  const s=Number.isFinite(stage)?Math.max(1,Math.floor(stage)):1;
+  const cost=ENEMIES[kind]?.cost??0,scale=1+(s-1)*KILL_STAGE_BONUS;
+  return {
+    credits:Math.round((KILL_CREDIT_BASE+cost*KILL_CREDIT_PER_COST)*scale),
+    xp:Math.round((KILL_XP_BASE+cost*KILL_XP_PER_COST)*scale),
+  };
+}
+
 export type HordeState=0|1|2|3|4|5;
 const COMPOSITIONS:readonly (readonly EnemyKind[])[]=[['eggplant','corn'],['eggplant','carrot'],['watermelon','eggplant'],['tomato','corn'],['eggplant','eggplant']];
 export type DirectorMode='classic'|'horde'|'expedition';

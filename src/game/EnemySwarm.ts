@@ -22,7 +22,9 @@ import type { PlayerMotor } from '../player/PlayerMotor';
 import type { TrainingTarget } from '../world/TrainingYard';
 import { FarmNavigation } from '../ai/FarmNavigation';
 import { AIScheduler } from '../ai/AIScheduler';
-import { ENEMIES,MonsterDirector,bossHealth,type DirectorMode,type EnemyKind } from '../run/MonsterDirector';
+import { ENEMIES,MonsterDirector,bossHealth,killBounty,type DirectorMode,type EnemyKind } from '../run/MonsterDirector';
+import { WEAK_POINTS,resolveWeakPoint,weakPointDamageMultiplier,weakPointEligible,type WeakPointSphere,type WeakPointZone } from '../combat/WeakPoints';
+import { INCENDIARY_SECONDS,INCENDIARY_TAG } from '../combat/PrismSkills';
 import type { RunProgression } from '../run/RunProgression';
 import { CombatPresentation } from '../vfx/CombatPresentation';
 import { ENEMY_BEHAVIORS,type TelegraphPlan } from '../enemies/EnemyBehaviors';
@@ -44,9 +46,12 @@ import { PosePalette } from '../animation/PosePalette';
 import { FruitFragments } from '../vfx/FruitFragments';
 import { HordeTickCache } from './HordeTickCache';
 import { enemySpace,radialSurfaceOf,type EnemySpace,type EnemySurface,type Heading } from '../enemies/EnemySpace';
+import { mark,section } from '../debug/FreezeTrace';
 
 type State='spawn'|'chase'|'windup'|'recover'|'dead';
-interface Actor {id:number;kind:EnemyKind;variant:EnemyVariant;scale:number;push:Vector3;root:TransformNode;body:Mesh;visual:TransformNode;clips:Map<string,AnimationGroup>;machine:AnimationStateMachine;skeleton:Skeleton|undefined;laserSocket?:TransformNode;laserArm?:TransformNode;ragdoll:ReturnType<RagdollWorld['create']>;healthTrail:number;gait:number;lastPosePosition:Vector3;palette:PosePalette;health:Health;target:TrainingTarget;state:State;time:number;attack:number;locked:Vec3;direction:Heading;facing:Vector3;burn:number;burnClock:number;anim:number;hit:number;stagger:number;staggerCooldown:number;deathVelocity:Vector3;active:boolean;cooldown:number}
+interface Actor {id:number;kind:EnemyKind;variant:EnemyVariant;scale:number;push:Vector3;root:TransformNode;body:Mesh;visual:TransformNode;clips:Map<string,AnimationGroup>;machine:AnimationStateMachine;skeleton:Skeleton|undefined;laserSocket?:TransformNode;laserArm?:TransformNode;
+  /** Nós do rig que formam o ponto fraco da espécie, resolvidos uma vez. `[]` = espécie sem zona. */
+  weakNodes?:TransformNode[];ragdoll:ReturnType<RagdollWorld['create']>;healthTrail:number;gait:number;lastPosePosition:Vector3;palette:PosePalette;health:Health;target:TrainingTarget;state:State;time:number;attack:number;locked:Vec3;direction:Heading;facing:Vector3;burn:number;burnClock:number;anim:number;hit:number;stagger:number;staggerCooldown:number;deathVelocity:Vector3;active:boolean;cooldown:number}
 /**
  * Vetores de rascunho da horda. O laço roda a 60 Hz com até 80 atores: cada `new Vector3` aqui
  * dentro seria lixo por ator por quadro. Nenhum deles sobrevive à chamada que o usa.
@@ -76,7 +81,23 @@ export const STRAY_DISTANCE=72;
 export const STRAY_REPLACEMENT_INTERVAL=1.1;
 /** Distância mínima para a aposentadoria por ORÇAMENTO (quadro pesado), que é outra coisa. */
 const RETIREMENT_DISTANCE=18;
-export interface DamageLabel {position:Vec3;amount:number;crit:boolean;time:number}
+/**
+ * Quantos cadáveres ARTICULADOS podem nascer num único passo fixo.
+ *
+ * `RagdollWorld.create` monta ~19 corpos de Havok com junções: é o trabalho mais caro do caminho de
+ * morte, e uma explosão de item (`bomb`) mata vários hostis no MESMO quadro. Sem teto, um estouro
+ * em cadeia perto da Praga Alfa pedia cinco ragdolls de uma vez. Quem não couber cai no clipe
+ * rígido de morte que já existe — o mesmo comportamento de quando o modelo não tem esqueleto — e
+ * nenhuma recompensa, abate, colheita ou evento muda por isso. A Praga Alfa fura o teto (o cadáver
+ * dela é a cena que o jogador está esperando), mas ainda consome a vaga do passo.
+ */
+export const RAGDOLL_SPAWNS_PER_STEP=1;
+export interface DamageLabel {position:Vec3;amount:number;crit:boolean;time:number;
+  /**
+   * `true` quando o número veio de um acerto direto no ponto fraco da espécie.
+   * Opcional para não quebrar quem monta rótulos de fora (QA, testes de HUD): ausente = normal.
+   */
+  weak?:boolean}
 /** Simulation, AI scheduling and presentation share stable actor IDs; visuals are recycled. */
 export class EnemySwarm {
   private readonly lasers:EnemyLaser;private readonly chargeLights:PointLight[]=[];readonly burning=new BurningStatus();private readonly elemental:ElementalEffects;private flameClock=0;readonly actors:Actor[]=[];readonly scheduler=new AIScheduler();readonly effects:CombatPresentation;readonly labels:DamageLabel[]=[];
@@ -165,6 +186,7 @@ export class EnemySwarm {
   initialize():void {if(this.tactical||this.navigation||this.space.radial)return;this.navigation=new FarmNavigation(this.world.collision);this.navigation.update(this.player.position);}
   nextStage():void {this.lasers.begin();this.elemental.clear();for(const l of this.chargeLights)l.intensity=0;this.burning.clear();this.debris.clear();this.fragments.clear();this.ragdolls.clear();this.tactical?.clear();this.scheduler.clear();this.tick.clear();this.chargeLightTargets.length=0;this.populationCap=this.budget.limit;this.benchmark=false;this.retirementClock=0;
     this.replacementClock=0;this.replacements.length=0;this.strays=0;this.recycled=0;
+    this.weakHits=0;this.lastWeakPoint='';this.ragdollsSkipped=0;this.ragdollBudget=RAGDOLL_SPAWNS_PER_STEP;
     for(const a of this.actors){a.active=false;a.root.setEnabled(false);a.body.isPickable=false;}this.kills=0;this.boss=undefined;this.bossDeadTime=-1;this.effects.clear();this.labels.length=0;this.director=new MonsterDirector(this.rng.stream('director'),this.progression.stage,50,this.mode);}
   get count():number{let live=0;for(const a of this.actors)if(a.active&&!a.health.dead)live++;return live;}
   get status():string{return `${this.count} hostis · ${this.kills} abatidos`;}
@@ -355,18 +377,80 @@ export class EnemySwarm {
     this.space.towardInto(from,this.player.position,work0);
     this.space.upInto(position,work1);
     return{attackerId:id,victimId:1,sourceId:source,attackId:source,baseDamage:damage,finalDamage:damage*multiplier*(1+.15*(this.progression.stage-1))*this.director.damageMultiplier,crit:false,procCoefficient:0,procChainDepth:0,damageTags:['enemy'],hitPosition:{x:position.x,y:position.y,z:position.z},hitNormal:{x:work1.x,y:work1.y,z:work1.z},forceDirection:{x:work0.x,y:work0.y,z:work0.z},forceMagnitude:3*multiplier};}
+  /**
+   * Esferas VIVAS do ponto fraco da espécie, em MUNDO.
+   *
+   * O centro sai do nó do rig, então ele acompanha a animação (a asa batendo, a cabeça virando) e o
+   * referencial radial do planeta de graça: `getAbsolutePosition` já compõe raiz radial → escala →
+   * pose do clipe. Não existe nenhum deslocamento fixo em `+Y` nem conversão manual de espaço aqui —
+   * era exatamente aí que a versão "offset no modelo" erraria fora do polo norte.
+   *
+   * Limite honesto: para atores a mais de 24 m a pose é amostrada a 1/30 ou 1/15 s (LOD de animação
+   * de `update`), então a esfera pode estar até um quadro de animação atrasada. A essa distância a
+   * asa ocupa poucos pixels e o erro não é perceptível.
+   */
+  private readonly weakSpheres:WeakPointSphere[]=[];
+  /** Acertos diretos em ponto fraco nesta tentativa, e a última zona atingida. Diagnóstico e HUD. */
+  weakHits=0;lastWeakPoint='';
+  private weakNodesOf(a:Actor,zone:WeakPointZone):readonly TransformNode[] {
+    if(a.weakNodes)return a.weakNodes;
+    // A instanciação renomeia cada nó para `enemy-<id>-<nome original>`; o sufixo é a identidade.
+    const nodes=a.visual.getChildTransformNodes(),found:TransformNode[]=[];
+    for(const bone of zone.bones){const node=nodes.find(n=>n.name.endsWith(bone));if(node)found.push(node);}
+    a.weakNodes=found;return found;
+  }
+  /**
+   * Zona atingida por ESTE disparo, ou `undefined`.
+   *
+   * O teste é o SEGMENTO da bala — origem `hitPosition`, direção `hitDirection` (a do raio real que
+   * o cano disparou) — contra as esferas dos ossos. Não é distância ao corpo: um tiro no tronco
+   * passa longe da esfera da cabeça e não vira crítico.
+   */
+  private weakPointOf(a:Actor,context:DamageContext):WeakPointZone|undefined {
+    if(!weakPointEligible(context.attackerId,context.procChainDepth,context.damageTags))return undefined;
+    const zone=WEAK_POINTS[a.kind];if(!zone)return undefined;
+    const nodes=this.weakNodesOf(a,zone);if(nodes.length===0)return undefined;
+    const spheres=this.weakSpheres;spheres.length=0;
+    const radius=zone.radius*a.scale;
+    for(const node of nodes){
+      node.computeWorldMatrix(true);
+      const p=node.getAbsolutePosition();
+      spheres.push({centre:{x:p.x,y:p.y,z:p.z},radius});
+    }
+    // `hitDirection` é o raio do CANO; `forceDirection` é o rumo da câmera e diverge a poucos
+    // metros. Sem o primeiro, o segundo é a melhor informação disponível.
+    const direction=context.hitDirection??context.forceDirection;
+    return resolveWeakPoint(context.hitPosition,direction,spheres)>=0?zone:undefined;
+  }
   private hit(a:Actor,context:DamageContext):void {
-    if(!a.active||a.health.dead)return;const stats=this.progression.stats,crit=context.procChainDepth===0&&this.rng.stream('run').next()<stats.crit;
-    const rawDamage=context.procChainDepth>0?context.finalDamage:context.baseDamage*stats.damage*(context.damageTags.includes('skill')?stats.mp:1)*(crit?2:1);const finalDamage=rawDamage*100/(100+ENEMY_AFFIXES[a.variant].armor);const applied={...context,finalDamage,crit:context.crit||crit};
+    if(!a.active||a.health.dead)return;const stats=this.progression.stats;
+    const weak=this.weakPointOf(a,context);
+    // Acerto direto JÁ é crítico. O dado do crítico aleatório nem é rolado quando a zona acertou:
+    // sem isso o multiplicador empilharia (×2 × ×2,4) e o mesmo golpe contaria dois críticos.
+    const crit=weak===undefined&&context.procChainDepth===0&&this.rng.stream('run').next()<stats.crit;
+    const rawDamage=context.procChainDepth>0?context.finalDamage
+      :context.baseDamage*stats.damage*(context.damageTags.includes('skill')?stats.mp:1)*(weak&&context.sourceId==='prism_sniper'?2:weakPointDamageMultiplier(weak!==undefined,crit));
+    const finalDamage=rawDamage*100/(100+ENEMY_AFFIXES[a.variant].armor);const applied={...context,finalDamage,crit:context.crit||crit||weak!==undefined};
     if(!a.health.apply(applied))return;a.hit=.10;const {force,stagger}=enemyImpact(context,a.variant,a.kind,a.staggerCooldown);
     // O empurrão continua sendo TANGENTE ao chão onde o corpo está: no plano isso é zerar `y`, na
     // esfera é remover a componente radial. Um empurrão com componente vertical arrancaria a praga
     // do convés, e ela não tem integração vertical em nenhum estado vivo.
     if(force>.5){this.space.tangentInto(a.root.position,context.forceDirection,work0);work0.normalize();a.push.set(work0.x*force,work0.y*force,work0.z*force);}
     if(stagger){a.stagger=.18;a.staggerCooldown=.85;if(a.state==='windup'){a.state='chase';a.time=0;a.cooldown=.4;}}
-    this.audio?.enemy('hit',a.kind,this.distance(a.root.position,this.player.position));this.space.lift(a.root.position,1.8,work0);this.labels.push({position:{x:work0.x,y:work0.y,z:work0.z},amount:Math.round(finalDamage),crit:applied.crit,time:.7});if(this.labels.length>32)this.labels.shift();
+    this.audio?.enemy('hit',a.kind,this.distance(a.root.position,this.player.position));this.space.lift(a.root.position,1.8,work0);this.labels.push({position:{x:work0.x,y:work0.y,z:work0.z},amount:Math.round(finalDamage),crit:applied.crit,weak:weak!==undefined,time:.7});if(this.labels.length>32)this.labels.shift();
+    // Retorno legível do acerto direto, com o pool de estilhaços que já existe — nenhuma arte nova.
+    if(weak){this.weakHits++;this.lastWeakPoint=weak.label;this.effects.burst(context.hitPosition,'energy',.6);}
+    // Incendiário da salva do soldado: a MESMA queimadura que o item de seiva já acende (5 de dano
+    // a cada 0,5 s enquanto `burn` durar). Renova, nunca empilha — `Math.max` mantém o teto em
+    // `INCENDIARY_SECONDS`, então acertar o mesmo bicho com cinco cápsulas não faz cinco fogueiras.
+    if(applied.damageTags.includes(INCENDIARY_TAG)&&!a.health.dead){
+      a.burn=Math.max(a.burn,INCENDIARY_SECONDS);a.burnClock=0;
+      this.effects.burst(a.root.position,'seed',.5);
+    }
     this.procs.onHit(context,{burn:seconds=>{a.burn=seconds;a.burnClock=0;this.effects.burst(a.root.position,'seed');},blast:radius=>{this.effects.burst(a.root.position,'seed',2);for(const other of this.actors)if(other!==a&&other.active&&!other.health.dead&&this.distance(other.root.position,a.root.position)<radius)this.hit(other,{...applied,victimId:other.id,baseDamage:finalDamage*.5,finalDamage:finalDamage*.5,procChainDepth:1,sourceProcId:'bomb'});}});
-    if(a.health.dead){this.lastKill={position:{x:a.root.position.x,y:a.root.position.y,z:a.root.position.z},kind:a.kind,age:0};this.scheduler.remove(a.id);a.state='dead';a.time=0;this.tactical?.remove(a.id);a.palette.sync();a.ragdoll=this.ragdolls.create(a.skeleton,a.body,applied,a.scale);this.audio?.enemy('death',a.kind,this.distance(a.root.position,this.player.position));a.body.isPickable=false;this.launchCorpse(a,context.forceDirection,3,3);this.kills++;this.progression.reward(a.kind==='boss',ENEMY_AFFIXES[a.variant].gold);const heal=this.procs.onKill();this.player.hp=Math.min(this.player.maxHP,this.player.hp+heal);this.effects.burst(a.root.position,heal?'energy':'juice',a.kind==='boss'?4:1.2);this.fragments.burst(a.kind,a.root.position,context.forceDirection,a.body,a.kind==='boss'?1.6:1);
+    if(a.health.dead){this.lastKill={position:{x:a.root.position.x,y:a.root.position.y,z:a.root.position.z},kind:a.kind,age:0};this.scheduler.remove(a.id);a.state='dead';a.time=0;this.tactical?.remove(a.id);a.palette.sync();a.ragdoll=this.takeRagdoll(a,applied);this.audio?.enemy('death',a.kind,this.distance(a.root.position,this.player.position));a.body.isPickable=false;this.launchCorpse(a,context.forceDirection,3,3);this.kills++;
+      // Pagamento por ESPÉCIE (ver `killBounty`); o chefe continua no caminho de elite de sempre.
+      this.progression.reward(a.kind==='boss',ENEMY_AFFIXES[a.variant].gold,a.kind==='boss'?undefined:killBounty(a.kind,this.progression.stage));const heal=this.procs.onKill();this.player.hp=Math.min(this.player.maxHP,this.player.hp+heal);this.effects.burst(a.root.position,heal?'energy':'juice',a.kind==='boss'?4:1.2);this.fragments.burst(a.kind,a.root.position,context.forceDirection,a.body,a.kind==='boss'?1.6:1);
       // `corpseLaunch` devolve o impulso no referencial do golpe (tangente + vertical). No planeta a
       // parte vertical tem de subir pela RADIAL do corpo, não por `+Y` do mundo.
       const launch=corpseLaunch(applied);
@@ -377,19 +461,38 @@ export class EnemySwarm {
         this.space.lift(a.root.position,1,work0);
         this.events.emit('FruitHarvested',{sequence:++this.harvestSequence,entityId:a.id,kind:a.kind,position:{x:work0.x,y:work0.y,z:work0.z}});
       }
-      if(a.kind==='boss'){this.debris.fracture(a.target.meshes??[a.body],a.body);for(const corpse of this.actors)if(corpse!==a&&corpse.active&&corpse.health.dead&&this.distance(corpse.root.position,a.root.position)<12){
+      if(a.kind==='boss'){mark('chefe morreu · início do bloco');
+      section('chefe:fracture',()=>this.debris.fracture(a.target.meshes??[a.body],a.body));
+      section('chefe:empurrão de cadáveres',()=>{for(const corpse of this.actors)if(corpse!==a&&corpse.active&&corpse.health.dead&&this.distance(corpse.root.position,a.root.position)<12){
         this.space.towardInto(a.root.position,corpse.root.position,work0);
         const push=this.distance(corpse.root.position,a.root.position)*.8;
         this.space.clearVertical(corpse.root.position,corpse.deathVelocity);
         corpse.deathVelocity.addInPlaceFromFloats(work0.x*push,work0.y*push,work0.z*push);
         this.space.raise(corpse.root.position,corpse.deathVelocity,5);
-      }this.director.bossKilled();this.bossDeadTime=this.mode==='classic'?0:-1;this.events.emit('BossKilled',applied);if(this.mode!=='expedition')this.events.emit('StageCompleted',{stageId:String(this.progression.stage)});}
+      }});
+      section('chefe:director.bossKilled',()=>this.director.bossKilled());this.bossDeadTime=this.mode==='classic'?0:-1;
+      section('chefe:evento BossKilled',()=>this.events.emit('BossKilled',applied));
+      if(this.mode!=='expedition')section('chefe:evento StageCompleted',()=>this.events.emit('StageCompleted',{stageId:String(this.progression.stage)}));
+      mark('chefe morreu · fim do bloco');}
     }
   }
   /**
    * Impulso do cadáver: `tangential` metros por segundo na direção tangente de `direction` mais
    * `vertical` na vertical LOCAL do corpo. Na fazenda isso reproduz o `set(x, y, z)` de antes.
    */
+  /**
+   * Cadáver articulado dentro do orçamento do passo. Ver `RAGDOLL_SPAWNS_PER_STEP`.
+   * `undefined` ⇒ o corpo morre pelo clipe rígido, que é o caminho que já existia.
+   */
+  private ragdollBudget=RAGDOLL_SPAWNS_PER_STEP;
+  /** Mortes que ficaram sem cadáver articulado por orçamento. Diagnóstico honesto do limite. */
+  ragdollsSkipped=0;
+  private takeRagdoll(a:Actor,applied:DamageContext):ReturnType<RagdollWorld['create']> {
+    const boss=a.kind==='boss';
+    if(!boss&&this.ragdollBudget<=0){this.ragdollsSkipped++;return undefined;}
+    this.ragdollBudget--;
+    return section(boss?'chefe:ragdoll de Havok':'ragdoll de Havok',()=>this.ragdolls.create(a.skeleton,a.body,applied,a.scale));
+  }
   private launchCorpse(a:Actor,direction:Vec3,tangential:number,vertical:number):void {
     this.space.tangentInto(a.root.position,direction,work0);
     const length=work0.length()||1;
@@ -534,6 +637,9 @@ export class EnemySwarm {
     }
   }
   fixedUpdate(dt:number):void {
+    // Vaga de cadáver articulado deste passo. As armas disparam ANTES da horda no passo fixo da
+    // cena, então o orçamento reposto aqui é o que os acertos do próximo passo vão gastar.
+    this.ragdollBudget=RAGDOLL_SPAWNS_PER_STEP;
     if(this.lastKill)this.lastKill.age+=dt;
     // Cada OSSO de cada cadáver cai pela radial do ponto onde ele está, não pela do jogador: dois
     // corpos em ilhas diferentes têm gravidades diferentes, e é isso que a correção por corpo dá.

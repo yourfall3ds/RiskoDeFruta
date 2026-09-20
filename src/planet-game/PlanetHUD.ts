@@ -137,7 +137,7 @@ export class PlanetHUD {
           <ul>
             <li><b>W A S D</b> andar · <b>MOUSE</b> mirar · <b>CLIQUE</b> atirar</li>
             <li><b>ESPAÇO</b> saltar · <b>SHIFT</b> correr · <b>R</b> recarregar</li>
-            <li><b>BOTÃO DIREITO</b> carrega o especial · <b>E</b> baús e cálice</li>
+            <li><b>Q</b> carrega o especial · <b>E</b> baús e cálice</li>
           </ul>
           <div class="planet-error" hidden></div>
           <button type="button" disabled>Carregando…</button>

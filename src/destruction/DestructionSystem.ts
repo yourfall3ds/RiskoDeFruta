@@ -84,9 +84,24 @@ export class DestructionSystem {
    * Um acerto. Devolve o que aconteceu, ou `undefined` quando o ponto não era prop destrutível —
    * e nesse caso o chamador segue com o efeito de impacto normal dele, sem saber deste subsistema.
    */
+  /**
+   * O índice de triângulo é AUTORIDADE, não uma dica.
+   *
+   * Quando o acerto traz triângulo, o dono daquele triângulo é o prop atingido — e `undefined`
+   * significa "isto é terreno", não "procure de outro jeito". A versão anterior caía em
+   * `atPoint` sempre que a busca binária não achava nada, ou seja, em TODO tiro que acertou chão:
+   * uma varredura de ~64 células da grade, com `Set`, `map`, `filter` e `sort`, mais uma string de
+   * chave por célula — dezenas de vezes por segundo, para sempre responder `undefined`. Isso
+   * contradizia o próprio contrato descrito no topo do arquivo ("uma busca binária que morre na
+   * primeira comparação") e é a conta cara que sobrava em cada disparo.
+   *
+   * A busca por ponto continua existindo para quem NÃO tem triângulo — soco, legado e dano por
+   * posição —, que é exatamente o caso para o qual ela foi escrita.
+   */
   hit(hit: DestructionHit): DestructionOutcome | undefined {
-    const found = hit.triangle !== undefined ? this.field.byTriangle(hit.triangle) : undefined;
-    const state = found?.state ?? this.field.atPoint(hit.point);
+    const state = hit.triangle !== undefined
+      ? this.field.byTriangle(hit.triangle)?.state
+      : this.field.atPoint(hit.point);
     if (!state || state.broken) return undefined;
     return this.apply(state, hit.point, hit.direction, hit.normal, hit.damage, 0);
   }

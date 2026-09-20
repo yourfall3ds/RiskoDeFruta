@@ -8,6 +8,19 @@ import type { MPCharge } from '../combat/MPCharge';
 import type { EnemyReview } from '../game/EnemyReview';
 import { createSeed } from '../core/RunRNG';
 import { weaponReadout,type WeaponReadoutView } from './WeaponReadout';
+import { ClassSelect } from './ClassSelect';
+import { DEFAULT_PLAYER_CLASS,type PlayerClassId } from '../run/PlayerClass';
+
+/**
+ * A porta da escolha de classe, do ponto de vista do menu.
+ *
+ * `initial` é a classe já persistida (ver `PlayerClassChoice`) e `choose` avisa a cena, que é quem
+ * reequipa. Ausente = cena sem seleção (pátio de treino), e o menu não desenha o bloco.
+ */
+export interface ClassPicker {
+  readonly initial: PlayerClassId;
+  choose(id: PlayerClassId): void;
+}
 /** Rótulos do detalhamento da pontuação, no `title` do bloco de score. */
 const SCORE_LABEL={kills:'abate'} as const;
 export class PlayerHUD {
@@ -48,16 +61,20 @@ export class PlayerHUD {
     card.querySelector('.stage-journey-detail')!.textContent=journey.detail;
     (card.querySelector('.stage-journey-track i') as HTMLElement).style.width=percent;
   }
-  constructor(private readonly start: () => void,private readonly farm=false,settings?:{volume:(value:number)=>void;quality:(balanced:boolean)=>void},private readonly mode:'expedition'|'horde'|'classic'='expedition') {
+  /** Seleção de classe do menu. `undefined` quando a cena não oferece escolha (treino). */
+  private readonly classSelect:ClassSelect|undefined;
+  /** A classe realmente em vigor; o painel de arma e a barra de carga falam por ela. */
+  private playerClass:PlayerClassId=DEFAULT_PLAYER_CLASS;
+  constructor(private readonly start: () => void,private readonly farm=false,settings?:{volume:(value:number)=>void;quality:(balanced:boolean)=>void},private readonly mode:'expedition'|'horde'|'classic'='expedition',classPicker?:ClassPicker) {
     this.element.id='player-hud';
     this.element.innerHTML=`<div class="field-brand"><span class="eyebrow">AGRO / EXTERMINATION DIVISION</span><strong>GUNSLINGER <span>01</span></strong></div>
       <div class="field-objective"><span>CAMPO DE TREINAMENTO</span><b>Calibre suas pistolas</b></div>
       <div class="crosshair" aria-hidden="true"><i></i><i></i><i></i><i></i><b></b></div>
-      <div class="mp-resource" role="meter" aria-label="MP" aria-valuemin="0" aria-valuemax="100"><span>MP</span><div><i></i><em></em><em></em></div><b>100 / 100</b></div><div class="mp-meter" aria-label="Carga de habilidade"><div><i>I</i><i>II</i><i>III</i></div><small>SEGURE BOTÃO DIREITO</small></div>
+      <div class="mp-resource" role="meter" aria-label="MP" aria-valuemin="0" aria-valuemax="100"><span>MP</span><div><i></i><em></em><em></em></div><b>100 / 100</b></div><div class="mp-meter" aria-label="Carga de habilidade"><div><i>I</i><i>II</i><i>III</i></div><small>SEGURE Q</small></div>
       <div class="player-vitals"><span>EXTERMINADOR AGRÍCOLA</span><strong class="hp-value">130 / 130</strong><div class="hp-track"><i class="hp-lag"></i><i class="hp-current"></i></div><small>REGENERAÇÃO ATIVA</small></div>
       <div class="player-abilities"><span>ESQUIVA</span><div class="dodge-charges">◆ ◆</div><small>SHIFT · 2 CARGAS</small></div>
       <div class="field-diagnostic" role="status">Carregando personagem…</div>
-      <div class="play-gate loading"><div class="gate-card"><span class="eyebrow">MUTANT FARM / CAMPO DE TESTES</span><h1>Pronto para<br>o campo.</h1><p>Explore a pista. Teste as duas pistolas, salte os obstáculos e atravesse os vãos com a esquiva.</p><div class="controls"><span><kbd>W A S D</kbd> Mover</span><span><kbd>MOUSE</kbd> Mirar</span><span><kbd>ESPAÇO</kbd> Saltar</span><span><kbd>SHIFT</kbd> Esquivar</span><span><kbd>CLIQUE</kbd> Disparar</span><span><kbd>R</kbd> Recarregar</span><span><kbd>ESC</kbd> Soltar cursor</span></div><button class="start-play" disabled>Preparando equipamento…</button><small>F1 abre as opções de diagnóstico.</small></div></div>`;
+      <div class="play-gate loading"><div class="gate-card"><span class="eyebrow">MUTANT FARM / CAMPO DE TESTES</span><h1>Pronto para<br>o campo.</h1><p>Explore a pista. Teste as duas pistolas, salte os obstáculos e atravesse os vãos com a esquiva.</p><div class="controls"><span><kbd>W A S D</kbd> Mover</span><span><kbd>MOUSE</kbd> Mirar</span><span><kbd>ESPAÇO</kbd> Saltar</span><span><kbd>SHIFT</kbd> Esquivar</span><span><kbd>CLIQUE</kbd> Disparar</span><span><kbd>DIREITO</kbd> Mirar</span><span><kbd>Q</kbd> Carregar e soltar habilidade</span><span><kbd>R</kbd> Recarregar</span><span><kbd>ESC</kbd> Soltar cursor</span></div><button class="start-play" disabled>Preparando equipamento…</button><small>F1 abre as opções de diagnóstico.</small></div></div>`;
     this.element.insertAdjacentHTML('beforeend','<div class="player-damage-screen" aria-hidden="true"><div class="damage-direction"><i></i></div></div><div class="player-damage-number" role="status"></div>');
     // Cartão da conclusão do estágio: suco recolhido → embarque → viagem → chegada.
     // Fica em `document.body` e não no HUD porque o HUD inteiro some sob `body.arrival-in-progress`,
@@ -101,15 +118,39 @@ export class PlayerHUD {
         :mode==='horde'
         ?'Sobreviva a hordas cada vez mais fortes. Ao vencer cada onda, recolha o item que cai no campo para acumular poder. A cada cinco ondas, enfrente uma Praga Alfa.'
         :'Contenha a infestação até a Praga Alfa aparecer, derrote-a e atravesse a fenda para avançar de estágio.';
-      this.element.querySelector('.controls')!.insertAdjacentHTML('beforeend','<span><kbd>DIREITO</kbd> Carregar habilidade</span><span><kbd>E</kbd> Ativar cálice / abrir / recolher</span><span><kbd>W A S D</kbd> ×2 Arrancada</span><span><kbd>V</kbd> Corpo a corpo</span><span><kbd>B</kbd> Trocar PRISM / pistolas</span><span><kbd>T</kbd> Forma da PRISM</span>');
+      // Sem `B` e sem `T`: a arma é a da CLASSE escolhida no menu e não troca dentro da expedição.
+      this.element.querySelector('.controls')!.insertAdjacentHTML('beforeend','<span><kbd>DIREITO</kbd> Mira apurada · luneta no sniper</span><span><kbd>RODA</kbd> Zoom da luneta</span><span><kbd>E</kbd> Ativar cálice / abrir / recolher</span><span><kbd>W A S D</kbd> ×2 Arrancada</span><span><kbd>V</kbd> Corpo a corpo</span><span><kbd>Q</kbd> Soldado: I transforma a PRISM · II e III por forma</span>');
     }
     if(farm)this.element.insertAdjacentHTML('beforeend','<div class="class-sigil"><img src="/ui/farm-mark.svg" alt="Divisão agrícola"></div><div class="weapon-readout"><span>PISTOLAS DUPLAS</span><b>50 / 50</b><small>R · RECARREGAR</small></div>');
     const options=document.createElement('div');options.className='game-options';options.innerHTML='<label>Som <input aria-label="Volume do som" type="range" min="0" max="100" value="55"></label>';
     options.querySelector<HTMLInputElement>('input[type=range]')!.oninput=e=>settings?.volume(Number((e.target as HTMLInputElement).value)/100);this.element.querySelector('.gate-card')!.append(options);
     const quality=document.createElement('label');quality.innerHTML='Visual <select aria-label="Qualidade visual"><option value="high">Alta · sombras e oclusão</option><option value="balanced">Equilibrada · mais fluidez</option></select>';quality.querySelector('select')!.onchange=e=>settings?.quality((e.target as HTMLSelectElement).value==='balanced');options.append(quality);
     const fresh=document.createElement('button');fresh.className='new-expedition';fresh.textContent='NOVA EXPEDIÇÃO';fresh.onclick=()=>{const url=new URL(location.href);url.searchParams.set('seed',createSeed());location.assign(url);};options.append(fresh);
-    this.element.querySelector('.mp-meter')!.setAttribute('title','Segure o botão direito e solte: I · Leque ricocheteante (0,6 s), II · Barragem com mortal (1,4 s), III · Tempestade da colheita (2,6 s).');
+    this.element.querySelector('.mp-meter')!.setAttribute('title','Segure Q e solte: I em 0,6 s, II em 1,4 s, III em 2,6 s. O que sai depende da CLASSE — e, no soldado, da forma da PRISM que está nas mãos.');
+    // A escolha de classe entra ANTES das opções de som/visual: é a primeira decisão da expedição.
+    if(classPicker){
+      this.playerClass=classPicker.initial;
+      this.classSelect=new ClassSelect(classPicker.initial,id=>{this.playerClass=id;classPicker.choose(id);});
+      this.element.querySelector('.gate-card .controls')!.after(this.classSelect.element);
+      const controls=this.element.querySelector('.gate-card .controls')!;
+      const help=document.createElement('details');help.className='class-controls-help';
+      const summary=document.createElement('summary');summary.textContent='VER CONTROLES';
+      help.append(summary,controls);this.element.querySelector('.gate-card')!.append(help);
+      this.syncClassSelect();
+    }
   }
+
+  /**
+   * Destranca a escolha SÓ no menu de verdade.
+   *
+   * `entered` é "esta tentativa já começou" e `dead` é "o relatório de derrota está na tela". Nos
+   * dois casos mudar de classe seria trocar de arma no meio de uma corrida, que é o que o pedido
+   * proíbe. `VOLTAR AO MENU` zera os dois (ver `defeated`) e a escolha volta a abrir.
+   */
+  private syncClassSelect():void {this.classSelect?.setLocked(this.entered||this.dead);}
+
+  /** A cena pode corrigir o painel (ex.: PRISM sem rig força o Pistoleiro). */
+  showPlayerClass(id:PlayerClassId):void {this.playerClass=id;this.classSelect?.show(id);}
   /** Mostra ou esconde o controle de pular. Esconder também tira o foco do botão. */
   skipIntro(visible:boolean):void {
     if(this.skipButton.hidden===!visible)return;
@@ -130,10 +171,10 @@ export class PlayerHUD {
     // A barra terminada continuava desenhada a 100% por cima do menu pronto. `.loading` só escondia
     // os controles; o próprio bloco de progresso nunca saía.
     (this.element.querySelector('.loading-progress') as HTMLElement).hidden=true;this.loaded=true;
-    this.button.disabled=false;this.button.textContent='PRESS START · JOGAR' ;this.diagnostic.textContent=this.farm?(this.mode==='expedition'?'Expedição pronta · encontre o cálice nas ilhas':'Siga o caminho até o celeiro'):'Pista pronta · Carregador de 50 balas';}
+    this.button.disabled=false;this.button.textContent='PRESS START · JOGAR' ;this.diagnostic.textContent=this.farm?(this.mode==='expedition'?'Expedição pronta · encontre o cálice nas ilhas':'Siga o caminho até o celeiro'):'DIREITO · MIRAR / Q · CARREGAR E SOLTAR';}
   fatalReaction(active:boolean,progress=0):void {this.element.classList.toggle('fatal-reaction',active);this.element.style.setProperty('--fatal-flash',String(Math.max(0,1-progress*14)));if(active){this.skipIntro(false);this.gate.hidden=true;this.button.disabled=true;}}
   defeated(summary:AttemptSummary,retry?:()=>void|Promise<void>): void {
-    this.skipIntro(false);this.fatalReaction(false);this.dead=true;this.gate.hidden=false;this.gate.classList.remove('loading');this.gate.classList.add('defeated');document.body.classList.add('game-menu-open');
+    this.skipIntro(false);this.fatalReaction(false);this.dead=true;this.syncClassSelect();this.gate.hidden=false;this.gate.classList.remove('loading');this.gate.classList.add('defeated');document.body.classList.add('game-menu-open');
     this.gate.querySelector<HTMLVideoElement>('video')?.pause();this.element.querySelector('.gate-card .eyebrow')!.textContent='EXPEDIÇÃO ENCERRADA';
     this.element.querySelector('h1')!.textContent='A última colheita.';
     const objectives=summary.objectives,expedition=objectives.mode==='expedition';
@@ -177,7 +218,9 @@ export class PlayerHUD {
         this.gate.querySelector('.gate-card p')!.textContent=error instanceof Error?error.message:'Não foi possível preparar a nova ilha. Tente novamente.';
         return;
       }
-      this.button.disabled=false;this.dead=false;this.entered=false;this.gate.classList.remove('defeated');items.remove();menu.remove();report.remove();
+      // RENASCER mantém a classe (é a MESMA expedição repetida); VOLTAR AO MENU destranca a escolha
+      // logo abaixo, porque `setActive(false)` deixa `entered` em `false`.
+      this.button.disabled=false;this.dead=false;this.entered=false;this.syncClassSelect();this.gate.classList.remove('defeated');items.remove();menu.remove();report.remove();
       this.damage.flash=0;this.damage.hold=0;this.damage.amount=0;this.damage.trail=1;
       this.element.querySelector('.gate-card .eyebrow')!.textContent='MUTANT FARM / ILHAS SUSPENSAS';this.element.querySelector('h1')!.textContent='A colheita se revoltou.';
       this.element.querySelector('.gate-card p')!.textContent=this.mode==='expedition'?'Explore as ilhas e encontre o cálice. Sua ativação inicia a horda final: encha-o de suco e derrote a Praga Alfa.':'Sobreviva às hordas, recolha itens e explore os campos.';
@@ -186,17 +229,21 @@ export class PlayerHUD {
     this.button.onclick=()=>leave(true);menu.onclick=()=>leave(false);
   }
 
-  setActive(active: boolean): void {this.playActive=active;const film=this.gate.querySelector<HTMLVideoElement>('video');if(active)film?.pause();else if(film)void film.play().catch(()=>{});document.body.classList.toggle('game-menu-open',!active);this.gate.hidden=active;if(active)this.entered=true;else if(this.entered&&!this.dead){this.element.querySelector('h1')!.textContent='Campo pausado.';this.button.textContent='CONTINUAR EXPEDIÇÃO →';}}
+  setActive(active: boolean): void {this.playActive=active;const film=this.gate.querySelector<HTMLVideoElement>('video');if(active)film?.pause();else if(film)void film.play().catch(()=>{});document.body.classList.toggle('game-menu-open',!active);this.gate.hidden=active;if(active)this.entered=true;else if(this.entered&&!this.dead){this.element.querySelector('h1')!.textContent='Campo pausado.';this.button.textContent='CONTINUAR EXPEDIÇÃO →';}this.syncClassSelect();}
   /**
    * `weapon` é o painel já resolvido (ver `weaponReadout`). Quando ausente, o painel cai no texto
    * das pistolas de sempre — é o caminho do pátio de treino e de qualquer cena sem a PRISM.
    */
   update(player: PlayerMotor,pistols: DualPistols,error: string,mp: MPCharge,enemies:Pick<EnemyReview,'count'|'kills'|'status'>,dt=1/60,weapon?:WeaponReadoutView): void {
+    // Resolvido SEMPRE (mesmo sem painel na tela): a barra de carga do `Q` lê os rótulos daqui, e
+    // eles dependem da classe e — no soldado — da forma da PRISM que está nas mãos.
+    const view=weapon??weaponReadout({playerClass:this.playerClass,holstered:pistols.holstered,
+      prismReady:false,prismEquipped:false,prismMode:0,
+      prismAmmo:0,prismCapacity:0,prismReloading:false,prismProgress:0,prismBusy:false,
+      pistolAmmo:pistols.magazine.ammo,pistolCapacity:pistols.magazine.capacity,
+      pistolReloading:pistols.magazine.reloading,pistolProgress:pistols.magazine.progress,
+      activeSkill:pistols.stormRemaining>0?'TEMPESTADE DA COLHEITA':''});
     const ammo=this.element.querySelector('.weapon-readout b');if(ammo){
-      const view=weapon??weaponReadout({holstered:pistols.holstered,prismReady:false,prismEquipped:false,prismMode:0,
-        prismAmmo:0,prismCapacity:0,prismReloading:false,prismProgress:0,prismBusy:false,
-        pistolAmmo:pistols.magazine.ammo,pistolCapacity:pistols.magazine.capacity,
-        pistolReloading:pistols.magazine.reloading,pistolProgress:pistols.magazine.progress});
       this.element.querySelector('.weapon-readout span')!.textContent=view.label;
       ammo.textContent=view.ammo;
       this.element.querySelector('.weapon-readout small')!.textContent=view.hint;
@@ -223,9 +270,15 @@ export class PlayerHUD {
     this.element.querySelector('.field-objective b')!.textContent=this.objective||fallback;
     this.element.querySelector('.field-objective')!.setAttribute('title',`${enemies.status}${this.farm?'':' · Espécimes de treino voltam após 8 segundos.'}`);
     this.element.querySelectorAll('.mp-meter i').forEach((segment,index)=>segment.classList.toggle('charged',mp.tier>index));
-    this.element.querySelector('.mp-meter small')!.textContent=pistols.stormRemaining>0?'TEMPESTADE DA COLHEITA':mp.held&&mp.current<25?'MP INSUFICIENTE':mp.held?['CARREGANDO','LEQUE RICOCHETEANTE','BARRAGEM COM MORTAL','TEMPESTADE DA COLHEITA'][mp.tier]!:'SEGURE BOTÃO DIREITO';
+    // Uma habilidade no ar manda; depois a falta de MP (só quando o nível I não é grátis); depois o
+    // rótulo do nível carregado, que o painel de arma já resolveu pela classe e pela forma.
+    this.element.querySelector('.mp-meter small')!.textContent=view.active
+      ?view.active
+      :mp.held&&mp.current<25&&!view.freeFirstTier?'MP INSUFICIENTE'
+      :mp.held?view.charge[mp.tier]!
+      :'SEGURE Q';
     if(error){this.diagnostic.textContent=`Falha ao carregar personagem: ${error}`;this.button.textContent='Recarregue a página para tentar novamente';}
     else if(pistols.cadence.shots+pistols.skillShots>0)this.diagnostic.textContent=`${pistols.hits} acertos · ${pistols.cadence.shots+pistols.skillShots} disparos · ${mp.releases} habilidades`;
   }
-  dispose(): void {window.removeEventListener('keydown',this.gateKey);this.onSkipIntro=undefined;this.skipButton.remove();this.journeyCard?.remove();document.body.classList.remove('game-menu-open','arrival-in-progress');this.element.remove();}
+  dispose(): void {window.removeEventListener('keydown',this.gateKey);this.onSkipIntro=undefined;this.skipButton.remove();this.classSelect?.dispose();this.journeyCard?.remove();document.body.classList.remove('game-menu-open','arrival-in-progress');this.element.remove();}
 }

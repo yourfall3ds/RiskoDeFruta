@@ -48,6 +48,9 @@ export class RadialCamera implements GameCamera {
   private hurtSide = 1;
   private fovBlend = 0;
   private baseFov: number = t.fov;
+  /** Alvo da mira apurada e a aproximação já suavizada. `1` = sem mira. Ver `GameCamera`. */
+  private aimZoom = 1;
+  private aimBlend = 1;
   private lastYaw: number | undefined;
   private lastPitch = 0;
   private initialized = false;
@@ -99,6 +102,8 @@ export class RadialCamera implements GameCamera {
   get up(): Vec3 {return this.upValue;}
   setSprint(sprinting: boolean): void {this.sprintBlendTarget = sprinting ? 1 : 0;}
   setFovDegrees(degrees: number): void {this.baseFov = degrees * Math.PI / 180;}
+  /** Mira apurada; mesmo contrato da câmera plana — alvo absoluto, nunca incremento. */
+  setAimZoom(zoom: number): void {this.aimZoom = Number.isFinite(zoom) ? Math.max(1, zoom) : 1;}
   impulse(strength: number): void {this.kick = Math.min(0.05, this.kick + strength * this.shake);}
   hurt(strength: number, side: number): void {
     this.hurtKick = Math.min(0.13, this.hurtKick + strength * this.shake);
@@ -142,14 +147,20 @@ export class RadialCamera implements GameCamera {
     const target = planarVelocity && planar > 0.6 ? scale(planarVelocity, wanted / planar) : {x: 0, y: 0, z: 0};
     this.lead = reject(add(this.lead, scale(sub(target, this.lead), leadFactor)), up);
 
-    // ---- FOV de corrida ----------------------------------------------------------------------
+    // ---- FOV de corrida e mira apurada -------------------------------------------------------
     this.fovBlend += (this.sprintBlendTarget - this.fovBlend)
       * (this.initialized ? 1 - Math.exp(-step / t.fovSmoothing) : 1);
-    this.camera.fov = this.baseFov + this.fovBlend * t.sprintFovDegrees * Math.PI / 180;
+    this.aimBlend += (this.aimZoom - this.aimBlend)
+      * (this.initialized ? 1 - Math.exp(-step / t.aimFovSmoothing) : 1);
+    this.camera.fov = 2*Math.atan(Math.tan((this.baseFov + this.fovBlend * t.sprintFovDegrees * Math.PI / 180)/2)
+      / Math.max(1, this.aimBlend));
 
     // ---- pose do núcleo, com a distância pedida pelo jogador ---------------------------------
     const anchor = add(position, this.lead);
+    const baseDistance=this.planet.preferredDistance;
+    this.planet.preferredDistance=baseDistance*(1-.32*Math.min(1,(this.aimBlend-1)/.32));
     const pose = this.planet.update(anchor, dt);
+    this.planet.preferredDistance=baseDistance;
     this.upValue = pose.up;
     this.forward.set(pose.forward.x, pose.forward.y, pose.forward.z);
 

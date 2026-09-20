@@ -1,3 +1,4 @@
+import {RocketExplosion} from '../combat/RocketExplosion';
 import {Scene} from '@babylonjs/core/scene';
 import {Vector3,Quaternion} from '@babylonjs/core/Maths/math.vector';
 import {TransformNode} from '@babylonjs/core/Meshes/transformNode';
@@ -12,11 +13,13 @@ type Effect={node:TransformNode;age:number;life:number;step:(t:number,node:Trans
 
 /** Standalone VFX preview; does not apply gameplay damage or select enemy targets. */
 export class PrismShotPreview{
+ private rocket:RocketExplosion|undefined;
  private templates=new Map<string,TransformNode>();
  private effects:Effect[]=[];
  onImpact:((mode:number)=>void)|undefined;
  static async create(scene:Scene){
   const fx=new PrismShotPreview();
+  fx.rocket=new RocketExplosion(scene);scene.onDisposeObservable.addOnce(()=>fx.rocket?.dispose());
   const assets=await LoadAssetContainerAsync('/models/weapons/prism-shots.glb?v=incendiary-2',scene);assets.addAllToScene();
   for(const name of ['Pulse','Lance','Grenade','Impact','Spark','Nova','Debris','Smoke','Ember']){
    const node=assets.transformNodes.find(n=>n.name===name);
@@ -51,13 +54,7 @@ export class PrismShotPreview{
   this.onImpact?.(mode);
   const radius=mode===2?2.4:mode===1?.85:.4;
   if(mode===2){
-   const fire=this.emit('Nova',point,dir,.8,(t,n)=>{n.scaling.setAll(.5+Math.sin(t*Math.PI*.7)*2.6);for(const mesh of n.getChildMeshes())mesh.visibility=Math.min(1,(1-t)*2);});
-   for(const mesh of fire.getChildMeshes())mesh.billboardMode=7;
-   for(let i=0;i<5;i++){
-    const p=point.add(new Vector3(Math.cos(i*2.4)*.4,.1,Math.sin(i*2.4)*.4));
-    const smoke=this.emit('Smoke',p,dir,1.6,(t,n)=>{n.position.y=p.y+t*1.7;n.scaling.setAll(.3+t*1.8);for(const mesh of n.getChildMeshes())mesh.visibility=Math.sin(Math.PI*t)*.32;});
-    for(const mesh of smoke.getChildMeshes())mesh.billboardMode=7;
-   }
+   this.rocket?.emit(point,Vector3.Up(),radius);
   }else this.emit('Impact',point,dir,.32,(t,n)=>{n.scaling.set(.5*(1-t)+.03,radius*(.2+t),radius*(.2+t));for(const mesh of n.getChildMeshes())mesh.visibility=1-t;});
   const count=mode===2?14:mode===1?7:4;
   for(let i=0;i<count;i++){
@@ -67,6 +64,7 @@ export class PrismShotPreview{
   }
  }
  update(dt:number){
+  this.rocket?.update(dt);
   const completed:Effect[]=[];
   for(const fx of [...this.effects]){fx.age+=dt;fx.step(Math.min(1,fx.age/fx.life),fx.node);if(fx.age>=fx.life)completed.push(fx);}
   this.effects=this.effects.filter(fx=>!completed.includes(fx));

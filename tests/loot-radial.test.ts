@@ -409,8 +409,12 @@ describe('compra, ejeção e coleta no planeta', () => {
       f.chests.update(0, false);
       expect(f.chests.nearest?.id).toBe(chest.id);          // achou por arco, não por hipot XZ
       const credits = f.run.credits;
+      // O preço é PROGRESSIVO: `chest.cost` muda depois da compra, então o valor cobrado é o de antes.
+      const cost = chest.cost;
       expect(f.chests.buy()).toBe(true);
-      expect(f.run.credits).toBe(credits - chest.cost);
+      expect(f.run.credits).toBe(credits - cost);
+      // E o próximo baú já cobra mais caro — é o que impede "abrir todos correndo".
+      expect(f.chests.entries.find(e => !e.used && e.kind !== 'altar')!.cost).toBeGreaterThan(cost);
       for (let i = 0; i < 90; i++) f.chests.update(1 / 60, false);
       const drop = f.chests.drops.active[0]!;
       expect(drop.landed).toBe(true);

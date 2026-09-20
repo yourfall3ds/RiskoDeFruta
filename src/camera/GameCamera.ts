@@ -40,6 +40,16 @@ export interface GameCamera {
   skillClose(position: Vec3, yaw: number, tier: 1 | 2 | 3, progress: number): void;
   preferredDistance: number;
   setFovDegrees(degrees: number): void;
+
+  /**
+   * Mira apurada: multiplicador de aproximação sobre o FOV BASE.
+   *
+   * `1` é "sem mira". O valor é um ALVO — a câmera interpola até ele e recalcula o FOV a partir do
+   * base a cada quadro (`fov = (base + corrida) / aproximação`). Nunca acumula: chamar com `2` dez
+   * vezes seguidas dá o mesmo enquadramento que chamar uma vez, e soltar a mira devolve exatamente
+   * o FOV de antes, inclusive com `setFovDegrees` de diagnóstico no meio.
+   */
+  setAimZoom(zoom: number): void;
   shake: number;
 
   /**

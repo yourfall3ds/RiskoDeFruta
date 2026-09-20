@@ -7,6 +7,23 @@ export const CHALICE_JUICE_TARGETS=[40,60,80,100] as const;
 export const CHALICE_CAPTURE_RADIUS=26;
 export const FINAL_CHALICE_JUICE=60;
 export const CHALICE_DISCOVERY_RADIUS=35;
+/**
+ * Folga que prova que o ponto é o convés de FORA da ilha.
+ *
+ * O cálice tem 1,54 m até a borda e a energia do selo flutua a 1,25 m; 4 m de céu livre acima é o
+ * mínimo para o copo aparecer inteiro e para o jogador chegar de pé. Ver `isOuterDeck`.
+ */
+export const CHALICE_HEADROOM=4;
+/** Quanto o apoio pode discordar de si mesmo antes de o ponto deixar de ser "o próprio chão". */
+export const DECK_TOLERANCE=.35;
+/**
+ * Segundos de BUSCA ATIVA antes de o rumo do cálice ser revelado.
+ *
+ * Não é um relógio de parede: quem chama só credita tempo em que o jogador está de fato explorando
+ * (ver o parâmetro `searching` de `update`), então menu, entrada pela nave, viagem, pausa e morte
+ * não contam. Existe para que a exploração NUNCA vire uma busca infinita às cegas.
+ */
+export const CHALICE_SIGNAL_SECONDS=180;
 export const FRUIT_JUICE:Readonly<Record<string,number>>={carrot:1,corn:2,tomato:2,eggplant:3,watermelon:4,boss:20};
 export const TOTEM_RADIUS=11;
 /** Distância de uso do `E`: junto ao poste. A carga vale em toda a área de raio `TOTEM_RADIUS`. */
@@ -90,6 +107,17 @@ export function isOpenGround(world:ExpeditionTerrain,centre:Vec3,radius:number,s
 const lift=(p:Vec3,up:Vec3,metres:number):Vec3=>
   ({x:p.x+up.x*metres,y:p.y+up.y*metres,z:p.z+up.z*metres});
 
+/** Reject buried/floating anchors by probing from the sky, outside the entire island shell.
+ * Capsule contacts alone cannot detect an interior that touches no triangles.
+ * SphereSurface bounds an infinite upward probe to the planet's ceiling radius.
+ */
+export function isOuterDeck(world:ExpeditionTerrain,point:Vec3,tolerance=DECK_TOLERANCE):boolean {
+  const up=world.up(point);
+  if(world.insideSolid(lift(point,up,.9),1.6))return false;
+  const sky=world.support(point,Infinity,tolerance);
+  return Boolean(sky&&Math.abs(world.heightGap(sky.point,point))<=tolerance);
+}
+
 /** Procura um centro válido em anéis crescentes ao redor da âncora do distrito. */
 export function findTotemSite(world:ExpeditionTerrain,anchor:TotemAnchor,radius:number,reachable:(p:Vec3)=>boolean):Vec3|undefined {
   const centre:Vec3={x:anchor.x,y:anchor.y,z:anchor.z};
@@ -106,12 +134,14 @@ export function findTotemSite(world:ExpeditionTerrain,anchor:TotemAnchor,radius:
         y:basis.right.y*side+basis.forward.y*ahead,
         z:basis.right.z*side+basis.forward.z*ahead,
       });
-      const support=world.support(probe,3.5,Infinity);
+      const support=world.support(probe,Infinity,9);
       if(!support)continue;
       const drop=world.heightGap(support.point,centre);
       if(Math.abs(drop)>9)continue;
       if(anchor.width!==undefined&&drop<-1.5)continue;
       if(world.insideSolid(support.point,1.8))continue;
+      // O copo é um objeto VISÍVEL: só vale o convés de fora, com céu livre por cima.
+      if(!isOuterDeck(world,support.point))continue;
       if(!isOpenGround(world,support.point,radius))continue;
       if(!reachable(support.point))continue;
       return support.point;
@@ -151,6 +181,13 @@ export class ExpeditionObjectives {
   readonly totems:TotemProgress[]=[];
   phase:ExpeditionPhase='totems';
   discovered=false;
+  /**
+   * A descoberta veio do SINAL (tempo de busca esgotado), não de ter chegado perto.
+   * O HUD usa isto só para dizer a verdade ao jogador; nenhuma regra depende da diferença.
+   */
+  signalAcquired=false;
+  /** Segundos de busca ativa já creditados. Só sobe enquanto `searching` e antes da descoberta. */
+  searchSeconds=0;
   activeIndex=-1;
   bossSpawned=false;bossDefeated=false;bossRecoveries=0;
   /** O suco do cálice concluído já foi recolhido com `E`; impede um segundo embarque. */
@@ -232,10 +269,26 @@ export class ExpeditionObjectives {
     this.say('HORDA FINAL · a Praga Alfa despertou! Encha o cálice e derrote o chefe.',5);
     return candidate;
   }
-  update(dt:number,player:Vec3,alive:boolean):void {
+  /**
+   * `searching` é o relógio da BUSCA, e só ele alimenta `CHALICE_SIGNAL_SECONDS`.
+   *
+   * Quem chama liga isto apenas quando o jogador está realmente explorando — não no menu, não na
+   * entrada pela nave, não na viagem, não pausado e não morto. Sem esse recorte o sinal poderia
+   * chegar durante uma cinemática de três minutos, revelando o destino antes do primeiro passo.
+   * O padrão é `true` para preservar o comportamento de quem chamava com três argumentos.
+   */
+  update(dt:number,player:Vec3,alive:boolean,searching=true):void {
     this.messageTime=Math.max(0,this.messageTime-dt);
     if(!this.discovered&&this.totems.some(t=>this.near(t.site.position,player)<=CHALICE_DISCOVERY_RADIUS&&this.drop(player,t.site.position)<16)){
       this.discovered=true;this.say('CÁLICE ENCONTRADO · prepare-se antes de ativar',5);
+    }
+    if(!this.discovered&&this.planned&&searching&&alive&&this.phase==='totems'&&dt>0){
+      this.searchSeconds+=dt;
+      if(this.searchSeconds>=CHALICE_SIGNAL_SECONDS){
+        this.discovered=true;this.signalAcquired=true;
+        const name=this.totems[0]?.site.name;
+        this.say(`SINAL ADQUIRIDO · o cálice responde${name?` em ${name}`:''} · siga o rumo no mapa`,8);
+      }
     }
     if(this.phase==='extract')return;
     const totem=this.current;
@@ -287,7 +340,7 @@ export class ExpeditionObjectives {
   private say(message:string,seconds:number):void {this.message=message;this.messageTime=seconds;}
   reset():void {
     for(const totem of this.totems){totem.charged=0;totem.state='available';}
-    this.activeIndex=-1;this.phase='totems';this.discovered=false;this.bossSpawned=false;this.bossDefeated=false;this.collected=false;
+    this.activeIndex=-1;this.phase='totems';this.discovered=false;this.signalAcquired=false;this.searchSeconds=0;this.bossSpawned=false;this.bossDefeated=false;this.collected=false;
     this.bossUnreachable=0;this.bossRecoveries=0;this.rewardsPending=0;this.message='';this.messageTime=0;this.chargeMultiplier=1;
     this.lastHarvestSequence=-1;this.rewardPositions.length=0;
   }

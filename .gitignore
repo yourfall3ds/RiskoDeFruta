@@ -19,3 +19,6 @@ art/
 # Uncompressed planet collision is an authoring intermediate; runtime ships the gzip asset.
 public/models/planet-archipelago.json
 __pycache__/
+
+# Fontes 3D do Meshy (177 MB): autoria local, como art/ e assets/. O jogo carrega de public/.
+Itens 3d/

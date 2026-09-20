@@ -1,4 +1,5 @@
 import {ensureRagdollPhysics,addRagdollTerrain,activeRagdollPositions} from '../physics/RagdollWorld';
+import {planCorpseTerrain,CORPSE_TERRAIN} from '../physics/CorpseTerrainResidency';
 import type {Scene} from '@babylonjs/core/scene';
 import type {ShadowGenerator} from '@babylonjs/core/Lights/Shadows/shadowGenerator';
 import type {Vec3} from '../core/contracts';
@@ -114,8 +115,8 @@ export class PlanetWorld implements GameWorld {
    * Havok para ela, então o corpo físico do jogador leva consigo só o chão que importa. A varredura
    * é linear no manifesto e roda UMA vez por morte — não por quadro.
    */
-  trianglePatch(centre: Vec3, radius: number): {positions: number[]; indices: number[]} | undefined {
-    const patch=this.planetCollision.trianglesAround(centre,radius);
+  trianglePatch(centre: Vec3, radius: number, maxTriangles?: number): {positions: number[]; indices: number[]} | undefined {
+    const patch=this.planetCollision.trianglesAround(centre,radius,maxTriangles);
     return patch.indices.length?patch:undefined;
   }
 
@@ -200,26 +201,56 @@ export class PlanetWorld implements GameWorld {
     // em que a carta de navegação por ilha precisar acompanhar o corpo.
   }
 
-  private readonly corpsePatches=new Map<string,()=>void>();
+  /**
+   * Chão físico local dos cadáveres articulados.
+   *
+   * Antes a residência era "célula de 8 m arredondada da posição do corpo", sem histerese e sem
+   * orçamento, e a máscara de destruição derrubava TODOS os recortes de uma vez. Um corpo parado em
+   * cima de uma fronteira de célula reconstruía a malha de Havok quadro sim, quadro não; e cada prop
+   * de cenário que quebrava reconstruía todos os recortes no mesmo quadro — ou seja, "muitas
+   * explosões" virava congelamento. A decisão agora é de `planCorpseTerrain` (puro e testado) e a
+   * construção respeita `CORPSE_TERRAIN.spawnBudget`.
+   */
+  private readonly corpsePatches:{centre:Vec3;stale:boolean;release:()=>void}[]=[];
+  private readonly corpseBodies:Vec3[]=[];
+  private patchSerial=0;
   private patchMask=-1;
+  /** Teto de triângulos por recorte: acima disto o corpo de Havok custa mais que o quadro inteiro. */
+  private static readonly PATCH_TRIANGLES=6000;
   update(dt: number): void {
-    if(this.patchMask!==this.planetCollision.disabledCount){
-      for(const release of this.corpsePatches.values())release();
-      this.corpsePatches.clear();this.patchMask=this.planetCollision.disabledCount;
-    }
-    const needed=new Set<string>();
-    for(const point of activeRagdollPositions(this.scene)){
-      const x=Math.round(point.x/8)*8,y=Math.round(point.y/8)*8,z=Math.round(point.z/8)*8;
-      const key=`${x}:${y}:${z}`;needed.add(key);
-      if(!this.corpsePatches.has(key)){
-        const patch=this.trianglePatch({x,y,z},16);
-        if(patch)this.corpsePatches.set(key,addRagdollTerrain(this.scene,`planet-corpse-${key}`,patch));
-      }
-    }
-    for(const [key,release] of this.corpsePatches)if(!needed.has(key)){release();this.corpsePatches.delete(key);}
-
+    this.updateCorpseTerrain();
     // Rachadura, caco e poeira andam no relógio de apresentação.
     this.destructionPort.update(dt);
+  }
+
+  /** Recortes vivos agora. Diagnóstico do F1 e gancho do teste de regressão. */
+  get corpseTerrainPatches(): number {return this.corpsePatches.length;}
+  /** Quantos recortes já foram construídos nesta sessão — é o contador que acusa reconstrução em laço. */
+  get corpseTerrainBuilds(): number {return this.patchSerial;}
+
+  private updateCorpseTerrain(): void {
+    const mask=this.planetCollision.disabledCount;
+    // Destruição mudou a malha: o recorte fica VELHO, não morto. Chão desatualizado segura o
+    // cadáver; chão nenhum o deixa atravessar o mundo enquanto o substituto não nasce.
+    if(this.patchMask!==mask){this.patchMask=mask;for(const patch of this.corpsePatches)patch.stale=true;}
+    const bodies=this.corpseBodies;bodies.length=0;
+    for(const point of activeRagdollPositions(this.scene))bodies.push({x:point.x,y:point.y,z:point.z});
+    if(bodies.length===0&&this.corpsePatches.length===0)return;
+    const plan=planCorpseTerrain(bodies,this.corpsePatches,CORPSE_TERRAIN);
+    // Descendente: cada `splice` só desloca índices MAIORES que o removido.
+    for(const index of [...plan.release].sort((a,b)=>b-a)){
+      const patch=this.corpsePatches[index];
+      if(!patch)continue;
+      patch.release();this.corpsePatches.splice(index,1);
+    }
+    for(const centre of plan.create){
+      const geometry=this.trianglePatch(centre,CORPSE_TERRAIN.radius,PlanetWorld.PATCH_TRIANGLES);
+      if(!geometry)continue;
+      try{
+        const release=addRagdollTerrain(this.scene,`planet-corpse-${this.patchSerial++}`,geometry);
+        this.corpsePatches.push({centre,stale:false,release});
+      }catch{/* sem física ainda: o cadáver cai pelo clipe rígido, como no mapa plano */}
+    }
   }
 
   /** Cenário inteiro de volta — nova tentativa e troca de ilha. */
@@ -236,8 +267,8 @@ export class PlanetWorld implements GameWorld {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
-    for(const release of this.corpsePatches.values())release();
-    this.corpsePatches.clear();
+    for(const patch of this.corpsePatches)patch.release();
+    this.corpsePatches.length=0;
     this.destructionPort.dispose?.();
     this.destructionVisuals?.dispose();
     this.view?.dispose();

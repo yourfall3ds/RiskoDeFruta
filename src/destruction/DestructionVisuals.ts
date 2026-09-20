@@ -153,15 +153,45 @@ export class DestructionVisuals implements DestructionPresentationPort {
     return {body, parts, frozen};
   }
 
-  private pickNode(name: string): TransformNode | undefined {
+  /**
+   * Índice `nome → nó`, montado UMA vez.
+   *
+   * `pickNode` era chamado uma vez por destrutível (520 no build atual) e cada chamada percorria a
+   * árvore inteira da casca (`getDescendants(false)`) com dois `filter` e um `find` por cima —
+   * trabalho O(cena) num quadro de jogo, espalhado ao longo da partida conforme cada prop era
+   * tocado pela primeira vez. É exatamente a forma de uma lentidão INTERMITENTE: não aparece no
+   * carregamento nem num perfil médio, só num engasgo por prop novo.
+   *
+   * O índice é reconstruído quando um nome pedido não está nele (o caso do `__destructible` criado
+   * abaixo, e de qualquer malha que entre na cena depois), então nada depende de ordem de carga.
+   */
+  private index: Map<string, TransformNode> | undefined;
+  private prefixes: Map<string, TransformNode[]> | undefined;
+
+  private buildIndex(): void {
     const scope: TransformNode[] = this.root
       ? this.root.getDescendants(false).filter((node): node is TransformNode => node instanceof TransformNode)
       : [...this.scene.meshes, ...this.scene.transformNodes];
-    const exact = scope.find(node => node.name === name);
+    const index = new Map<string, TransformNode>(), prefixes = new Map<string, TransformNode[]>();
+    for (const node of scope) {
+      if (!index.has(node.name)) index.set(node.name, node);
+      const cut = node.name.indexOf('_primitive');
+      if (cut <= 0) continue;
+      const base = node.name.slice(0, cut);
+      const bucket = prefixes.get(base);
+      if (bucket) bucket.push(node); else prefixes.set(base, [node]);
+    }
+    this.index = index; this.prefixes = prefixes;
+  }
+
+  private pickNode(name: string): TransformNode | undefined {
+    if (!this.index) this.buildIndex();
+    let exact = this.index!.get(name);
+    if (exact && exact.isDisposed()) exact = undefined;
     if (exact) return exact;
     // `Nome_primitive0` e irmãs: o pai de todas é o nó do prop. Quando o importador não cria pai,
     // a primeira primitiva vira o corpo e as irmãs entram como partes pelo prefixo.
-    const pieces = scope.filter(node => node.name.startsWith(`${name}_primitive`));
+    const pieces = (this.prefixes!.get(name) ?? []).filter(node => !node.isDisposed());
     if (pieces.length === 0) return undefined;
     const parent = pieces[0]!.parent;
     if (parent instanceof TransformNode && parent.name === name) return parent;
@@ -173,6 +203,9 @@ export class DestructionVisuals implements DestructionPresentationPort {
       if (piece.isWorldMatrixFrozen) piece.unfreezeWorldMatrix();
       piece.setParent(holder);
     }
+    // O agrupador nasce agora; o índice tem de conhecê-lo, senão uma segunda consulta ao mesmo nome
+    // criaria um segundo agrupador e roubaria as primitivas do primeiro.
+    this.index!.set(name, holder);
     return holder;
   }
 

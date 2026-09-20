@@ -8,10 +8,11 @@ import {Matrix, Quaternion, Vector3} from '@babylonjs/core/Maths/math.vector';
 import {Axis} from '@babylonjs/core/Maths/math.axis';
 import type {Observer} from '@babylonjs/core/Misc/observable';
 import {Ragdoll, type RagdollBoneProperties} from '@babylonjs/core/Physics/v2/ragdoll';
-import {PhysicsConstraintType} from '@babylonjs/core/Physics/v2/IPhysicsEnginePlugin';
+import {PhysicsConstraintAxis, PhysicsConstraintAxisLimitMode, PhysicsConstraintType} from '@babylonjs/core/Physics/v2/IPhysicsEnginePlugin';
+import type {IPhysicsEnginePluginV2} from '@babylonjs/core/Physics/v2/IPhysicsEnginePlugin';
 import type {Vec3} from '../core/contracts';
 import {ensureRagdollPhysics} from '../physics/RagdollWorld';
-import {applyBonePoses, readBonePoses, segmentLength, skeletonHeight, type BonePose} from './CorpsePose';
+import {applyBonePoses, bodyFrame, openLimb, readBonePoses, segmentLength, skeletonHeight, type BodyFrame, type BonePose} from './CorpsePose';
 
 /**
  * Queda articulada REAL do jogador — corpos rígidos por segmento, juntas do Havok, gravidade local.
@@ -69,6 +70,12 @@ export interface PlayerRagdollTuning {
   mass: number;
   /** Espessura do membro como fração do comprimento medido. */
   limbThickness: number;
+  /**
+   * Abertura de cada junta, em graus, MEDIDA A PARTIR DA POSE DA MORTE — não da pose de bind.
+   *
+   * O limite é imposto por este arquivo (ver `limitJoints`), porque o `Ragdoll` do Babylon guarda
+   * `min`/`max` e nunca os usa. Cada segmento escala este teto pelo próprio `limit`.
+   */
   jointDegrees: number;
   restitution: number;
   friction: number;
@@ -76,11 +83,20 @@ export interface PlayerRagdollTuning {
   maxLaunch: number;
   settleSpeed: number;
   settleSeconds: number;
+  /** Teto do giro de abertura de cada membro na morte, em graus. */
+  openDegrees: number;
+  /** Fração do caminho até a direção aberta. `1` seria pose forçada; o default relaxa, não impõe. */
+  openBlend: number;
+  /** Empurrão de abertura dado aos membros no quadro da morte, m/s. */
+  limbSpread: number;
+  /** Amortecimento angular base; cada segmento o escala pelo próprio `damping`. */
+  angularDamping: number;
 }
 
 export const PLAYER_RAGDOLL_TUNING: PlayerRagdollTuning = {
   mass: 78, limbThickness: .34, jointDegrees: 62, restitution: .04, friction: .7,
   maxLaunch: 9, settleSpeed: .35, settleSeconds: .6,
+  openDegrees: 82, openBlend: .78, limbSpread: 1.15, angularDamping: .8,
 };
 
 export interface PlayerRagdollOptions {
@@ -116,27 +132,52 @@ interface Segment {
   /** Multiplicador de espessura sobre o default. */
   girth: number;
   joint: number;
+  /**
+   * Abertura da junta como fração de `jointDegrees`. Coluna e pescoço curtos, ombro e cotovelo
+   * largos: é o que separa um corpo que desaba de um corpo que só relaxa.
+   */
+  limit: number;
+  /** Empurrão de abertura, como fração de `limbSpread`. Positivo afasta o membro da linha do corpo. */
+  spread: number;
+  /** Multiplicador do amortecimento angular: tronco pesado freia mais que a ponta de um braço. */
+  damping: number;
 }
 
 const BALL = PhysicsConstraintType.BALL_AND_SOCKET;
 const SEGMENTS: readonly Segment[] = [
-  {bone: 'Hips', child: 'Spine02', mass: .16, girth: 1.5, joint: BALL},
-  {bone: 'Spine01', child: 'Spine', mass: .14, girth: 1.5, joint: BALL},
-  {bone: 'Spine', child: 'neck', mass: .20, girth: 1.6, joint: BALL},
-  {bone: 'Head', child: 'head_end', mass: .08, girth: 1.3, joint: BALL},
-  {bone: 'LeftUpLeg', child: 'LeftLeg', mass: .10, girth: 1, joint: BALL},
-  {bone: 'RightUpLeg', child: 'RightLeg', mass: .10, girth: 1, joint: BALL},
-  {bone: 'LeftLeg', child: 'LeftFoot', mass: .045, girth: .85, joint: BALL},
-  {bone: 'RightLeg', child: 'RightFoot', mass: .045, girth: .85, joint: BALL},
-  {bone: 'LeftArm', child: 'LeftForeArm', mass: .027, girth: .8, joint: BALL},
-  {bone: 'RightArm', child: 'RightForeArm', mass: .027, girth: .8, joint: BALL},
-  {bone: 'LeftForeArm', child: 'LeftHand', mass: .016, girth: .7, joint: BALL},
-  {bone: 'RightForeArm', child: 'RightHand', mass: .016, girth: .7, joint: BALL},
-  {bone: 'LeftFoot', child: 'LeftToeBase', mass: .014, girth: .9, joint: BALL},
-  {bone: 'RightFoot', child: 'RightToeBase', mass: .014, girth: .9, joint: BALL},
-  {bone: 'LeftHand', fraction: .055, mass: .006, girth: .9, joint: BALL},
-  {bone: 'RightHand', fraction: .055, mass: .006, girth: .9, joint: BALL},
+  {bone: 'Hips', child: 'Spine02', mass: .16, girth: 1.5, joint: BALL, limit: 1, spread: 0, damping: 1.5},
+  {bone: 'Spine01', child: 'Spine', mass: .14, girth: 1.5, joint: BALL, limit: .3, spread: 0, damping: 1.5},
+  {bone: 'Spine', child: 'neck', mass: .20, girth: 1.6, joint: BALL, limit: .3, spread: 0, damping: 1.5},
+  {bone: 'Head', child: 'head_end', mass: .08, girth: 1.3, joint: BALL, limit: .45, spread: 0, damping: 1.2},
+  {bone: 'LeftUpLeg', child: 'LeftLeg', mass: .10, girth: 1, joint: BALL, limit: .95, spread: .3, damping: .9},
+  {bone: 'RightUpLeg', child: 'RightLeg', mass: .10, girth: 1, joint: BALL, limit: .95, spread: .26, damping: .9},
+  {bone: 'LeftLeg', child: 'LeftFoot', mass: .045, girth: .85, joint: BALL, limit: 1, spread: .34, damping: .7},
+  {bone: 'RightLeg', child: 'RightFoot', mass: .045, girth: .85, joint: BALL, limit: 1, spread: .28, damping: .7},
+  {bone: 'LeftArm', child: 'LeftForeArm', mass: .027, girth: .8, joint: BALL, limit: 1.15, spread: .85, damping: .55},
+  {bone: 'RightArm', child: 'RightForeArm', mass: .027, girth: .8, joint: BALL, limit: 1.15, spread: .72, damping: .55},
+  {bone: 'LeftForeArm', child: 'LeftHand', mass: .016, girth: .7, joint: BALL, limit: 1.1, spread: 1, damping: .45},
+  {bone: 'RightForeArm', child: 'RightHand', mass: .016, girth: .7, joint: BALL, limit: 1.1, spread: .84, damping: .45},
+  {bone: 'LeftFoot', child: 'LeftToeBase', mass: .014, girth: .9, joint: BALL, limit: .5, spread: .3, damping: .8},
+  {bone: 'RightFoot', child: 'RightToeBase', mass: .014, girth: .9, joint: BALL, limit: .5, spread: .24, damping: .8},
+  {bone: 'LeftHand', fraction: .055, mass: .006, girth: .9, joint: BALL, limit: .55, spread: 1.1, damping: .45},
+  {bone: 'RightHand', fraction: .055, mass: .006, girth: .9, joint: BALL, limit: .55, spread: .92, damping: .45},
 ];
+
+/** Lado do corpo lido no NOME do osso: `+1` esquerda, `−1` direita, `0` linha do meio. */
+function boneSide(bone: string): number {
+  return bone.startsWith('Left') ? 1 : bone.startsWith('Right') ? -1 : 0;
+}
+
+/**
+ * Ruído determinístico em `[−.5, .5)` por corpo e por eixo.
+ *
+ * A queda tem de variar de membro para membro — dezesseis corpos com o MESMO giro inicial caem como
+ * um bloco só. Mas não pode ser `Math.random`: a suíte repete a mesma morte e compara números.
+ */
+function wobble(index: number, salt: number): number {
+  const v = Math.sin((index + 1) * 12.9898 + salt * 78.233) * 43758.5453;
+  return v - Math.floor(v) - .5;
+}
 
 /** Rascunhos: dezesseis corpos por quadro não podem alocar nada. */
 const scratchVelocity = new Vector3();
@@ -164,6 +205,10 @@ export class PlayerRagdoll {
   private readonly hips = new Vector3();
   /** Corpos que receberam correção radial no último `update` — diagnóstico e teste. */
   bodiesUnderLocalGravity = 0;
+  /** Juntas que receberam limite angular no `start` — uma por corpo, menos a raiz. */
+  limitedJoints = 0;
+  /** Membros que foram abertos no `start` (ver `openPose`). */
+  openedLimbs = 0;
   error = '';
 
   constructor(private readonly options: PlayerRagdollOptions) {
@@ -252,9 +297,13 @@ export class PlayerRagdoll {
       mesh.computeWorldMatrix(true);
       skeleton.computeAbsoluteMatrices(true);
 
+      // --- abre a pose ANTES de medir: é ela que vira o "zero" das juntas ------------------------
+      const frame = this.openPose(skeleton, mesh);
+
       // --- corpos medidos no asset --------------------------------------------------------------
       const config = this.measure(skeleton, mesh);
       if (!config.length) return false;
+      const layout = config.map(c => SEGMENTS.find(s => s.bone === c.bone)!);
       const bones = config.map(c => skeleton.bones.find(b => b.name === c.bone)!);
       const initial = bones.map(b => b.getAbsoluteMatrix().multiply(mesh.getWorldMatrix()).clone());
       const rig = new Ragdoll(skeleton, mesh, config);
@@ -262,6 +311,7 @@ export class PlayerRagdoll {
       rig.pauseSync = true;
       this.rig = rig;
       this.count = config.length;
+      this.limitedJoints = this.limitJoints(rig, layout);
 
       // --- equipamento: preso ao OSSO do clone, então acompanha o membro na queda ---------------
       for (const item of input.equipment ?? []) {
@@ -271,13 +321,27 @@ export class PlayerRagdoll {
         item.node.attachToBone(bone, mesh);
       }
 
-      // --- arremesso: velocidade da morte + golpe fatal, com teto ------------------------------
+      // --- arremesso: velocidade da morte + golpe fatal + abertura dos membros -------------------
       const launch = this.launchVelocity(input);
+      const spread = Math.max(0, this.tuning.limbSpread);
       for (let i = 0; i < this.count; i++) {
-        const body = rig.getAggregate(i).body;
-        body.setLinearVelocity(launch);
-        body.setAngularVelocity(new Vector3(.8, .35, 1.1));
-        body.setLinearDamping(.25); body.setAngularDamping(1.5);
+        const segment = layout[i]!, body = rig.getAggregate(i).body;
+        const velocity = launch.clone();
+        const side = boneSide(segment.bone);
+        if (frame && side !== 0 && segment.spread > 0) {
+          // Empurrão GENTIL para fora, no eixo lateral MEDIDO do corpo: é o que desfaz o aperto da
+          // pose de arma durante a queda, em vez de deixar os braços colados no tronco até o chão.
+          const lateral = spread * segment.spread * side;
+          velocity.addInPlace(frame.side.scale(lateral));
+          velocity.addInPlace(frame.cross.scale(lateral * .38 * (1 + wobble(i, 4))));
+          velocity.addInPlace(frame.up.scale(spread * segment.spread * .18));
+        }
+        body.setLinearVelocity(velocity);
+        // Giro próprio por corpo: dezesseis corpos com o mesmo giro caem como um bloco só.
+        body.setAngularVelocity(new Vector3(
+          .8 + wobble(i, 1) * 1.1, .35 + wobble(i, 2) * .9, 1.1 + wobble(i, 3) * 1.1));
+        body.setLinearDamping(.25);
+        body.setAngularDamping(Math.max(.05, this.tuning.angularDamping * segment.damping));
       }
       // Reafirma a escala dos ossos DEPOIS de cada sincronização do Babylon: é a trava contra a
       // acumulação de escala sob a raiz refletida do glTF.
@@ -392,6 +456,100 @@ export class PlayerRagdoll {
     this.rig?.dispose();
     this.rig = undefined;
     this.count = 0; this.quiet = 0; this.bodiesUnderLocalGravity = 0;
+    this.limitedJoints = 0; this.openedLimbs = 0;
+  }
+
+  /**
+   * Abre os membros ANTES de criar os corpos — a correção do cadáver "encolhido segurando o rifle".
+   *
+   * A pose copiada é a do instante da morte, e no jogo isso quase sempre é a pose de duas mãos na
+   * arma: cotovelos colados no tronco, mãos juntas na frente do peito. Deixá-la intacta tem dois
+   * efeitos ruins, e o segundo é o pior: as caixas nascem apertadas E, como o limite de junta é
+   * medido A PARTIR da pose de criação (ver `limitJoints`), essa pose apertada vira o repouso do
+   * corpo inteiro — o cadáver fica agarrado a uma arma que não existe mais.
+   *
+   * Aqui cada membro gira uma FRAÇÃO do caminho (`openBlend`) até uma direção aberta construída
+   * sobre os eixos MEDIDOS do próprio rig, com teto em `openDegrees`. Não é uma pose em T: o resto da
+   * pose da morte — tronco, pernas, cabeça, o giro do corpo — fica exatamente como estava, e os dois
+   * lados recebem valores DIFERENTES, que é o que tira a simetria de boneco.
+   *
+   * Escreve só no CLONE. Devolve os eixos medidos, reaproveitados no empurrão de abertura.
+   */
+  private openPose(skeleton: Skeleton, mesh: Mesh): BodyFrame | undefined {
+    this.openedLimbs = 0;
+    const frame = bodyFrame(skeleton, mesh);
+    if (!frame) return undefined;
+    const {up, side, cross} = frame;
+    const blend = Math.max(0, Math.min(1, this.tuning.openBlend));
+    const cap = Math.max(0, this.tuning.openDegrees);
+    const towards = (lateral: number, vertical: number, depth: number): Vector3 =>
+      side.scale(lateral).add(up.scale(vertical)).add(cross.scale(depth));
+    for (const opening of [
+      // Ombros: para fora e para baixo, o braço esquerdo um pouco mais aberto que o direito.
+      {bone: 'LeftArm', tip: 'LeftForeArm', towards: towards(.84, -.5, .22), blend, maxDegrees: cap},
+      {bone: 'RightArm', tip: 'RightForeArm', towards: towards(-.78, -.58, -.3), blend: blend * .84, maxDegrees: cap},
+      // Cotovelos: soltam o aperto sem esticar — continuam dobrados, só não colados no peito.
+      {bone: 'LeftForeArm', tip: 'LeftHand', towards: towards(.48, -.86, .14), blend: blend * .9, maxDegrees: cap},
+      {bone: 'RightForeArm', tip: 'RightHand', towards: towards(-.4, -.9, -.18), blend: blend * .78, maxDegrees: cap},
+      // Pernas: quase nada, só para a base não sair travada numa passada.
+      {bone: 'LeftUpLeg', tip: 'LeftLeg', towards: towards(.24, -.97, .1), blend: blend * .45, maxDegrees: cap * .35},
+      {bone: 'RightUpLeg', tip: 'RightLeg', towards: towards(-.2, -.98, -.08), blend: blend * .38, maxDegrees: cap * .35},
+    ]) if (openLimb(skeleton, mesh, opening) > 0) this.openedLimbs++;
+    skeleton.prepare(true);
+    skeleton.computeAbsoluteMatrices(true);
+    mesh.computeWorldMatrix(true);
+    return frame;
+  }
+
+  /**
+   * Dá limite angular às juntas — o que o `Ragdoll` do Babylon NÃO faz.
+   *
+   * Medido na fonte da versão instalada: `Ragdoll._initJoints` monta a restrição só com
+   * `pivotA`/`pivotB`/`axisA`/`axisB`/`collision:false`; o `min`/`max` de cada osso é guardado em
+   * `_boxConfigs` e nunca chega ao motor. E o plugin do Havok, para `BALL_AND_SOCKET`, trava apenas
+   * os três eixos LINEARES e deixa os três ANGULARES livres. Resultado: toda junta dobra 180°, e
+   * como a mesma restrição desliga a colisão entre pai e filho, nada segura a corrente — o corpo
+   * desaba sobre si mesmo e vira uma bola. Foi isso que a sonda mediu: quadril→pé caiu de 0,64 m
+   * para 0,29 m, e a malha de 1,70 m virou um bloco de 1,0 m.
+   *
+   * A correção é fechar os três eixos angulares de cada junta em `±jointDegrees × limit`. O zero
+   * dessa medida é a configuração do instante da criação — ou seja, a pose (já aberta) da morte —,
+   * porque os dois corpos nascem com rotação identidade e as âncoras são gravadas nesse instante.
+   * O corpo continua solto: o teto é por junta, e nenhum eixo vira trava.
+   *
+   * **O limite é POR EIXO, não um cone.** Medido no rig real, depois de 300 quadros: uma junta
+   * configurada em 31° por eixo chegou a 67° de desvio TOTAL, e uma de 71° chegou a 97°. É o
+   * esperado — três limites independentes compõem uma rotação maior que cada um deles. Então
+   * `jointDegrees × limit` é o teto de cada eixo, e não uma promessa sobre o ângulo resultante; os
+   * valores de `limit` da tabela foram escolhidos MEDINDO esse desvio composto, não no papel.
+   *
+   * Nada aqui inventa API: são os mesmos `setAxisMode`/`setAxisMinLimit`/`setAxisMaxLimit` do plugin
+   * v2, os mesmos que o próprio `initConstraint` usa para montar um `SIX_DOF`. Devolve quantas
+   * juntas foram limitadas — `0` quando o motor não é o v2, e aí o comportamento é o de antes.
+   */
+  private limitJoints(rig: Ragdoll, layout: readonly Segment[]): number {
+    const engine = this.scene.getPhysicsEngine();
+    if (!engine || engine.getPluginVersion() !== 2) return 0;
+    const plugin = engine.getPhysicsPlugin() as IPhysicsEnginePluginV2 | null;
+    if (!plugin?.setAxisMode || !plugin.setAxisMinLimit || !plugin.setAxisMaxLimit) return 0;
+    const axes = [PhysicsConstraintAxis.ANGULAR_X, PhysicsConstraintAxis.ANGULAR_Y, PhysicsConstraintAxis.ANGULAR_Z];
+    let limited = 0;
+    for (const constraint of rig.getConstraints()) {
+      // O segmento de cada junta sai do corpo FILHO, não da ordem do array: é o mesmo mapeamento
+      // que o motor usa, então um dia em que o Babylon mudar a ordem isto continua certo.
+      const child = constraint.getBodiesUsingConstraint()[0]?.childBody;
+      let segment: Segment | undefined;
+      for (let i = 0; i < this.count && !segment; i++) if (rig.getAggregate(i).body === child) segment = layout[i];
+      const degrees = this.tuning.jointDegrees * (segment?.limit ?? 1);
+      const limit = Math.max(.02, Math.min(Math.PI * .75, Math.abs(degrees) * Math.PI / 180));
+      for (const axis of axes) {
+        plugin.setAxisMode(constraint, axis, PhysicsConstraintAxisLimitMode.LIMITED);
+        plugin.setAxisMinLimit(constraint, axis, -limit);
+        plugin.setAxisMaxLimit(constraint, axis, limit);
+      }
+      limited++;
+    }
+    return limited;
   }
 
   /**

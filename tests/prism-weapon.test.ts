@@ -109,13 +109,13 @@ class FakeRig implements PrismRigPort {
 
 const COMMAND:PrismCommand={fire:false,reload:false,cycle:false,canAct:true};
 
-function fixture(options:{wallZ?:number}={}) {
+function fixture(options:{wallZ?:number;spreadEdge?:boolean}={}) {
   const services=new FakeCombat();
   if(options.wallZ!==undefined)services.wallZ=options.wallZ;
   const rig=new FakeRig();
-  const camera={forward:new Vector3(0,0,1),camera:{position:new Vector3(0,1.5,-1)},impulses:[] as number[],
+  const camera={forward:new Vector3(0,0,1),camera:{position:new Vector3(0,1.5,-1),upVector:Vector3.Up()},impulses:[] as number[],
     impulse(strength:number){this.impulses.push(strength);}};
-  const weapon=new PrismWeapon({services,rig,camera,rng:{range:()=>0},body:()=>new Vector3(0,0,0)});
+  const weapon=new PrismWeapon({services,rig,camera,rng:{range:(_min:number,max:number)=>options.spreadEdge?max:0},body:()=>new Vector3(0,0,0)});
   weapon.setEquipped(true);
   return {services,rig,camera,weapon};
 }
@@ -280,7 +280,7 @@ describe('PRISM · assault e sniper',()=>{
   it('o sniper atravessa a fila inteira até a parede e machuca o cenário no fim',()=>{
     const {weapon,rig,services}=fixture({wallZ:20});
     services.targets.push(actor(11,new Vector3(0,1.4,6)),actor(12,new Vector3(0,1.4,10)),actor(13,new Vector3(0,1.4,14)));
-    weapon.arsenal.setMode(1);rig.setMode(1);
+    weapon.arsenal.setMode(1);rig.setMode(1);weapon.aiming=true;
     tick(weapon,rig,1,{fire:true});
     expect(services.hits.map(hit=>hit.target.id)).toEqual([11,12,13]);
     expect(services.hits[0]!.spec.damage).toBe(PRISM_MODES[1].damage);
@@ -438,7 +438,7 @@ describe('PRISM · estados da cena',()=>{
   it('sem rig carregado a PRISM não é equipável e o jogo fica nas pistolas',()=>{
     const services=new FakeCombat();
     const rig=new FakeRig();rig.ready=false;
-    const camera={forward:new Vector3(0,0,1),camera:{position:Vector3.Zero()},impulse(){}};
+    const camera={forward:new Vector3(0,0,1),camera:{position:Vector3.Zero(),upVector:Vector3.Up()},impulse(){}};
     const weapon=new PrismWeapon({services,rig,camera,rng:{range:()=>0},body:()=>Vector3.Zero()});
     expect(weapon.setEquipped(true)).toBe(false);
     expect(weapon.equipped).toBe(false);
@@ -462,7 +462,8 @@ describe('PRISM · estados da cena',()=>{
 // ---------------------------------------------------------------------------- HUD
 
 describe('HUD da arma',()=>{
-  const base={holstered:false,prismReady:true,prismEquipped:true,prismMode:0 as const,prismAmmo:12,
+  const base={playerClass:'soldier' as const,holstered:false,prismReady:true,prismEquipped:true,
+    prismMode:0 as const,prismAmmo:12,
     prismCapacity:36,prismReloading:false,prismProgress:0,prismBusy:false,
     pistolAmmo:50,pistolCapacity:50,pistolReloading:false,pistolProgress:0};
   it('nomeia a forma em vigor e a munição dela',()=>{
@@ -472,17 +473,40 @@ describe('HUD da arma',()=>{
   });
   it('anuncia os controles certos e nunca promete tecla travada',()=>{
     const idle=weaponReadout(base).hint;
-    expect(idle).toContain('T · FORMA');
-    expect(idle).toContain('B · PISTOLAS');
+    expect(idle).toContain('Q I · TRANSFORMAR');
     expect(weaponReadout({...base,prismBusy:true}).hint).toBe('TRANSFORMANDO · AGUARDE');
     expect(weaponReadout({...base,prismReloading:true,prismProgress:.5}).hint).toBe('RECARREGANDO · 50%');
   });
-  it('volta às pistolas e ao combo sem esconder a tecla de troca',()=>{
-    const pistols=weaponReadout({...base,prismEquipped:false});
+  it('não existe mais tecla de troca de arma em nenhum estado do painel',()=>{
+    const states=[base,{...base,prismEquipped:false},{...base,prismEquipped:false,prismReady:false},
+      {...base,holstered:true},{...base,playerClass:'gunslinger' as const,prismEquipped:false}];
+    for(const state of states){
+      const hint=weaponReadout(state).hint;
+      expect(hint).not.toContain('B ·');
+      expect(hint).not.toContain('T ·');
+    }
+  });
+  it('o pistoleiro vê as pistolas e o combo, sem nenhuma promessa de PRISM',()=>{
+    const pistols=weaponReadout({...base,playerClass:'gunslinger',prismEquipped:false});
     expect(pistols.label).toBe('PISTOLAS DUPLAS');
     expect(pistols.ammo).toBe('50 / 50');
-    expect(pistols.hint).toContain('B · PRISM');
-    expect(weaponReadout({...base,prismEquipped:false,prismReady:false}).hint).not.toContain('B ·');
+    expect(pistols.hint).toContain('Q · ESPECIAL');
+    expect(pistols.charge).toEqual(['CARREGANDO','LEQUE RICOCHETEANTE','BARRAGEM COM MORTAL','TEMPESTADE DA COLHEITA']);
+    expect(pistols.freeFirstTier).toBe(false);
     expect(weaponReadout({...base,holstered:true}).ammo).toBe('COMBO');
   });
+});
+
+
+describe('sniper hip-fire accuracy',()=>{
+ it('spreads without ADS and hits the centre through the scope',()=>{
+  for(const aiming of [false,true]){
+   const {weapon,rig,services}=fixture({wallZ:40,spreadEdge:true});
+   weapon.arsenal.setMode(1);rig.setMode(1);weapon.aiming=aiming;
+   tick(weapon,rig,1,{fire:true});
+   const impact=services.scenery[0]!.point;
+   if(aiming)expect(Math.abs(impact.x)).toBeLessThan(.001);
+   else expect(Math.abs(impact.x)).toBeGreaterThan(4);
+  }
+ });
 });

@@ -45,9 +45,9 @@ export interface PrismModeTuning {
  * então a animação da arma termina junto com o carregador cheio em vez de cortar no meio.
  */
 export const PRISM_MODES: readonly [PrismModeTuning, PrismModeTuning, PrismModeTuning] = [
-  {id:'prism_assault',name:'PRISM · ASSALTO',rate:7.5,damage:9,spreadDegrees:1.7,range:180,pierce:false,capacity:36,reloadSeconds:2.6,automatic:true,impulse:.007,force:2},
-  {id:'prism_sniper',name:'PRISM · LANÇA DE ÍONS',rate:.85,damage:78,spreadDegrees:0,range:320,pierce:true,capacity:6,reloadSeconds:3,automatic:false,impulse:.05,force:9},
-  {id:'prism_grenade',name:'PRISM · LANÇA-GRANADAS',rate:.75,damage:34,spreadDegrees:.8,range:140,pierce:false,capacity:5,reloadSeconds:3.2,automatic:false,impulse:.035,force:6},
+  {id:'prism_assault',name:'PRISM · ASSALTO',rate:9,damage:7,spreadDegrees:1.7,range:180,pierce:false,capacity:36,reloadSeconds:2.6,automatic:true,impulse:.007,force:2},
+  {id:'prism_sniper',name:'PRISM · LANÇA DE ÍONS',rate:.65,damage:140,spreadDegrees:0,range:320,pierce:true,capacity:6,reloadSeconds:3,automatic:false,impulse:.05,force:9},
+  {id:'prism_grenade',name:'PRISM · LANÇA-GRANADAS',rate:.6,damage:20,spreadDegrees:0,range:140,pierce:false,capacity:5,reloadSeconds:3.2,automatic:false,impulse:.035,force:6},
 ] as const;
 
 /**
@@ -69,7 +69,7 @@ export const PRISM_GRENADE = {
   /** Raio da explosão, em metros. */
   blastRadius: 4.6,
   /** Dano no CENTRO da explosão. O impacto direto soma o dano do modo por cima. */
-  blastDamage: 62,
+  blastDamage: 55,
   /** Fração do dano na borda do raio; entre borda e centro a queda é linear. */
   edgeFactor: .3,
   /** Dano entregue ao cenário no ponto da explosão. */

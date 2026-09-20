@@ -27,7 +27,19 @@ export interface FieldHit {
   readonly component: number;
 }
 
-const cellKey = (x: number, y: number, z: number): string => `${x}|${y}|${z}`;
+/**
+ * Chave de célula NUMÉRICA.
+ *
+ * Era uma `template string`, e `near` visita ~64 células por consulta: cada visita alocava uma
+ * string nova só para perguntar ao `Map` se havia balde ali. Com 16 bits por eixo o índice cobre
+ * ±32 767 células de 8 m — ±262 km, ordens de grandeza acima do raio do planeta (200 m) — e a chave
+ * de três eixos fica em 2^48, dentro de `Number.MAX_SAFE_INTEGER`. O viés tira o sinal sem
+ * ramificação; `clampCell` garante que nenhum registro absurdo saia da janela e colida com outro.
+ */
+const CELL_BIAS = 1 << 15, CELL_SPAN = 1 << 16;
+const clampCell = (v: number): number => Math.max(-CELL_BIAS, Math.min(CELL_BIAS - 1, v | 0));
+const cellKey = (x: number, y: number, z: number): number =>
+  ((clampCell(x) + CELL_BIAS) * CELL_SPAN + (clampCell(y) + CELL_BIAS)) * CELL_SPAN + (clampCell(z) + CELL_BIAS);
 
 export class DestructionField {
   private readonly states = new Map<string, DestructibleState>();
@@ -35,7 +47,10 @@ export class DestructionField {
   private readonly ranges: Range[] = [];
   /** Maior `end` entre `ranges[0..i]`. Corta a busca de um tiro que não acertou prop nenhum. */
   private maxEnd: number[] = [];
-  private readonly grid = new Map<string, DestructibleState[]>();
+  private readonly grid = new Map<number, DestructibleState[]>();
+  /** Buffers reaproveitados por `near`: a varredura por célula não pode alocar por consulta. */
+  private readonly found = new Set<DestructibleState>();
+  private readonly scratch: {state: DestructibleState; d: number}[] = [];
 
   constructor(records: readonly DestructibleRecord[] = []) {
     this.add(records);
@@ -114,22 +129,26 @@ export class DestructionField {
 
   /** Destrutíveis cujo centro está a até `radius` do ponto, do mais próximo ao mais distante. */
   near(point: Vec3, radius: number): DestructibleState[] {
-    if (!(radius > 0)) return [];
-    const found = new Set<DestructibleState>();
+    if (!(radius > 0) || this.grid.size === 0) return [];
+    const found = this.found, scratch = this.scratch;
+    found.clear(); scratch.length = 0;
     const x0 = Math.floor((point.x - radius) / CELL), x1 = Math.floor((point.x + radius) / CELL);
     const y0 = Math.floor((point.y - radius) / CELL), y1 = Math.floor((point.y + radius) / CELL);
     const z0 = Math.floor((point.z - radius) / CELL), z1 = Math.floor((point.z + radius) / CELL);
+    const limit = radius * radius;
     for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) for (let z = z0; z <= z1; z++) {
       const bucket = this.grid.get(cellKey(x, y, z));
       if (!bucket) continue;
-      for (const state of bucket) found.add(state);
+      for (const state of bucket) {
+        if (found.has(state)) continue;
+        found.add(state);
+        const d = squared(state.record.centre, point);
+        if (d <= limit) scratch.push({state, d});
+      }
     }
-    const limit = radius * radius;
-    return [...found]
-      .map(state => ({state, d: squared(state.record.centre, point)}))
-      .filter(entry => entry.d <= limit)
-      .sort((a, b) => a.d - b.d)
-      .map(entry => entry.state);
+    // Ordem preservada (mais perto primeiro): `atPoint` e a cadeia de barris dependem dela.
+    scratch.sort((a, b) => a.d - b.d);
+    return scratch.map(entry => entry.state);
   }
 
   /**
@@ -152,6 +171,8 @@ export class DestructionField {
     this.states.clear();
     this.ranges.length = 0;
     this.grid.clear();
+    this.found.clear();
+    this.scratch.length = 0;
   }
 }
 

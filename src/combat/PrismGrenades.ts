@@ -24,14 +24,87 @@ export interface GrenadeWorld {
   segment(from: Vec3, to: Vec3, radius: number): GrenadeContact | undefined;
 }
 
-export interface Grenade {
-  readonly id: number;
+/**
+ * O ESTADO de voo de uma cápsula, sem identidade.
+ *
+ * Existe separado de `Grenade` porque a PRÉVIA da mira (ver `GrenadeTrajectory`) integra um corpo
+ * descartável com exatamente a mesma física — e um corpo de prévia não tem id, não entra na lista
+ * viva e nunca detona. Compartilhar o estado é o que garante que o indicador de queda e a granada
+ * de verdade não possam divergir.
+ */
+export interface GrenadeBody {
   readonly position: Vec3;
   readonly velocity: Vec3;
   /** Segundos restantes de estopim. */
   fuse: number;
   /** Distância já percorrida, em metros — usada só pela apresentação. */
   travelled: number;
+}
+
+/**
+ * Carga de UMA cápsula, quando ela não é a comum.
+ *
+ * Existe para as habilidades do soldado (leque e salva incendiária) poderem mudar a explosão SEM
+ * uma segunda física de granada: a balística é a mesma, o que muda é o que a detonação significa.
+ * Ausente = cápsula comum, com os números de `PRISM_GRENADE`.
+ */
+export interface GrenadePayload {
+  /** Multiplicador do raio da explosão. Quem lança é responsável por já aplicar o teto. */
+  readonly radiusScale: number;
+  /** Multiplicador do dano de contato direto e do estilhaço. */
+  readonly damageScale: number;
+  /** `true` acende o alvo com a queimadura limitada que o jogo já tem. */
+  readonly incendiary: boolean;
+  /** Id do ataque; entra no dano e no diagnóstico. */
+  readonly attackId: string;
+}
+
+export interface Grenade extends GrenadeBody {
+  readonly id: number;
+  /** `undefined` na cápsula comum do disparo normal. */
+  readonly payload?: GrenadePayload | undefined;
+}
+
+/** Resultado de UM passo de voo. `up` é a vertical local usada naquele passo. */
+export interface GrenadeStep {
+  readonly state: 'flying' | 'contact' | 'expired';
+  readonly up: Vec3;
+  /** Só em `contact`. */
+  readonly contact?: GrenadeContact | undefined;
+}
+
+/**
+ * UM passo de integração da cápsula — a única cópia desta física no projeto.
+ *
+ * Semi-implícito: primeiro a queda pela vertical LOCAL, depois o deslocamento, e o teste de
+ * SEGMENTO no trecho inteiro (é ele que impede a cápsula atravessar parede a 34 m/s). Muta `body`
+ * no lugar, como o laço original fazia, para não alocar por passo numa horda.
+ *
+ * `PrismGrenades.update` e a prévia da mira chamam ESTA função. Com o mesmo `dt`, o mesmo mundo e
+ * a mesma velocidade inicial, os dois percorrem exatamente os mesmos pontos — é o que o teste de
+ * paridade trava.
+ */
+export function stepGrenade(world: GrenadeWorld, body: GrenadeBody, dt: number): GrenadeStep {
+  const up=world.up(body.position);
+  const drop=PRISM_GRENADE.gravity*dt;
+  body.velocity.x-=up.x*drop;body.velocity.y-=up.y*drop;body.velocity.z-=up.z*drop;
+  const to={x:body.position.x+body.velocity.x*dt,y:body.position.y+body.velocity.y*dt,z:body.position.z+body.velocity.z*dt};
+  const contact=world.segment(body.position,to,PRISM_GRENADE.probeRadius);
+  if(contact)return {state:'contact',up,contact};
+  body.travelled+=Math.hypot(to.x-body.position.x,to.y-body.position.y,to.z-body.position.z);
+  body.position.x=to.x;body.position.y=to.y;body.position.z=to.z;
+  body.fuse-=dt;
+  if(body.fuse<=0)return {state:'expired',up};
+  return {state:'flying',up};
+}
+
+/**
+ * Velocidade inicial de um lançamento, na mira. Pura e compartilhada com a prévia: uma cápsula
+ * prevista tem de nascer com EXATAMENTE a mesma velocidade da que sai do cano.
+ */
+export function launchVelocity(direction: Vec3, speed: number = PRISM_GRENADE.speed): Vec3 {
+  const length=Math.hypot(direction.x,direction.y,direction.z)||1;
+  return {x:direction.x/length*speed,y:direction.y/length*speed,z:direction.z/length*speed};
 }
 
 /**
@@ -58,14 +131,14 @@ export class PrismGrenades {
   ) {}
   get live(): readonly Grenade[] {return this.bullets;}
   get count(): number {return this.bullets.length;}
-  launch(origin: Vec3, direction: Vec3, speed = PRISM_GRENADE.speed): Grenade {
-    const length=Math.hypot(direction.x,direction.y,direction.z)||1;
+  launch(origin: Vec3, direction: Vec3, speed = PRISM_GRENADE.speed, payload?: GrenadePayload): Grenade {
     const grenade: Grenade = {
       id:this.nextId++,
       position:{x:origin.x,y:origin.y,z:origin.z},
-      velocity:{x:direction.x/length*speed,y:direction.y/length*speed,z:direction.z/length*speed},
+      velocity:launchVelocity(direction,speed),
       fuse:PRISM_GRENADE.fuseSeconds,
       travelled:0,
+      payload,
     };
     this.bullets.push(grenade);
     // Teto estourado: a MAIS ANTIGA explode no lugar em que está, em vez de sumir calada.
@@ -79,22 +152,15 @@ export class PrismGrenades {
     if(dt<=0||this.bullets.length===0)return;
     for(let i=this.bullets.length-1;i>=0;i--){
       const grenade=this.bullets[i]!;
-      const up=this.world.up(grenade.position);
-      const drop=PRISM_GRENADE.gravity*dt;
-      grenade.velocity.x-=up.x*drop;grenade.velocity.y-=up.y*drop;grenade.velocity.z-=up.z*drop;
-      const to={x:grenade.position.x+grenade.velocity.x*dt,y:grenade.position.y+grenade.velocity.y*dt,z:grenade.position.z+grenade.velocity.z*dt};
-      const contact=this.world.segment(grenade.position,to,PRISM_GRENADE.probeRadius);
-      if(contact){
+      const step=stepGrenade(this.world,grenade,dt);
+      if(step.state==='contact'){
         this.bullets.splice(i,1);
-        this.onDetonate(grenade,contact.point,contact.normal,contact);
+        this.onDetonate(grenade,step.contact!.point,step.contact!.normal,step.contact);
         continue;
       }
-      grenade.travelled+=Math.hypot(to.x-grenade.position.x,to.y-grenade.position.y,to.z-grenade.position.z);
-      grenade.position.x=to.x;grenade.position.y=to.y;grenade.position.z=to.z;
-      grenade.fuse-=dt;
-      if(grenade.fuse<=0){
+      if(step.state==='expired'){
         this.bullets.splice(i,1);
-        this.onDetonate(grenade,grenade.position,up,undefined);
+        this.onDetonate(grenade,grenade.position,step.up,undefined);
       }
     }
   }
@@ -108,7 +174,7 @@ export class PrismGrenades {
  * Linear do centro (`1`) até a borda (`PRISM_GRENADE.edgeFactor`), e `0` fora do raio. Função pura
  * e exportada porque é ela que o teste de área trava: fora do raio não existe dano nenhum.
  */
-export function blastFalloff(distance: number, radius = PRISM_GRENADE.blastRadius): number {
+export function blastFalloff(distance: number, radius: number = PRISM_GRENADE.blastRadius): number {
   if(!(distance>=0)||distance>=radius)return 0;
   const t=distance/radius;
   return 1+(PRISM_GRENADE.edgeFactor-1)*t;

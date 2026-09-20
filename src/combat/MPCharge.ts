@@ -77,19 +77,19 @@ export class MPCharge {
     while(this.chargeClock>=SKILL_CHARGE_RECHARGE&&this.charges<this.maxCharges){this.charges++;this.chargeClock-=SKILL_CHARGE_RECHARGE;}
     if(this.charges>=this.maxCharges)this.chargeClock=0;
   }
-  update(dt: number,held: boolean): MPTier {
+  update(dt: number,held: boolean,freeFirstTier=false): MPTier {
     this.rechargeCharges(dt);
     this.clock+=Math.max(0,dt);
     if(held) {
       this.held=true;this.seconds=Math.min(2.6,this.seconds+dt*this.speedMultiplier);
-      for(const tier of [1,2,3] as const)if(this.current+1e-8>=MP_COSTS[tier-1]!&&this.tier<tier&&this.seconds+1e-8>=MP_THRESHOLDS[tier-1]!) {
+      for(const tier of [1,2,3] as const)if(this.current+1e-8>=(freeFirstTier&&tier===1?0:MP_COSTS[tier-1]!)&&this.tier<tier&&this.seconds+1e-8>=MP_THRESHOLDS[tier-1]!) {
         this.tier=tier;this.events.emit('MPCharged',{entityId:1,tier});
       }
       return 0;
     }
     if(!this.held)return 0;
     const tier=this.tier;this.events.emit('MPReleased',{entityId:1,tier});
-    if(tier){this.releases++;this.current=Math.max(0,this.current-MP_COSTS[tier-1]!);}
+    if(tier){this.releases++;this.current=Math.max(0,this.current-(freeFirstTier&&tier===1?0:MP_COSTS[tier-1]!));}
     this.cancel();return tier;
   }
   cancel(): void {this.seconds=0;this.tier=0;this.held=false;}

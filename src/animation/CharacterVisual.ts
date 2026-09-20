@@ -68,16 +68,29 @@ export class CharacterVisual {
   meleePose:{stepId:string;phase:MeleePhase;progress:number;heavy:boolean}|undefined;
   unarmedStance=false;
   rifleEquipped=false;
+  /** Two-handed inspection pose while waiting on the start screen. */
+  riflePresentation=false;
+  rifleAiming=false;
+  rifleFiring=false;
+  private rifleShotTime=0;
+  private readonly rifleDirection=Vector3.Forward();
+  /** Keep the barrel raised through the recoil, including a single semiautomatic shot. */
+  fireRifle():void {this.rifleShotTime=.3;}
+  private rifleAimBlend=0;
+  private rifleRunBlend=0;
   /** Apply after locomotion/aim, before attaching the two-handed weapon. */
   poseRifleGrip():void {
-    if(!this.rifleEquipped||!this.ready||this.unarmedStance||this.dodging||this.arrivalPose||this.deathProgress!==undefined||this.skillPerformance||this.preparation)return;
+    if(!this.rifleEquipped||!this.ready||this.unarmedStance||this.dodging||(this.arrivalPose&&!this.riflePresentation)||this.deathProgress!==undefined||this.skillPerformance||this.preparation)return;
     const arm=this.bones.get('RightArm'),forearm=this.bones.get('RightForeArm'),hand=this.hands[0],grip=this.grips[0];
     if(!arm||!forearm||!hand||!grip)return;
     const frame=this.root.computeWorldMatrix(true),body=Vector3.TransformCoordinates(Vector3.Zero(),frame);
     const up=Vector3.TransformNormal(Vector3.Up(),frame).normalize(),right=Vector3.TransformNormal(Vector3.Right(),frame).normalize();
-    const direction=Vector3.TransformNormal(Vector3.Forward(),grip.computeWorldMatrix(true)).normalize();
     const forward=Vector3.TransformNormal(Vector3.Forward(),frame).normalize();
-    const wrist=body.add(up.scale(1.20)).addInPlace(right.scale(.02)).addInPlace(forward.scale(.03));
+    const aimDirection=this.rifleDirection;
+    const carry=forward.subtract(up.scale(.65)).subtract(right.scale(.15)).normalize();
+    const direction=this.riflePresentation?forward.scale(.35).subtract(right.scale(.94)).subtract(up.scale(.46)).normalize():Vector3.Lerp(aimDirection,carry,this.rifleRunBlend).normalize();
+    const bounce=Math.sin(this.clock*Math.PI*4)*.015*this.rifleRunBlend;
+    const wrist=body.add(up.scale(this.riflePresentation?1.14:1.14+.07*this.rifleAimBlend-.07*this.rifleRunBlend+bounce)).addInPlace(right.scale(this.riflePresentation?.16:.17)).addInPlace(forward.scale(this.riflePresentation?.13:.23));
     const pole=body.add(up.scale(.99)).addInPlace(right.scale(.58));
     poseAkimbo(arm,forearm,hand,grip,wrist,pole,wrist.add(direction.scale(10)));
     // Fix roll independently of the elbow so the receiver stays upright on a spherical world.
@@ -92,7 +105,7 @@ export class CharacterVisual {
     }
   }
   poseRifleSupport(target:Vector3,direction:Vector3):void {
-    if(!this.rifleEquipped||this.unarmedStance||this.dodging||this.arrivalPose||this.deathProgress!==undefined||this.skillPerformance||this.preparation)return;
+    if(!this.rifleEquipped||this.unarmedStance||this.dodging||(this.arrivalPose&&!this.riflePresentation)||this.deathProgress!==undefined||this.skillPerformance||this.preparation)return;
     const arm=this.bones.get('LeftArm'),forearm=this.bones.get('LeftForeArm'),hand=this.hands[1],grip=this.grips[1];
     if(!arm||!forearm||!hand||!grip)return;
     const pole=Vector3.TransformCoordinates(new Vector3(-.48,.94,.22),this.root.computeWorldMatrix(true));
@@ -130,7 +143,7 @@ export class CharacterVisual {
   error='';
   dodging=false;
   constructor(private readonly scene: Scene,private readonly onReady: () => void) {this.root=new TransformNode('player-visual',scene);}
-  resetAttempt():void {this.airborneSeconds=0;this.hitReaction=0;this.unarmedStance=false;this.meleeRate=1;this.deathProgress=undefined;this.deathPosition=undefined;this.machine.reset();this.active='';this.clock=0;this.facingYaw=0;this.wasGrounded=true;this.landingTime=0;this.firing.fill(1);this.fanCastTime=0;this.releaseTime=1;this.styleTime=0;this.styleClock=0;this.targetTime.fill(0);this.fanTime.fill(0);this.preparation=undefined;this.skillPerformance=undefined;this.arrivalPose=undefined;this.reloadProgress=-1;this.dodging=false;this.meleePose=undefined;}
+  resetAttempt():void {this.rifleFiring=false;this.rifleShotTime=0;this.rifleRunBlend=0;this.rifleAimBlend=0;this.airborneSeconds=0;this.hitReaction=0;this.unarmedStance=false;this.meleeRate=1;this.deathProgress=undefined;this.deathPosition=undefined;this.machine.reset();this.active='';this.clock=0;this.facingYaw=0;this.wasGrounded=true;this.landingTime=0;this.firing.fill(1);this.fanCastTime=0;this.releaseTime=1;this.styleTime=0;this.styleClock=0;this.targetTime.fill(0);this.fanTime.fill(0);this.preparation=undefined;this.skillPerformance=undefined;this.arrivalPose=undefined;this.reloadProgress=-1;this.dodging=false;this.meleePose=undefined;}
   setSkinning(mode:'auto'|'cpu'):void{configureSkinning(this.meshes,mode);}
   get skinning():string{const skinned=this.meshes.filter(m=>m.skeleton);return skinned.length&&skinned.every(m=>m.computeBonesUsingShaders)?'GPU · ossos em textura':'CPU';}
   async load(): Promise<void> {
@@ -205,6 +218,17 @@ export class CharacterVisual {
     }
   }
   update(player: CharacterPose,alpha: number,dt: number,aiming: boolean,charging=false,pitch=0,chargeProgress=0,aimWorld?:{x:number;y:number;z:number}): void {
+    this.rifleShotTime=Math.max(0,this.rifleShotTime-dt);
+    const shooting=this.rifleEquipped&&(this.rifleFiring||this.rifleShotTime>0);
+    // The upper body aims while firing; the locomotion clip still animates the legs.
+    if(shooting)aiming=true;
+    if(aimWorld)this.rifleDirection.copyFromFloats(aimWorld.x,aimWorld.y,aimWorld.z).normalize();
+    else this.rifleDirection.set(Math.sin(player.yaw)*Math.cos(pitch),-Math.sin(pitch),Math.cos(player.yaw)*Math.cos(pitch));
+    const rifleBlend=dt>0?1-Math.exp(-dt*12):1;
+    this.rifleAimBlend+=((this.rifleAiming?1:0)-this.rifleAimBlend)*rifleBlend;
+    const running=this.rifleEquipped&&!this.rifleAiming&&!shooting&&!this.riflePresentation&&player.grounded&&Math.hypot(player.velocity.x,player.velocity.z)>3;
+    if(shooting)this.rifleRunBlend=0;
+    else this.rifleRunBlend+=((running?1:0)-this.rifleRunBlend)*rifleBlend;
     // The rig has no finger bones: the authored glove shape closes the fingers only in melee.
     const fistWeight=this.unarmedStance||this.meleePose?1:0;
     for(const fist of this.fists)fist.influence+=(fistWeight-fist.influence)*(dt>0?1-Math.exp(-dt*22):1);

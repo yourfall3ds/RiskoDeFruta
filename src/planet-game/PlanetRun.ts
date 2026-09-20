@@ -30,8 +30,12 @@ import {findIslandSpawn, islandSamples, probeSpawn, SPAWN_DEFAULTS, type SpawnPr
  * puro e testável sem Babylon.
  */
 export const CHEST_TUNING = {
-  /** Custo em créditos para abrir. */
+  /** Custo em créditos do PRIMEIRO baú da ilha. Os seguintes sobem — ver `chestCost`. */
   cost: 25,
+  /** Cada baú aberto encarece os próximos, pelo mesmo motivo de `RunInteractables.chestPrice`. */
+  growth: 1.22,
+  /** Expoente máximo, para o preço não virar um número inalcançável. */
+  growthCap: 14,
   /** Alcance do `E`. */
   reachMetres: 3.2,
   /** Alcance de coleta da carta caída. */
@@ -147,13 +151,22 @@ export class PlanetRun {
    * Abre o baú mais próximo. Devolve a mensagem do HUD ou `undefined` quando não havia baú.
    * Sem crédito, o baú continua fechado — não existe abertura de cortesia.
    */
+  /** Preço do próximo baú desta tentativa, já com a progressão. */
+  get chestCost(): number {
+    const n = Math.min(CHEST_TUNING.growthCap, this.opened);
+    return Math.round(CHEST_TUNING.cost * Math.pow(CHEST_TUNING.growth, n));
+  }
+  private opened = 0;
+
   openChest(position: Vec3): string | undefined {
     const chest = this.chestNear(position);
     if (!chest) return undefined;
-    if (this.progression.credits < CHEST_TUNING.cost) {
-      return `Baú trancado · ${CHEST_TUNING.cost} créditos (você tem ${Math.floor(this.progression.credits)})`;
+    const cost = this.chestCost;
+    if (this.progression.credits < cost) {
+      return `Baú trancado · ${cost} créditos (você tem ${Math.floor(this.progression.credits)})`;
     }
-    this.progression.credits -= CHEST_TUNING.cost;
+    this.progression.credits -= cost;
+    this.opened++;
     chest.opened = true;
     for (const mesh of chest.meshes) mesh.isVisible = false;
     const item = this.rollItem();
@@ -224,12 +237,14 @@ export class PlanetRun {
    */
   advanceStage(): void {
     this.progression.advanceStage();
+    this.opened = 0;
     this.clearField();
   }
 
   /** Morte: a tentativa recomeça do zero, como num roguelike. */
   resetOnDeath(): void {
     this.progression.reset();
+    this.opened = 0;
     this.clearField();
   }
 
