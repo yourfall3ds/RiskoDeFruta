@@ -352,6 +352,9 @@ export class PlayerHUD {
        * imediata pelo mesmo motivo: não há nada para reconstruir.
        */
       this.unsubscribeRoom=onRoomChange((room,notice)=>{
+        // O menu precisa saber se há sala para decidir para onde a tela de personagem VOLTA. Quem
+        // sabe isso é `RoomSession`, e este é o único ponto por onde a notícia passa.
+        this.menu?.setRoomOpen(!!room);
         if(room){this.attachLobby(room);return;}
         this.detachLobby();
         this.refreshRoster();
