@@ -1,5 +1,13 @@
 import type { RandomStream } from '../core/RunRNG';
-export type EnemyKind='eggplant'|'corn'|'watermelon'|'tomato'|'carrot'|'boss';
+/**
+ * Espécies do jogo.
+ *
+ * `invader` é o alienígena que os discos voadores despejam: modelo, esqueleto e animações CC-BY
+ * baixados da Sketchfab e preparados por `scripts/build-menu-aliens.py` (crédito em
+ * `docs/ASSET_LICENSES.md`). Ele **não entra no sorteio das hordas** — o diretor nunca o escolhe;
+ * só a represália (`SaucerRaid`) o coloca em campo.
+ */
+export type EnemyKind='eggplant'|'corn'|'watermelon'|'tomato'|'carrot'|'boss'|'invader';
 
 /** Vida base da Praga Alfa no estágio 1, nível 1. Ver `bossHealth`. */
 export const BOSS_BASE_HP=1500;
@@ -17,6 +25,22 @@ export const FINAL_HORDE_PRESSURE_MIN=3,FINAL_HORDE_PRESSURE_MAX=10;
  * hostis continua igual, e a exploração para neste teto em vez de crescer sozinha.
  */
 export const AMBIENT_EXPLORATION_CAP=8;
+/**
+ * Vida do invasor despejado pelos discos, no estágio 1.
+ *
+ * Quatro vezes a melancia esmagadora (240), que é o inimigo comum mais duro do catálogo — é a
+ * leitura literal de "umas quatro barras de vida". Escala por estágio como qualquer outro.
+ */
+export const INVADER_HP=960;
+/**
+ * Altura da origem do modelo acima dos pés, em unidades do próprio GLB.
+ *
+ * Os cinco originais foram autorados com a raiz **1 unidade acima da sola**, e o enxame compensa
+ * isso baixando o nó visual em 1. O alienígena baixado foi exportado com os pés na origem
+ * (`scripts/build-menu-aliens.py` assenta em Z=0), então para ele a compensação é zero — usar o −1
+ * padrão enterraria o corpo inteiro no chão.
+ */
+export const ENEMY_VISUAL_DROP:Partial<Record<EnemyKind,number>>={invader:0};
 export const ENEMIES:Record<EnemyKind,{name:string;model:string;hp:number;speed:number;range:number;cost:number;radius:number;scale:number}>={
   eggplant:{name:'Berinjela predadora',model:'original-eggplant',hp:75,speed:3.5,range:9,cost:3,radius:.8,scale:1.2},
   corn:{name:'Milho artilheiro',model:'original-corn',hp:100,speed:2.6,range:17,cost:6,radius:.8,scale:1.3},
@@ -24,6 +48,9 @@ export const ENEMIES:Record<EnemyKind,{name:string;model:string;hp:number;speed:
   tomato:{name:'Tomate de praga voador',model:'original-tomato',hp:115,speed:3.3,range:15,cost:8,radius:1.1,scale:1.25},
   carrot:{name:'Cenoura de raízes',model:'original-carrot',hp:90,speed:3,range:13,cost:6,radius:.7,scale:1.25},
   boss:{name:'PRAGA ALFA',model:'original-watermelon',hp:BOSS_BASE_HP,speed:1.5,range:18,cost:0,radius:2.3,scale:2.5},
+  // Despejado pelos discos voadores. Vida de quatro inimigos comuns somados e porte bem acima do
+  // jogador: é para dar trabalho sozinho, e susto quando vierem dez.
+  invader:{name:'INVASOR DO DISCO',model:'menu-alien-ninja',hp:INVADER_HP,speed:3.2,range:11,cost:0,radius:1.1,scale:1.55},
 };
 
 /**

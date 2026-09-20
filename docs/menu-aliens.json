@@ -1,0 +1,55 @@
+[
+  {
+    "uid": "d332cac883f54a2c98492e85f41455b2",
+    "file": "public/models/menu-alien-ninja.glb",
+    "height": 1.55,
+    "bytes": 5426024,
+    "clips": {
+      "Idle": 108,
+      "Walk": 92,
+      "Run": 32,
+      "Attack": 104,
+      "Death": 112
+    },
+    "bones": 177,
+    "vertices": 36835,
+    "meshes": [
+      "Object_7"
+    ],
+    "verified": {
+      "height": 1.55,
+      "feet": -0.0,
+      "meshes": [
+        "0"
+      ]
+    }
+  },
+  {
+    "uid": "100254f3a4794ca491f5143e96a43ce5",
+    "file": "public/models/menu-alien-strutter.glb",
+    "height": 1.32,
+    "bytes": 5146364,
+    "clips": {
+      "Idle": 150,
+      "Walk": 150,
+      "Run": 150,
+      "Attack": 150
+    },
+    "bones": 47,
+    "vertices": 11778,
+    "meshes": [
+      "Object_9",
+      "Object_10",
+      "Object_11"
+    ],
+    "verified": {
+      "height": 1.32,
+      "feet": 0.0,
+      "meshes": [
+        "CattleModelReady_Material.005_0",
+        "CattleModelReady_Material.003_0",
+        "CattleModelReady_Material.001_0"
+      ]
+    }
+  }
+]

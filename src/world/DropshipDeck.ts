@@ -21,6 +21,26 @@ import type {Vec3} from '../core/contracts';
 
 /** Distância entre a origem do asset e a borda aberta do deck, em metros. */
 export const DECK_LIP_OFFSET=.8;
+
+/**
+ * Voo estacionário da nave, como função pura do relógio.
+ *
+ * Existe separado porque **quem está em cima do deck precisa subir e descer junto**. Antes só a
+ * malha oscilava e o corpo ficava numa altura fixa: com 16 cm de amplitude o personagem passava
+ * metade do ciclo afundado na chapa e a outra metade pairando sobre ela — foi exatamente o
+ * "personagem flutuando" relatado na tela de início. Agora a `IntroSequence` recebe estes mesmos
+ * números e soma na pose, então o pé acompanha a chapa quadro a quadro.
+ */
+export function deckFloat(clock:number):{lift:number;roll:number;liftRate:number;glow:number}{
+  const t=Number.isFinite(clock)?clock:0;
+  return {
+    lift:Math.sin(t*.55)*.16,
+    roll:Math.sin(t*.37)*.006,
+    /** Derivada da subida, em m/s: é o que o corpo sente nos joelhos ao se equilibrar. */
+    liftRate:Math.cos(t*.55)*.16*.55,
+    glow:1+Math.sin(t*2.4)*.012,
+  };
+}
 /**
  * Alinha o eixo de corrida do asset com o yaw do jogador.
  *
@@ -115,25 +135,37 @@ export class DropshipDeck {
     Quaternion.FromRotationMatrixToRef(this.deckMatrix,this.root.rotationQuaternion);
   }
 
+  /**
+   * Flutuação da nave neste quadro. É o que a entrada soma na pose do corpo para o personagem
+   * ficar **em cima** do deck, e não numa altura fixa enquanto a chapa sobe e desce sob ele.
+   */
+  get motion():{lift:number;roll:number;liftRate:number}{
+    const {lift,roll,liftRate}=deckFloat(this.clock);
+    return {lift,roll,liftRate};
+  }
+
   /** `visible` desliga a nave inteira de uma vez — sem sobra em cena ao pular ou reiniciar. */
   update(dt:number,visible:boolean):void {
     if(this.disposed)return;
     this.root.setEnabled(visible&&this.ready);
     if(!visible||!this.ready)return;
     this.clock+=Math.max(0,Number.isFinite(dt)?dt:0);
+    const float=deckFloat(this.clock);
     // Flutuação lenta do voo estacionário, sempre calculada a partir da âncora — nunca acumulada.
     this.root.position.copyFrom(this.base);
-    const rise=Math.sin(this.clock*.55)*.16;
+    // Os números vêm de `deckFloat` porque a `IntroSequence` precisa EXATAMENTE dos mesmos para
+    // manter o corpo apoiado na chapa; duplicar as fórmulas aqui faria o pé descolar de novo.
+    const float=deckFloat(this.clock);
     const b=this.basis;
     if(b){
-      this.root.position.addInPlaceFromFloats(b.up.x*rise,b.up.y*rise,b.up.z*rise);
+      this.root.position.addInPlaceFromFloats(b.up.x*float.lift,b.up.y*float.lift,b.up.z*float.lift);
       // O balanço lateral já está na orientação por quaternion; escrever `rotation.z` aqui
       // brigaria com ela (o Babylon ignora Euler quando há quaternion).
     } else {
-      this.root.position.y+=rise;
-      this.root.rotation.z=Math.sin(this.clock*.37)*.006;
+      this.root.position.y+=float.lift;
+      this.root.rotation.z=float.roll;
     }
-    if(this.glow)this.glow.scaling.setAll(1+Math.sin(this.clock*2.4)*.012);
+    if(this.glow)this.glow.scaling.setAll(float.glow);
   }
 
   dispose():void {

@@ -22,7 +22,7 @@ import type { PlayerMotor } from '../player/PlayerMotor';
 import type { TrainingTarget } from '../world/TrainingYard';
 import { FarmNavigation } from '../ai/FarmNavigation';
 import { AIScheduler } from '../ai/AIScheduler';
-import { ENEMIES,MonsterDirector,bossHealth,killBounty,type DirectorMode,type EnemyKind } from '../run/MonsterDirector';
+import { ENEMIES,ENEMY_VISUAL_DROP,MonsterDirector,bossHealth,killBounty,type DirectorMode,type EnemyKind } from '../run/MonsterDirector';
 import { WEAK_POINTS,resolveWeakPoint,weakPointDamageMultiplier,weakPointEligible,type WeakPointSphere,type WeakPointZone } from '../combat/WeakPoints';
 import { INCENDIARY_SECONDS,INCENDIARY_TAG } from '../combat/PrismSkills';
 import type { RunProgression } from '../run/RunProgression';
@@ -112,6 +112,13 @@ export class EnemySwarm {
   private readonly isChargingTomato=(a:Actor):boolean=>a.active&&!a.health.dead&&a.kind==='tomato'&&a.state==='windup';
   private readonly isLiveActor=(a:Actor):boolean=>a.active&&!a.health.dead;
   ready=false;error='';kills=0;boss:Actor|undefined;bossDeadTime=-1;message='';
+  /**
+   * Id do último ator que `spawn` colocou em campo, ou −1 se a última chamada falhou.
+   *
+   * Existe para quem precisa acompanhar UM inimigo específico depois de pedir o nascimento dele —
+   * é assim que a represália dos discos sabe qual corpo deve largar o item raro ao morrer.
+   */
+  lastSpawnedId=-1;
   /**
    * Onde caiu o último inimigo abatido pelo jogador. A recompensa da horda/evento é ejetada
    * neste ponto (ou no piso seguro mais próximo), em vez de um campo fixo no centro do mapa.
@@ -344,6 +351,7 @@ export class EnemySwarm {
     return ENEMIES[kind].hp*ENEMY_AFFIXES[variant].health*(1+(this.progression.stage-1)*.35)*this.director.healthMultiplier;
   }
   spawn(kind:EnemyKind,position?:Vec3,variant:EnemyVariant=kind==='boss'?'normal':chooseVariant(this.rng.stream('elite').next(),this.director.time)):boolean {
+    this.lastSpawnedId=-1;
     if(kind==='boss'&&this.boss&&!this.boss.health.dead)return true;
     if(!this.ready||(this.count>=this.populationCap&&kind!=='boss'))return false;const at=position??this.spawnPosition();if(!at)return false;
     if(this.count>=this.populationCap){const retired=this.farthestRetirable(0);if(!retired)return false;this.retire(retired);}
@@ -356,7 +364,7 @@ export class EnemySwarm {
       actor={id,kind,variant,scale:definition.scale,push:Vector3.Zero(),root,visual,body,health,target,clips,machine:new AnimationStateMachine(clips),skeleton:instance.skeletons[0],ragdoll:undefined,healthTrail:health.maximum,gait:0,lastPosePosition:Vector3.FromArray([at.x,at.y,at.z]),palette:new PosePalette(instance.skeletons),state:'spawn',time:0,attack:0,locked:{...at},direction:{x:0,z:0},facing:new Vector3(0,0,1),burn:0,burnClock:0,anim:0,hit:0,stagger:0,staggerCooldown:0,deathVelocity:Vector3.Zero(),active:true,cooldown:0};const captured=actor;target.onHit=context=>this.hit(captured,context);if(kind==='carrot'){const nodes=visual.getChildTransformNodes(),hand=nodes.find(n=>n.name.endsWith('RightHand')),arm=nodes.find(n=>n.name.endsWith('RightArm'));if(hand&&arm){const socket=new TransformNode('carrot-right-palm-muzzle',this.scene);socket.parent=hand;socket.position.set(0,6,0);socket.rotationQuaternion=Quaternion.FromUnitVectorsToRef(Vector3.Forward(),Vector3.Up(),Quaternion.Identity());actor.laserSocket=socket;actor.laserArm=arm;}}this.actors.push(actor);this.byId.set(actor.id,actor);this.world.targets.push(target);
     }
     this.ragdolls.release(actor.ragdoll);actor.ragdoll=undefined;actor.machine.reset();actor.gait=0;actor.lastPosePosition.set(at.x,at.y,at.z);
-    actor.variant=variant;actor.scale=definition.scale*affix.scale;actor.push.setAll(0);actor.active=true;actor.health=new Health(actor.id,this.healthFor(kind,variant),this.events);actor.healthTrail=actor.health.maximum;actor.state='spawn';actor.time=0;actor.burn=0;actor.hit=0;actor.stagger=0;actor.staggerCooldown=0;actor.cooldown=1;actor.direction={x:0,z:0};actor.attack=0;actor.root.position.set(at.x,at.y,at.z);this.space.faceAt(actor.root,actor.facing,at,this.player.position);actor.root.scaling.setAll(actor.scale);actor.visual.rotationQuaternion=null;actor.visual.rotation.set(0,0,0);actor.visual.position.set(0,-1,0);actor.body.isPickable=true;actor.root.setEnabled(true);
+    actor.variant=variant;actor.scale=definition.scale*affix.scale;actor.push.setAll(0);actor.active=true;actor.health=new Health(actor.id,this.healthFor(kind,variant),this.events);actor.healthTrail=actor.health.maximum;actor.state='spawn';actor.time=0;actor.burn=0;actor.hit=0;actor.stagger=0;actor.staggerCooldown=0;actor.cooldown=1;actor.direction={x:0,z:0};actor.attack=0;actor.root.position.set(at.x,at.y,at.z);this.space.faceAt(actor.root,actor.facing,at,this.player.position);actor.root.scaling.setAll(actor.scale);actor.visual.rotationQuaternion=null;actor.visual.rotation.set(0,0,0);actor.visual.position.set(0,isSaucerSpecies(kind)?0:-(ENEMY_VISUAL_DROP[kind]??1),0);actor.body.isPickable=true;actor.root.setEnabled(true);
     for(const mesh of actor.target.meshes??[actor.body]){
       mesh.isPickable=true;mesh.setEnabled(true);
       if(mesh.material instanceof PBRMaterial){const baseName=mesh.material.name.split('::elite::')[0]!,baseKey=definition.model+':'+baseName;if(!this.eliteMaterials.has(baseKey))this.eliteMaterials.set(baseKey,mesh.material);const original=this.eliteMaterials.get(baseKey)!;original.maxSimultaneousLights=2;
@@ -366,7 +374,8 @@ export class EnemySwarm {
     this.world.collision.playerBodies.set(actor.id,{id:actor.id,position:actor.root.position,radius:definition.radius*affix.scale,height:actor.kind==='watermelon'?1.6:2,active:()=>actor!.active&&!actor!.health.dead&&actor!.kind!=='tomato'&&actor!.state!=='spawn'});
     this.tactical?.add(actor.id,at,definition.radius*affix.scale,definition.speed*affix.speed);this.audio?.enemy('spawn',kind,this.distance(at,this.player.position));
     const scheduled=actor;this.scheduler.add({id:actor.id,distance:()=>this.distance(scheduled.root.position,this.player.position),update:dt=>{if(scheduled.active&&!scheduled.health.dead)this.think(scheduled,dt);}});
-    this.effects.burst(at,'soil',kind==='boss'?3:1);if(kind==='boss'){this.boss=actor;this.events.emit('BossSpawned',{entityId:actor.id,definitionId:'boss_fruit_abomination_01'});}return true;
+    this.effects.burst(at,'soil',kind==='boss'?3:1);if(kind==='boss'){this.boss=actor;this.events.emit('BossSpawned',{entityId:actor.id,definitionId:'boss_fruit_abomination_01'});}
+    this.lastSpawnedId=actor.id;return true;
   }
   /**
    * Empurrão e normal de impacto são vetores de MUNDO: a direção sai tangente à superfície onde o

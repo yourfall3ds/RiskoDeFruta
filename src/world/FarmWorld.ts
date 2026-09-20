@@ -19,6 +19,14 @@ import type { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGener
 import { CollisionWorld,type BoxCollider,type GroundSurface } from '../physics/CollisionWorld';
 import type { TrainingTarget } from './TrainingYard';
 import {AlienWorld} from './AlienWorld';
+
+/**
+ * Primeiro id de alvo reservado aos discos voadores.
+ *
+ * Fica numa faixa alta e própria para nunca colidir com os ids de inimigos (`EnemySwarm` começa em
+ * 200) nem com os alvos de treino. `PlayerScene` reconhece a represália por esta faixa.
+ */
+export const SAUCER_TARGET_BASE=90000;
 import type {PlayerMotor} from '../player/PlayerMotor';
 import { Waterfalls } from './Waterfalls';
 import { CreatePlane } from '@babylonjs/core/Meshes/Builders/planeBuilder';
@@ -79,6 +87,10 @@ export class FarmWorld {
   private disposed=false;private details:DetailVisibility|undefined;
   get hiddenDetails():number{return (this.details?.hidden??0)+this.regions.readyIds.reduce((n,id)=>n+(this.regions.get(id)?.hidden??0),0);}
   private waterfalls:Waterfalls|undefined;private alien:AlienWorld|undefined;
+  /** Discos voadores do cenário, para a represália assumir o voo de um deles. */
+  get saucers(){return this.alien?.saucers??[];}
+  /** Onde a órbita decorativa colocaria o disco agora. É o ponto de partida da investida. */
+  saucerOrbit(index:number){return this.alien?.saucerOrbit(index);}
   /**
    * Dressing of the five walk-in barns. Separate asset, separate culling; the collision of the same
    * props already arrives with the region JSONs above, so this only ever adds what is DRAWN.
@@ -169,6 +181,10 @@ export class FarmWorld {
       const staticMaterials=new Set(imported.meshes.map(mesh=>mesh.material).filter(material=>!hasFoliageWind(material)));
       this.scene.onAfterRenderObservable.addOnce(()=>{for(const material of staticMaterials)material?.freeze();});
       this.waterfalls=new Waterfalls(this.scene);this.alien=new AlienWorld(this.scene,this.collision);await this.alien.load();
+      // Os discos voadores entram na lista de alvos do hitscan. É assim que o jogador consegue
+      // provocar a represália: sem `TrainingTarget` registrado, o tiro nas pistolas não os enxerga.
+      for(const saucer of this.alien.saucers)
+        this.targets.push({id:SAUCER_TARGET_BASE+saucer.index,mesh:saucer.mesh,meshes:saucer.meshes,hits:0});
       // Depois do congelamento de materiais: a lanterna de cada celeiro entra numa lista de luz
       // própria, e congelar antes deixaria o interior preto.
       await this.barns.load();if(this.disposed)return;

@@ -31,6 +31,27 @@ Additional Poly Haven CC0 assets downloaded through its official API on 2026-09-
 
 Local runtime derivatives: `supply-crate.glb`, `farm-barrels.glb`, `watering-can.glb`, banana crests and objects embedded in `farm-world.glb`. License: https://polyhaven.com/license. The current generated sky, waterfall, red paint and botanical surface are documented in [GENERATED_ART.md](GENERATED_ART.md).
 
+## Alienígenas da Sketchfab — CC BY 4.0, 16/09/2026
+
+Baixados pela API oficial da Sketchfab com o token da conta do usuário. **A licença CC BY exige
+crédito**, então os autores ficam registrados aqui e o crédito deve acompanhar qualquer distribuição
+do jogo. Metadados completos e medidas em [menu-aliens.json](menu-aliens.json).
+
+| Runtime | Obra original | Autor | Licença |
+| --- | --- | --- | --- |
+| `public/models/menu-alien-ninja.glb` | [Alien Ninja Creature with 45 animations](https://sketchfab.com/3d-models/d332cac883f54a2c98492e85f41455b2) | Jungle Jim | CC BY 4.0 |
+| `public/models/menu-alien-strutter.glb` | [Alien Bird - Meat Struter](https://sketchfab.com/3d-models/100254f3a4794ca491f5143e96a43ce5) | Obulman | CC BY 4.0 |
+
+O preparo está em `scripts/build-menu-aliens.py`: descarta os auxiliares que a Sketchfab embrulha,
+normaliza a escala para a altura de jogo, assenta os pés em Z=0, mantém apenas os clipes usados
+(`Idle`, `Walk`, `Run`, `Attack`, `Death`) e empilha cada ação numa trilha NLA, porque o exportador
+glTF só escreve ações ativas ou empilhadas. A malha, o esqueleto e as animações são os do autor
+original — o único clipe derivado é o `Death` do ninja, que é o `A_rise1` do próprio autor com o
+tempo invertido. Nada foi gerado proceduralmente.
+
+`menu-alien-ninja.glb` é o corpo do **invasor do disco** (`ENEMIES.invader`), o monstro que a
+represália dos discos voadores despeja pelo feixe de contra-abdução.
+
 ## Áudio gravado e acessórios — 07/09/2026
 
 Amostras locais CC0; fontes e autores detalhados em [foley-sources.json](foley-sources.json): Kenney (impactos/passos), pauliuw (criaturas), qubodup (swishes), ezwa/qubodup (água) e TabascoCZ (tiros). Não há síntese por osciladores no áudio atual.

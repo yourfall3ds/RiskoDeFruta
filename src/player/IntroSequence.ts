@@ -80,6 +80,31 @@ export interface IntroShot {position:Vec3;target:Vec3;weight:number;sprint:numbe
 
 const clamp01=(n:number)=>Math.max(0,Math.min(1,Number.isFinite(n)?n:0));
 const smooth=(n:number)=>{const t=clamp01(n);return t*t*(3-2*t);};
+
+/**
+ * Contrapeso de quem está de pé numa plataforma que balança.
+ *
+ * `liftRate` é a velocidade vertical da nave. Subindo, o corpo cede nos joelhos e atrasa; descendo,
+ * estica e joga o peso à frente — é o mesmo reflexo de quem viaja em pé num barco. O deslocamento
+ * lateral tem período próprio, mais lento que a respiração, para a correção não virar tremor.
+ *
+ * Os limites são pequenos de propósito: a nave oscila 16 cm e ninguém cambaleia por isso. O que o
+ * olho lê é que o corpo REAGE à plataforma, em vez de estar colado numa altura fixa.
+ */
+export function balanceSway(liftRate:number,clock:number):{crouch:number;pitch:number;roll:number;shift:number}{
+  const rate=Number.isFinite(liftRate)?Math.max(-1,Math.min(1,liftRate)):0;
+  const t=Number.isFinite(clock)?clock:0;
+  return {
+    /** Joelho cedendo contra a subida da chapa, em metros. */
+    crouch:-rate*.052,
+    /** Peso à frente quando a nave desce. */
+    pitch:rate*.036+Math.sin(t*.63)*.006,
+    /** Correção lateral lenta, com período próprio. */
+    roll:Math.sin(t*.47+1.3)*.021-rate*.018,
+    /** Passo de ajuste dos pés, em metros. */
+    shift:Math.sin(t*.47+1.3)*.024,
+  };
+}
 const add=(a:Vec3,b:Vec3,k=1):Vec3=>({x:a.x+b.x*k,y:a.y+b.y*k,z:a.z+b.z*k});
 
 export class IntroSequence {
@@ -95,6 +120,14 @@ export class IntroSequence {
   standbyClock=0;
   /** `true` quando a entrada terminou porque o jogador pulou. */
   skipped=false;
+  /**
+   * Voo estacionário da nave neste quadro, vindo de `DropshipDeck.motion`.
+   *
+   * Sem isto o corpo ficava numa altura fixa enquanto a chapa oscilava 16 cm sob ele — metade do
+   * ciclo afundado, metade pairando. Somar a flutuação aqui é o que coloca o personagem **em cima**
+   * do deck de verdade; `liftRate` ainda alimenta o contrapeso da pose de equilíbrio.
+   */
+  deckMotion={lift:0,roll:0,liftRate:0};
   private steps=0;
   private windClock=0;
 
@@ -231,9 +264,12 @@ export class IntroSequence {
     const forward={x:Math.sin(yaw),y:0,z:Math.cos(yaw)};
     const start=this.deckStart(landing,yaw);
     if(this.phase==='standby'){
-      // Espera: respiração e um leve balanço, o mesmo relógio que a corrida herda.
-      return {phase:this.phase,position:{x:start.x,y:start.y+deckClearance('Idle'),z:start.z},yaw,
-        pitch:0,roll:Math.sin(this.standbyClock*1.1)*.012,clip:'Idle',
+      // Espera no deck de uma nave em voo: o corpo sobe e desce COM a chapa e se equilibra nela.
+      // A respiração continua; o que entra é o contrapeso, proporcional à subida da nave.
+      const {lift,roll,liftRate}=this.deckMotion;
+      const balance=balanceSway(liftRate,this.standbyClock);
+      return {phase:this.phase,position:{x:start.x+balance.shift*Math.cos(yaw),y:start.y+lift+deckClearance('Idle')+balance.crouch,z:start.z-balance.shift*Math.sin(yaw)},yaw,
+        pitch:balance.pitch,roll:roll+Math.sin(this.standbyClock*1.1)*.012+balance.roll,clip:'Idle',
         clipProgress:(this.standbyClock*.34)%1,flutter:0,flutterTime:this.standbyClock};
     }
     if(this.phase==='run'){
@@ -243,7 +279,18 @@ export class IntroSequence {
       const body=add(start,forward,travelled);
       // A folga entra MAIS RÁPIDO que a mistura de clipes (0,15 s): assim a sola já subiu quando o
       // `Run` começa a pesar na pose, em vez de o pé raspar a chapa nos primeiros quadros.
-      body.y+=deckClearance('Idle')+(deckClearance('Run')-deckClearance('Idle'))*smooth(this.clock/.08);
+      // A chapa continua oscilando enquanto ele corre sobre ela: a corrida acompanha a nave.
+      body.y+=this.deckMotion.lift+deckClearance('Idle')+(deckClearance('Run')-deckClearance('Idle'))*smooth(this.clock/.08);
+      // O contrapeso da espera não some no quadro do Jogar: ele se dissolve durante a arrancada.
+      // Zerá-lo de uma vez abria um degrau entre a última pose parada e a primeira em movimento —
+      // é exatamente a continuidade que `tests/intro-sequence.test.ts` mede.
+      const settle=1-smooth(this.clock/.35);
+      if(settle>0){
+        const balance=balanceSway(this.deckMotion.liftRate,this.standbyClock);
+        body.x+=balance.shift*Math.cos(yaw)*settle;
+        body.z-=balance.shift*Math.sin(yaw)*settle;
+        body.y+=balance.crouch*settle;
+      }
       return {phase:this.phase,position:body,yaw,
         pitch:-.07-.08*t,roll:Math.sin(this.clock*16)*.035,clip:'Run',
         clipProgress:(this.clock*2.1)%1,flutter:0,flutterTime:this.standbyClock};
@@ -253,8 +300,9 @@ export class IntroSequence {
       const edge=this.deckEdge(landing,yaw);
       const travelled=INTRO_LEAP_DISTANCE*t*(1.25-.25*t);
       const body=add(edge,forward,travelled);
-      // A folga do deck se dissolve durante o salto: no fim o corpo está exatamente no topo da queda.
-      body.y+=deckClearance('Run')*(1-smooth(t/.35));
+      // A folga do deck e a flutuação da nave se dissolvem durante o salto: no fim o corpo está
+      // exatamente no topo da queda, que é âncora fixa e não pode herdar o balanço da plataforma.
+      body.y+=(deckClearance('Run')+this.deckMotion.lift)*(1-smooth(t/.35));
       body.y+=INTRO_LEAP_RISE*Math.sin(Math.PI*t);
       // Vira de cabeça para baixo já no ar: a queda continua exatamente nesta orientação.
       return {phase:this.phase,position:body,yaw,pitch:Math.PI*smooth((t-.3)/.7),

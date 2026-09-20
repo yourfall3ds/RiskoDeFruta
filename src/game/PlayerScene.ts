@@ -10,6 +10,9 @@ import {reviewSkyBlend} from '../rendering/SeamlessSky';
 import {NetworkSession} from '../net/NetworkSession';
 import {IntroSequence,type IntroCue} from '../player/IntroSequence';
 import {DropshipDeck} from '../world/DropshipDeck';
+import {SaucerRaid} from '../run/SaucerRaid';
+import {AbductionBeam} from '../vfx/AbductionBeam';
+import {SAUCER_TARGET_BASE} from '../world/FarmWorld';
 import {MeleeReview,meleeReviewShot} from '../animation/MeleeReview';
 import {ElementalEffects,ELEMENTS,type ElementKind} from '../vfx/ElementalEffects';
 import {SkillAura} from '../vfx/SkillAura';
@@ -398,6 +401,20 @@ export class PlayerScene implements SceneModule {
   readonly intro=new IntroSequence();
   private dropship:DropshipDeck|undefined;
 
+  /**
+   * Represália dos discos voadores.
+   *
+   * Um por disco do cenário. O jogador atira num deles, a nave vem, deposita monstro pelo feixe de
+   * contra-abdução e sai. A primeira investida larga um; da segunda em diante, dez.
+   */
+  private readonly raids:SaucerRaid[]=[];
+  private readonly beams:AbductionBeam[]=[];
+  /** Ids dos monstros despejados por investida: ao morrerem, largam um item raro. */
+  private readonly raidBounty=new Set<number>();
+  private raidsArmed=false;
+  /** Texto curto do estado da investida para o painel F1. */
+  private raidStatus='';
+
   /** Revisão do combo desarmado no F1 (ciclo lento, pose de contato, câmera de corpo inteiro). */
   readonly meleeReview=new MeleeReview();
   private meleeReviewReturn:{position:Vec3;yaw:number;pitch:number;armed:boolean}|undefined;
@@ -624,6 +641,17 @@ export class PlayerScene implements SceneModule {
 
     // Lentidão só em finalizações fortes (habilidade ou golpe pesado), com intervalo próprio.
     this.events.on('EnemyKilled',context=>{if(context.attackerId!==1)return;if(context.damageTags.includes('skill')||context.damageTags.includes('melee_heavy'))this.slowMotion.request(true);});
+    // Monstro despejado por um disco voador: ao cair, larga um item raro no chão, recolhido com E
+    // como qualquer outra recompensa. O id sai do conjunto para o prêmio não sair duas vezes.
+    this.events.on('EnemyKilled',context=>{
+      const victim=context.victimId;
+      if(!this.raidBounty.delete(victim))return;
+      const drops=this.interactables?.drops;
+      if(!drops)return;
+      const item=this.progression.randomItem(rng.stream('loot'));
+      drops.eject(item,context.hitPosition,this.player.position);
+      if(this.enemies instanceof EnemySwarm)this.enemies.message=`ITEM RARO LARGADO · ${item.name}`;
+    });
     this.events.on('FruitHarvested',kill=>{
       if(this.directorMode!=='expedition')return;
       const credit=this.objectives.harvest(kill,this.player.position,this.player.hp>0);
@@ -820,6 +848,10 @@ export class PlayerScene implements SceneModule {
 
     this.audio.update(animDt,this.enemies instanceof EnemySwarm?this.enemies.director.state:0);
 
+    // Represália dos discos: corre no relógio do mundo, então pausar congela a investida junto
+    // com o resto e nenhuma nave continua descendo com o jogo parado.
+    this.updateSaucerRaids(worldDt);
+
     // ---- Entrada pela nave -------------------------------------------------------------------
     // A espera no menu corre no relógio real (o jogador ainda não apertou Jogar); a sequência
     // depois segue o mesmo `animDt` da apresentação, então pausar congela tudo junto.
@@ -860,16 +892,19 @@ export class PlayerScene implements SceneModule {
     // verdadeira e os clipes autorais continuam sendo exatamente os mesmos.
     const landing=this.player.position,stagingYaw=this.radial?0:this.player.yaw;
     const stagingOrigin=this.radial?ORIGIN:landing;
-    const introPose=this.intro.pose(stagingOrigin,stagingYaw);
-    if(introPose&&this.radial){
-      introPose.position=this.stageToWorld(introPose.position,landing);
-      if(introPose.stride)introPose.stride.yaw+=this.player.yaw;
-    }
     if(this.dropship){
       this.dropship.basis=this.radial?this.world.surface.basis(boarding?exitAnchor:landing,this.player.forward):undefined;
       if(this.intro.visible)this.dropship.place(this.stageToWorld(this.intro.deckEdge(stagingOrigin,stagingYaw),landing),this.player.yaw);
       else if(extraction)this.dropship.place(extraction.edge,extraction.shipYaw);
       this.dropship.update(this.paused?0:dt,this.intro.deckVisible||boarding);
+      this.intro.deckMotion=this.dropship.motion;
+    }
+    // A pose vem DEPOIS da nave: o corpo precisa da flutuação deste quadro para ficar em cima da
+    // chapa. Lendo antes, o pé fica sempre um quadro atrás e volta a parecer solto.
+    const introPose=this.intro.pose(stagingOrigin,stagingYaw);
+    if(introPose&&this.radial){
+      introPose.position=this.stageToWorld(introPose.position,landing);
+      if(introPose.stride)introPose.stride.yaw+=this.player.yaw;
     }
     this.hud.liveFlightMenu(this.intro.standby,(this.intro.holdsControl||this.journey.holdsControl)&&this.started);
     this.hud.arrivalReveal(this.intro.holdsControl&&this.started&&!this.paused,this.intro.reveal);
@@ -1190,6 +1225,77 @@ export class PlayerScene implements SceneModule {
    * Sinais da entrada: passo no deck, salto, vento da queda, impacto no chão e o corpo levantando.
    * Só gravações já licenciadas do manifest — nada novo e nada sintético.
    */
+  /**
+   * Represália dos discos voadores: provocação, aproximação, feixe e despejo.
+   *
+   * Cada disco do cenário ganha uma investida própria e um feixe próprio. O gancho do tiro é o
+   * `onHit` dos alvos que o `FarmWorld` registrou para as naves; a partir daí tudo é decidido pelo
+   * `SaucerRaid` puro e apenas desenhado aqui.
+   */
+  private updateSaucerRaids(dt:number):void {
+    const yard=this.yard;
+    if(!(yard instanceof FarmWorld)||!(this.enemies instanceof EnemySwarm))return;
+    const saucers=yard.saucers;
+    if(!saucers.length)return;
+
+    if(!this.raidsArmed){
+      this.raidsArmed=true;
+      for(const saucer of saucers){
+        this.raids.push(new SaucerRaid());
+        this.beams.push(new AbductionBeam(this.scene));
+        const target=yard.targets.find(t=>t.id===SAUCER_TARGET_BASE+saucer.index);
+        if(!target)continue;
+        const index=saucer.index;
+        // UM tiro basta para irritar a nave. Tiros durante a investida não empilham: `provoke`
+        // só responde com a nave em órbita.
+        target.onHit=():void=>{
+          const raid=this.raids[index];
+          if(!raid)return;
+          const from=yard.saucerOrbit(index)??{x:saucer.root.position.x,y:saucer.root.position.y,z:saucer.root.position.z};
+          const count=raid.provoke(from);
+          if(!count)return;
+          saucers[index]!.commanded=true;
+          this.audio.enemy('windup','boss',18);
+          if(this.enemies instanceof EnemySwarm)
+            this.enemies.message=count===1?'DISCO IRRITADO · vem vindo':`DISCO ENFURECIDO · ${count} a caminho`;
+        };
+      }
+    }
+
+    for(const [index,raid] of this.raids.entries()){
+      const saucer=saucers[index],beam=this.beams[index];
+      if(!saucer||!beam)continue;
+      if(!raid.commanding){
+        saucer.commanded=false;beam.hide();
+        continue;
+      }
+      raid.update(dt,this.player.position,(x,z)=>yard.collision.groundAt(x,z,this.player.position.y+3),(at,dropIndex,total)=>{
+        // O corpo toca o chão: o monstro real nasce aqui, grande e resistente, e fica marcado
+        // para largar um item raro quando morrer.
+        const swarm=this.enemies as EnemySwarm;
+        swarm.initialize();
+        // O invasor é o alienígena baixado da Sketchfab, com o rig e as animações do autor original.
+        // Variante normal: a dureza vem da vida dele (quatro inimigos comuns), não de um multiplicador.
+        if(!swarm.spawn('invader',at,'normal'))return;
+        if(swarm.lastSpawnedId>=0)this.raidBounty.add(swarm.lastSpawnedId);
+        this.audio.enemy('spawn','boss',Math.max(1,Math.hypot(at.x-this.player.position.x,at.z-this.player.position.z)));
+        swarm.message=total>1?`DESPEJO ${dropIndex+1} de ${total}`:'MONSTRO DESPEJADO · mate para o item raro';
+      });
+      saucer.commanded=raid.commanding;
+      saucer.root.position.set(raid.position.x,raid.position.y,raid.position.z);
+      if(raid.beaming){
+        const from=new Vector3(raid.position.x,raid.position.y-1.1,raid.position.z);
+        const to=new Vector3(raid.landing.x,raid.landing.y,raid.landing.z);
+        // Abre e fecha nas pontas da descida em vez de piscar ligado/desligado.
+        beam.show(from,to,Math.min(1,raid.beam/.18,(1-raid.beam)/.18+.35),dt);
+      } else beam.hide();
+    }
+    const busy=this.raids.filter(r=>r.commanding);
+    this.raidStatus=busy.length
+      ?busy.map((r,i)=>`disco ${i} ${r.phase} · faltam ${r.pending}`).join(' | ')
+      :`ocioso · investidas ${this.raids.reduce((total,r)=>total+r.provocations,0)} · caçados ${this.raidBounty.size}`;
+  }
+
   private introCue(cue:IntroCue):void {
     const at=new Vector3(this.player.position.x,this.player.position.y,this.player.position.z);
     if(cue==='step'){this.audio.footstep('concrete',1.7);return;}
@@ -2193,6 +2299,21 @@ export class PlayerScene implements SceneModule {
 
       if(name==='boss'&&!this.enemies.boss){this.enemies.initialize();this.enemies.director.time=226;this.enemies.spawn('boss',{x:0,y:0,z:3});}
 
+      // QA da represália: provoca o primeiro disco de onde o jogador estiver, sem precisar mirar
+      // numa nave a 30 m de altura. `saucer-goto` leva o jogador para debaixo dela.
+      if(name==='saucer-provoke'&&this.yard instanceof FarmWorld){
+        const target=this.yard.targets.find(t=>t.id===SAUCER_TARGET_BASE);
+        if(target?.onHit)target.onHit({attackerId:1,victimId:target.id,sourceId:'qa',attackId:'qa',baseDamage:1,finalDamage:1,crit:false,procCoefficient:0,procChainDepth:1,damageTags:['qa'],hitPosition:{x:0,y:0,z:0},hitNormal:{x:0,y:1,z:0},forceDirection:{x:0,y:0,z:1},forceMagnitude:0});
+      }
+      if(name==='saucer-goto'&&this.yard instanceof FarmWorld){
+        const orbit=this.yard.saucerOrbit(0);
+        if(orbit){
+          const ground=this.yard.collision.groundAt(orbit.x,orbit.z,orbit.y);
+          this.player.resetAt({x:orbit.x,y:Number.isFinite(ground)?ground:this.player.position.y,z:orbit.z});
+          this.input.pitch=.55;
+        }
+      }
+
       if(name==='clear-boss'&&this.enemies.boss){const boss=this.enemies.boss;boss.target.onHit?.({attackerId:1,victimId:boss.id,sourceId:'debug',attackId:'debug',baseDamage:999999,finalDamage:999999,crit:false,procCoefficient:0,procChainDepth:1,damageTags:['debug'],hitPosition:{x:boss.root.position.x,y:boss.root.position.y,z:boss.root.position.z},hitNormal:{x:0,y:1,z:0},forceDirection:{x:0,y:0,z:1},forceMagnitude:5});}
 
     }
@@ -2209,6 +2330,7 @@ export class PlayerScene implements SceneModule {
       // Jogar por "Recarregue a página". Degradação anunciada não é partida quebrada.
       player:`${this.networkNotice?this.networkNotice+'\n':''}${this.navigationNotice?this.navigationNotice+'\n':''}${this.expeditionSites?.notice?this.expeditionSites.notice+'\n':''}${this.qaNotice?this.qaNotice+'\n':''}${this.net?.debugLine()??''}${this.yard instanceof FarmWorld?this.yard.regionStatus:this.world.regionStatus??''}${this.cameraAudit}`
       +`\nEntrada ${this.intro.phase}${this.intro.skipped?' (pulada)':''} · deck ${this.dropship?this.dropship.error||(this.dropship.ready?'pronto':'carregando'):'treino'} · controle ${this.intro.holdsControl?'RETIDO':'livre'}`
+      +`\nDiscos: ${this.raidStatus||'sem disco no cenário'}`
       +`\n${this.stagePlanDescription}`
       +(this.meleeReview.active?`\nRevisão corpo a corpo · ${this.meleeReview.label} · voltas ${this.meleeReview.loops} · armas ${this.weapons.holstered?'guardadas':'EM MÃOS'}`:'')
       +`\nPosição${this.player.position.x.toFixed(1)}, ${this.player.position.y.toFixed(1)}, ${this.player.position.z.toFixed(1)}\nVelocidade ${Math.hypot(this.player.velocity.x,this.player.velocity.z).toFixed(2)} m/s · ${this.player.sprinting?'CORRENDO':'NORMAL'}\nMira ${this.input.yaw.toFixed(3)} / ${this.input.pitch.toFixed(3)}\nGrounded ${this.player.grounded} · Saltos ${this.player.jumps}\nEsquivas ${this.player.dodges} · Retornos ${this.player.respawns}\n${this.enemies instanceof EnemySwarm?this.enemies.tactical?.residencyDescription??'':''}\nReciclagem ${this.enemies instanceof EnemySwarm?this.enemies.strays:0} distantes removidos · ${this.enemies instanceof EnemySwarm?this.enemies.recycled:0} repostos perto\nNavmesh ${this.enemies instanceof EnemySwarm?this.enemies.tactical?.count??0:0} agentes · Ragdolls ${this.enemies instanceof EnemySwarm?this.enemies.ragdollCount:0} · Marcas ${this.weapons.effects.decalCount}\nCorpo do jogador: ${this.playerRagdoll.ready?"pronto":"carregando"} · ${this.playerRagdoll.bodies} corpos · ${this.playerRagdoll.active?"física ativa":"inativo"} · ${this.playerRagdoll.error}\nDisparos ${this.weapons.cadence.shots} · Acertos ${this.weapons.hits}\nImpacto ${this.weapons.lastImpact}\n${this.prismDebug()}\nModelo ${this.visual.ready?'pronto':'carregando'} · ${this.visual.skinning}\nInvulnerabilidade QA ${this.player.debugInvincible?'ATIVA':'desligada'}\nDirector ${this.enemies instanceof EnemySwarm?this.enemies.director.state:'treino'} · Estágio ${this.progression.stage}`};
@@ -2219,7 +2341,7 @@ export class PlayerScene implements SceneModule {
     // Invalida qualquer carregamento de destino em voo: o `.then` tardio vê a versão mudada e sai.
     this.planVersion++;this.planning=false;this.journey.reset();this.pendingSetup=undefined;this.stagePlans.clear();
     this.cancelAim();this.aimOverlay.dispose();this.trajectory.dispose();this.scopeOcclusion.dispose();
-    this.weatherView?.dispose();this.weatherView=undefined;this.dropship?.dispose();this.dropship=undefined;this.collision.detachRadialProps('expedition-sites');this.collision.detachRadialProps('loot');this.expeditionSites?.dispose();this.expeditionSites=undefined;this.pendingSites?.dispose();this.pendingSites=undefined;this.playerRagdoll.dispose();this.avatar?.dispose();this.net?.dispose();this.cancelCinematic();this.cutIn.dispose();this.skillAura.dispose();this.elements.dispose();this.world.dispose();this.input.dispose();this.enemies.dispose();this.explorationMap?.dispose();this.runHUD?.dispose();this.interactables?.dispose();this.events.clear();this.prism.dispose();this.prismVisuals.dispose();this.prismRig.dispose();this.weapons.dispose();this.footing.dispose();this.abyss?.dispose();this.visual.dispose();this.audio.dispose();this.hud.dispose();this.instrumentation.dispose();this.scene.dispose();}
+    this.weatherView?.dispose();this.weatherView=undefined;for(const beam of this.beams)beam.dispose();this.beams.length=0;this.raids.length=0;this.raidBounty.clear();this.dropship?.dispose();this.dropship=undefined;this.collision.detachRadialProps('expedition-sites');this.collision.detachRadialProps('loot');this.expeditionSites?.dispose();this.expeditionSites=undefined;this.pendingSites?.dispose();this.pendingSites=undefined;this.playerRagdoll.dispose();this.avatar?.dispose();this.net?.dispose();this.cancelCinematic();this.cutIn.dispose();this.skillAura.dispose();this.elements.dispose();this.world.dispose();this.input.dispose();this.enemies.dispose();this.explorationMap?.dispose();this.runHUD?.dispose();this.interactables?.dispose();this.events.clear();this.prism.dispose();this.prismVisuals.dispose();this.prismRig.dispose();this.weapons.dispose();this.footing.dispose();this.abyss?.dispose();this.visual.dispose();this.audio.dispose();this.hud.dispose();this.instrumentation.dispose();this.scene.dispose();}
 
 }
 

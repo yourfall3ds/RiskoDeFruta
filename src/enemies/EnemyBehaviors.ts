@@ -121,6 +121,16 @@ export const ENEMY_BEHAVIORS:Record<EnemyKind,EnemyBehavior>={
     // era prometer um golpe que não podia acertar. A varredura agora fecha a distância antes de abrir.
     engage:a=>nextAttack(a)%5===4?BOSS_SWEEP_REACH*MELEE_COMMIT:ENEMIES.boss.range,
     perform:c=>BOSS_ATTACKS[c.actor.attack%5]!(c)},
+  /**
+   * Invasor do disco: caçador corpo a corpo, rápido e pesado.
+   *
+   * Alterna investida e golpe curto, como a berinjela, mas com alcance e dano maiores — é o preço
+   * de ter provocado a nave. Sem ataque à distância: o perigo é ele CHEGAR.
+   */
+  invader:{windup:.85,contactDamage:30,zigzag:true,
+    recoverySpeed:a=>a.time<1.05&&Math.hypot(a.direction.x,a.direction.z)>.1?12:0,
+    telegraph:a=>lunges(a,2.8)?{shape:'band',width:contactWidth('invader'),reach:10.5}:{shape:'cone',radius:3.1},
+    perform:c=>{if(lunges(c.actor,2.8))aimRush(c.actor);else{bite(c,3.2,30,'invader_slash');c.effects.burst(c.player,'juice',1);}}},
 };
 
 /** Um tiro do leque: o alvo girado de `angle` em torno da vertical local da origem. */
