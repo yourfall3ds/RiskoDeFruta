@@ -2158,9 +2158,49 @@ body:has(#view) footer select {
   transform: none !important;
 }
 
-/* ===============================================================================================
-   MOVIMENTO
-   =============================================================================================== */
+/* -----------------------------------------------------------------------------------------------
+   CARREGAMENTO: textos centrados, contador FORA do painel
+
+   O painel fica com a marca e os dois textos, centrados. A porcentagem e o corredor saem dele e
+   vão para o canto inferior direito da TELA — número à esquerda, boneco à direita, alinhados pela
+   base, como no jogo de referência.
+   ----------------------------------------------------------------------------------------------- */
+
+.loading-progress { text-align: center; justify-items: center; }
+.loading-progress .loading-stage,
+.loading-progress small {
+  grid-column: 1 / -1 !important;
+  text-align: center;
+}
+
+/* O par número + boneco, ancorado na janela. `.loading-progress` não tem transform nem filtro,
+   então aqui o `fixed` se prende à janela de verdade (ao contrário do que acontecia dentro do
+   cartão do menu, onde a animação de entrada deixava um transform cravado). */
+.loading-progress b {
+  position: fixed !important;
+  /* `top: auto` é obrigatório: a folha herdada crava `top: 25px` neste elemento, e com `top` e
+     `bottom` ambos definidos o `top` vence — o número ficava colado no meio da tela. */
+  top: auto !important;
+  right: clamp(84px, 8vw, 132px);
+  bottom: clamp(18px, 3vh, 40px);
+  grid-column: auto !important;
+  grid-row: auto !important;
+  font-size: clamp(30px, 3.4vw, 52px) !important;
+  line-height: 1;
+  text-shadow: 0 3px 18px #000c;
+}
+.rdf-runner {
+  position: fixed !important;
+  right: clamp(46px, 4.4vw, 74px);
+  bottom: clamp(24px, 3.6vh, 48px);
+  grid-column: auto !important;
+  grid-row: auto !important;
+  margin: 0 !important;
+  /* 2,4× em vez de 1,4×: no canto da tela, longe do olho, o boneco precisa de corpo. */
+  transform: scale(2.4);
+  transform-origin: right bottom;
+  filter: drop-shadow(0 2px 6px #000);
+}
 
 /* Respiração do botão que ainda não pode ser apertado. Só `opacity`: sem repaint. */
 @keyframes rdf-breathe {
