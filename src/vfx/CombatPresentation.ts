@@ -9,6 +9,8 @@ import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
+import { LoadAssetContainerAsync } from '@babylonjs/core/Loading/sceneLoader';
+import type { AssetContainer } from '@babylonjs/core/assetContainer';
 import { Matrix,Quaternion } from '@babylonjs/core/Maths/math.vector';
 import type { Scene } from '@babylonjs/core/scene';
 import type { Vec3 } from '../core/contracts';
@@ -22,7 +24,16 @@ export interface GroundWarning {mesh:AbstractMesh;circle:AbstractMesh;remaining:
  */
 export type {ProjectileImpact} from './CombatField';
 import type {ProjectileImpact} from './CombatField';
-export interface EnemyProjectile {mesh:AbstractMesh;active:boolean;remaining:number;position:Vector3;velocity:Vector3;gravity:number;damage:number;owner:number;radius:number;delay:number;impact:ProjectileImpact|undefined}
+export interface EnemyProjectile {mesh:AbstractMesh;
+  /**
+   * A esfera original do slot, guardada para VOLTAR a ela.
+   *
+   * `mesh` é trocável: um arremesso de espiga empresta um corpo do pool de milho e o slot passa a
+   * desenhar aquilo. Sem guardar a esfera, o slot ficaria preso à espiga para sempre e o próximo
+   * cuspe de grão sairia como um milho inteiro.
+   */
+  sphere:AbstractMesh;
+  active:boolean;remaining:number;position:Vector3;velocity:Vector3;gravity:number;damage:number;owner:number;radius:number;delay:number;impact:ProjectileImpact|undefined}
 interface Burst {mesh:AbstractMesh;active:boolean;remaining:number;duration:number;velocity:Vector3;color:'energy'|'juice'|'seed'|'soil';up:Vector3}
 /** Rascunhos dos decalques: pool fixo, nenhuma alocação por aviso por quadro. */
 const AXIS_X=new Vector3(),AXIS_Y=new Vector3(),AXIS_Z=new Vector3();
@@ -37,6 +48,7 @@ export class CombatPresentation {
   private readonly cones:AbstractMesh[]=[];
   private readonly bands:AbstractMesh[]=[];
   private readonly summons:AbstractMesh[]=[];
+  private disposed=false;
   constructor(private readonly scene:Scene){
     for(const [name,color] of [['warning','#ff6336'],['seed','#ffd15a'],['energy','#83ffc8'],['juice','#b958ed']] as const){const mat=new StandardMaterial(name,scene);mat.diffuseColor=Color3.FromHexString(color);mat.emissiveColor=mat.diffuseColor.scale(.8);mat.disableLighting=true;this.materials.push(mat);}
     const warning=CreateTorus('warning-template',{diameter:2,thickness:.045,tessellation:40},scene);warning.material=this.materials[0]!;warning.isVisible=false;
@@ -55,7 +67,7 @@ export class CombatPresentation {
     const seed=new StandardMaterial('corn-kernel-lighting',scene);seed.diffuseColor=new Color3(1,.52,.08);seed.emissiveColor=new Color3(.35,.09,.005);seed.specularColor=new Color3(.7,.52,.2);seed.specularPower=48;
     const fire=new StandardMaterial('tomato-fireball',scene);fire.diffuseColor=new Color3(1,.15,.015);fire.emissiveColor=new Color3(3,.6,.04);fire.disableLighting=true;this.materials.push(fire);const pit=new StandardMaterial('watermelon-seed',scene);pit.diffuseColor=new Color3(.07,.025,.014);pit.specularColor=new Color3(.5,.3,.2);this.materials.push(pit);
     const projectile=CreateSphere('enemy-projectile-template',{diameter:.32,segments:10},scene);projectile.material=seed;projectile.isVisible=false;
-    for(let i=0;i<128;i++){const mesh=projectile.clone(`enemy-projectile-${i}`);mesh.isVisible=true;mesh.isPickable=false;mesh.setEnabled(false);this.projectiles.push({mesh,active:false,remaining:0,position:Vector3.Zero(),velocity:Vector3.Zero(),gravity:0,damage:0,owner:0,radius:.18,delay:0,impact:undefined});}
+    for(let i=0;i<128;i++){const mesh=projectile.clone(`enemy-projectile-${i}`);mesh.isVisible=true;mesh.isPickable=false;mesh.setEnabled(false);this.projectiles.push({mesh,sphere:mesh,active:false,remaining:0,position:Vector3.Zero(),velocity:Vector3.Zero(),gravity:0,damage:0,owner:0,radius:.18,delay:0,impact:undefined});}
     const dirt=new StandardMaterial('birth-earth',scene);dirt.diffuseTexture=new Texture('/textures/brown_mud_leaves_01/Diffuse.jpg',scene);dirt.specularColor=Color3.Black();this.materials.push(dirt);
     for(const color of ['energy','juice','seed','soil'] as const){const template=projectile.clone(`${color}-template`);template.material=this.materials[color==='soil'?6:color==='energy'?2:color==='juice'?3:1]!;template.isVisible=false;for(let i=0;i<32;i++){const mesh=template.createInstance(`${color}-fragment-${i}`);mesh.isVisible=true;mesh.isPickable=false;mesh.setEnabled(false);this.bursts.push({mesh,active:false,remaining:0,duration:1,velocity:Vector3.Zero(),color,up:new Vector3(0,1,0)});}}
     const bark=new StandardMaterial('erupting-root-bark',scene);bark.diffuseColor=new Color3(.38,.29,.12);bark.diffuseTexture=new Texture('/textures/wood_planks/Diffuse.jpg',scene);bark.specularColor=Color3.Black();
@@ -107,12 +119,43 @@ export class CombatPresentation {
     return this.surface?this.surface.planarDistance(from,to):Math.hypot(to.x-from.x,to.z-from.z);
   }
   /** Círculo só onde existe dano de área real (fogo, ácido, raízes) ou marca de invocação. */
+  /**
+   * Corpos de ESPIGA emprestados ao projetil do milho artilheiro.
+   *
+   * Pool pequeno de proposito: o artilheiro arremessa uma por vez e o voo dura ~2 s, entao quatro
+   * cobrem uma horda inteira de milhos atirando junto. Estourado o pool, o arremesso cai no grao
+   * de sempre em vez de sumir — o dano nunca depende do corpo desenhado.
+   */
+  private readonly cobs:AbstractMesh[]=[];
+  private cobContainer:AssetContainer|undefined;
+  /** Escala da espiga em cena: o GLB nasce com 2 u no maior eixo e um projetil quer ~0,5 m. */
+  private static readonly COB_SCALE=.26;
+
+  /** Falhar aqui nao derruba nada: sem espiga, o milho volta a cuspir grao. */
+  async loadCob():Promise<void> {
+    try{
+      const container=await LoadAssetContainerAsync('/models/corn-cob-projectile.glb',this.scene);
+      if(this.disposed){container.dispose();return;}
+      this.cobContainer=container;container.addAllToScene();
+      const fonte=container.meshes.find(m=>m.getTotalVertices()>0);
+      if(!fonte)throw Error('corn-cob-projectile.glb sem malha');
+      fonte.setEnabled(false);fonte.isPickable=false;
+      for(let i=0;i<4;i++){
+        const clone=fonte.clone('corn-cob-projectile-'+i,null);
+        if(!clone)continue;
+        clone.isPickable=false;clone.setEnabled(false);
+        clone.scaling.setAll(CombatPresentation.COB_SCALE);
+        this.cobs.push(clone);
+      }
+    }catch{/* sem espiga: o grao continua valendo */}
+  }
+
   warning(position:Vec3,radius:number,seconds:number,damage:number,owner:number,kind='impact'):GroundWarning|undefined {const w=this.warnings.find(x=>!x.active);if(!w)return;const ring=kind==='summon'?this.summons.find(m=>!m.isEnabled()):w.circle;if(!ring)return;this.attach(w,ring);Object.assign(w,{active:true,position:{x:position.x,y:position.y,z:position.z},radius,remaining:seconds,duration:seconds,damage,owner,kind,pulses:kind==='acid'?8:kind==='fire'?5:0,stretch:1});this.layFlat(w.mesh,position,.055,0);w.mesh.scaling.set(radius,1,radius);w.mesh.setEnabled(true);return w;}
   /** Setor de 120° (arco 1/3) apontado ao alvo travado — a mesma abertura testada pela varredura. */
   cone(from:Vec3,to:Vec3,radius:number,seconds:number,owner:number):void {const mesh=this.cones.find(x=>!x.isEnabled());if(!mesh)return;const w=this.warnings.find(x=>!x.active);if(!w)return;this.attach(w,mesh);Object.assign(w,{active:true,position:{x:from.x,y:from.y,z:from.z},radius,remaining:seconds,duration:seconds,damage:0,owner,kind:'cone',pulses:0,stretch:1});this.layFlat(mesh,from,.065,this.spinToward(from,to)-Math.PI/6,Math.PI/2);mesh.scaling.setAll(radius);mesh.setEnabled(true);}
   /** Faixa retangular real (largura × comprimento do trajeto); nunca um torus esticado em elipse. */
   line(from:Vec3,to:Vec3,width:number,seconds:number,owner:number,kind:'band'|'aim'='band'):void {const length=this.span(from,to);if(length<.05)return;const mesh=this.bands.find(x=>!x.isEnabled());if(!mesh)return;const w=this.warnings.find(x=>!x.active);if(!w)return;this.attach(w,mesh);Object.assign(w,{active:true,position:{x:(from.x+to.x)/2,y:(from.y+to.y)/2,z:(from.z+to.z)/2},radius:width,remaining:seconds,duration:seconds,damage:0,owner,kind,pulses:0,stretch:length});this.layFlat(mesh,w.position,.05,this.spinToward(from,to));mesh.scaling.set(width,1,length);mesh.setEnabled(true);}
-  projectile(origin:Vec3,target:Vec3,speed:number,damage:number,owner:number,gravity=0,impact?:ProjectileImpact,delay=0,preAimed=false):void {const p=this.projectiles.find(x=>!x.active);if(!p)return;p.active=true;p.remaining=6;p.damage=damage;p.owner=owner;p.gravity=gravity;p.impact=impact;p.delay=delay;p.mesh.material=impact?.zone==='fire'?this.materials[4]!:impact?.seed?this.materials[5]!:this.scene.getMaterialByName('corn-kernel-lighting');p.mesh.scaling.set(impact?.seed?.65:impact?.zone==='fire'?2.1:1,impact?.seed?.45:impact?.zone==='fire'?2.1:1,impact?.seed?1.5:impact?.zone==='fire'?2.1:1);p.radius=impact?.zone==='fire'?.3:impact?.seed?.12:.18;p.position.copyFromFloats(origin.x,origin.y,origin.z);p.velocity.copyFromFloats(target.x-origin.x,target.y-origin.y,target.z-origin.z).normalize().scaleInPlace(speed);
+  projectile(origin:Vec3,target:Vec3,speed:number,damage:number,owner:number,gravity=0,impact?:ProjectileImpact,delay=0,preAimed=false):void {const p=this.projectiles.find(x=>!x.active);if(!p)return;p.active=true;p.remaining=6;p.damage=damage;p.owner=owner;p.gravity=gravity;p.impact=impact;p.delay=delay;const corpo=impact?.cob?this.cobs.find(m=>!m.isEnabled()):undefined;const escolhido=corpo??p.sphere;if(p.mesh!==escolhido)p.mesh.setEnabled(false);p.mesh=escolhido;if(!corpo)p.mesh.material=impact?.zone==='fire'?this.materials[4]!:impact?.seed?this.materials[5]!:this.scene.getMaterialByName('corn-kernel-lighting');if(!corpo)p.mesh.scaling.set(impact?.seed?.65:impact?.zone==='fire'?2.1:1,impact?.seed?.45:impact?.zone==='fire'?2.1:1,impact?.seed?1.5:impact?.zone==='fire'?2.1:1);p.radius=impact?.zone==='fire'?.3:impact?.seed?.12:.18;p.position.copyFromFloats(origin.x,origin.y,origin.z);p.velocity.copyFromFloats(target.x-origin.x,target.y-origin.y,target.z-origin.z).normalize().scaleInPlace(speed);
     // Elevação balística: a compensação da queda sobe pela vertical LOCAL da origem, senão um tiro
     // do outro lado do globo seria lançado para dentro do planeta.
     if(gravity&&!preAimed){const lead=this.span(origin,target)/speed*gravity*.5,up=this.surface?.up(origin);if(up)p.velocity.addInPlaceFromFloats(up.x*lead,up.y*lead,up.z*lead);else p.velocity.y+=lead;}
@@ -146,6 +189,21 @@ export class CombatPresentation {
     // Queda pela vertical guardada no nascimento do caco: `(0,1,0)` na fazenda, radial no planeta.
     const fall=8*dt;b.velocity.set(b.velocity.x-b.up.x*fall,b.velocity.y-b.up.y*fall,b.velocity.z-b.up.z*fall);
     b.mesh.position.addInPlaceFromFloats(b.velocity.x*dt,b.velocity.y*dt,b.velocity.z*dt);if(b.remaining<.2)b.mesh.scaling.scaleInPlace(Math.exp(-dt*8));}}
+  /**
+   * Libera o que e DONO: o container da espiga e os clones dela.
+   *
+   * [H[2J[3J apaga o que esta em cena entre estagios e precisa manter os pools vivos; isto aqui e o
+   * fim de linha, chamado quando a horda morre junto com a cena.
+   */
+  dispose():void {
+    this.disposed=true;
+    for(const cob of this.cobs)cob.dispose();
+    this.cobs.length=0;
+    this.cobContainer?.dispose();
+    this.cobContainer=undefined;
+    this.clear();
+  }
+
   clear():void {for(const x of [...this.projectiles,...this.bursts]){x.active=false;x.mesh.setEnabled(false);}for(const w of this.warnings){w.mesh.setEnabled(false);w.mesh=w.circle;w.mesh.setEnabled(false);Object.assign(w,{active:false,remaining:0,damage:0,pulses:0,stretch:1,kind:''});}for(const mesh of [...this.cones,...this.bands,...this.summons])mesh.setEnabled(false);for(const root of this.roots){root.life=0;root.mesh.setEnabled(false);}}
   get active():number {return this.warnings.filter(x=>x.active).length+this.projectiles.filter(x=>x.active).length+this.bursts.filter(x=>x.active).length+this.roots.filter(x=>x.life>0).length;}
   /** Diagnóstico de vazamento: meshes auxiliares (cone/faixa/invocação) que continuam ligados. */

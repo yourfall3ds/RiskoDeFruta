@@ -39,6 +39,15 @@ const TRIS_PADRAO = 15000;
  */
 const ESCADA = [0.005, 0.02, 0.05, 0.1, 0.25, 0.5, 0.8];
 
+/**
+ * LIMITE MEDIDO: o alvo nem sempre é alcançável.
+ *
+ * Uma malha cujo detalhe É a geometria inteira — uma espiga com cada grão modelado — não tem
+ * superfície plana para colapsar. Pedindo 1.200 triângulos ela estaciona em 11.150, e subir a
+ * tolerância além de 0,8 (testado até 3) não muda nada: o simplificador recusa todo colapso
+ * restante. Quem chamar precisa conferir o número de saída em vez de confiar no alvo.
+ */
+
 const argumento = (nome, padrao) => {
   const i = process.argv.indexOf('--' + nome);
   return i > 0 ? Number(process.argv[i + 1]) : padrao;
