@@ -57,6 +57,14 @@ export class PlayerMotor {
   private readonly initialSpawn:Vec3;
   hp: number = t.maxHP;
   maxHP:number=t.maxHP;
+  /**
+   * QUEM é este motor na faixa 1..4, para o teste de vítima do dano.
+   *
+   * `applyDamage` comparava com o literal `1`: com quatro jogadores, três eram IMORTAIS (armadilha
+   * 8.1 do plano). O padrão continua 1, então o jogo de um jogador — e os testes dele — não muda um
+   * bit; o servidor escreve o `entityId` real de cada motor na entrada.
+   */
+  entityId=1;
   debugInvincible=false;
   moveMultiplier=1;jumpMultiplier=1;extraJumps=0;airJumpsUsed=0;rechargeMultiplier=1;regeneration:number=t.regeneration;armor=0;
   /** Bônus acumulativo de corrida vindo dos itens; 1 = corrida base de 8 m/s. */
@@ -500,7 +508,7 @@ export class PlayerMotor {
 
   private respawn(): void {
     const damage=this.maxHP*t.voidDamageFraction;
-    const context: DamageContext={attackerId:0,victimId:1,sourceId:'void',attackId:'void_return',baseDamage:damage,finalDamage:damage,crit:false,procCoefficient:0,procChainDepth:0,damageTags:['environment'],hitPosition:{...this.position},hitNormal:{...this.up},forceDirection:{x:0,y:0,z:0},forceMagnitude:0};
+    const context: DamageContext={attackerId:0,victimId:this.entityId,sourceId:'void',attackId:'void_return',baseDamage:damage,finalDamage:damage,crit:false,procCoefficient:0,procChainDepth:0,damageTags:['environment'],hitPosition:{...this.position},hitNormal:{...this.up},forceDirection:{x:0,y:0,z:0},forceMagnitude:0};
     this.applyDamage(context);
     const destination=findSafeRecovery(this.world,this.safe,this.initialSpawn);
     if(destination)Object.assign(this.safe,destination);
@@ -513,7 +521,7 @@ export class PlayerMotor {
     this.adoptFrame(this.forward);
   }
   applyDamage(context: DamageContext): void {
-    if(this.debugInvincible||this.hp<=0 || context.victimId!==1 || (this.invulnerable>0 && context.sourceId!=='void'))return;
+    if(this.debugInvincible||this.hp<=0 || context.victimId!==this.entityId || (this.invulnerable>0 && context.sourceId!=='void'))return;
     const applied=context.sourceId==='void'?context.finalDamage:context.finalDamage*100/(100+Math.max(0,this.armor));
     if(applied<=0)return;this.regenerationDelay=2;
     context={...context,finalDamage:applied};this.hp=Math.max(0,this.hp-applied);

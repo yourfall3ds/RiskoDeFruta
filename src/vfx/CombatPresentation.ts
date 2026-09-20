@@ -3,7 +3,6 @@ import { CreateCylinder } from '@babylonjs/core/Meshes/Builders/cylinderBuilder'
 import { CreateDisc } from '@babylonjs/core/Meshes/Builders/discBuilder';
 import { CreateGround } from '@babylonjs/core/Meshes/Builders/groundBuilder';
 import { Texture } from '@babylonjs/core/Materials/Textures/texture';
-import type { EnemyKind } from '../run/MonsterDirector';
 import '@babylonjs/core/Meshes/instancedMesh';
 import { CreateTorus } from '@babylonjs/core/Meshes/Builders/torusBuilder';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
@@ -16,7 +15,13 @@ import type { Vec3 } from '../core/contracts';
 import { radialSurfaceOf,type EnemySurface } from '../enemies/EnemySpace';
 /** `stretch` só é usado por faixas (`band`/`aim`) e vale o comprimento real em metros; círculos ficam em 1. */
 export interface GroundWarning {mesh:AbstractMesh;circle:AbstractMesh;remaining:number;duration:number;radius:number;position:Vec3;active:boolean;damage:number;owner:number;kind:string;pulses:number;stretch:number}
-export interface ProjectileImpact {zone?:'fire'|'acid';summon?:EnemyKind;seed?:boolean}
+/**
+ * A forma do impacto vive em `CombatField`, junto com o lado de GAMEPLAY dos projéteis: o servidor
+ * precisa dela e não pode importar este arquivo (que instancia malha). Reexportada para todo
+ * chamador existente continuar lendo daqui.
+ */
+export type {ProjectileImpact} from './CombatField';
+import type {ProjectileImpact} from './CombatField';
 export interface EnemyProjectile {mesh:AbstractMesh;active:boolean;remaining:number;position:Vector3;velocity:Vector3;gravity:number;damage:number;owner:number;radius:number;delay:number;impact:ProjectileImpact|undefined}
 interface Burst {mesh:AbstractMesh;active:boolean;remaining:number;duration:number;velocity:Vector3;color:'energy'|'juice'|'seed'|'soil';up:Vector3}
 /** Rascunhos dos decalques: pool fixo, nenhuma alocação por aviso por quadro. */

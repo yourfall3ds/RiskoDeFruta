@@ -2,7 +2,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { Room, type Client, type StepContext } from 'colyseus';
 import { FarmSimulation, type CollisionData } from '../FarmSimulation';
-import { FarmState, PlayerState, CLASS_IDS, PHASE } from '../schema';
+import { FarmState, PlayerState, EnemyState, CLASS_IDS, PHASE, enemyStateOrdinal } from '../schema';
 import { NetInput, BUTTON, toFrame } from '../../src/net/NetInput';
 export { NetInput, BUTTON, toFrame };
 
@@ -201,5 +201,38 @@ export class FarmRoom extends Room<{ state: FarmState; input: NetInput; metadata
       t.ammo = player.ammo; t.reloading = player.reloading; t.mpSeconds = player.mpSeconds; t.mpTier = player.mpTier;
       t.skillTier = player.skillTier; t.skillElapsed = player.skillElapsed; t.skillActive = player.skillActive;
     }
+    this.mirrorEnemies(snap.enemies);
+  }
+
+  /**
+   * A horda, do snapshot para o schema. **Cópia, e só cópia** (contrato §18.9).
+   *
+   * Nenhuma decisão mora aqui: nem escolha de alvo, nem vida, nem morte, nem nascimento. Se algum
+   * dia uma linha deste método precisar de uma regra, a regra pertence a `EnemySimulation` —
+   * preencher schema não pode virar desculpa para uma segunda simulação.
+   *
+   * Até hoje este método simplesmente NÃO EXISTIA: `EnemyState` era declarado no schema e jamais
+   * escrito, e era por isso que dois clientes viam mundos diferentes.
+   */
+  private mirrorEnemies(rows: ReturnType<FarmSimulation['snapshot']>['enemies']): void {
+    const enemies = this.state.enemies;
+    const seen = new Set<string>();
+    for (const row of rows) {
+      const key = String(row.id);
+      seen.add(key);
+      let e = enemies.get(key);
+      if (!e) {
+        e = new EnemyState();
+        // Identidade do corpo: fixada no nascimento e nunca reescrita por tique.
+        e.id = row.id; e.kind = row.kind; e.variant = row.variant; e.scale = row.scale; e.maxHP = row.maxHP;
+        enemies.set(key, e);
+      }
+      e.x = row.x; e.y = row.y; e.z = row.z; e.yaw = row.yaw;
+      e.hp = row.hp; e.state = enemyStateOrdinal(row.state); e.time = row.time;
+      e.burn = row.burn; e.stagger = row.stagger; e.alive = row.alive;
+      e.targetPlayerId = row.targetPlayerId; e.targetLockTime = row.targetLockTime; e.lastTargetSwitchTime = row.lastTargetSwitchTime;
+    }
+    // Quem saiu de campo some da rede no mesmo tique em que some da simulação.
+    for (const key of [...enemies.keys()]) if (!seen.has(key)) enemies.delete(key);
   }
 }

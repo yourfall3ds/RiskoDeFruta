@@ -37,11 +37,34 @@ export const PlayerState = schema({
 }, 'PlayerState');
 export type PlayerState = InstanceType<typeof PlayerState>;
 
+/**
+ * Estados de um corpo, por ORDINAL. O índice aqui é o que viaja em `EnemyState.state`; o cliente
+ * resolve o nome pela tabela local. `state` muda a cada poucos décimos de segundo em dezenas de
+ * corpos — string custaria tamanho e moldura a cada mudança.
+ */
+export const ENEMY_STATES = ['spawn', 'chase', 'windup', 'recover', 'flee', 'dead'] as const;
+export type EnemyPhaseName = typeof ENEMY_STATES[number];
+export const enemyStateOrdinal = (state: EnemyPhaseName): number => Math.max(0, ENEMY_STATES.indexOf(state));
+
 export const EnemyState = schema({
   id: t.uint16(), kind: t.string(), variant: t.string(), scale: t.number(),
   x: t.number(), y: t.number(), z: t.number(), yaw: t.number(),
   hp: t.number(), maxHP: t.number(),
-  state: t.string(), time: t.number(), burn: t.number(), stagger: t.number(),
+  state: t.uint8(), time: t.number(), burn: t.number(), stagger: t.number(),
+  /**
+   * O JOGADOR QUE ESTE CORPO ESTÁ CAÇANDO (1..4; 0 = nenhum).
+   *
+   * Sem este campo o cliente teria de adivinhar o alvo — e adivinhar significa cada tela mostrando
+   * o mesmo alien atacando alguém diferente, que é exatamente o bug que o bloco fecha. O alvo é
+   * escolhido pela política do arquétipo no servidor (ver `EnemyTargeting`), nunca pela distância
+   * recalculada no cliente.
+   */
+  targetPlayerId: t.uint8(),
+  /** Há quanto tempo o alvo é o alvo. Replicado para a HUD/diagnóstico enxergar o travamento. */
+  targetLockTime: t.number(),
+  /** Relógio da sala na última troca de alvo: dois clientes veem a MESMA troca, no mesmo instante. */
+  lastTargetSwitchTime: t.number(),
+  alive: t.boolean(),
 }, 'EnemyState');
 export type EnemyState = InstanceType<typeof EnemyState>;
 

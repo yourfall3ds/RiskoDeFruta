@@ -17,7 +17,9 @@ import { IslandFerry } from '../src/world/IslandFerry';
 import { worldTerrain, sculptRegion, type OutcropShape } from '../src/world/terrain/WorldTerrain';
 import {applyInitialRockFix,type InitialRockFix} from '../src/world/terrain/InitialRocks';
 import { EMPTY_INPUT, type InputFrame } from '../src/input/InputFrame';
+import { EnemySimulation, type EnemyRow, type SimulatedPlayer } from './EnemySimulation';
 export { EMPTY_INPUT };
+export type { EnemyRow };
 
 /** Geometria de colisão já lida do disco: os mesmos JSONs que `FarmWorld.load` busca por fetch. */
 export interface CollisionData {
@@ -88,6 +90,9 @@ export interface Snapshot {
   seed: string; tick: number; time: number; stage: number; ferryTime: number;
   credits: number; xp: number; level: number; totalKills: number;
   players: PlayerSnapshot[];
+  /** A horda autoritativa. Antes o schema declarava `EnemyState` e NADA a preenchia (armadilha 8.6). */
+  enemies: EnemyRow[];
+  kills: number;
 }
 
 export interface Player {
@@ -108,6 +113,11 @@ export class FarmSimulation {
   readonly ferry: IslandFerry;
   readonly loop: FixedLoop;
   readonly players = new Map<string, Player>();
+  /**
+   * A horda. Ela é DAQUI, não do cliente: enquanto cada `EnemySwarm` decidia spawn e IA, cada
+   * cliente lutava contra uma horda privada e dois jogadores nunca matavam o mesmo inimigo.
+   */
+  readonly enemies: EnemySimulation;
   /** Eventos cosméticos de um frame acumulados desde o último `drain()`; a sala reencaminha como mensagens. */
   private readonly outbox: { type: keyof GameEvents; payload: unknown }[] = [];
   time = 0;
@@ -125,6 +135,12 @@ export class FarmSimulation {
     this.collision.setGeometry(merged.mesh.positions, merged.mesh.indices);
     this.collision.setRecoveryVolumes(merged.solid.positions, merged.solid.indices);
     this.ferry = new IslandFerry(this.collision);
+    this.enemies = new EnemySimulation({
+      collision: this.collision, events: this.events, rng: this.rng, progression: this.progression,
+      // Uma FUNÇÃO e não uma lista: a corrida ganha e perde jogadores, e a IA tem de enxergar
+      // exatamente quem está vivo NESTE passo (contrato §9 e §18.6).
+      players: () => this.livingPlayerViews(),
+    });
     this.loop = new FixedLoop(dt => this.step(dt), () => {});
     for (const type of ['DamageDealt', 'EnemyKilled', 'Dodged', 'SkillUsed', 'MPCharged', 'MPReleased', 'LevelUp', 'BossSpawned', 'ItemPicked', 'PlayerKilled'] as const)
       this.events.on(type, payload => this.outbox.push({ type, payload }));
@@ -142,6 +158,8 @@ export class FarmSimulation {
       input: EMPTY_INPUT, yaw: -.13, pitch: .02, seq: 0, shots: 0,
     };
     player.motor.yaw = player.yaw;
+    // Sem isto o motor recusaria todo dano cujo `victimId` não fosse 1 — jogadores 2..4 imortais.
+    player.motor.entityId = player.entityId;
     this.players.set(id, player);
     return this.snapshotPlayer(player);
   }
@@ -186,7 +204,29 @@ export class FarmSimulation {
       player.input = { ...input, jump: false, dodge: false, reload: false };
       delete player.input.interact;
     }
+    // A horda anda DEPOIS dos jogadores, no mesmo passo fixo: ela persegue a posição deste tique,
+    // não a do anterior. Mesma ordem que `PlayerScene.fixedUpdate` usa no cliente.
+    this.enemies.step(dt);
     this.time += dt; this.progression.time = this.time;
+  }
+
+  /**
+   * Os jogadores como a IA os enxerga — `getLivingPlayers()` do contrato §9.
+   *
+   * Devolve TODOS (a política de alvo precisa distinguir "morreu" de "saiu da corrida"), com
+   * `alive`/`eligible` dizendo quem é alvo legítimo. Morto não é alvo normal da IA (§18.5) mas
+   * continua pertencendo à corrida.
+   */
+  private livingPlayerViews(): SimulatedPlayer[] {
+    return [...this.players.values()].map(player => ({
+      entityId: player.entityId,
+      position: player.motor.position,
+      alive: player.motor.hp > 0,
+      eligible: true,
+      get hp() { return player.motor.hp; },
+      applyDamage: (context) => player.motor.applyDamage(context),
+      push: (x, y, z) => { player.motor.velocity.x += x; player.motor.velocity.y += y; player.motor.velocity.z += z; },
+    }));
   }
 
   snapshot(): Snapshot {
@@ -194,6 +234,7 @@ export class FarmSimulation {
       seed: this.seed, tick: this.loop.tick, time: this.time, stage: this.progression.stage, ferryTime: this.ferry.time,
       credits: this.progression.credits, xp: this.progression.xp, level: this.progression.level, totalKills: this.progression.totalKills,
       players: [...this.players.values()].map(p => this.snapshotPlayer(p)),
+      enemies: this.enemies.rows(), kills: this.enemies.kills,
     };
   }
 

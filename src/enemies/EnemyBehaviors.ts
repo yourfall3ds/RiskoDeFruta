@@ -1,7 +1,7 @@
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { Vec3 } from '../core/contracts';
 import { ENEMIES,type EnemyKind } from '../run/MonsterDirector';
-import type { CombatPresentation } from '../vfx/CombatPresentation';
+import type { EffectsSink } from '../vfx/CombatField';
 import type { EnemySpace,Heading } from './EnemySpace';
 
 export interface AttackingEnemy {id:number;attack:number;locked:Vec3;direction:Heading;root:{position:Vec3};time:number}
@@ -10,7 +10,12 @@ export interface AttackingEnemy {id:number;attack:number;locked:Vec3;direction:H
  * (planeta) as mesmas receitas medem arco, saem da altura certa na vertical local e miram tangente.
  * Nenhuma receita, número, contagem ou aviso muda.
  */
-export interface AttackContext {actor:AttackingEnemy;player:Vec3;effects:CombatPresentation;hurt:(damage:number,source:string,knockback?:number)=>void;spawn:(kind:EnemyKind,position:Vec3)=>boolean;nearby:number;laser?:(damage:number)=>void;space?:EnemySpace}
+/**
+ * `effects` é a INTERFACE (`EffectsSink`), não a classe de apresentação: era esse acoplamento que
+ * prendia toda receita de ataque ao Babylon e impedia o servidor de executá-la. `CombatPresentation`
+ * (cliente) e `CombatField` (servidor) satisfazem as duas estruturalmente — nenhuma receita muda.
+ */
+export interface AttackContext {actor:AttackingEnemy;player:Vec3;effects:EffectsSink;hurt:(damage:number,source:string,knockback?:number)=>void;spawn:(kind:EnemyKind,position:Vec3)=>boolean;nearby:number;laser?:(damage:number)=>void;space?:EnemySpace}
 /**
  * Aviso do ataque que realmente vai sair, escolhido por ataque concreto e não por espécie.
  * `none` = só animação/som (mordida); `aim` = direção do disparo, sem área; `band` = trajeto
