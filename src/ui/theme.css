@@ -759,13 +759,85 @@ body.rdf-quit::after {
   margin-top: 4px;
 }
 
+/* -----------------------------------------------------------------------------------------------
+   O LOBBY SAI DA FRENTE DO PERSONAGEM
+
+   O personagem 3D fica de pé na plataforma, à direita da cena — é ele que sai correndo quando a
+   partida começa, e vê-lo enquanto se escolhe a classe É a prévia do personagem. O cartão
+   centralizado cobria exatamente esse ponto.
+
+   Na tela de personagem, e só nela, a composição encosta à esquerda e devolve o palco. `:has()`
+   deixa isso ser decidido pelo ESTADO da tela, sem o TypeScript precisar mexer em layout.
+   ----------------------------------------------------------------------------------------------- */
+.play-gate:not(.defeated):not([hidden]):has(.rdf-menu[data-screen="personagem"]) {
+  place-items: center start !important;
+  padding-left: clamp(24px, 6vw, 110px) !important;
+  /* A vinheta também desencosta: escurecer o meio apagaria o personagem. */
+  background: linear-gradient(90deg, #04101af2 0 38%, #04101a99 55%, transparent 78%) !important;
+}
+.play-gate:has(.rdf-menu[data-screen="personagem"]) .gate-card {
+  width: min(520px, 46vw) !important;
+}
+
+/* O título duplicado some: `ESCOLHA SEU PERSONAGEM` (do lobby) e `ESCOLHA SUA CLASSE` (do bloco
+   de classes) diziam a mesma coisa, uma embaixo da outra. Fica o do lobby. */
+.rdf-screen[data-screen="personagem"] .class-select-title { display: none !important; }
+
+/* -----------------------------------------------------------------------------------------------
+   TÍTULO DE TELA — sólido, com cara de jogo
+
+   Chapa dourada chanfrada com o texto vazado em escuro, e um filete de risco acompanhando. É o
+   mesmo vocabulário da aba do cartão de classe, em escala maior.
+   ----------------------------------------------------------------------------------------------- */
 .rdf-screen-title {
-  margin: 0 !important;
+  justify-self: center;
+  width: auto !important;
+  padding: 10px 30px 8px !important;
+  color: var(--rdf-ink-invert) !important;
+  background: linear-gradient(180deg, var(--rdf-wheat-hot), var(--rdf-wheat));
+  box-shadow: 0 6px 24px #0008, inset 0 -3px 0 #00000026;
+  clip-path: polygon(14px 0, calc(100% - 14px) 0, 100% 100%, 0 100%);
+  animation: rdf-title-in .34s var(--rdf-ease) both;
+}
+@keyframes rdf-title-in {
+  from { opacity: 0; transform: translateY(-10px) scaleX(.88); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* -----------------------------------------------------------------------------------------------
+   MONTAGEM — a tela se ARMA, não aparece pronta
+
+   Cada peça entra com um atraso crescente. O efeito é o de um console montando a leitura, que é
+   exatamente a sensação de HUD de nave que se quer. Os atrasos são curtos (40 ms entre peças):
+   acima disso vira espera, e menu de jogo não pode fazer o jogador esperar para clicar.
+   ----------------------------------------------------------------------------------------------- */
+@keyframes rdf-piece-in {
+  from { opacity: 0; transform: translateY(9px); }
+  to   { opacity: 1; transform: none; }
+}
+.rdf-screen > *          { animation: rdf-piece-in .26s var(--rdf-ease) both; }
+.rdf-screen > *:nth-child(1) { animation-delay: .02s; }
+.rdf-screen > *:nth-child(2) { animation-delay: .06s; }
+.rdf-screen > *:nth-child(3) { animation-delay: .10s; }
+.rdf-screen > *:nth-child(4) { animation-delay: .14s; }
+.rdf-screen > *:nth-child(5) { animation-delay: .18s; }
+/* Os cartões de classe entram um depois do outro, dentro da própria grade. */
+.class-select-options > * { animation: rdf-piece-in .3s var(--rdf-ease) both; }
+.class-select-options > *:nth-child(1) { animation-delay: .12s; }
+.class-select-options > *:nth-child(2) { animation-delay: .19s; }
+.class-select-options > *:nth-child(3) { animation-delay: .26s; }
+/* A pilha de ações do menu principal também se arma. */
+.rdf-menu-nav > *:nth-child(1) { animation: rdf-piece-in .28s var(--rdf-ease) .06s both; }
+.rdf-menu-nav > *:nth-child(2) { animation: rdf-piece-in .28s var(--rdf-ease) .12s both; }
+.rdf-menu-nav > *:nth-child(3) { animation: rdf-piece-in .28s var(--rdf-ease) .18s both; }
+.rdf-menu-nav > *:nth-child(4) { animation: rdf-piece-in .28s var(--rdf-ease) .24s both; }
+
+/* A tipografia do título de tela, aplicada à chapa desenhada acima. */
+.rdf-screen-title {
   font-family: var(--rdf-display);
-  font-size: clamp(20px, 2.1vw, 30px);
+  font-size: clamp(18px, 1.9vw, 27px);
   letter-spacing: .06em;
   text-transform: uppercase;
-  color: var(--rdf-wheat);
 }
 
 /* Dentro das subtelas o conteúdo volta a ser lido da esquerda: é formulário e lista, não pôster. */
@@ -1228,6 +1300,93 @@ body:has(#debug:not([hidden])) #debug-toggle { display: block !important; }
   letter-spacing: .22em !important;
   text-transform: uppercase;
   color: var(--rdf-wheat) !important;
+}
+
+/* -----------------------------------------------------------------------------------------------
+   JANELA DE MISSÕES — o painel de rota da expedição
+
+   O que se estuda numa HUD de sobrevivência boa (Once Human, Tarkov, The Division) não é o
+   enfeite: é a HIERARQUIA. Um objetivo tem três níveis de leitura, e eles têm de se distinguir
+   sem o jogador precisar ler:
+
+     1. CABEÇALHO   — que sistema está falando. Pequeno, dourado, espaçado.
+     2. LINHA ATIVA — o que fazer AGORA. Clara, com marcador aceso à esquerda.
+     3. PENDENTES   — o resto da rota. Apagadas, menores, sem competir.
+
+   Cada linha ganha um marcador quadrado de 6px no lugar do ponto de lista: aceso e pulsando na
+   ativa, vazado nas pendentes, preenchido em clorofila nas concluídas. É o mesmo truque de
+   `::before` que as três usam, mudando só a cor — uma regra, três estados.
+   ----------------------------------------------------------------------------------------------- */
+
+#run-hud .expedition-route ul { list-style: none !important; margin: 0; padding: 0; display: grid; gap: 2px; }
+
+#run-hud .expedition-route li {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: baseline;
+  gap: 8px;
+  padding: 5px 8px 5px 18px;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--rdf-ink-faint);
+  border-left: 2px solid transparent;
+  transition: color var(--rdf-snap) var(--rdf-ease), background var(--rdf-snap) var(--rdf-ease);
+}
+/* O marcador. Quadrado, nunca redondo: a HUD inteira é chanfrada e reta. */
+#run-hud .expedition-route li::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: .72em;
+  width: 6px;
+  height: 6px;
+  box-shadow: inset 0 0 0 1px var(--rdf-ink-faint);
+}
+
+/* A linha ATIVA: acesa, com fundo próprio e o marcador pulsando. */
+#run-hud .expedition-route li.totem-charging,
+#run-hud .expedition-route li.totem-target {
+  color: var(--rdf-ink);
+  background: linear-gradient(90deg, #e9c6811f, transparent 70%);
+  border-left-color: var(--rdf-wheat);
+}
+#run-hud .expedition-route li.totem-charging::before,
+#run-hud .expedition-route li.totem-target::before {
+  background: var(--rdf-wheat);
+  box-shadow: 0 0 9px var(--rdf-wheat);
+  animation: rdf-breathe 1.5s ease-in-out infinite;
+}
+
+/* CONCLUÍDA: clorofila, texto riscado e discreto. O jogador vê o progresso sem ele gritar. */
+#run-hud .expedition-route li.totem-complete { color: var(--rdf-rind); }
+#run-hud .expedition-route li.totem-complete::before {
+  background: var(--rdf-rind);
+  box-shadow: inset 0 0 0 1px var(--rdf-rind);
+  animation: none;
+}
+#run-hud .expedition-route li.totem-complete > b { text-decoration: line-through; opacity: .75; }
+
+/* Contador à direita (3/5, 40 m): tabular, para não dançar quando o número muda. */
+#run-hud .expedition-route li > i,
+#run-hud .expedition-route li > em,
+#run-hud .expedition-route li small {
+  font-style: normal;
+  font-family: var(--rdf-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 10px;
+  letter-spacing: .04em;
+  color: var(--rdf-wheat);
+}
+
+/* A dica de rota, no rodapé do painel. */
+#run-hud .route-hint {
+  display: block;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: var(--rdf-hair) solid var(--rdf-line);
+  font-size: 10px;
+  color: var(--rdf-ink-faint);
 }
 
 /* A dica de interação (o "E · ABRIR") é a única que pulsa: ela pede uma ação AGORA. */

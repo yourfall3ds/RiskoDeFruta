@@ -4,6 +4,10 @@ import './style.css';
 // A identidade visual entra DEPOIS da folha herdada, de propósito: ela redefine em vez de apagar.
 // Ver o cabeçalho de `ui/theme.css` para o porquê de ser uma camada separada.
 import './ui/theme.css';
+// A interface ganha voz: passar o mouse, clicar, escolher e confirmar. Delegado no documento, uma
+// vez só, porque os botões do menu são movidos entre telas e recriados.
+import {uiSound} from './ui/UiSound';
+uiSound.attach();
 
 if(new URLSearchParams(location.search).has('qaBoot')){
   traceBoot('entry');

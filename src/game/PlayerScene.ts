@@ -1384,6 +1384,8 @@ export class PlayerScene implements SceneModule {
       this.camera.impulse(.085);
       this.camera.hurt(.22,1);
       this.camera.sprintBlendTarget=0;
+      // E o chão em volta paga o preço.
+      this.shatterAround(at,4.2,90);
       return;
     }
     if(cue==='rise')this.audio.arrivalRise();
@@ -2098,6 +2100,36 @@ export class PlayerScene implements SceneModule {
       step.damage*this.progression.stats.damage*(heavy?1.4:1),
       undefined,hit.normal,
     ));
+  }
+
+  /**
+   * A onda de choque do pouso: o que for quebrável em volta do ponto de queda, quebra.
+   *
+   * Não existe uma varredura em área nesta cena — `DestructionPort` expõe só `hit`, que é um
+   * acerto pontual com direção. Então a onda é feita do jeito que a cena já sabe fazer: um leque
+   * de raios saindo do ponto de impacto, cada um entregando o acerto pela MESMA porta do tiro e
+   * do corpo a corpo. Perfil do material, estágios de dano, áudio, cacos e remoção de colisão
+   * saem idênticos — nada aqui é um caminho paralelo só para a entrada.
+   *
+   * Doze direções na horizontal, levemente inclinadas para baixo, mais uma reta ao chão. Doze é o
+   * suficiente para não deixar um barril inteiro passar entre dois raios no raio usado, e é
+   * barato: são treze raios uma única vez na vida da partida.
+   */
+  private shatterAround(at:Vector3,radius:number,damage:number):void {
+    const origin=new Vector3(at.x,at.y+.6,at.z),direction=new Vector3();
+    const golpe=(dx:number,dy:number,dz:number):void=>{
+      direction.set(dx,dy,dz).normalize();
+      const hit=this.world.surface.raycast(new Ray(origin,direction,radius));
+      if(!hit)return;
+      this.weapons.destruction.hit(destructionHit(
+        hit.point,{x:direction.x,y:direction.y,z:direction.z},damage,undefined,hit.normal,
+      ));
+    };
+    for(let i=0;i<12;i++){
+      const angle=i/12*Math.PI*2;
+      golpe(Math.cos(angle),-.25,Math.sin(angle));
+    }
+    golpe(0,-1,0);
   }
   /**
    * Avanço dos modos legados (`?mode=horde` e `?mode=classic`), que continuam com a fenda do celeiro
