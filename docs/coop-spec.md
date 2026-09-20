@@ -578,3 +578,65 @@ autoritativo**.
 
 Com esses três e os dez itens do §20.14, o bloco deixa de ser implementação plausível e passa a ser
 autoridade de combate fechada. Sem eles, não fecha — por mais verde que a suíte esteja.
+
+### 20.21 Os irmãos do acoplamento — auditoria medida
+
+`PlayerScene:2033` mostrou progressão e economia acopladas à observação **visual** de morte. Esse
+tipo de acoplamento tem irmãos, e a auditoria dos consumidores de `onBossKilled`, `rewardsPending`,
+`deliverWaveReward`, `bossSpawned`, `totalKills` e `credits` encontrou estes. São fatos medidos, não
+suspeitas:
+
+| local | o que decide | estado |
+|---|---|---|
+| `PlayerScene:2033` | morte espelhada → objetivo → `rewardsPending` → loot com RNG do cliente | violação, expedição |
+| `PlayerScene:877` | `director.rewardsPending` → `deliverWaveReward(this.rewardRng, …)` | mesmo padrão, na fazenda; **inerte hoje** só porque o diretor local está desligado sob autoridade |
+| `RunInteractables:368‑369` | `run.credits < cost` e `run.credits -= cost` | compra de baú decidida no cliente, **na fazenda** |
+| `PlanetRun:165‑168` | idem para o planeta | mesmo padrão |
+| `RunProgression:146` | `advanceStage()` converte crédito em XP e sobe estágio | decisão de corrida no cliente |
+
+E o fato que amarra tudo: **`FarmRoom:193` publica `credits`, `xp`, `level` e `totalKills` no
+schema, e nada no cliente os adota.** Não existe leitor. A carteira autoritativa é calculada,
+transportada — e ignorada.
+
+Consequência medida do estado atual, com a autoridade da horda já migrada: online o cliente **não
+ganha** crédito (o caminho local está desligado pelo portão) e **não adota** o do servidor (não há
+leitor), então a carteira fica parada; e `RunInteractables` valida a compra contra essa carteira não
+autoritativa.
+
+Isso é escopo do bloco de economia, não regressão do bloco D — mas fica registrado aqui para não ser
+redescoberto como bug misterioso. A regra que fecha a classe inteira: **`health.dead` pode existir
+como derivação conveniente para apresentação, nunca como evidência de que "uma morte aconteceu"**.
+Lógica precisa de transição autoritativa explícita — algo com `victimId`, `combatEventId`,
+`deathEventId` — e `objectives.onBossKilled()` deve nascer daí. Se `deliverWaveReward()` representa
+recompensa real, o **roll** também nasce da autoridade, não do aviso de que o chefe morreu.
+
+### 20.22 Pré-condição de protocolo não se lê do espelho
+
+Proibido, quando `dead` é estado replicado:
+
+```ts
+if (actor.health.dead) return;
+sendCombatRequest();
+```
+
+O modelo correto é o cliente poder mandar um pedido **possivelmente obsoleto** e o servidor
+responder "inválido". Estado local controla animação e UI; não é pré-condição de correção do
+protocolo. Isso resolve a latência nos dois sentidos: o cliente achar vivo quem já morreu vira uma
+rejeição barata, e o cliente achar morto quem está vivo deixa de silenciar um ataque legítimo por
+causa de um espelho atrasado.
+
+### 20.23 A matriz de replicação fora de ordem
+
+**Caso A — `hp = 0` com `alive = true`.** `health.dead` pode derivar verdadeiro para o visual, e
+nada mais: nenhuma progressão, nenhum reward, nenhum drop, nenhum evento autoritativo, nenhuma
+mudança de objetivo.
+
+**Caso B — `hp > 0` com `alive = false`.** `presentDeath` exatamente uma vez, nenhuma autoridade
+criada localmente, e HP posterior pode convergir sem recriar a morte.
+
+Depois: `alive=false` repetido vinte vezes, HP alternando ou duplicado, snapshot repetido — nada
+reaparece.
+
+O teste que existe hoje prova contagem de abate e ausência de pagamento, mas **não** protege a
+guarda estrutural contra refatoração futura. Ele precisa de contadores explícitos: `presentDeath`,
+ragdoll, som de morte, VFX de morte e limpeza visual, todos exatamente **1**.
