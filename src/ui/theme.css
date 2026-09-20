@@ -1234,15 +1234,26 @@ body.rdf-quit::after {
   position: relative;
   grid-column: 3;
   grid-row: 2;
-  align-self: center;
+  /* `end`, e não `center`: o boneco é desenhado por `box-shadow` para BAIXO e para a DIREITA de uma
+     caixa de 4×4px, então o seu peso visual fica ~24px abaixo da própria caixa. Com `center` o
+     navegador centrava a CAIXA — e o desenho inteiro caía bem abaixo do número, que era a
+     reclamação: "o bixinho tá muito mais pra baixo dos números, não tá do lado".
+     Com `end` a base da caixa encosta na base da linha, e o desenho sobe para a altura do texto. */
+  align-self: end;
   width: 4px;
   height: 4px;
-  /* A caixa das sombras (16×24px) mais a folga da escala; sem isto o boneco invade o número. */
-  margin: 10px 12px 0 2px;
+  /* Só a folga lateral que separa o boneco do número. A folga de topo saiu: era ela que somava
+     mais 10px de queda a um desenho que já pende para baixo. A de baixo levanta o conjunto até a
+     linha do texto. */
+  margin: 0 12px 22px 6px;
   background: transparent;
   transform: scale(1.4);
-  transform-origin: center bottom;
-  animation: rdf-run-legs .16s steps(1) infinite;
+  /* `left top`: a âncora tem de ser o canto de onde as sombras SAEM. Com `center bottom` a escala
+     empurrava o desenho para baixo e para os lados ao crescer 40%, desalinhando de novo. */
+  transform-origin: left top;
+  /* .16s era passada de desenho animado. .3s dá ~3,3 passadas por segundo — ritmo de corrida que
+     se lê como corrida, e não como tremida. */
+  animation: rdf-run-legs .3s steps(1) infinite;
 }
 /* Quadro A e quadro B da passada. As coordenadas são múltiplos de 4px = o "pixel" do boneco. */
 @keyframes rdf-run-legs {

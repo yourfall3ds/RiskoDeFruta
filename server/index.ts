@@ -43,7 +43,36 @@ const host = address;
  * `listen()` para dentro de todo teste que instancia uma sala.
  */
 process.env['PUBLIC_ADDRESS'] = address;
-const server = new Server({ transport: new WebSocketTransport({ server: createServer() }), publicAddress: address });
+/**
+ * CORS NO MATCHMAKING — sem isto NINGUÉM vê sala nenhuma.
+ *
+ * O matchmaking do Colyseus é HTTP: antes de abrir o WebSocket, o cliente faz um `POST` em
+ * `/matchmake/joinOrCreate/...`. Quando a página é servida de `http://localhost:5173` e o servidor
+ * responde de outro host (um túnel, ou a máquina do anfitrião na LAN), isso é requisição de origem
+ * cruzada — e o navegador a BLOQUEIA antes de ela sair, porque a resposta não traz
+ * `Access-Control-Allow-Origin`.
+ *
+ * O sintoma engana: o console diz "servidor de salas fora do ar", a lista aparece vazia e parece
+ * que o servidor caiu. Ele está no ar; a resposta é que foi descartada pelo navegador. Foi
+ * exatamente o que aconteceu no primeiro teste com duas máquinas.
+ *
+ * O `request` é registrado AQUI, antes de o transporte anexar o dele, para os cabeçalhos existirem
+ * em toda resposta. O `OPTIONS` (preflight) é respondido e encerrado no ato: ele não chega a ser
+ * rota de matchmaking, e deixá-lo seguir faria o Colyseus devolver 404 para uma pergunta que era só
+ * "posso falar com você?".
+ *
+ * `*` é deliberado: o servidor é de partida caseira, não há cookie nem sessão de navegador para
+ * proteger, e a alternativa (lista de origens) quebraria assim que a porta do Vite mudasse.
+ */
+const httpServer = createServer();
+httpServer.on('request', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Max-Age', '600');
+  if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); }
+});
+const server = new Server({ transport: new WebSocketTransport({ server: httpServer }), publicAddress: address });
 // Listagem em tempo real: `client.getAvailableRooms()` saiu no 0.16; quem descobre salas é o LobbyRoom.
 server.define('lobby', LobbyRoom);
 // `filterBy(['seed'])` fica: é o que mantém o atalho `?online=1&seed=` caindo na MESMA sala.
