@@ -102,6 +102,18 @@ export class SaucerRaid {
     if(this.phase==='onda-ativa')this.phase='concluido';
   }
 
+  /**
+   * Todos os corpos desta investida desistiram e sumiram porque o jogador fugiu longe demais.
+   *
+   * **Não é vitória**: a nave volta à patrulha em vez de ir para `concluido`, então quem quiser o
+   * item tem de enfrentar o evento de novo — atirando de novo, do zero. Sem isto o roteiro ficaria
+   * preso em `luta-et` ou `onda-ativa` para sempre, esperando uma morte que nunca vem, e aquele
+   * disco jamais voltaria a ser provocável.
+   */
+  abandoned():void {
+    if(this.phase==='luta-et'||this.phase==='onda-ativa')this.reset();
+  }
+
   /** Volta ao repouso: nova tentativa, troca de estágio ou descarte da cena. */
   reset():void {
     this.phase='patrulha';this.clock=0;this.pending=0;this.beam=0;this.delivered=0;

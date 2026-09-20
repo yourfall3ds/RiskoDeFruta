@@ -21,12 +21,14 @@ import type { TrainingTarget } from './TrainingYard';
 import {AlienWorld} from './AlienWorld';
 
 /**
- * Primeiro id de alvo reservado aos discos voadores.
+ * Faixa de ids dos discos voadores e a regra de mira automática.
  *
- * Fica numa faixa alta e própria para nunca colidir com os ids de inimigos (`EnemySwarm` começa em
- * 200) nem com os alvos de treino. `PlayerScene` reconhece a represália por esta faixa.
+ * Declaradas em `TrainingYard`, junto de `TrainingTarget`, e reexportadas aqui porque é deste
+ * módulo que `PlayerScene` sempre as importou. `DualPistols` precisa da regra e não pode arrastar
+ * a fazenda inteira para dentro do caminho do planeta só por causa de uma constante.
  */
-export const SAUCER_TARGET_BASE=90000;
+export {SAUCER_TARGET_BASE,isAutoAimTarget} from './TrainingYard';
+import {SAUCER_TARGET_BASE} from './TrainingYard';
 import type {PlayerMotor} from '../player/PlayerMotor';
 import { Waterfalls } from './Waterfalls';
 import { CreatePlane } from '@babylonjs/core/Meshes/Builders/planeBuilder';

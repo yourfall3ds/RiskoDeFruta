@@ -50,7 +50,7 @@ import { HordeTickCache } from './HordeTickCache';
 import { enemySpace,radialSurfaceOf,type EnemySpace,type EnemySurface,type Heading } from '../enemies/EnemySpace';
 import { mark,section } from '../debug/FreezeTrace';
 
-type State='spawn'|'chase'|'windup'|'recover'|'dead';
+type State='spawn'|'chase'|'windup'|'recover'|'flee'|'dead';
 interface Actor {id:number;kind:EnemyKind;variant:EnemyVariant;scale:number;push:Vector3;root:TransformNode;body:Mesh;visual:TransformNode;clips:Map<string,AnimationGroup>;machine:AnimationStateMachine;skeleton:Skeleton|undefined;laserSocket?:TransformNode;laserArm?:TransformNode;
   /** Nós do rig que formam o ponto fraco da espécie, resolvidos uma vez. `[]` = espécie sem zona. */
   weakNodes?:TransformNode[];ragdoll:ReturnType<RagdollWorld['create']>;healthTrail:number;gait:number;lastPosePosition:Vector3;palette:PosePalette;health:Health;target:TrainingTarget;state:State;time:number;attack:number;locked:Vec3;direction:Heading;facing:Vector3;burn:number;burnClock:number;anim:number;hit:number;stagger:number;staggerCooldown:number;deathVelocity:Vector3;active:boolean;cooldown:number}
@@ -100,6 +100,23 @@ export interface DamageLabel {position:Vec3;amount:number;crit:boolean;time:numb
    * Opcional para não quebrar quem monta rótulos de fora (QA, testes de HUD): ausente = normal.
    */
   weak?:boolean}
+/**
+ * A que distância as espécies dos discos voadores DESISTEM da caçada.
+ *
+ * Elas não podem entrar no recolhimento comum: `recycleStrays` promete REPOSIÇÃO, e repor um corpo
+ * da represália perto do jogador seria a invasão renascendo sozinha do outro lado do mapa. Elas
+ * também não podem simplesmente evaporar no lugar — o pedido é que elas CORRAM e sumam.
+ *
+ * O número é menor que `STRAY_DISTANCE` (72 m) de propósito: a desistência tem de acontecer
+ * enquanto o corpo ainda é visível, senão a corrida de saída não seria vista por ninguém.
+ */
+export const SAUCER_FLEE_DISTANCE=46;
+/** A partir daqui o fugitivo já está fora de alcance e some de vez. */
+export const SAUCER_VANISH_DISTANCE=78;
+/** Teto de tempo da fuga: quem ficou preso em geometria some mesmo assim, em vez de correr para sempre. */
+export const SAUCER_FLEE_SECONDS=9;
+/** A retirada é mais rápida que a perseguição — elas fogem de verdade. */
+export const SAUCER_FLEE_SPEED=1.45;
 /** Simulation, AI scheduling and presentation share stable actor IDs; visuals are recycled. */
 export class EnemySwarm {
   private readonly lasers:EnemyLaser;private readonly chargeLights:PointLight[]=[];readonly burning=new BurningStatus();private readonly elemental:ElementalEffects;private flameClock=0;readonly actors:Actor[]=[];readonly scheduler=new AIScheduler();readonly effects:CombatPresentation;readonly labels:DamageLabel[]=[];
@@ -140,6 +157,13 @@ export class EnemySwarm {
    * diagnóstico: nenhum deles conta abate, paga recompensa ou aparece como progresso de objetivo.
    */
   strays=0;recycled=0;
+  /**
+   * Avisa quem cuida da represália que um corpo dela desistiu e sumiu.
+   *
+   * Sem este aviso `SaucerRaid` ficaria parado em `luta-et`/`onda-ativa` esperando um `EnemyKilled`
+   * que nunca chega, e aquele disco nunca mais poderia ser provocado.
+   */
+  onSaucerDeparted:((id:number)=>void)|undefined;
   private debris:CorpseDebris;private readonly ragdolls=new RagdollWorld();tactical:TacticalNavigation|undefined;navigationReady=false;audio:WeaponAudio|undefined;
   /**
    * Quem responde "para cima". Sem `world.surface` isto é o `FlatSpace`, que chama exatamente as
@@ -283,6 +307,14 @@ export class EnemySwarm {
     const leash=STRAY_DISTANCE*STRAY_DISTANCE;
     for(const a of this.actors){
       if(!a.active||a.health.dead||a.kind==='boss')continue;
+      // Espécies de disco voador nunca entram no recolhimento com reposição: elas têm a própria
+      // desistência, que é CORRER para longe e sumir, e nenhuma delas pode voltar sem novo evento.
+      if(isSaucerSpecies(a.kind)){
+        if(a.state!=='flee'&&this.distanceSquared(a.root.position,this.player.position)>SAUCER_FLEE_DISTANCE*SAUCER_FLEE_DISTANCE){
+          a.state='flee';a.time=0;a.cooldown=0;a.direction={x:0,z:0};this.tactical?.velocity(a.id,{x:0,y:0,z:0},0);
+        }
+        continue;
+      }
       if(this.distanceSquared(a.root.position,this.player.position)<=leash)continue;
       const kind=a.kind;
       this.release(a);this.strays++;
@@ -700,6 +732,27 @@ export class EnemySwarm {
         const t=Math.min(1,a.time/duration),ease=t*t*(3-2*t),depth=a.kind==='watermelon'?1.4:2;
         a.visual.position.y=saucer?0:-depth*(1-ease)+(a.kind==='tomato'?2*ease:a.kind==='carrot'?.18*Math.sin(t*Math.PI):0);
         if(a.time>=duration){a.state='chase';a.time=0;}continue;}
+      /**
+       * Retirada: o jogador fugiu longe demais e a espécie do disco desiste.
+       *
+       * Corre na tangente OPOSTA ao jogador, mais rápido do que perseguia, e some quando já está
+       * fora de alcance — ou quando o teto de tempo estoura, que é a saída de quem encostou numa
+       * parede. A vaga NÃO vira reposição: `departed` avisa o roteiro do disco para ele não ficar
+       * esperando uma morte que não vem.
+       */
+      if(a.state==='flee'){
+        const away=this.headingToward(this.player.position,a.root.position);
+        a.direction=away;
+        const fleeSpeed=ENEMIES[a.kind].speed*ENEMY_AFFIXES[a.variant].speed*SAUCER_FLEE_SPEED;
+        if(this.tactical)this.tactical.velocity(a.id,{x:away.x*fleeSpeed,y:(away.y??0)*fleeSpeed,z:away.z*fleeSpeed},fleeSpeed,true);
+        const before=a.root.position.clone();
+        this.space.slide(a.root.position,{x:away.x*fleeSpeed*dt,y:(away.y??0)*fleeSpeed*dt,z:away.z*fleeSpeed*dt},ENEMIES[a.kind].radius,1.8,.8);
+        if(this.space.groundUnder(a.root.position,.85,work0))a.root.position.copyFrom(work0);else a.root.position.copyFrom(before);
+        if(headingLength(away)){workVec.x=away.x;workVec.y=away.y??0;workVec.z=away.z;this.space.face(a.root,a.facing,a.root.position,workVec,Math.min(1,dt*10));}
+        const gone=this.distanceSquared(a.root.position,this.player.position)>SAUCER_VANISH_DISTANCE*SAUCER_VANISH_DISTANCE;
+        if(gone||a.time>SAUCER_FLEE_SECONDS){const id=a.id;this.release(a);this.director.retireLivingEnemy();this.onSaucerDeparted?.(id);}
+        continue;
+      }
       const behavior=ENEMY_BEHAVIORS[a.kind];
       // Quem persegue cai no bloco do Detour lá embaixo, que refaz exatamente esta sincronização.
       // Repeti-la aqui custava um segundo `position()` + `groundAt` por ator por frame, sem efeito.
@@ -781,7 +834,8 @@ export class EnemySwarm {
       const d=this.distance(a.root.position,this.player.position);a.anim+=dt;if(d>=24&&a.anim<(d<45?1/30:1/15))continue;
       const elapsed=a.anim;a.anim=0;const moved=this.distance(a.root.position,a.lastPosePosition);a.lastPosePosition.copyFrom(a.root.position);
       const speed=moved/Math.max(.001,elapsed),stride=(a.kind==='watermelon'?1.55:speed>2.8?2.4:1.5)*a.scale;a.gait+=moved/stride;
-      let state=a.state==='dead'?'Death':a.state==='spawn'?'Spawn':a.stagger>0?'Hit':a.state==='windup'?'Cast':a.state==='recover'?'Attack':a.kind==='tomato'?'Fly':speed<.15?'Idle':speed>2.8?'Run':'Walk';
+      // Quem está fugindo corre, sempre: é a leitura que o jogador tem de "desistiram de mim".
+      let state=a.state==='dead'?'Death':a.state==='spawn'?'Spawn':a.state==='flee'?'Run':a.stagger>0?'Hit':a.state==='windup'?'Cast':a.state==='recover'?'Attack':a.kind==='tomato'?'Fly':speed<.15?'Idle':speed>2.8?'Run':'Walk';
       if(a.state==='recover'&&a.stagger===0){if(a.kind==='watermelon')state=a.attack%3===1?'Roll':a.attack%3===2?'Spit':'Bite';if(a.kind==='tomato')state='Spit';if(a.kind==='eggplant'&&ENEMY_BEHAVIORS.eggplant.recoverySpeed(a)>0)state='Run';}
       const clipName=a.clips.has(state)?state:'Walk',clip=a.clips.get(clipName);
       if(clip){const seconds=Math.max(.01,(clip.to-clip.from)/60);

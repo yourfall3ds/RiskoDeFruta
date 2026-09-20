@@ -651,6 +651,26 @@ export class PlayerScene implements SceneModule {
     // A morte do E.T. clássico é o GATILHO da segunda visita: não há tiro nem temporizador, é o
     // evento de morte que chama a nave de volta com os dez. E o item raro sai do ÚLTIMO dos dez,
     // não de cada um, para valer a luta inteira.
+    /**
+     * Um corpo da represália desistiu e sumiu porque o jogador fugiu longe demais.
+     *
+     * Fuga NÃO é vitória: nenhum item cai e a segunda visita não é chamada. O que acontece é o
+     * roteiro daquele disco voltar à patrulha (`abandoned`), então provocá-lo de novo exige um
+     * tiro novo. Sem isto a contabilidade ficaria travada para sempre no corpo que foi embora.
+     */
+    if(this.enemies instanceof EnemySwarm)this.enemies.onSaucerDeparted=id=>{
+      const swarm=this.enemies as EnemySwarm;
+      if(id===this.raidFirstEt){
+        this.raidFirstEt=-1;
+        this.raids[this.raidOwner]?.abandoned();
+        swarm.message='O VISITANTE DESISTIU E FUGIU';
+        return;
+      }
+      if(!this.raidWave.delete(id))return;
+      if(this.raidWave.size>0){swarm.message=`FUGIRAM · RESTAM ${this.raidWave.size}`;return;}
+      this.raids[this.raidOwner]?.abandoned();
+      swarm.message='A INVASÃO INTEIRA DESISTIU';
+    };
     this.events.on('EnemyKilled',context=>{
       const victim=context.victimId;
       if(victim===this.raidFirstEt){

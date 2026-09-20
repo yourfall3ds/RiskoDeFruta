@@ -18,6 +18,7 @@ import type { DamageContext,GameEvents,Vec3 } from '../core/contracts';
 import {destructionHit,NO_DESTRUCTION,type DestructionPort} from '../planet-game/PlanetDestruction';
 import type { CharacterVisual } from '../animation/CharacterVisual';
 import type { TrainingYard, TrainingTarget } from '../world/TrainingYard';
+import { isAutoAimTarget } from '../world/TrainingYard';
 import type { MPTier } from './MPCharge';
 import type { WeaponAudio } from '../audio/RecordedAudio';
 import { ShotEffects } from '../vfx/ShotEffects';
@@ -215,7 +216,7 @@ export class DualPistols implements CombatServices {
     this.casings=new casings(scene,yard.collision&&'groundAt' in yard.collision?yard.collision:undefined,audio,yard.collision?.surface);
     this.fan=new RicochetFan((ray,ignore)=>{
       let hit=this.worldPick(ray);let targetId:number|undefined;
-      for(const target of this.yard.targets){if(ignore.has(target.id)||!target.mesh.isPickable||!target.mesh.isEnabled())continue;const candidate=this.targetPick(ray,target,.65);if(candidate.hit&&(!hit||candidate.distance<hit.distance)){hit=candidate;targetId=target.id;}}
+      for(const target of this.yard.targets){if(ignore.has(target.id)||!target.mesh.isPickable||!target.mesh.isEnabled()||!isAutoAimTarget(target.id))continue;const candidate=this.targetPick(ray,target,.65);if(candidate.hit&&(!hit||candidate.distance<hit.distance)){hit=candidate;targetId=target.id;}}
       // O ricochete já elegia o contato MAIS PRÓXIMO entre mundo e atores; é isso que impede a
       // bala de quebrar um prop atrás do terreno ou atrás de um inimigo. O triângulo só sobrevive
       // quando o vencedor foi o mundo — se um ator ganhou, `targetId` está definido e não há prop.
@@ -406,7 +407,7 @@ export class DualPistols implements CombatServices {
     const side=(this.skillShots%2) as 0|1;
     // MP III: só alvos com alcance, ângulo e linha de visão reais entram no rodízio.
     const candidates=this.yard.targets.filter(target=>{
-      if(!target.mesh.isPickable||!target.mesh.isEnabled())return false;
+      if(!target.mesh.isPickable||!target.mesh.isEnabled()||!isAutoAimTarget(target.id))return false;
       const centre=target.mesh.getBoundingInfo().boundingBox.centerWorld,offset=centre.subtract(origin),distance=offset.length();
       if(distance>60||Vector3.Dot(offset.normalizeToNew(),this.camera.forward)<=.35)return false;
       const cover=this.worldPick(new Ray(origin,offset.normalizeToNew(),distance-.35));
@@ -515,7 +516,7 @@ export class DualPistols implements CombatServices {
     const ray=new Ray(origin,dir,t.range);
     const obstruction=this.worldPick(ray);
     const distance=obstruction?.hit?obstruction.distance:t.range;
-    const targets=this.yard.targets.filter(target=>target.mesh.isPickable).map(target=>({target,hit:this.targetPick(ray,target,id==='backflip_barrage'?.85:0)})).filter(result=>result.hit.hit&&result.hit.distance<distance).sort((a,b)=>a.hit.distance-b.hit.distance);
+    const targets=this.yard.targets.filter(target=>target.mesh.isPickable&&isAutoAimTarget(target.id)).map(target=>({target,hit:this.targetPick(ray,target,id==='backflip_barrage'?.85:0)})).filter(result=>result.hit.hit&&result.hit.distance<distance).sort((a,b)=>a.hit.distance-b.hit.distance);
     for(const {target,hit} of pierce?targets:targets.slice(0,1))this.damageTarget(target,hit.pickedPoint!,dir,damage,id);
     const end=!pierce&&targets[0]?.hit.pickedPoint?targets[0].hit.pickedPoint:origin.add(dir.scale(distance));
     // Cenário só leva dano quando NENHUM ator ficou na frente: `targets` já foi filtrado por

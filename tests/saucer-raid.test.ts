@@ -30,6 +30,48 @@ describe('evento do disco voador',()=>{
     expect(raid.commanding).toBe(false);
   });
 
+  it('se o jogador foge e o E.T. desiste, o disco volta à patrulha em vez de travar na luta',()=>{
+    const raid=new SaucerRaid();
+    raid.provoke(ORBIT);
+    run(raid,40);
+    expect(raid.phase).toBe('luta-et');
+
+    raid.abandoned();
+
+    // Fuga NÃO é vitória: a segunda visita não é chamada e o evento volta ao começo...
+    expect(raid.phase).toBe('patrulha');
+    expect(raid.engaged).toBe(false);
+    expect(raid.etDefeated()).toBe(0);
+    // ...mas o disco volta a ser provocável, com um tiro novo, do zero.
+    expect(raid.provoke(ORBIT)).toBe(RAID_FIRST_DROP);
+  });
+
+  it('a onda inteira desistindo encerra sem o item e sem deixar a nave presa',()=>{
+    const raid=new SaucerRaid();
+    raid.provoke(ORBIT);run(raid,40);
+    expect(raid.etDefeated()).toBe(RAID_SWARM_DROP);
+    const deliveries:Delivery[]=[];
+    run(raid,60,(at,index,total,wave)=>deliveries.push([at,index,total,wave]));
+    expect(deliveries).toHaveLength(RAID_SWARM_DROP);
+    expect(raid.phase).toBe('onda-ativa');
+
+    raid.abandoned();
+    expect(raid.phase).toBe('patrulha');
+    // `waveCleared` (que é o caminho do ITEM) já não tem onda para encerrar.
+    raid.waveCleared();
+    expect(raid.phase).toBe('patrulha');
+  });
+
+  it('desistência fora da luta não mexe em nada',()=>{
+    const raid=new SaucerRaid();
+    raid.abandoned();
+    expect(raid.phase).toBe('patrulha');
+    raid.provoke(ORBIT);
+    raid.abandoned();
+    // Em pleno voo de chegada a desistência é ignorada: ainda não há corpo em campo para fugir.
+    expect(raid.phase).toBe('primeira-chegada');
+  });
+
   it('sai da órbita e só acende o feixe depois de chegar em cima do jogador',()=>{
     const raid=new SaucerRaid();
     raid.provoke(ORBIT);

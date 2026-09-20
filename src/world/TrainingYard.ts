@@ -17,6 +17,24 @@ import { RunRNG } from '../core/RunRNG';
 import type { DamageContext } from '../core/contracts';
 
 export interface TrainingTarget { id: number; mesh: Mesh; meshes?:readonly Mesh[]; ring?: Mesh; hits: number; onHit?: (context:DamageContext)=>void }
+/**
+ * Primeiro id de alvo reservado aos discos voadores.
+ *
+ * Fica numa faixa alta e própria para nunca colidir com os ids de inimigos (`EnemySwarm` começa em
+ * 200) nem com os alvos de treino. `PlayerScene` reconhece a represália por esta faixa.
+ */
+export const SAUCER_TARGET_BASE=90000;
+/**
+ * O disco voador NÃO é alvo de mira automática.
+ *
+ * Ele é cenário até alguém decidir atirar nele; provocar a represália tem que ser uma escolha do
+ * jogador, mirando à mão. As habilidades que elegem alvo sozinhas (a tempestade de MP III, a
+ * magnetização de 0,85 m da salva de MP II e o quique do leque de MP I) fariam essa escolha pelo
+ * jogador e chamariam a invasão sem que ele tivesse pedido — era exatamente a reclamação.
+ *
+ * Tiro normal e granada continuam acertando o disco: lá a mira é do jogador.
+ */
+export const isAutoAimTarget=(id:number):boolean=>id<SAUCER_TARGET_BASE;
 export class TrainingYard {
   readonly collision=new CollisionWorld();
   readonly targets: TrainingTarget[]=[];

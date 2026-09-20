@@ -13,6 +13,7 @@ import { DualPistols } from '../src/combat/DualPistols';
 import type { CharacterVisual } from '../src/animation/CharacterVisual';
 import type { ThirdPersonCamera } from '../src/camera/ThirdPersonCamera';
 import type { TrainingYard } from '../src/world/TrainingYard';
+import { SAUCER_TARGET_BASE } from '../src/world/TrainingYard';
 import type { WeaponAudio } from '../src/audio/RecordedAudio';
 
 describe('MP charge',()=>{
@@ -52,6 +53,40 @@ describe('MP rays on real Babylon geometry',()=>{
   });
   it('fan and storm cannot damage targets behind a solid wall',()=>{
     const run=setup(true);try{run.weapons.releaseSkill(1);run.weapons.releaseSkill(3);for(let i=0;i<181;i++){run.weapons.fixedUpdate(1/60,false);run.weapons.updatePose(1/60);}expect(run.targets.map(t=>t.hits)).toEqual([0,0]);expect(run.weapons.stormRemaining).toBe(0);expect(run.weapons.effects.pool.stats.misses).toBe(0);}finally{run.dispose();}
+  });
+  /**
+   * "AS HABILIDADES NÃO PODEM MIRAR NO DISCO AUTOMATICAMENTE — ISSO É SÓ PRO CURIOSO QUE ATIRAR
+   * NO UFO." Provocar a represália alienígena tem de ser uma escolha consciente do jogador; a
+   * tempestade de MP III elegia alvo sozinha e chamava a invasão em cima de quem nunca pediu.
+   *
+   * O disco entra aqui como alvo REAL: mesma cena, mesma esfera, mesma distância que os outros —
+   * só o id o distingue (`SAUCER_TARGET_BASE`). Se o filtro sumir, este teste falha.
+   */
+  it('a tempestade ignora o disco voador, mesmo ele sendo o alvo mais próximo e mais centrado',()=>{
+    const run=setup(false,true);
+    try{
+      const saucerMesh=CreateSphere('saucer',{diameter:1.6,segments:8},run.scene);
+      saucerMesh.position.set(0,1.7,6);saucerMesh.computeWorldMatrix(true);
+      const saucer={id:SAUCER_TARGET_BASE,mesh:saucerMesh,hits:0};
+      run.targets.push(saucer as never);
+      run.weapons.releaseSkill(3);
+      for(let i=0;i<181;i++){run.weapons.fixedUpdate(1/60,false);run.weapons.updatePose(1/60);}
+      expect(saucer.hits).toBe(0);
+      // E os alvos legítimos continuam sendo servidos: o filtro não desligou a habilidade.
+      for(const target of run.targets)if(target.id!==SAUCER_TARGET_BASE)expect(target.hits).toBeGreaterThan(0);
+    }finally{run.dispose();}
+  });
+  it('o leque de MP I também não quica no disco',()=>{
+    const run=setup(false,true);
+    try{
+      const saucerMesh=CreateSphere('saucer',{diameter:1.6,segments:8},run.scene);
+      saucerMesh.position.set(0,1.7,6);saucerMesh.computeWorldMatrix(true);
+      const saucer={id:SAUCER_TARGET_BASE,mesh:saucerMesh,hits:0};
+      run.targets.push(saucer as never);
+      run.weapons.releaseSkill(1);
+      for(let i=0;i<120;i++){run.weapons.fixedUpdate(1/60,false);run.weapons.updatePose(1/60);}
+      expect(saucer.hits).toBe(0);
+    }finally{run.dispose();}
   });
   it('storm distributes hits and ends after three seconds',()=>{
     const run=setup(false,true);try{run.weapons.releaseSkill(3);for(let i=0;i<181;i++){run.weapons.fixedUpdate(1/60,false);run.weapons.updatePose(1/60);}for(const target of run.targets)expect(target.hits).toBeGreaterThan(0);expect(run.weapons.skillShots).toBeGreaterThanOrEqual(59);expect(run.weapons.skillShots).toBeLessThanOrEqual(61);expect(run.weapons.effects.pool.stats.misses).toBe(0);}finally{run.dispose();}

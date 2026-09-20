@@ -10,7 +10,7 @@ import {EventBus} from '../src/core/EventBus';
 import type {DamageContext,GameEvents} from '../src/core/contracts';
 import {RunRNG} from '../src/core/RunRNG';
 import {RunProgression} from '../src/run/RunProgression';
-import {EnemySwarm,STRAY_DISTANCE,STRAY_REPLACEMENT_INTERVAL} from '../src/game/EnemySwarm';
+import {EnemySwarm,STRAY_DISTANCE,STRAY_REPLACEMENT_INTERVAL,SAUCER_FLEE_DISTANCE} from '../src/game/EnemySwarm';
 import {CollisionWorld} from '../src/physics/CollisionWorld';
 import {PlayerMotor} from '../src/player/PlayerMotor';
 import {SPAWN_RING_MAX} from '../src/ai/SpawnPlanner';
@@ -223,6 +223,68 @@ describe('reposição perto do jogador, sem bando instantâneo',()=>{
       expect(t.swarm.count).toBe(5);
       for(const a of t.swarm.actors)if(a.active)expect(distanceToPlayer(t,a.root.position)).toBeLessThan(STRAY_DISTANCE);
       expect(t.run.totalKills).toBe(0);
+    }finally{t.close();}
+  });
+});
+
+describe('as espécies do disco voador fogem em vez de serem recicladas',()=>{
+  /**
+   * O pedido era literal: "se o usuário fugir muito longe desses mobs alienígenas eles devem
+   * correr e sumir". A coleira comum faria o OPOSTO — recolheria e **reporia** o corpo ao lado do
+   * jogador, e a invasão renasceria sozinha do outro lado do mapa sem ninguém provocá-la.
+   */
+  it('a mais de SAUCER_FLEE_DISTANCE o alien corre para longe e some, sem reposição',async()=>{
+    const t=await setup();
+    try{
+      expect(t.swarm.spawn('grey',{x:0,y:0,z:SAUCER_FLEE_DISTANCE+6},'normal')).toBe(true);
+      const alien=t.swarm.actors[0]!;
+      const departed:number[]=[];
+      t.swarm.onSaucerDeparted=id=>departed.push(id);
+      t.swarm.director.stopped=true;
+
+      // Primeiro quadro: ele NÃO é recolhido — entra em fuga, ainda em cena e ainda visível.
+      t.swarm.updateBudget(1/60,FRAME);
+      expect(alien.state).toBe('flee');
+      expect(alien.active).toBe(true);
+      expect(t.swarm.strays).toBe(0);
+
+      const before=distanceToPlayer(t,alien.root.position);
+      tick(t,30);
+      // Correu PARA LONGE, não para cima do jogador.
+      expect(distanceToPlayer(t,alien.root.position)).toBeGreaterThan(before);
+
+      tick(t,60*12);
+      expect(alien.active).toBe(false);
+      expect(departed).toEqual([alien.id]);
+      // E nada voltou: fuga não vira reposição.
+      expect(t.swarm.recycled).toBe(0);
+      expect(t.swarm.count).toBe(0);
+    }finally{t.close();}
+  });
+
+  it('fugir não é morrer: sem abate, sem XP e sem crédito',async()=>{
+    const t=await setup();
+    try{
+      expect(t.swarm.spawn('invader',{x:0,y:0,z:SAUCER_FLEE_DISTANCE+6},'normal')).toBe(true);
+      const alien=t.swarm.actors[0]!;
+      t.swarm.director.stopped=true;
+      tick(t,60*14);
+      expect(alien.active).toBe(false);
+      expect(alien.health.dead).toBe(false);
+      expect(t.swarm.kills).toBe(0);
+      expect(t.run.totalKills).toBe(0);
+      expect(t.run.xp).toBe(0);
+    }finally{t.close();}
+  });
+
+  it('perto do jogador o alien continua caçando, sem fugir de nada',async()=>{
+    const t=await setup();
+    try{
+      expect(t.swarm.spawn('demon',{x:0,y:0,z:9},'normal')).toBe(true);
+      const alien=t.swarm.actors[0]!;
+      tick(t,120);
+      expect(alien.active).toBe(true);
+      expect(alien.state).not.toBe('flee');
     }finally{t.close();}
   });
 });
