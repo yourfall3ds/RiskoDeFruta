@@ -24,7 +24,8 @@
  */
 import {NodeIO} from '@gltf-transform/core';
 import {ALL_EXTENSIONS} from '@gltf-transform/extensions';
-import {dedup, weld, simplify, prune} from '@gltf-transform/functions';
+import {dedup, weld, simplify, prune, textureCompress} from '@gltf-transform/functions';
+import sharp from 'sharp';
 import {MeshoptSimplifier} from 'meshoptimizer';
 
 /** Orçamento padrão: o mesmo de um prop deste projeto. */
@@ -111,6 +112,8 @@ if (!entrada || !saida) {
   process.exit(2);
 }
 const alvo = argumento('tris', TRIS_PADRAO);
+/** Lado da textura reamostrada, em pixels. 0 desliga a compressao. */
+const textura = argumento('tex', 1024);
 
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
 const documento = await io.read(entrada);
@@ -139,6 +142,19 @@ for (const erro of ESCADA) {
     // `lockBorder` preso manteria a borda de cada parte intacta e impediria o alvo de ser
     // alcançado numa malha que é quase toda borda.
     lockBorder: false,
+  }));
+}
+
+/**
+ * Texturas: reamostra para o orcamento e converte para WebP.
+ *
+ * Decimar geometria nao encolhe arquivo quando a textura e quem pesa: o obelisco caiu de 777 mil
+ * para 12 mil triangulos e continuou com 28 MB, porque tres PNGs de 4K viajavam junto. Sem esta
+ * passada a decimacao entrega uma malha de jogo dentro de um arquivo que nenhum jogo carrega.
+ */
+if (textura > 0 && documento.getRoot().listTextures().length > 0) {
+  await documento.transform(textureCompress({
+    encoder: sharp, targetFormat: 'webp', resize: [textura, textura], resizeFilter: 'lanczos3',
   }));
 }
 
