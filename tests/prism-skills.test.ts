@@ -138,15 +138,18 @@ describe('habilidades do soldado · a tabela',()=>{
     }
   });
   it('cada forma tem uma MECÂNICA própria, não três coreografias iguais',()=>{
-    expect(PRISM_SKILLS[0][2].kind).toBe('burst');
-    expect(PRISM_SKILLS[0][3].kind).toBe('overdrive');
+    expect(PRISM_SKILLS[0][2].kind).toBe('beam');
+    expect(PRISM_SKILLS[0][3].kind).toBe('strike');
     expect(PRISM_SKILLS[1][2].kind).toBe('burst');
     expect(PRISM_SKILLS[1][3].kind).toBe('volley');
     expect(PRISM_SKILLS[2][2].kind).toBe('fan');
     expect(PRISM_SKILLS[2][3].kind).toBe('fan');
-    // Perfuração é contrato do sniper e de mais ninguém.
+    // Perfuração é contrato da LINHA: as duas da lança de íons e o feixe do assalto. Cápsula não.
     expect(PRISM_SKILLS[1][2].pierce&&PRISM_SKILLS[1][3].pierce).toBe(true);
-    expect(PRISM_SKILLS[0][2].pierce||PRISM_SKILLS[2][3].pierce).toBe(false);
+    expect(PRISM_SKILLS[0][2].pierce,'o feixe atravessa a fila').toBe(true);
+    expect(PRISM_SKILLS[2][2].pierce||PRISM_SKILLS[2][3].pierce).toBe(false);
+    // Só a chuva de mísseis procura alvo por conta própria.
+    expect(PRISM_SKILLS[0][3].markRadius).toBeGreaterThan(0);
   });
   it('nenhuma habilidade cabe no carregador de outra forma nem estoura os limites',()=>{
     for(const plan of allPrismSkills()){
@@ -194,9 +197,13 @@ describe('habilidades do soldado · o relógio',()=>{
     expect(emitted).toBe(PRISM_SKILLS[2][2].shots);
     expect(runner.active).toBe(false);
   });
-  it('a sobrecarga não emite nada, dura o que promete e informa o tempo restante',()=>{
+  it('a janela de sobrecarga não emite nada, dura o que promete e informa o tempo restante',()=>{
     const runner=new PrismSkillRunner();
-    const plan=PRISM_SKILLS[0][3];
+    // Nenhuma das seis habilidades usa `overdrive` desde que a CHUVA DE MÍSSEIS tomou o lugar da
+    // sobrecarga do assalto. A mecânica continua no relógio e continua coberta aqui: ela é genérica
+    // (uma janela em que o tiro normal muda) e é o molde de qualquer habilidade futura desse tipo.
+    const plan={...PRISM_SKILLS[0][2],id:'qa_overdrive',kind:'overdrive' as const,
+      shots:0,interval:0,chargeSeconds:0,seconds:6,rateScale:2.4};
     let emitted=0;
     runner.start(plan);
     expect(runner.emitting).toBe(false);
@@ -216,8 +223,21 @@ describe('habilidades do soldado · o relógio',()=>{
 
 // ---------------------------------------------------------------------------- assalto
 
-describe('assalto · II rajada controlada',()=>{
-  it('cobra a munição na hora, mira PERFEITO e entrega os seis acertos',()=>{
+describe('assalto · II carga de íons',()=>{
+  it('a carga segura o feixe: nada sai do cano antes de ela fechar',()=>{
+    const {weapon,services}=fixture({wallZ:20});
+    services.targets.push(actor(11,new Vector3(0,1.4,6)));
+    const plan=PRISM_SKILLS[0][2];
+    expect(weapon.releaseSkill(2)).toBe(true);
+    // Um quadro antes do fim da carga ainda não houve UM acerto.
+    tick(weapon,Math.floor(plan.chargeSeconds*60)-2);
+    expect(services.hits,'ainda carregando').toHaveLength(0);
+    expect(weapon.skillActive).toBe(true);
+    // Fechada a carga, o feixe abre.
+    tick(weapon,10);
+    expect(services.hits.length).toBeGreaterThan(0);
+  });
+  it('cobra a munição na hora, mira PERFEITO e entrega os tiques do feixe',()=>{
     const {weapon,services}=fixture({wallZ:20});
     const victim=actor(11,new Vector3(0,1.4,6));
     services.targets.push(victim);
@@ -226,7 +246,7 @@ describe('assalto · II rajada controlada',()=>{
     expect(weapon.releaseSkill(2)).toBe(true);
     // A munição sai de UMA vez, na soltura do `Q`.
     expect(weapon.magazine.ammo).toBe(before-plan.ammoCost);
-    tick(weapon,60);
+    tick(weapon,150);
     expect(services.hits).toHaveLength(plan.shots);
     // As emissões não cobram de novo: a conta foi fechada em `releaseSkill`.
     expect(weapon.magazine.ammo).toBe(before-plan.ammoCost);
@@ -256,7 +276,7 @@ describe('assalto · II rajada controlada',()=>{
     expect(weapon.releaseSkill(2)).toBe(true);
     expect(weapon.magazine.ammo).toBe(0);
     // Gatilho preso o tempo todo: mesmo assim só saem as emissões da habilidade.
-    tick(weapon,30,{fire:true});
+    tick(weapon,150,{fire:true});
     expect(weapon.shots).toBe(plan.shots);
     expect(services.scenery).toHaveLength(plan.shots);
     // Só depois de a rajada acabar o carregador vazio pede a recarga.
@@ -276,35 +296,26 @@ describe('assalto · III sobrecarga',()=>{
     expect(weapon.magazine.ammo).toBe(plan.ammoRequired);
     expect(weapon.skillLabel).toBe(plan.name);
   });
-  it('dispara MUITO mais rápido e com mais dano enquanto a janela dura, e depois volta ao normal',()=>{
+  it('marca os hostis mais próximos e larga um míssil em cada um, de cima',()=>{
     const plan=PRISM_SKILLS[0][3];
-    const plain=fixture({wallZ:12});
-    tick(plain.weapon,60,{fire:true});
-    const baseline=plain.weapon.shots;
-
-    const {weapon,services}=fixture({wallZ:12});
-    const victim=actor(11,new Vector3(0,1.4,6));
-    services.targets.push(victim);
+    const {weapon,services}=fixture({wallZ:60});
+    // Três hostis perto e um longe demais para ser marcado.
+    services.targets.push(actor(11,new Vector3(0,1.4,6)),actor(12,new Vector3(3,1.4,9)),
+      actor(13,new Vector3(-4,1.4,12)),actor(14,new Vector3(0,1.4,400)));
     expect(weapon.releaseSkill(3)).toBe(true);
-    tick(weapon,60,{fire:true});
-    const boosted=weapon.shots;
-    expect(boosted).toBeGreaterThan(baseline*1.8);
-    // O tiro da janela é tiro de HABILIDADE: escala por `stats.mp` e não devolve MP.
-    const context=victim.damage[0]!;
-    expect(context.baseDamage).toBeCloseTo(PRISM_MODES[0].damage*plan.damageScale,6);
-    expect(context.damageTags).toContain('skill');
-    expect(awardsMP({...context,finalDamage:context.baseDamage})).toBe(false);
-
-    // Passada a janela, a arma volta a ser a de sempre — cadência e dano.
-    weapon.magazine.ammo=PRISM_MODES[0].capacity;
-    tick(weapon,Math.ceil(plan.seconds*60)+4);
-    expect(weapon.skillActive).toBe(false);
-    victim.damage.length=0;
-    const after=weapon.shots;
-    tick(weapon,60,{fire:true});
-    expect(weapon.shots-after).toBeLessThanOrEqual(baseline+1);
-    expect(victim.damage[0]!.baseDamage).toBe(PRISM_MODES[0].damage);
-    expect(victim.damage[0]!.damageTags).not.toContain('skill');
+    // Durante a marcação nenhum míssil partiu ainda.
+    tick(weapon,Math.floor(plan.chargeSeconds*60)-2);
+    expect(weapon.grenades.live.length,'ainda marcando').toBe(0);
+    // Fechada a marcação, saem exatamente três ogivas.
+    tick(weapon,Math.ceil(plan.interval*60*plan.shots)+6);
+    expect(weapon.shots).toBe(plan.shots);
+    // Cada uma nasceu ACIMA do alvo e desce: a componente vertical da velocidade é negativa.
+    for(const missile of weapon.grenades.live){
+      // Bem acima da cabeça do alvo (1,4 m) mesmo depois de já ter caído parte do caminho:
+      // o que se prova aqui é que a ogiva veio DE CIMA, não que ela brotou no chão.
+      expect(missile.position.y,'nasce no alto').toBeGreaterThan(10);
+      expect(missile.velocity.y,'cai').toBeLessThan(0);
+    }
   });
 });
 
@@ -490,10 +501,11 @@ describe('habilidades do soldado · quando NÃO saem',()=>{
     expect(weapon.magazine.ammo).toBe(2);
     expect(weapon.skillReleases).toBe(0);
   });
-  it('guardar a arma no meio de uma rajada corta as emissões restantes',()=>{
+  it('guardar a arma no meio do feixe corta as emissões restantes',()=>{
     const {weapon,services}=fixture({wallZ:12});
     expect(weapon.releaseSkill(2)).toBe(true);
-    tick(weapon,2);
+    // Passa a carga e deixa sair só os primeiros tiques.
+    tick(weapon,Math.ceil(PRISM_SKILLS[0][2].chargeSeconds*60)+3);
     const partial=weapon.shots;
     expect(partial).toBeGreaterThan(0);
     expect(partial).toBeLessThan(PRISM_SKILLS[0][2].shots);

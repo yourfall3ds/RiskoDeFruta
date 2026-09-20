@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>PartCrafter — saída segmentada</title>
+<style>
+  :root{color-scheme:dark}
+  *{box-sizing:border-box}
+  body{margin:0;background:#0b1118;color:#e8eef5;font:14px/1.5 system-ui,sans-serif;overflow:hidden}
+  #wrap{display:grid;grid-template-columns:250px 1fr;height:100vh}
+  aside{padding:16px;border-right:1px solid #1e2a36;overflow:auto}
+  h1{font-size:15px;margin:0 0 4px;letter-spacing:.04em}
+  p{margin:0 0 12px;color:#8fa3b5;font-size:12px}
+  img{width:100%;border:1px solid #23313f;border-radius:6px;display:block;margin-bottom:14px}
+  .row{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:12px}
+  .sw{width:14px;height:14px;border-radius:3px;flex:none}
+  label{display:block;margin:14px 0 4px;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#6f8498}
+  input[type=range]{width:100%}
+  canvas{width:100%;height:100%;display:block;outline:none}
+  #stats{margin-top:14px;font-size:11px;color:#6f8498;border-top:1px solid #1e2a36;padding-top:10px}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <aside>
+    <h1>PartCrafter</h1>
+    <p>Imagem de entrada:</p>
+    <img src="/pc-preview/ref.png" alt="referência">
+    <div id="legend"></div>
+    <label for="explode">Separar as partes</label>
+    <input id="explode" type="range" min="0" max="100" value="45">
+    <label for="spin">Girar</label>
+    <input id="spin" type="range" min="0" max="360" value="35">
+    <div id="stats">carregando…</div>
+  </aside>
+  <canvas id="c"></canvas>
+</div>
+<script type="module" src="/src/tools/PartPreview.ts"></script>
+</body>
+</html>

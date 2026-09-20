@@ -158,6 +158,12 @@ import {pickIslands, RADIAL_ISLAND_POOL} from '../stages/IslandPool';
 import { PlayerRagdoll } from '../player/PlayerRagdoll';
 
 import { addRagdollTerrain } from '../physics/RagdollWorld';
+import { IonBeam } from '../vfx/IonBeam';
+import { BLAST_IMPULSE_CAP } from '../player/PlayerMotor';
+import { blastFalloff } from '../combat/PrismGrenades';
+import { GroundFireView } from '../vfx/GroundFireView';
+import { StrikeMarker, type Mark } from '../vfx/StrikeMarker';
+import { GROUND_FIRE } from '../combat/GroundFire';
 import { exposeQA } from '../debug/FreezeTrace';
 
 import { LoadAssetContainerAsync } from '@babylonjs/core/Loading/sceneLoader';
@@ -278,6 +284,11 @@ export class PlayerScene implements SceneModule {
   readonly prism: PrismWeapon;
   private readonly prismRig: PrismRig;
   private readonly prismVisuals: PrismShotVisuals;
+  /** As tres visuais das habilidades novas do assalto. Ver src/vfx/IonBeam.ts. */
+  private readonly ionBeam: IonBeam;
+  private readonly groundFireView: GroundFireView;
+  private readonly strikeMarker: StrikeMarker;
+  private readonly markBuffer: Mark[] = [];
   /** Carga da PRISM concluída (com ou sem sucesso): é o que libera a barra de carregamento. */
   private prismSettled=false;
   private prismError='';
@@ -598,6 +609,9 @@ export class PlayerScene implements SceneModule {
     // `DualPistols` publica). Nenhum campo privado do rig é tocado.
     this.prismRig=new PrismRig(this.scene,this.visual);
     this.prismVisuals=new PrismShotVisuals(this.scene);
+    this.ionBeam=new IonBeam(this.scene);
+    this.groundFireView=new GroundFireView(this.scene,GROUND_FIRE.limit);
+    this.strikeMarker=new StrikeMarker(this.scene);
     this.prism=new PrismWeapon({
       services:this.weapons,rig:this.prismRig,camera:this.camera,rng:rng.stream('run'),
       body:()=>this.visual.position,visuals:this.prismVisuals,...(combatSpace?{space:combatSpace}:{}),
@@ -753,6 +767,30 @@ export class PlayerScene implements SceneModule {
       this.cancelAim();
       this.startPlayerRagdoll(context);this.deathFlight.start(this.player.position,this.player.yaw,{up:this.player.up,forward:this.player.forward});this.intro.abort();this.meleeReview.exit();this.deathSummary=this.summarize();this.cancelCinematic();this.weapons.cancelSkills();this.started=false;this.player.sprinting=false;this.input.clear();if(document.pointerLockElement)document.exitPointerLock();this.audio.setActive(true);this.audio.fatalImpact();this.camera.hurt(.32,1);this.hud.fatalReaction(true);});
 
+
+    // A explosão da PRISM acende o chão pela horda, que é quem tem os corpos para queimar.
+    this.prism.onGroundFire=(centre,radius)=>{if(this.enemies instanceof EnemySwarm)this.enemies.igniteGround({x:centre.x,y:centre.y,z:centre.z},radius);};
+    // ---- salto de foguete ---------------------------------------------------------------------
+    // A onda de choque arremessa o PRÓPRIO jogador, e é isso que transforma a explosiva em
+    // mobilidade. A direção é do centro da explosão PARA o corpo, então uma cápsula sob os pés
+    // manda para cima e uma ao lado manda para longe — sem caso especial para nenhum dos dois.
+    //
+    // O impulso cai com a distância pela MESMA curva do dano (`blastFalloff`): quem quer altura
+    // tem de explodir perto, que é o risco que paga o ganho. Explosão longe não levanta ninguém.
+    this.prism.onBlastWave=(centre,radius)=>{
+      if(this.player.hp<=0||this.death.active)return;
+      const body=this.player.position;
+      const dx=body.x-centre.x,dy=body.y-centre.y,dz=body.z-centre.z;
+      const distance=Math.hypot(dx,dy,dz);
+      const falloff=blastFalloff(distance,radius);
+      if(falloff<=0)return;
+      // Corpo em cima do ponto exato: a direção degenera, e o salto certo ali é reto para cima.
+      const up=this.world.surface.up(body);
+      const direction=distance>1e-3
+        ?{x:dx/distance,y:dy/distance,z:dz/distance}
+        :{x:up.x,y:up.y,z:up.z};
+      this.player.blastImpulse(direction,BLAST_IMPULSE_CAP*falloff);
+    };
     this.camera.update(this.player.position,this.input.yaw,this.input.pitch,1/60);
 
     void this.visual.load();
@@ -1086,6 +1124,7 @@ export class PlayerScene implements SceneModule {
     // A pose do rig da PRISM tem de vir DEPOIS da pose do corpo: ela pendura a arma no punho já
     // amostrado do quadro. Com o cadáver no comando não existe punho vivo para pendurar.
     this.prism.updatePresentation(this.playerRagdoll.active?0:worldDt);
+    this.updateSkillVisuals(this.playerRagdoll.active?0:worldDt);
     // Depois da pose do rig: a prévia da granada sai da BOCA já amostrada deste quadro, e a lente
     // da luneta só sabe o que a bloqueia depois que corpo e arma foram colocados.
     this.updateAimPresentation(aimView,dt);
@@ -1608,6 +1647,44 @@ export class PlayerScene implements SceneModule {
    * malha inteira seria inviável. Aqui vai só o que está perto do cadáver, e o `release` devolvido
    * é chamado pelo próprio `PlayerRagdoll` quando o corpo é recolhido.
    */
+  /**
+   * As três visuais das habilidades novas do assalto, por quadro.
+   *
+   * Roda no relógio de APRESENTAÇÃO (`worldDt`), não no passo fixo: pausar o jogo congela o feixe,
+   * o fogo e os anéis junto com o resto, e a câmera lenta os acompanha de graça.
+   *
+   * Nenhuma delas decide nada — feixe, marcação e poça já existem na simulação e foram testados
+   * sem cena. Aqui só se lê o estado e se desenha.
+   */
+  private updateSkillVisuals(dt:number):void {
+    // ---- feixe de íons: carga no cano e, depois, o feixe sustentado enquanto durar
+    if(this.prism.skillKind==='beam'){
+      if(this.prism.skillCharging)this.ionBeam.charge(this.prism.muzzlePoint(),this.prism.skillChargeProgress);
+      else {
+        const segment=this.prism.beamSegment;
+        if(segment)this.ionBeam.show(segment.from,segment.to,1+this.progression.stats.mp*.15);
+      }
+    }
+    this.ionBeam.update(dt);
+
+    // ---- anéis dos alvos marcados, apertando enquanto a contagem corre
+    const marks=this.markBuffer;marks.length=0;
+    if(this.prism.skillKind==='strike'){
+      const progress=this.prism.skillChargeProgress;
+      for(const target of this.prism.markedTargets){
+        const centre=target.mesh.getBoundingInfo().boundingBox.centerWorld;
+        const up=this.world.surface.up({x:centre.x,y:centre.y,z:centre.z});
+        marks.push({position:centre,up:new Vector3(up.x,up.y,up.z),progress,
+          radius:target.mesh.getBoundingInfo().boundingSphere.radiusWorld||1});
+      }
+    }
+    this.strikeMarker.render(marks);
+
+    // ---- chão em chamas: a horda é dona das poças, porque é ela que tem os corpos para queimar
+    if(this.enemies instanceof EnemySwarm)
+      this.groundFireView.render(this.enemies.groundFire.patches,dt,this.enemies.flames);
+  }
+
   private localRagdollTerrain(centre:Vec3):(()=>void)|undefined {
     const world=this.yard instanceof PlanetWorld?this.yard:undefined;
     // Teto de triângulos: medido no asset real, um raio de 14 m numa ilha densa devolve mais de
@@ -2525,7 +2602,10 @@ export class PlayerScene implements SceneModule {
     // Invalida qualquer carregamento de destino em voo: o `.then` tardio vê a versão mudada e sai.
     this.planVersion++;this.planning=false;this.journey.reset();this.pendingSetup=undefined;this.stagePlans.clear();
     this.cancelAim();this.aimOverlay.dispose();this.trajectory.dispose();this.scopeOcclusion.dispose();
-    this.weatherView?.dispose();this.weatherView=undefined;this.wildlife?.dispose();this.wildlife=undefined;for(const beam of this.beams)beam.dispose();this.beams.length=0;this.raids.length=0;this.raidWave.clear();this.raidFirstEt=-1;this.dropship?.dispose();this.dropship=undefined;this.collision.detachRadialProps('expedition-sites');this.collision.detachRadialProps('loot');this.expeditionSites?.dispose();this.expeditionSites=undefined;this.pendingSites?.dispose();this.pendingSites=undefined;this.playerRagdoll.dispose();this.avatar?.dispose();this.net?.dispose();this.cancelCinematic();this.cutIn.dispose();this.skillAura.dispose();this.elements.dispose();this.world.dispose();this.input.dispose();this.enemies.dispose();this.explorationMap?.dispose();this.runHUD?.dispose();this.interactables?.dispose();this.events.clear();this.prism.dispose();this.prismVisuals.dispose();this.prismRig.dispose();this.weapons.dispose();this.footing.dispose();this.abyss?.dispose();this.visual.dispose();this.audio.dispose();this.hud.dispose();this.instrumentation.dispose();this.scene.dispose();}
+    // Merge das duas frentes: `wildlife`, os feixes e as ondas de disco vêm do trabalho de co-op e
+    // fazenda viva; `ionBeam`, `groundFireView` e `strikeMarker` vêm das habilidades novas da
+    // `main`. Os dois conjuntos são disjuntos — perder qualquer um vaza recurso no fim da corrida.
+    this.weatherView?.dispose();this.weatherView=undefined;this.wildlife?.dispose();this.wildlife=undefined;for(const beam of this.beams)beam.dispose();this.beams.length=0;this.raids.length=0;this.raidWave.clear();this.raidFirstEt=-1;this.dropship?.dispose();this.dropship=undefined;this.collision.detachRadialProps('expedition-sites');this.collision.detachRadialProps('loot');this.expeditionSites?.dispose();this.expeditionSites=undefined;this.pendingSites?.dispose();this.pendingSites=undefined;this.playerRagdoll.dispose();this.avatar?.dispose();this.net?.dispose();this.cancelCinematic();this.cutIn.dispose();this.skillAura.dispose();this.elements.dispose();this.world.dispose();this.input.dispose();this.enemies.dispose();this.explorationMap?.dispose();this.runHUD?.dispose();this.interactables?.dispose();this.events.clear();this.prism.dispose();this.prismVisuals.dispose();this.ionBeam.dispose();this.groundFireView.dispose();this.strikeMarker.dispose();this.prismRig.dispose();this.weapons.dispose();this.footing.dispose();this.abyss?.dispose();this.visual.dispose();this.audio.dispose();this.hud.dispose();this.instrumentation.dispose();this.scene.dispose();}
 
 }
 

@@ -49,6 +49,7 @@ import { FruitFragments } from '../vfx/FruitFragments';
 import { HordeTickCache } from './HordeTickCache';
 import { enemySpace,radialSurfaceOf,type EnemySpace,type EnemySurface,type Heading } from '../enemies/EnemySpace';
 import { mark,section } from '../debug/FreezeTrace';
+import { GroundFireField,GROUND_FIRE } from '../combat/GroundFire';
 
 type State='spawn'|'chase'|'windup'|'recover'|'flee'|'dead';
 /**
@@ -251,7 +252,7 @@ export class EnemySwarm {
    * perseguição radial usa direção tangente direta — continua perseguindo, atacando e morrendo.
    */
   initialize():void {if(this.tactical||this.navigation||this.space.radial)return;this.navigation=new FarmNavigation(this.world.collision);this.navigation.update(this.player.position);}
-  nextStage():void {this.lasers.begin();this.elemental.clear();for(const l of this.chargeLights)l.intensity=0;this.burning.clear();this.debris.clear();this.fragments.clear();this.ragdolls.clear();this.tactical?.clear();this.scheduler.clear();this.tick.clear();this.chargeLightTargets.length=0;this.populationCap=this.budget.limit;this.benchmark=false;this.retirementClock=0;
+  nextStage():void {this.lasers.begin();this.elemental.clear();for(const l of this.chargeLights)l.intensity=0;this.burning.clear();this.groundFire.clear();this.debris.clear();this.fragments.clear();this.ragdolls.clear();this.tactical?.clear();this.scheduler.clear();this.tick.clear();this.chargeLightTargets.length=0;this.populationCap=this.budget.limit;this.benchmark=false;this.retirementClock=0;
     this.replacementClock=0;this.replacements.length=0;this.strays=0;this.recycled=0;
     this.weakHits=0;this.lastWeakPoint='';this.ragdollsSkipped=0;this.ragdollBudget=RAGDOLL_SPAWNS_PER_STEP;
     for(const a of this.actors){a.active=false;a.root.setEnabled(false);a.body.isPickable=false;}this.kills=0;this.boss=undefined;this.bossDeadTime=-1;this.effects.clear();this.labels.length=0;this.director=new MonsterDirector(this.rng.stream('director'),this.progression.stage,50,this.mode);}
@@ -510,6 +511,49 @@ export class EnemySwarm {
   private readonly weakSpheres:WeakPointSphere[]=[];
   /** Acertos diretos em ponto fraco nesta tentativa, e a última zona atingida. Diagnóstico e HUD. */
   weakHits=0;lastWeakPoint='';
+
+  /**
+   * Chão em chamas — as poças acesas por explosão e pela bomba do tomate.
+   *
+   * Mora na horda porque é ela que tem os corpos: o campo é puro e não conhece ator nenhum, então
+   * quem varre os hostis e traduz "pisou" em dano é este arquivo.
+   */
+  readonly groundFire=new GroundFireField();
+  /** Porta de chama para quem desenha as pocas: so o , nada mais do sistema elemental. */
+  get flames():{emit(kind:"fire",at:Vector3,power:number):void} {return this.elemental;}
+  /** Corpos consultáveis pelo fogo, remontados por passo sem alocar por ator. */
+  private readonly burnable:{id:number;position:Vec3}[]=[];
+
+  /**
+   * Acende o chão. `owner` é quem atirou — `1` é o jogador.
+   *
+   * Poça de DONO INIMIGO é só apresentação: quem cobra o pedágio do jogador continua sendo a zona
+   * de aviso que a bomba do tomate já pintava, e deixar o campo cobrar também dobraria o dano. E
+   * hostil não queima hostil — fogo amigo entre pragas nunca foi regra deste jogo.
+   */
+  igniteGround(centre:Vec3,radius:number,owner=1,seconds=GROUND_FIRE.seconds):void {
+    this.space.upInto(centre,work1);
+    this.groundFire.ignite(centre,{x:work1.x,y:work1.y,z:work1.z},radius,owner,seconds);
+  }
+
+  /** Um passo do fogo: envelhece as poças e cobra de quem está dentro das do JOGADOR. */
+  private updateGroundFire(dt:number):void {
+    if(this.groundFire.count===0)return;
+    const bodies=this.burnable;bodies.length=0;
+    for(const a of this.actors)if(a.active&&!a.health.dead)
+      bodies.push({id:a.id,position:{x:a.root.position.x,y:a.root.position.y,z:a.root.position.z}});
+    this.groundFire.update(dt,bodies,(body,amount,patch)=>{
+      if(patch.owner!==1)return;
+      const victim=this.byId.get(body.id);
+      if(!victim||!victim.active||victim.health.dead)return;
+      this.hit(victim,{attackerId:1,victimId:victim.id,sourceId:'ground_fire',attackId:'ground_fire',
+        baseDamage:amount,finalDamage:amount,crit:false,procCoefficient:0,procChainDepth:1,
+        damageTags:['fire','dot','skill'],
+        hitPosition:{...body.position},hitNormal:{x:patch.up.x,y:patch.up.y,z:patch.up.z},
+        forceDirection:{x:patch.up.x,y:patch.up.y,z:patch.up.z},
+        hitDirection:{x:-patch.up.x,y:-patch.up.y,z:-patch.up.z},forceMagnitude:0});
+    });
+  }
   private weakNodesOf(a:Actor,zone:WeakPointZone):readonly TransformNode[] {
     if(a.weakNodes)return a.weakNodes;
     // A instanciação renomeia cada nó para `enemy-<id>-<nome original>`; o sufixo é a identidade.
@@ -863,7 +907,7 @@ export class EnemySwarm {
       if(!(hit||wall||(landed&&this.space.heightGap(p.position,work2)<0)||p.remaining<=0))continue;
       p.active=false;p.mesh.setEnabled(false);if(p.impact?.zone==='fire'){this.elemental.emit('explosion',p.position,.85);this.audio?.impact(true);}else this.effects.burst(p.position,'seed',p.impact?1:.3);
       if(hit&&p.damage){const before=this.player.hp;this.player.applyDamage(this.damageContext(p.owner,p.damage,p.position,p.impact?.zone==='fire'?'incendiary_projectile':'seed_projectile'));if(p.impact?.zone==='fire'&&this.player.hp<before)this.burning.ignite(p.owner);}
-      if(p.impact&&landed){const impact={x:work2.x,y:work2.y,z:work2.z};if(p.impact.zone)this.effects.warning(impact,p.impact.zone==='acid'?4:2.3,.12,p.damage||18,p.owner,p.impact.zone);if(p.impact.summon&&(this.tactical?this.tactical.reachable(impact,this.player.position):this.navigation?this.navigation.reachable(impact):this.space.radial))this.spawn(p.impact.summon,impact);}
+      if(p.impact&&landed){const impact={x:work2.x,y:work2.y,z:work2.z};if(p.impact.zone)this.effects.warning(impact,p.impact.zone==='acid'?4:2.3,.12,p.damage||18,p.owner,p.impact.zone);if(p.impact.zone==='fire')this.igniteGround(impact,2.3,p.owner);if(p.impact.summon&&(this.tactical?this.tactical.reachable(impact,this.player.position):this.navigation?this.navigation.reachable(impact):this.space.radial))this.spawn(p.impact.summon,impact);}
     }
   }
   /**
@@ -987,7 +1031,7 @@ export class EnemySwarm {
       this.chargeLightTargets[i]=actor;
       light.includedOnlyMeshes=[...(actor.target.meshes??[actor.body])];
     }
-    this.debris.update(dt);this.fragments.update(dt);this.effects.render(dt);this.shadowClock-=dt;
+    this.updateGroundFire(dt);this.debris.update(dt);this.fragments.update(dt);this.effects.render(dt);this.shadowClock-=dt;
     if(this.shadowClock<=0){this.shadowClock=.5;for(const mesh of this.shadowCasters)this.shadows.removeShadowCaster(mesh);
       const picks=this.nearest(SHADOW_CASTERS,24,this.isLiveActor);this.shadowCasters.length=0;
       for(let i=0;i<SHADOW_CASTERS;i++){const actor=picks[i]!.actor;if(actor)this.shadowCasters.push(actor.body);}
@@ -1024,7 +1068,7 @@ export class EnemySwarm {
       a.palette.sync();a.root.computeWorldMatrix(true);
     }
   }
-  dispose():void {this.fragments.dispose();this.lasers.dispose();for(const l of this.chargeLights)l.dispose();this.elemental.dispose();this.burning.clear();this.ragdolls.clear();this.tactical?.dispose();this.debris.clear();this.disposed=true;this.scheduler.clear();this.effects.clear();for(const a of this.actors){this.world.collision.playerBodies.delete(a.id);const i=this.world.targets.indexOf(a.target);if(i>=0)this.world.targets.splice(i,1);for(const clip of a.clips.values())clip.dispose();a.root.dispose();}for(const container of this.containers.values())container.dispose();this.actors.length=0;this.byId.clear();this.replacements.length=0;this.tick.clear();this.separationBuckets.clear();this.separationPool.length=0;this.nearestSlots.length=0;this.shadowCasters.length=0;this.chargeLightTargets.length=0;}
+  dispose():void {this.fragments.dispose();this.lasers.dispose();for(const l of this.chargeLights)l.dispose();this.elemental.dispose();this.burning.clear();this.groundFire.clear();this.ragdolls.clear();this.tactical?.dispose();this.debris.clear();this.disposed=true;this.scheduler.clear();this.effects.clear();for(const a of this.actors){this.world.collision.playerBodies.delete(a.id);const i=this.world.targets.indexOf(a.target);if(i>=0)this.world.targets.splice(i,1);for(const clip of a.clips.values())clip.dispose();a.root.dispose();}for(const container of this.containers.values())container.dispose();this.actors.length=0;this.byId.clear();this.replacements.length=0;this.tick.clear();this.separationBuckets.clear();this.separationPool.length=0;this.nearestSlots.length=0;this.shadowCasters.length=0;this.chargeLightTargets.length=0;}
 }
 
 
