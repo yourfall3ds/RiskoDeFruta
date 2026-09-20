@@ -1,7 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { createServer } from 'node:http';
-import { Server } from 'colyseus';
-import { WebSocketTransport } from '@colyseus/ws-transport';
+import type { Server } from 'colyseus';
 import { boot, type ColyseusTestServer } from '@colyseus/testing';
 import { FarmRoom } from '../server/rooms/FarmRoom';
 import type { FarmState } from '../server/schema';
@@ -16,11 +14,31 @@ import { ENEMY_STATES } from '../server/schema';
  */
 let colyseus: ColyseusTestServer;
 beforeAll(async () => {
-  const server = new Server({ transport: new WebSocketTransport({ server: createServer() }) });
-  server.define('farm', FarmRoom);
-  colyseus = await boot(server);
+  /**
+   * PORTA SORTEADA, pelo ramo do `boot` que realmente a respeita.
+   *
+   * Com `boot(server)` este arquivo subia na 2568 cravada — a MESMA de `tests/net-room.test.ts`.
+   * O vitest roda os arquivos em paralelo, então os dois disputavam a porta: o perdedor pendurava
+   * o `beforeAll` até o limite de 60 s e o vitest marcava os três casos como PULADOS. E pular não
+   * é falhar: a suíte fechava "verde" sem nunca ter executado a única prova fim-a-fim do co-op.
+   * Foi assim que isto passou despercebido — isolado o arquivo passa, junto ele não roda.
+   *
+   * `boot(server, port)` IGNORA a porta quando o primeiro argumento é uma instância de `Server`:
+   * esse ramo chama `gameServer.listen(DEFAULT_TEST_PORT)` com a constante cravada
+   * (`@colyseus/testing/build/index.mjs:10`). Só o ramo que recebe configuração honra a porta.
+   * Sortear numa faixa alta também imuniza contra servidor zumbi de execução anterior.
+   *
+   * Sem `filterBy` aqui, e de propósito: estes casos querem os dois clientes na MESMA sala, que é
+   * o mundo único sob teste. `net-lobby` filtra por semente porque lá cada caso quer sala própria.
+   */
+  // O genérico explícito evita que o TypeScript infira `never` a partir do objeto de configuração.
+  colyseus = await boot<any>({
+    initializeGameServer: (gameServer: Server) => { gameServer.define('farm', FarmRoom); },
+  }, 20000 + Math.floor(Math.random() * 30000));
 }, 60_000);
-afterAll(async () => { await colyseus.shutdown(); });
+// `colyseus` fica indefinido se o `boot` falhar; sem a guarda o erro real vira um
+// "Cannot read properties of undefined" no encerramento e esconde a causa.
+afterAll(async () => { await colyseus?.shutdown(); });
 
 const wait = (ms: number) => new Promise(r => setTimeout(r, ms));
 

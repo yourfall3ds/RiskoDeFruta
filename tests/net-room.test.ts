@@ -1,7 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { createServer } from 'node:http';
-import { Server } from 'colyseus';
-import { WebSocketTransport } from '@colyseus/ws-transport';
+import type { Server } from 'colyseus';
 import { boot, type ColyseusTestServer } from '@colyseus/testing';
 import { FarmRoom, NetInput, BUTTON } from '../server/rooms/FarmRoom';
 import type { FarmState } from '../server/schema';
@@ -12,11 +10,22 @@ import type { FarmState } from '../server/schema';
  */
 let colyseus: ColyseusTestServer;
 beforeAll(async () => {
-  const server = new Server({ transport: new WebSocketTransport({ server: createServer() }) });
-  server.define('farm', FarmRoom);
-  colyseus = await boot(server);
+  /**
+   * PORTA SORTEADA — ver a explicação longa em `tests/net-enemies.test.ts`.
+   *
+   * Resumo: `boot(server)` cravava a 2568 para este arquivo E para `net-enemies`, que o vitest roda
+   * em paralelo. Quem perdia a porta pendurava o `beforeAll` por 60 s e tinha os casos PULADOS —
+   * verde falso, porque pular não é passar. Só o ramo do `boot` que recebe configuração honra a
+   * porta; o que recebe uma instância de `Server` ignora e usa a constante do pacote.
+   */
+  // O genérico explícito evita que o TypeScript infira `never` a partir do objeto de configuração.
+  colyseus = await boot<any>({
+    initializeGameServer: (gameServer: Server) => { gameServer.define('farm', FarmRoom); },
+  }, 20000 + Math.floor(Math.random() * 30000));
 }, 60_000);
-afterAll(async () => { await colyseus.shutdown(); });
+// `colyseus` fica indefinido se o `boot` falhar; sem a guarda o erro real vira um
+// "Cannot read properties of undefined" no encerramento e esconde a causa.
+afterAll(async () => { await colyseus?.shutdown(); });
 
 const wait = (ms: number) => new Promise(r => setTimeout(r, ms));
 /** Prontidão pelo estado, não por mensagem: `welcome` pode chegar antes de o teste registrar o listener. */
