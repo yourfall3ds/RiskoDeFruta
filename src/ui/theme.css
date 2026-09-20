@@ -99,8 +99,10 @@
        um problema de massa visual.
      - NUM (mono): só onde o número muda sozinho — relógio, munição, vida. Numeral tabular é o que
        impede o dígito de "pular" a cada troca. */
-  --rdf-display: "Baloo 2", "Comic Sans MS", system-ui, sans-serif;
-  --rdf-ui: "Fredoka", "Baloo 2", "Segoe UI", system-ui, sans-serif;
+  /* A fonte do Risk of Rain 2 e' a Bombardier, que nao e' livre. Saira Condensed e' o parente
+     livre mais proximo: condensada, terminais retos, caixa alta com o mesmo aperto. */
+  --rdf-display: "Saira Condensed", "Oswald", "Arial Narrow", system-ui, sans-serif;
+  --rdf-ui: "Saira Condensed", "Oswald", "Arial Narrow", system-ui, sans-serif;
   --rdf-mono: ui-monospace, "Cascadia Mono", "Segoe UI Mono", Consolas, monospace;
 }
 
@@ -124,6 +126,26 @@
    CDN: uma HUD não pode depender de rede para desenhar a si mesma.
    ----------------------------------------------------------------------------------------------- */
 
+@font-face {
+  font-family: "Saira Condensed"; font-weight: 600; font-style: normal; font-display: swap;
+  src: url("/fonts/saira-cond-600-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+2000-206F, U+20AC, U+2122, U+2212, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Saira Condensed"; font-weight: 600; font-style: normal; font-display: swap;
+  src: url("/fonts/saira-cond-600-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-024F, U+0259, U+1E00-1EFF, U+2020, U+20A0-20AB, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Saira Condensed"; font-weight: 700; font-style: normal; font-display: swap;
+  src: url("/fonts/saira-cond-700-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+2000-206F, U+20AC, U+2122, U+2212, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Saira Condensed"; font-weight: 700; font-style: normal; font-display: swap;
+  src: url("/fonts/saira-cond-700-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-024F, U+0259, U+1E00-1EFF, U+2020, U+20A0-20AB, U+2C60-2C7F, U+A720-A7FF;
+}
 @font-face {
   font-family: "Baloo 2"; font-weight: 800; font-style: normal; font-display: swap;
   src: url("/fonts/baloo2-800-latin.woff2") format("woff2");
@@ -1943,6 +1965,135 @@ body:has(#view) footer select {
   text-transform: uppercase;
   color: var(--rdf-wheat);
 }
+
+/* ===============================================================================================
+   PADRÃO RISK OF RAIN 2 — a última palavra sobre botões e rolagem
+
+   Vem por último de propósito: o que estiver escrito aqui vence tudo acima. O vocabulário do
+   RoR2 é o OPOSTO do que eu tinha feito — lá nada é chanfrado nem dourado:
+
+   - canto RETO, sempre;
+   - filete de 1px branco a 20% de opacidade;
+   - fundo de vidro escuro quase opaco;
+   - caixa alta condensada;
+   - hover INVERTE (fundo branco, texto preto) — é o gesto tátil da interface inteira;
+   - a ação de confirmar é um retângulo VERDE sólido, o único bloco de cor cheia da tela.
+   =============================================================================================== */
+
+.play-gate button,
+.play-gate .rdf-menu-link,
+.play-gate .rdf-menu-back,
+.play-gate .rdf-menu-primary,
+.play-gate .return-menu,
+.play-gate .new-expedition {
+  clip-path: none !important;
+  border-radius: 0 !important;
+  border: 1px solid #ffffff33 !important;
+  background: rgba(12,12,16,.85) !important;
+  color: #e8ecef !important;
+  font-family: var(--rdf-ui) !important;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .08em !important;
+  text-shadow: none !important;
+  transition: background .12s ease, color .12s ease, border-color .12s ease;
+}
+/* A pele chanfrada morre aqui: no RoR2 o botão É o retângulo. */
+.play-gate button::before,
+.play-gate button::after { content: none !important; }
+
+.play-gate button:hover:not(:disabled) {
+  background: #ffffff !important;
+  color: #0a0a0c !important;
+  border-color: #ffffff !important;
+}
+.play-gate button:disabled {
+  color: #ffffff59 !important;
+  border-color: #ffffff1f !important;
+  background: rgba(12,12,16,.6) !important;
+}
+
+/* CONFIRMAR: o verde sólido do READY. */
+.play-gate .rdf-menu-ready,
+.play-gate .rdf-menu-primary {
+  background: #22c55e !important;
+  border-color: #22c55e !important;
+  color: #06220f !important;
+  font-weight: 700;
+}
+.play-gate .rdf-menu-ready:hover:not(:disabled),
+.play-gate .rdf-menu-primary:hover:not(:disabled) {
+  background: #4ade80 !important;
+  border-color: #4ade80 !important;
+  color: #06220f !important;
+}
+.play-gate .rdf-menu-primary:disabled {
+  background: #1d3a28 !important;
+  border-color: #1d3a28 !important;
+  color: #ffffff4d !important;
+}
+/* Abandonar continua sendo a única em vermelho: é a única destrutiva. */
+.play-gate .rdf-menu-danger,
+.play-gate .rdf-menu-abandon { color: #ff9a74 !important; border-color: #ff9a7459 !important; }
+.play-gate .rdf-menu-danger:hover:not(:disabled),
+.play-gate .rdf-menu-abandon:hover:not(:disabled) { background: #e2704f !important; color: #180807 !important; border-color: #e2704f !important; }
+
+/* Painéis: vidro escuro, canto reto, filete fino. */
+.play-gate .gate-card,
+.class-slot,
+.class-weapon,
+.class-skills li,
+.rdf-roster-item,
+.loading-progress {
+  clip-path: none !important;
+  border-radius: 0 !important;
+  border: 1px solid #ffffff26 !important;
+  background: rgba(12,12,16,.85) !important;
+}
+/* O título de tela vira faixa reta, sem chapa dourada chanfrada. */
+.rdf-screen-title {
+  clip-path: none !important;
+  width: 100% !important;
+  padding: 7px 12px !important;
+  text-align: left;
+  font-weight: 700;
+  color: #e8ecef !important;
+  background: rgba(255,255,255,.08) !important;
+  border-left: 3px solid #ffffff59;
+  box-shadow: none;
+}
+/* Nome da habilidade em laranja, como lá. */
+.class-skills b { color: #ff9000 !important; }
+.class-detail-name { color: #e8ecef !important; font-weight: 700; }
+.class-detail-role { color: #8fa0ab !important; }
+.class-skills span { color: #9aa7ae !important; }
+
+/* ===============================================================================================
+   ZERO ROLAGEM — em lugar nenhum
+
+   Não existe "rolagem interna aceitável": se a lista não cabe, o que tem de encolher é o tamanho
+   dela, não a janela por onde se olha. `overflow: hidden` em tudo, e os corpos de texto ficam
+   compactos o bastante para as quatro habilidades caberem inteiras.
+   =============================================================================================== */
+.class-skills,
+.class-detail,
+.rdf-screen,
+.rdf-menu,
+.play-gate .gate-card {
+  max-height: none !important;
+  overflow: hidden !important;
+}
+.class-skills { display: grid; gap: 2px; }
+.class-skills li { padding: 4px 6px !important; font-size: 10px; line-height: 1.22; }
+.class-skill-icon { width: 28px !important; height: 28px !important; }
+.class-skills b { font-size: 10px; }
+.class-skills span { font-size: 10px; }
+.class-weapon { padding: 4px 6px !important; margin-bottom: 6px !important; }
+.class-weapon img { width: 44px !important; height: 44px !important; }
+.class-detail-name { font-size: clamp(15px, 1.4vw, 20px) !important; }
+.class-detail-role { font-size: 10px !important; margin-bottom: 6px !important; }
+.class-skills-heading { margin-bottom: 3px; }
+.class-select-notice { display: none; }   /* o aviso já está no texto de baixo da tela */
 
 /* ===============================================================================================
    MOVIMENTO

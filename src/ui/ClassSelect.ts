@@ -51,10 +51,10 @@ const ART: Readonly<Record<PlayerClassId, ClassArt>> = {
     weaponIcon: '/ui/select/weapon-pistols.png',
     weaponName: 'PISTOLAS DUPLAS',
     skills: [
-      {name: 'LEQUE RICOCHETEANTE', text: 'MP I · salva que quica entre alvos.', icon: '/ui/select/skill-fan.png'},
-      {name: 'BARRAGEM COM MORTAL', text: 'MP II · mortal para trás disparando sem parar.', icon: '/ui/select/skill-barrage.png'},
-      {name: 'TEMPESTADE DA COLHEITA', text: 'MP III · mira sozinha e satura a área.', icon: '/ui/select/skill-storm.png'},
-      {name: 'COMBATE DESARMADO', text: 'V · golpes de perto, sem gastar munição.', icon: '/ui/select/skill-fist.png'},
+      {name: 'LEQUE RICOCHETEANTE', text: 'MP I · Dispara 10 tiros que quicam entre alvos e paredes.', icon: '/ui/select/skill-fan.png'},
+      {name: 'BARRAGEM COM MORTAL', text: 'MP II · Salto mortal para trás disparando sem parar. 48 tiros.', icon: '/ui/select/skill-barrage.png'},
+      {name: 'TEMPESTADE DA COLHEITA', text: 'MP III · Mira sozinha em até 60 m e satura a área por 3 s.', icon: '/ui/select/skill-storm.png'},
+      {name: 'COMBATE DESARMADO', text: 'V · Combo corpo a corpo. Não gasta munição.', icon: '/ui/select/skill-fist.png'},
     ],
   },
   soldier: {
@@ -62,10 +62,10 @@ const ART: Readonly<Record<PlayerClassId, ClassArt>> = {
     weaponIcon: '/ui/select/weapon-prism.png',
     weaponName: 'PRISM TRIFORME',
     skills: [
-      {name: 'TRÊS FORMAS', text: 'T · assalto, lança de íons e lança-granadas, cada uma com carregador próprio.', icon: '/ui/select/skill-triform.png'},
-      {name: 'TRANSFORMAR', text: 'Q nível I · troca de forma de graça.', icon: '/ui/select/skill-transform.png'},
-      {name: 'MP II e III', text: 'Habilidades DIFERENTES em cada forma, com munição e MP próprios.', icon: '/ui/select/skill-orbs.png'},
-      {name: 'MIRA APURADA', text: 'Botão direito · luneta na forma de precisão.', icon: '/ui/select/skill-scope.png'},
+      {name: 'PRISM TRIFORME', text: 'T · Alterna assalto, lança de íons e lança-granadas. Carregador próprio por forma.', icon: '/ui/select/skill-triform.png'},
+      {name: 'TRANSFORMAR', text: 'MP I · Troca de forma sem gastar carga.', icon: '/ui/select/skill-transform.png'},
+      {name: 'CARGA DE FORMA', text: 'MP II e III · Habilidade diferente em cada forma, com munição própria.', icon: '/ui/select/skill-orbs.png'},
+      {name: 'MIRA APURADA', text: 'Botão direito · Luneta com zoom na roda. Reduz dispersão.', icon: '/ui/select/skill-scope.png'},
     ],
   },
 };
