@@ -1,5 +1,11 @@
 node_modules/
 dist/
+# Saída do empacotamento: o bundle do Electron e o instalador (.exe, centenas de MB). Binário de
+# saída não entra no repositório — ele se refaz com `npm run app:build`.
+dist-electron/
+release/
+# O ícone é GERADO por electron/make-icon.mjs dentro do app:build — é saída, não fonte.
+electron/resources/
 .env
 .env.*
 !.env.example
