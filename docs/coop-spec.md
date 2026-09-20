@@ -640,3 +640,93 @@ reaparece.
 O teste que existe hoje prova contagem de abate e ausência de pagamento, mas **não** protege a
 guarda estrutural contra refatoração futura. Ele precisa de contadores explícitos: `presentDeath`,
 ragdoll, som de morte, VFX de morte e limpeza visual, todos exatamente **1**.
+
+## 21. ECONOMIA AUTORITATIVA — A SEGUNDA FRONTEIRA
+
+O §20 fechou uma fronteira. A auditoria do §20.21 revelou outra, do mesmo formato:
+
+```text
+COMBATE    estado replicado  ≠  verdade de combate
+ECONOMIA   saldo replicado   ≠  verdade econômica
+```
+
+Metade da arquitetura autoritativa **já existe**: o servidor calcula e publica o estado certo. O
+trabalho não é "fazer crédito aparecer" — é impedir que o cliente siga tratando seus objetos locais
+como fonte da verdade.
+
+### 21.1 A correção proibida
+
+Não resolva adotando o espelho e mantendo a mutação local:
+
+```ts
+run.credits = row.credits;            // adota
+...
+if (run.credits < cost) return;       // e então decide com ele
+run.credits -= cost;                  // e o muta
+```
+
+Isso conserta a carteira visualmente e cria um problema pior: o espelho vira **pré-condição** e
+depois é mutado localmente. É exatamente o defeito do §20.22, com saldo no lugar de `health.dead`.
+
+### 21.2 A separação
+
+```text
+Autoritativo (servidor)          Apresentação (cliente)
+credits, xp, level, stage        displayedCredits, displayedXp
+totalKills, purchases            displayedLevel, displayedKills
+rewards, progressão de estágio
+```
+
+### 21.3 Compra é protocolo, não checagem local
+
+`ChestPurchaseRequest { interactableId, playerId, requestId }`.
+
+O cliente pode exibir "custa 25" e até fazer UX otimista, mas `if (credits < cost) return;` **não é
+regra de protocolo**. Ele manda a tentativa. O servidor: validar jogador → validar baú → validar
+distância e estado → validar custo → debitar a carteira autoritativa → marcar o baú consumido →
+rolar a recompensa no domínio de RNG correto → publicar o resultado.
+
+### 21.4 Crédito, XP, nível e estágio são UM agregado
+
+`RunProgression:146` — `advanceStage()` converte crédito em XP e sobe o estágio. Logo os quatro não
+são campos independentes: tratá-los como quatro resolveria a carteira no bloco de economia e
+deixaria a progressão sendo derivada localmente.
+
+```text
+Nenhuma alteração em credits, xp, level ou stage
+pode nascer de estado replicado ou de código cliente.
+
+Cliente:  exibe, anima, prevê sem commit, envia intenção.
+Servidor: valida, debita, recompensa, converte, sobe nível e estágio, publica.
+```
+
+### 21.5 Ledger de economia — linha de base medida
+
+**48 mutações e chamadas econômicas em 14 arquivos** (contra 22 de vida):
+
+```text
+RunProgression 10 · MonsterDirector 8 · PlayerScene 6 · PlanetScene 5 · PlanetRun 4
+RunInteractables 2 · PlayerLoadout 2 · DestructionModel 2 · MPCharge 2 · FarmRoom 2
+EnemySimulation 2 · EnemySwarm 1 · index 1 · HarvestResonance 1
+```
+
+**Armadilha da contagem, registrada para ninguém "consertar" a coisa errada:** as 8 de
+`MonsterDirector` são `credits` do **orçamento de spawn do diretor**, não a carteira do jogador.
+Mesmo nome, agregado diferente, dono diferente. Um gate por regex as marcaria como violação.
+
+Como no §20.19, a entrega é o ledger com dono semântico por linha — `servidor permitido`,
+`apresentação`, `orçamento do diretor` ou `cliente — violação` — e o alvo é **zero decisão econômica
+fora do núcleo autoritativo**, não regex zerado.
+
+### 21.6 Os dois testes que cobrem metade da dívida
+
+**Caminho feliz.** Servidor com 100, espelho do cliente em 0. Replica 100 → cliente tenta comprar
+de 30 → pedido chega → servidor aceita e publica 70 → cliente converge para 70. Assertivas: o
+cliente **nunca** debitou autoridade localmente; exatamente **uma** compra; exatamente **uma**
+recompensa; saldo autoritativo final 70; saldo apresentado 70.
+
+**Caminho hostil — o equivalente econômico do espelho atrasado.** O cliente vê 100, o servidor já
+está em 20, o cliente tenta comprar de 30. O servidor rejeita: nenhum débito, nenhum item, e o
+cliente converge para 20.
+
+Espelho atrasado não autoriza ação. É a mesma frase do §20.22, com saldo no lugar de morte.
