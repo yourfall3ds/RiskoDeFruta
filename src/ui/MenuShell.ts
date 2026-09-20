@@ -103,7 +103,23 @@ export class MenuShell {
       ready.className='rdf-menu-primary rdf-menu-ready';
       ready.textContent='PRONTO';
       ready.onclick=event=>{this.disableLobby();realStart?.call(play,event);};
-      screen.append(this.heading('ESCOLHA SEU PERSONAGEM'),parts.classSelect,this.roster(),ready,this.back());
+      /**
+       * CONFIRMAR e VOLTAR ficam FORA do cartão, presos na tela.
+       *
+       * No Risk of Rain 2 essas duas ações são da TELA, não do painel: o confirmar embaixo ao
+       * centro, o voltar no canto inferior direito. Tentei ancorá-los por `position: fixed` de
+       * dentro do cartão e não funciona — a tela de menu acaba com um `transform` (a animação de
+       * entrada deixa uma matriz identidade cravada), e QUALQUER ancestral com transform vira
+       * bloco de contenção, fazendo o `fixed` se prender a ele em vez de à janela.
+       *
+       * Em vez de caçar transforms um a um, os botões saem do cartão no DOM e vão para uma barra
+       * que é filha direta do portão. Aí não existe ancestral para capturá-los.
+       */
+      const barra=document.createElement('div');
+      barra.className='rdf-action-bar';
+      barra.append(ready,this.back());
+      (card.parentElement??card).append(barra);
+      screen.append(this.heading('ESCOLHA SEU PERSONAGEM'),parts.classSelect,this.roster());
     }
 
     // ---- opções -----------------------------------------------------------------------------

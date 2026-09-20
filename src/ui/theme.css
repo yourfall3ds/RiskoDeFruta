@@ -2095,6 +2095,69 @@ body:has(#view) footer select {
 .class-skills-heading { margin-bottom: 3px; }
 .class-select-notice { display: none; }   /* o aviso já está no texto de baixo da tela */
 
+/* -----------------------------------------------------------------------------------------------
+   POSIÇÕES DO RoR2
+
+   Lá a tela de personagem não é uma coluna: o painel fica à esquerda, o elenco em cima dele, e as
+   duas ações globais ficam ANCORADAS na tela, não no painel — CONFIRMAR embaixo ao centro,
+   VOLTAR no canto inferior direito. Ancorar no portão (e não no cartão) é o que põe cada botão no
+   lugar certo independentemente da altura que o painel tiver.
+   ----------------------------------------------------------------------------------------------- */
+
+/* A TELA NÃO PODE TER `transform`.
+   A entrada usava `rdf-card-in`, que anima `transform`; com `animation-fill-mode: both` o valor
+   final fica cravado como matriz IDENTIDADE — que não é `none`, e portanto cria bloco de
+   contenção. Qualquer `position: fixed` aqui dentro passava a se ancorar na tela do menu em vez
+   da janela. A entrada da tela vira só opacidade; o deslocamento continua nas peças filhas, que
+   não contêm os botões ancorados. */
+.rdf-menu[data-screen] .rdf-screen { animation-name: rdf-fade-in !important; }
+@keyframes rdf-fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* E os dois botões ancorados saem da montagem escalonada: `rdf-piece-in` anima `transform` e
+   sobrescreveria o `translateX(-50%)` que centraliza o CONFIRMAR. */
+.rdf-menu-back,
+.rdf-menu-ready { animation: none !important; }
+
+/* A barra de ações é filha direta do portão, então basta posicionamento absoluto comum: o portão
+   já cobre a janela inteira (`position:absolute; inset:0`). */
+.rdf-action-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: clamp(16px, 2.5vh, 32px);
+  z-index: 5;
+  display: none;
+  align-items: center;
+  padding: 0 clamp(16px, 2.5vw, 40px);
+  pointer-events: none;
+}
+/* Só aparece na tela de personagem — nas outras as ações continuam na pilha do painel. */
+.play-gate:has(.rdf-menu[data-screen="personagem"]) .rdf-action-bar { display: flex; }
+.rdf-action-bar > * { pointer-events: auto; }
+/* CONFIRMAR centralizado na janela; VOLTAR colado na direita. */
+.rdf-action-bar .rdf-menu-ready {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: clamp(240px, 22vw, 330px) !important;
+  margin: 0 !important;
+}
+.rdf-action-bar .rdf-menu-back {
+  margin: 0 0 0 auto !important;
+  width: 168px !important;
+}
+/* Com as duas ações ancoradas na tela, o painel para de reservar espaço para elas.
+   E o `backdrop-filter` SAI daqui: um elemento com filtro de fundo vira bloco de contenção, e
+   qualquer `position: fixed` descendente passa a se ancorar NELE em vez de na janela. Era isso
+   que jogava o VOLTAR para dentro do cartão em vez do canto da tela. */
+.play-gate:has(.rdf-menu[data-screen="personagem"]) .gate-card {
+  padding-bottom: 12px !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  filter: none !important;
+  transform: none !important;
+}
+
 /* ===============================================================================================
    MOVIMENTO
    =============================================================================================== */
