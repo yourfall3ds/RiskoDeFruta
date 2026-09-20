@@ -190,7 +190,10 @@ export class RunInteractables {
     this.props.clear();
     for(const entry of this.entries){
       if(!entry.up)continue;
-      const half=entry.kind==='altar'?{x:.6,y:.5,z:.6}:{x:.53,y:.34,z:.43};
+      // Meias-medidas do colisor, casadas com a MALHA de cada um. O altar cresceu quando o barril
+      // virou obelisco (1,90 × 1,36 × 1,89 m): mantido o colisor antigo de 1,2 m, o jogador
+      // atravessaria as bordas do modelo — corpo visível sem corpo sólido é o pior dos dois mundos.
+      const half=entry.kind==='altar'?{x:.95,y:.68,z:.95}:{x:.53,y:.34,z:.43};
       const basis=this.surface.basis({x:entry.x,y:entry.y,z:entry.z},{x:0,y:0,z:1});
       this.props.add({
         id:`chest-body-${entry.id}`,
@@ -277,7 +280,15 @@ export class RunInteractables {
 
   async load(scene:Scene):Promise<void>{try{
     const crate=await LoadAssetContainerAsync('/models/interactive-chest.glb',scene);if(this.disposed){crate.dispose();return;}this.container=crate;
-    const altar=await LoadAssetContainerAsync('/models/farm-barrels.glb',scene);if(this.disposed){altar.dispose();return;}this.altarContainer=altar;
+    /**
+     * O altar tem CORPO próprio.
+     *
+     * Antes ele instanciava `farm-barrels.glb`, que contém um único nó — um barril de madeira. O
+     * interativo que cobra a oferta e sobe de preço aparecia como um barril igual aos de cenário,
+     * ou como nada, e o jogador não tinha como saber o que estava pagando. O obelisco de runas é
+     * a silhueta que diz "isto é um altar" à distância.
+     */
+    const altar=await LoadAssetContainerAsync('/models/altar-rune-prism.glb',scene);if(this.disposed){altar.dispose();return;}this.altarContainer=altar;
     this.offering=new StandardMaterial('offering-energy',scene);this.offering.emissiveColor=new Color3(.44,.08,.75);this.offering.disableLighting=true;
     this.buildRoots();this.ready=true;
   }catch(error){this.error=String(error);}}

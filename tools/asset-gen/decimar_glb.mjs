@@ -24,7 +24,8 @@
  */
 import {NodeIO} from '@gltf-transform/core';
 import {ALL_EXTENSIONS} from '@gltf-transform/extensions';
-import {dedup, weld, simplify, prune} from '@gltf-transform/functions';
+import {dedup, weld, simplify, prune, textureCompress} from '@gltf-transform/functions';
+import sharp from 'sharp';
 import {MeshoptSimplifier} from 'meshoptimizer';
 
 /** Orçamento padrão: o mesmo de um prop deste projeto. */
@@ -37,6 +38,15 @@ const TRIS_PADRAO = 15000;
  * mantém o MENOR erro que resolve, em vez de partir logo do mais destrutivo.
  */
 const ESCADA = [0.005, 0.02, 0.05, 0.1, 0.25, 0.5, 0.8];
+
+/**
+ * LIMITE MEDIDO: o alvo nem sempre é alcançável.
+ *
+ * Uma malha cujo detalhe É a geometria inteira — uma espiga com cada grão modelado — não tem
+ * superfície plana para colapsar. Pedindo 1.200 triângulos ela estaciona em 11.150, e subir a
+ * tolerância além de 0,8 (testado até 3) não muda nada: o simplificador recusa todo colapso
+ * restante. Quem chamar precisa conferir o número de saída em vez de confiar no alvo.
+ */
 
 const argumento = (nome, padrao) => {
   const i = process.argv.indexOf('--' + nome);
@@ -111,6 +121,8 @@ if (!entrada || !saida) {
   process.exit(2);
 }
 const alvo = argumento('tris', TRIS_PADRAO);
+/** Lado da textura reamostrada, em pixels. 0 desliga a compressao. */
+const textura = argumento('tex', 1024);
 
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
 const documento = await io.read(entrada);
@@ -139,6 +151,19 @@ for (const erro of ESCADA) {
     // `lockBorder` preso manteria a borda de cada parte intacta e impediria o alvo de ser
     // alcançado numa malha que é quase toda borda.
     lockBorder: false,
+  }));
+}
+
+/**
+ * Texturas: reamostra para o orcamento e converte para WebP.
+ *
+ * Decimar geometria nao encolhe arquivo quando a textura e quem pesa: o obelisco caiu de 777 mil
+ * para 12 mil triangulos e continuou com 28 MB, porque tres PNGs de 4K viajavam junto. Sem esta
+ * passada a decimacao entrega uma malha de jogo dentro de um arquivo que nenhum jogo carrega.
+ */
+if (textura > 0 && documento.getRoot().listTextures().length > 0) {
+  await documento.transform(textureCompress({
+    encoder: sharp, targetFormat: 'webp', resize: [textura, textura], resizeFilter: 'lanczos3',
   }));
 }
 

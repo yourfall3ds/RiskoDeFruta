@@ -16,7 +16,15 @@ import {radialSurfaceOf,type EnemySurface} from '../enemies/EnemySpace';
  * em rede não resolve nenhum deles — ele recebe o resultado.
  */
 
-export interface ProjectileImpact {zone?:'fire'|'acid';summon?:EnemyKind;seed?:boolean}
+export interface ProjectileImpact {zone?:'fire'|'acid';summon?:EnemyKind;seed?:boolean;
+  /**
+   * O projétil é uma ESPIGA arremessada, não um grão.
+   *
+   * Só apresentação: muda a malha e o tamanho desenhados. Dano, gravidade, raio de contato e
+   * colisão continuam vindo dos mesmos campos de `projectile` — a espiga não é um caminho novo
+   * de física, é o grão de sempre com outro corpo.
+   */
+  cob?:boolean}
 
 /** Mesmos campos de `GroundWarning`, menos `mesh`/`circle`. `stretch` só vale para faixas. */
 export interface FieldWarning {
@@ -42,7 +50,13 @@ export interface EffectsSink {
   warning(position:Vec3,radius:number,seconds:number,damage:number,owner:number,kind?:string):{pulses:number}|undefined;
   cone(from:Vec3,to:Vec3,radius:number,seconds:number,owner:number):void;
   line(from:Vec3,to:Vec3,width:number,seconds:number,owner:number,kind?:'band'|'aim'):void;
-  projectile(origin:Vec3,target:Vec3,speed:number,damage:number,owner:number,gravity?:number,impact?:ProjectileImpact,delay?:number):void;
+  /**
+   * `preAimed`: a direcao recebida JA e a solucao do arco, entao nao acrescente elevacao.
+   *
+   * Sem isto, quem resolve a balistica por fora (o arremesso do milho) leva a elevacao duas vezes
+   * e o projetil passa por cima do alvo. Quem mira reto continua sem passar nada.
+   */
+  projectile(origin:Vec3,target:Vec3,speed:number,damage:number,owner:number,gravity?:number,impact?:ProjectileImpact,delay?:number,preAimed?:boolean):void;
   burst(position:Vec3,color?:'energy'|'juice'|'seed'|'soil',scale?:number):void;
 }
 
@@ -98,15 +112,17 @@ export class CombatField implements EffectsSink {
     Object.assign(w,{active:true,position:{x:(from.x+to.x)/2,y:(from.y+to.y)/2,z:(from.z+to.z)/2},radius:width,remaining:seconds,duration:seconds,damage:0,owner,kind,pulses:0,stretch:length});
   }
 
-  projectile(origin:Vec3,target:Vec3,speed:number,damage:number,owner:number,gravity=0,impact?:ProjectileImpact,delay=0):void {
+  projectile(origin:Vec3,target:Vec3,speed:number,damage:number,owner:number,gravity=0,impact?:ProjectileImpact,delay=0,preAimed=false):void {
     const p=this.projectiles.find(x=>!x.active);
     if(!p)return;
     p.active=true;p.remaining=6;p.damage=damage;p.owner=owner;p.gravity=gravity;p.impact=impact;p.delay=delay;
     p.radius=impact?.zone==='fire'?.3:impact?.seed?.12:.18;
     p.position.copyFromFloats(origin.x,origin.y,origin.z);
     p.velocity.copyFromFloats(target.x-origin.x,target.y-origin.y,target.z-origin.z).normalize().scaleInPlace(speed);
-    // Mesma elevação balística da apresentação, pela vertical LOCAL da origem.
-    if(gravity){
+    // Mesma elevação balística da apresentação, pela vertical LOCAL da origem — e a MESMA dispensa
+    // por `preAimed`. Se só um dos dois lados honrasse a bandeira, servidor e cliente desenhariam
+    // trajetórias diferentes para o mesmo tiro, que é o pior defeito possível num jogo em rede.
+    if(gravity&&!preAimed){
       const lead=this.span(origin,target)/speed*gravity*.5,up=this.surface?.up(origin);
       if(up)p.velocity.addInPlaceFromFloats(up.x*lead,up.y*lead,up.z*lead);
       else p.velocity.y+=lead;

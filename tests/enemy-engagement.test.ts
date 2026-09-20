@@ -70,7 +70,9 @@ const CASES:readonly Case[]=[
   {name:'melancia rola',kind:'watermelon',attack:1,from:16,frames:140},
   {name:'melancia cospe',kind:'watermelon',attack:2,from:16,frames:220},
   {name:'melancia morde',kind:'watermelon',attack:3,from:16,frames:160},
-  {name:'milho metralha',kind:'corn',attack:1,from:26,frames:320},
+  // O milho ARREMESSA uma espiga em parábola: o voo é longo de propósito (é o tempo de o jogador
+  // ver o círculo e sair de baixo), então o impacto chega bem depois do que chegava a metralha.
+  {name:'milho arremessa a espiga',kind:'corn',attack:1,from:26,frames:520},
   {name:'tomate bombardeia',kind:'tomato',attack:1,from:24,frames:320},
   {name:'cenoura dispara o feixe',kind:'carrot',attack:1,from:22,frames:120},
   {name:'chefe varre',kind:'boss',attack:4,from:16,frames:140},

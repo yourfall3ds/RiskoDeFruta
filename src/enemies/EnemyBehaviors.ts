@@ -3,6 +3,7 @@ import type { Vec3 } from '../core/contracts';
 import { ENEMIES,type EnemyKind } from '../run/MonsterDirector';
 import type { EffectsSink } from '../vfx/CombatField';
 import type { EnemySpace,Heading } from './EnemySpace';
+import { ballisticLob } from './BallisticLob';
 
 export interface AttackingEnemy {id:number;attack:number;locked:Vec3;direction:Heading;root:{position:Vec3};time:number}
 /**
@@ -87,6 +88,21 @@ const bite=(c:AttackContext,range:number,damage:number,name:string)=>{if(distanc
 const contactWidth=(kind:EnemyKind)=>(ENEMIES[kind].radius+.55)*2;
 /** Decisão travada no alvo do windup, para aviso e execução escolherem sempre o mesmo ramo. */
 const lunges=(a:AttackingEnemy,range:number,space?:EnemySpace)=>distance(a.root.position,a.locked,space)>range;
+/**
+ * O arremesso do artilheiro, em números.
+ *
+ * `speed` e `gravity` juntos definem o ARCO: mais gravidade com a mesma velocidade sobe mais e
+ * chega mais rápido; mais velocidade estica o alcance e achata a curva. Estes dois fecham o arco em
+ * cima do jogador dentro dos 17 m de alcance da espécie, com voo de pouco mais de um segundo —
+ * tempo de ver o círculo no chão e sair de baixo, que é o ponto do golpe.
+ */
+export const CORN_LOB={
+  speed:16,
+  gravity:14,
+  damage:16,
+  /** Raio do círculo de aviso no chão, em metros. */
+  blastRadius:2.1,
+} as const;
 const AIM:TelegraphPlan={shape:'aim',width:.6,length:3.2};
 const NONE:TelegraphPlan={shape:'none'};
 
@@ -100,11 +116,50 @@ export const ENEMY_BEHAVIORS:Record<EnemyKind,EnemyBehavior>={
     // Investida pura: o corpo só compromete de onde o impulso ainda chega ao alvo.
     engage:()=>rushImpulse('eggplant')*MELEE_COMMIT,
     perform:c=>{if(lunges(c.actor,BITE.eggplant.lunge,c.space))aimRush(c.actor,0,c.space);else bite(c,BITE.eggplant.reach,16,'eggplant_bite');}},
-  corn:{windup:1.05,ranged:true,contactDamage:0,recoverySpeed:stop,telegraph:()=>AIM,
-    // Tiro reto sem queda (gravidade 0): o alcance de catálogo é o alcance real da salva.
+  corn:{windup:1.05,ranged:true,contactDamage:0,recoverySpeed:stop,
+    /**
+     * Continua sendo aviso de DIREÇÃO, não círculo de área.
+     *
+     * O arco pede um marcador no chão, e foi a primeira coisa que tentei — mas círculo neste jogo
+     * significa "aqui existe zona de dano real" (fogo, ácido, raízes), e a espiga machuca por
+     * CONTATO, sem deixar nada no solo. Pintar um círculo prometeria uma área que não existe, e o
+     * jogador aprenderia a regra errada sobre todos os outros círculos. A regra vale mais que o
+     * marcador: quem quiser o círculo primeiro tem de dar uma zona de verdade ao impacto.
+     */
+    telegraph:()=>AIM,
     engage:()=>ENEMIES.corn.range,
-    perform:c=>{const a=c.actor,o=origin(a,1.3,c.space),t=target(a,c.space),count=a.attack%2?3:5;
-      for(let i=0;i<count;i++){const angle=count===3?0:(i-2)*.12;c.effects.projectile(o,spread(o,t,angle,c.space),9+i*.7,11,a.id,0,undefined,count===3?i*.16:0);}}},
+    /**
+     * O artilheiro ARREMESSA uma espiga em parábola.
+     *
+     * Antes eram três a cinco grãos em tiro RETO com gravidade zero — leitura idêntica à de uma
+     * arma de fogo, e nada que se pudesse esquivar andando. Agora é um único projétil pesado num
+     * arco alto: ele sobe, passa por cima da cobertura e desce na cabeça do jogador, e o tempo de
+     * voo é o que dá a chance de sair de baixo.
+     *
+     * `ballisticLob` resolve o ângulo; `interceptPoint` mira onde o jogador ESTARÁ, senão um arco
+     * longo erra todo alvo que anda de lado. Como `effects.projectile` normaliza `alvo − origem`
+     * para achar a velocidade, o que se passa a ele é um ponto SOBRE a direção resolvida — não o
+     * alvo, que faria o projétil apontar reto e cair curto.
+     */
+    perform:c=>{
+      const a=c.actor,o=origin(a,1.3,c.space),t=target(a,c.space);
+      const up=c.space?vec(c.space.upInto(o,rush)):{x:0,y:1,z:0};
+      // Mira no alvo TRAVADO no windup, sem antecipação: o contexto de comportamento não conhece a
+      // velocidade do jogador, e chutar um vetor aqui (o rumo do próprio milho, por exemplo)
+      // desloca o arco metros para o lado e faz a espiga cair sempre ao largo. Quem quiser
+      // antecipar precisa passar a velocidade real do alvo — `interceptPoint` está pronto para isso.
+      const arco=ballisticLob(o,t,CORN_LOB.speed,CORN_LOB.gravity,up);
+      const aim={x:o.x+arco.direction.x*10,y:o.y+arco.direction.y*10,z:o.z+arco.direction.z*10};
+      /**
+       * `preAimed` é o que impede a elevação DOBRADA.
+       *
+       * Quando recebe gravidade, `projectile` soma por conta própria uma elevação balística
+       * (`span/speed*gravity*.5`) à direção recebida — correção pensada para quem mira RETO no
+       * alvo, como o ácido do chefe. Aqui a direção já é a solução do arco, e somar de novo joga a
+       * espiga muito acima da cabeça. As duas contas estão certas isoladas; juntas, erram.
+       */
+      c.effects.projectile(o,aim,CORN_LOB.speed,CORN_LOB.damage,a.id,CORN_LOB.gravity,{cob:true},0,true);
+    }},
   watermelon:{windup:1.05,contactDamage:26,recoverySpeed:a=>a.attack%3===1&&a.time<RUSH.watermelon.duration?RUSH.watermelon.speed:0,
     telegraph:(a,space)=>a.attack%3===1||(a.attack%3===0&&lunges(a,BITE.watermelon.lunge,space))?{shape:'band',width:contactWidth('watermelon'),reach:rushImpulse('watermelon')}:a.attack%3===2?AIM:NONE,
     // Rotação de três: só a cusparada é de longe; rolamento e mordida são o impulso comprometido.
@@ -128,15 +183,6 @@ export const ENEMY_BEHAVIORS:Record<EnemyKind,EnemyBehavior>={
     perform:c=>BOSS_ATTACKS[c.actor.attack%5]!(c)},
   ...saucerBehaviours(),
 };
-
-/** Um tiro do leque: o alvo girado de `angle` em torno da vertical local da origem. */
-function spread(o:Vec3,t:Vec3,angle:number,space?:EnemySpace):Vec3 {
-  const dx=t.x-o.x,dy=t.y-o.y,dz=t.z-o.z;
-  if(!space)return{x:o.x+dx*Math.cos(angle)-dz*Math.sin(angle),y:t.y,z:o.z+dx*Math.sin(angle)+dz*Math.cos(angle)};
-  const spun={x:dx,y:dy,z:dz};
-  space.rotateHeading(o,spun,angle);
-  return{x:o.x+spun.x,y:o.y+(spun.y??0),z:o.z+spun.z};
-}
 
 /** Ponto deslocado `right`/`forward` metros no plano tangente de `centre`. */
 function offset(centre:Vec3,right:number,forward:number,space?:EnemySpace):Vec3 {

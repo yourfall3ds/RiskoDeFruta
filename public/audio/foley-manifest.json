@@ -285,5 +285,8 @@
   ],
   "player-hit": [
     "/audio/combat/punch-hit.wav"
+  ],
+  "player-fall": [
+    "/audio/foley/player-fall-impact.wav"
   ]
 }

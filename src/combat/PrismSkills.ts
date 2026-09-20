@@ -96,6 +96,16 @@ export interface PrismSkillPlan {
    * incendiária faz os dois; um míssil faz só o segundo.
    */
   readonly groundFire: boolean;
+  /**
+   * A capsula POUSA e vira mina em vez de detonar no contato.
+   *
+   * Só o CAMPO MINADO usa. Ver `MINE` em `PrismGrenades` para raio de gatilho e tempo de espera.
+   */
+  readonly mine?: boolean;
+  /**
+   * Desenhar a capsula com o corpo do MISSIL. So apresentacao.
+   */
+  readonly missile?: boolean;
   /** Linha curta do painel de arma. */
   readonly hint: string;
 }
@@ -179,24 +189,40 @@ const SNIPER_III = plan({
 });
 
 const GRENADE_II = plan({
-  id: 'prism_grenade_fan', name: 'LEQUE DE CÁPSULAS', mode: 2, tier: 2, kind: 'fan',
-  ammoCost: 3, ammoRequired: 3, shots: 3, interval: 0, damageScale: 1,
-  spreadDegrees: 0, pierce: false, forceScale: 1, impulseScale: 1.4,
-  seconds: 0, rateScale: 1, fanDegrees: 16,
-  blastRadiusScale: 1, blastDamageScale: 1, incendiary: false,
+  id: 'prism_grenade_mines', name: 'CAMPO MINADO', mode: 2, tier: 2, kind: 'fan',
+  // Quatro cápsulas, abaixo do teto de oito vivas: sobra espaço para o disparo comum conviver com
+  // o campo montado, em vez de a mina mais velha estourar sozinha só para abrir vaga.
+  ammoCost: 4, ammoRequired: 4, shots: 4, interval: 0, damageScale: 1,
+  spreadDegrees: 0, pierce: false, forceScale: 1.6, impulseScale: 1.2,
+  seconds: 0, rateScale: 1, fanDegrees: 34,
+  blastRadiusScale: 1, blastDamageScale: 1.35, incendiary: false,
   chargeSeconds: 0, markRadius: 0, groundFire: false,
-  hint: 'Q II · LEQUE DE 3 CÁPSULAS',
+  // A cápsula POUSA e espera. Ver `MINE` em `PrismGrenades` para o raio de gatilho e a espera.
+  mine: true,
+  hint: 'Q II · CAMPO MINADO · 4 MINAS',
 });
 
 const GRENADE_III = plan({
-  id: 'prism_grenade_incendiary', name: 'SALVA INCENDIÁRIA', mode: 2, tier: 3, kind: 'fan',
-  // Cinco cápsulas: o carregador inteiro da forma, e ainda abaixo do teto de cápsulas vivas.
-  ammoCost: 5, ammoRequired: 5, shots: 5, interval: .04, damageScale: 1.2,
-  spreadDegrees: 0, pierce: false, forceScale: 1.2, impulseScale: 1.8,
-  seconds: 0, rateScale: 1, fanDegrees: 26,
-  blastRadiusScale: PRISM_SKILL_BLAST_CAP, blastDamageScale: 1.5, incendiary: true,
+  id: 'prism_grenade_warhead', name: 'OGIVA', mode: 2, tier: 3, kind: 'fan',
+  // UMA cápsula, não cinco. A promessa aqui é PESO, não cobertura: tudo o que a salva espalhava em
+  // leque vai para uma ogiva só, e é isso que justifica gastar o carregador inteiro num tiro.
+  ammoCost: 5, ammoRequired: 5, shots: 1, interval: 0, damageScale: 3,
+  spreadDegrees: 0, pierce: false,
+  /**
+   * Cem vezes a força do estilhaço comum.
+   *
+   * Limite honesto: o empurrão no corpo ainda passa pelo teto de `enemyImpact` (26, dividido pela
+   * resistência do afixo). Na prática, então, `100` significa "satura o teto em qualquer alvo, a
+   * qualquer distância dentro do raio" — nenhum hostil sobrevive de pé. É a leitura certa de um
+   * golpe que arremessa tudo, e não um número que cresce indefinidamente.
+   */
+  forceScale: 100, impulseScale: 3,
+  seconds: 0, rateScale: 1, fanDegrees: 0,
+  blastRadiusScale: PRISM_SKILL_BLAST_CAP, blastDamageScale: 4, incendiary: false,
   chargeSeconds: 0, markRadius: 0, groundFire: true,
-  hint: 'Q III · SALVA INCENDIÁRIA · 5 CÁPSULAS',
+  // Corpo de míssil: a ogiva tem de ser reconhecível em voo, não mais uma cápsula entre as outras.
+  missile: true,
+  hint: 'Q III · OGIVA · IMPACTO MÁXIMO',
 });
 
 export const PRISM_SKILLS: Readonly<Record<PrismMode, Readonly<Record<PrismSkillTier, PrismSkillPlan>>>> = {

@@ -409,15 +409,27 @@ describe('lança-granadas · II leque de cápsulas',()=>{
     // Simétrico em torno da mira: a soma dos extremos se cancela.
     expect(Math.max(...spread)+Math.min(...spread)).toBeCloseTo(0,4);
   });
-  it('cada cápsula do leque explode de verdade, com os números normais da granada',()=>{
+  it('as cápsulas POUSAM armadas em vez de explodir no contato',()=>{
+    // É o contrato do campo minado: o que antes era uma explosão no impacto agora é uma espera.
     const {weapon,services}=fixture({wallZ:9,mode:2});
     const plan=PRISM_SKILLS[2][2];
     weapon.releaseSkill(2);
     tick(weapon,120);
-    expect(weapon.grenades.count).toBe(0);
-    expect(weapon.blasts).toBe(plan.shots);
-    expect(services.scenery).toHaveLength(plan.shots);
-    expect(services.scenery[0]!.damage).toBeCloseTo(PRISM_GRENADE.sceneryDamage,6);
+    expect(weapon.grenades.count,'as quatro continuam de pé').toBe(plan.shots);
+    expect(weapon.grenades.live.every(g=>g.armed),'todas armadas').toBe(true);
+    expect(weapon.blasts,'nenhuma explodiu ainda').toBe(0);
+    expect(services.scenery,'e o cenário não levou dano nenhum').toHaveLength(0);
+  });
+  it('a mina estoura quando um hostil chega perto',()=>{
+    const {weapon,services}=fixture({wallZ:9,mode:2});
+    weapon.releaseSkill(2);
+    tick(weapon,120);
+    expect(weapon.blasts).toBe(0);
+    // Um hostil em cima de onde as minas pousaram.
+    const onde=weapon.grenades.live[0]!.position;
+    services.targets.push(actor(21,new Vector3(onde.x,onde.y,onde.z)));
+    tick(weapon,10);
+    expect(weapon.blasts,'pisou, estourou').toBeGreaterThan(0);
   });
 });
 
@@ -454,10 +466,21 @@ describe('lança-granadas · III salva incendiária',()=>{
     expect(blast.baseDamage).toBeLessThan(PRISM_GRENADE.blastDamage*PRISM_SKILLS[2][3].blastDamageScale);
     expect(blast.baseDamage).toBeGreaterThan(0);
   });
-  it('acende o alvo: o dano sai etiquetado para o receptor aplicar a queimadura',()=>{
+  it('arremessa com CEM vezes a força do estilhaço comum',()=>{
+    // A promessa da ogiva é impacto, não fogo: ela deixou de incendiar e passou a atirar longe.
+    const {near}=volley('skill');
+    const daOgiva=near.damage.find(c=>c.attackId.endsWith('_blast'))!;
+    expect(daOgiva).toBeDefined();
+    // Contra a CONSTANTE, não contra outro disparo: o estilhaço comum não alcança este alvo, e é
+    // justamente isso que a ogiva muda. `blastForce` é o empurrão sem escala, no centro da explosão;
+    // mesmo com a queda pela distância, cem vezes disso não se confunde com o normal.
+    expect(daOgiva.forceMagnitude).toBeGreaterThan(PRISM_GRENADE.blastForce*10);
+    // Já não incendeia: a queimadura era da salva que a ogiva substituiu.
+    expect(daOgiva.damageTags).not.toContain(INCENDIARY_TAG);
+  });
+  it('o estilhaço continua sem ponto fraco e sem MP',()=>{
     const {near}=volley('skill');
     expect(near.damage.length).toBeGreaterThan(0);
-    for(const context of near.damage)expect(context.damageTags).toContain(INCENDIARY_TAG);
     const direct=near.damage.find(context=>context.attackId===PRISM_SKILLS[2][3].id)!;
     expect(direct).toBeDefined();
     expect(direct.damageTags).toContain('bullet');
