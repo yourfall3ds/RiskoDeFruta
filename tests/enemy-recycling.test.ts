@@ -277,6 +277,56 @@ describe('as espécies do disco voador fogem em vez de serem recicladas',()=>{
     }finally{t.close();}
   });
 
+  /**
+   * O teto de população é orçamento de DESEMPENHO, e estava comendo o evento autorado.
+   *
+   * Aposentar um corpo da represália o some em silêncio — sem morte, sem `onSaucerDeparted` — e a
+   * contagem da onda nunca fecha: o disco fica preso em `onda-ativa` para sempre e o item raro
+   * vira inalcançável. Recusar o nascimento no teto dá exatamente o mesmo resultado, pelo outro
+   * lado: o feixe já desceu e o corpo simplesmente não aparece.
+   */
+  it('abrir espaço no teto sacrifica o corpo comum, nunca o da represália',async()=>{
+    const t=await setup();
+    try{
+      // O alien é, de LONGE, o corpo mais distante do jogador: pela regra de distância pura ele
+      // seria o primeiro a ser aposentado, e é exatamente isso que não pode acontecer.
+      expect(t.swarm.spawn('grey',{x:0,y:0,z:40},'normal')).toBe(true);
+      // Os dois acima de RETIREMENT_DISTANCE (18 m) e abaixo de SAUCER_FLEE_DISTANCE (46 m): os
+      // dois são aposentáveis por orçamento e o alien ainda não tem motivo para fugir.
+      expect(t.swarm.spawn('eggplant',{x:0,y:0,z:25},'normal')).toBe(true);
+      const alien=t.swarm.actors.find(a=>a.kind==='grey')!;
+      const common=t.swarm.actors.find(a=>a.kind==='eggplant')!;
+
+      // Quadro pesado: o orçamento encolhe o teto abaixo da população e a aposentadoria dispara.
+      // `budget.limit` é o número que `updateBudget` copia para `populationCap` todo quadro — por
+      // isso escrever em `populationCap` direto não testaria nada, seria sobrescrito na hora.
+      t.swarm.budget.limit=1;
+      t.swarm.director.stopped=true;
+      t.swarm.updateBudget(1/60,FRAME);
+
+      expect(alien.active,'o alien continua em campo').toBe(true);
+      expect(common.active,'o corpo comum é que cedeu a vaga').toBe(false);
+    }finally{t.close();}
+  });
+
+  it('no teto estourado o despejo do disco nasce mesmo assim, em vez de sumir em silêncio',async()=>{
+    const t=await setup();
+    try{
+      // Campo lotado só com corpos da represália: não há ninguém aposentável para abrir espaço.
+      for(const kind of ['grey','invader'] as const)
+        expect(t.swarm.spawn(kind,{x:0,y:0,z:6},'normal')).toBe(true);
+      t.swarm.populationCap=1;
+
+      // O feixe está descendo o terceiro corpo: ele TEM de nascer.
+      expect(t.swarm.spawn('demon',{x:2,y:0,z:6},'normal')).toBe(true);
+      expect(t.swarm.lastSpawnedId).toBeGreaterThanOrEqual(0);
+      expect(t.swarm.count).toBe(3);
+
+      // E o corpo comum continua respeitando o teto: a isenção é só do evento autorado.
+      expect(t.swarm.spawn('eggplant',{x:0,y:0,z:6},'normal')).toBe(false);
+    }finally{t.close();}
+  });
+
   it('perto do jogador o alien continua caçando, sem fugir de nada',async()=>{
     const t=await setup();
     try{

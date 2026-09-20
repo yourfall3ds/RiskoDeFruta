@@ -256,7 +256,11 @@ export class EnemySwarm {
     // `-1` quando não há distância mínima: um ator exatamente em cima do jogador continua elegível.
     let pick:Actor|undefined,best=minimum>0?minimum*minimum:-1;
     for(const a of this.actors){
-      if(!a.active||a.health.dead||a.kind==='boss')continue;
+      // O chefe nunca é aposentado, e os corpos da represália alienígena também não: são um evento
+      // AUTORADO, não população de preenchimento. Aposentar um deles some com ele em silêncio —
+      // sem morte, sem `onSaucerDeparted` — e a contagem da onda nunca fecharia, deixando o disco
+      // preso em `onda-ativa` para sempre e o item raro inalcançável.
+      if(!a.active||a.health.dead||a.kind==='boss'||isSaucerSpecies(a.kind))continue;
       const d=this.distanceSquared(a.root.position,this.player.position);
       if(d>best){best=d;pick=a;}
     }
@@ -389,8 +393,19 @@ export class EnemySwarm {
   spawn(kind:EnemyKind,position?:Vec3,variant:EnemyVariant=kind==='boss'?'normal':chooseVariant(this.rng.stream('elite').next(),this.director.time)):boolean {
     this.lastSpawnedId=-1;
     if(kind==='boss'&&this.boss&&!this.boss.health.dead)return true;
-    if(!this.ready||(this.count>=this.populationCap&&kind!=='boss'))return false;const at=position??this.spawnPosition();if(!at)return false;
-    if(this.count>=this.populationCap){const retired=this.farthestRetirable(0);if(!retired)return false;this.retire(retired);}
+    /**
+     * O teto de população é um ORÇAMENTO DE DESEMPENHO, não regra de jogo. O chefe sempre nasce, e
+     * os corpos da represália também: o feixe já desceu, o `SaucerRaid` já descontou o despejo e o
+     * jogador está vendo a cápsula pousar. Recusar o nascimento aqui perderia o corpo em silêncio e
+     * a onda nunca fecharia — no pior caso os dez falhariam e o evento ficaria preso sem item.
+     * São no máximo onze corpos autorados por investida, e eles são o evento inteiro.
+     */
+    const exempt=kind==='boss'||isSaucerSpecies(kind);
+    if(!this.ready||(this.count>=this.populationCap&&!exempt))return false;const at=position??this.spawnPosition();if(!at)return false;
+    // Isento no teto: abre espaço aposentando o corpo comum mais distante, como o chefe sempre fez.
+    // A diferença é o caso em que NÃO há ninguém aposentável (só corpos da represália em campo):
+    // antes isso recusava o nascimento, e agora o corpo autorado nasce mesmo assim.
+    if(this.count>=this.populationCap){const retired=this.farthestRetirable(0);if(retired)this.retire(retired);else if(!exempt)return false;}
     const definition=ENEMIES[kind],affix=ENEMY_AFFIXES[variant];let actor=this.actors.find(a=>!a.active&&a.kind===kind);
     if(!actor){const container=this.containers.get(definition.model);if(!container)return false;
       const root=new TransformNode(`enemy-${this.nextId}`,this.scene),visual=new TransformNode(`enemy-visual-${this.nextId}`,this.scene);visual.parent=root;
