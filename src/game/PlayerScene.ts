@@ -1,5 +1,6 @@
 import {ExplorationMap} from '../ui/ExplorationMap';
 import {usePlanetWorld} from '../world/WorldSelection';
+import {track,beginTask,endTask,describePending,resetLoadTrace,registerTask,loadProgress,hangReport,pendingTasks} from '../core/LoadTrace';
 import {reloadMovement} from '../player/ReloadMovement';
 import {meleeMovement} from '../combat/MeleeMovement';
 import {extractionPresentation} from '../stages/ExtractionPresentation';
@@ -501,7 +502,19 @@ export class PlayerScene implements SceneModule {
 
     traceBoot(this.radial?'cena:construtor radial':'cena:construtor plano');
     const worldStarted=performance.now();
-    if(planetWorld)void planetWorld.load().then(async()=>{
+    // O rastro da carga começa AQUI, não no módulo: cada cena tem o seu, e a troca planeta→fazenda
+    // não pode herdar as pendências da cena anterior. Ver `core/LoadTrace`.
+    resetLoadTrace();
+    describePending(()=>this.sceneReadinessReport());
+    // O DENOMINADOR INTEIRO, ANTES DE QUALQUER TRABALHO COMEÇAR.
+    //
+    // É isto que impede a barra de mentir. Enquanto o conjunto de tarefas era descoberto ao longo da
+    // carga, o mostrador chegava perto do fim com trabalho ainda desconhecido pela frente e ficava
+    // preso ali. Aqui todas as tarefas desta cena são anunciadas de uma vez, com PESO — a duração
+    // típica em segundos, medida no navegador, não estimada. Sem peso, um GLB de 25 s e uma esfera
+    // de 40 ms movem a barra a mesma coisa.
+    for(const [name,weight] of LOAD_WEIGHTS(this.radial,training))registerTask(name,weight);
+    if(planetWorld)void track('planet.world',planetWorld.load(),25).then(async()=>{
       stageTiming('mapa (manifesto + casca + colisão + destrutíveis)',worldStarted);
       traceBoot('mapa:carregado');
       if(this.disposed)return;
@@ -534,7 +547,7 @@ export class PlayerScene implements SceneModule {
       this.checkReady();
     });
 
-    if(this.yard instanceof FarmWorld)void this.yard.load().then(async()=>{if(this.disposed)return;if(this.enemies instanceof EnemySwarm)await this.enemies.prepareNavigation();if(!this.disposed)this.checkReady();
+    if(this.yard instanceof FarmWorld)void track('farm.world',this.yard.load(),25).then(async()=>{if(this.disposed)return;if(this.enemies instanceof EnemySwarm)await track('farm.navigation',this.enemies.prepareNavigation(),1);if(!this.disposed)this.checkReady();
       // Os bichos só podem nascer DEPOIS do cenário: a cota de cada um sai de `collision.groundAt`,
       // e antes da colisão da fazenda entrar o terreno inteiro responde zero — o bando nasceria
       // enfileirado num plano no meio do ar. Fora do `checkReady` de propósito: cenário com vida é
@@ -548,12 +561,12 @@ export class PlayerScene implements SceneModule {
 
     this.player=new PlayerMotor(collision,this.events,this.spawn);
 
-    this.enemies=training?new EnemyReview(this.scene,this.world,this.events,shadows):new EnemySwarm(this.scene,this.world,this.events,shadows,this.player,this.progression,rng,this.directorMode);if(this.enemies instanceof EnemySwarm)this.enemies.audio=this.audio;void this.enemies.load().then(()=>{if(!this.disposed)this.checkReady();});
+    this.enemies=training?new EnemyReview(this.scene,this.world,this.events,shadows):new EnemySwarm(this.scene,this.world,this.events,shadows,this.player,this.progression,rng,this.directorMode);if(this.enemies instanceof EnemySwarm)this.enemies.audio=this.audio;void track('enemies',this.enemies.load(),25).then(()=>{if(!this.disposed)this.checkReady();});
 
-    if(!training){this.runHUD=new RunHUD();this.interactables=new RunInteractables(this.scene,this.player,this.progression,this.events,rng.stream('interactable'),collision);void this.interactables.load(this.scene).then(()=>{if(this.disposed)return;this.lootReady=true;this.applyLootPlacement();this.checkReady();});}
+    if(!training){this.runHUD=new RunHUD();this.interactables=new RunInteractables(this.scene,this.player,this.progression,this.events,rng.stream('interactable'),collision);void track('interactables',this.interactables.load(this.scene),5).then(()=>{if(this.disposed)return;this.lootReady=true;this.applyLootPlacement();this.checkReady();});}
 
     this.dropship=training?undefined:new DropshipDeck(this.scene);
-    void this.dropship?.load().then(()=>{if(!this.disposed)this.checkReady();});
+    if(this.dropship)void track('dropship',this.dropship.load(),2).then(()=>{if(!this.disposed)this.checkReady();});
 
     this.hud=new PlayerHUD(()=>{if(this.progression.time===0)this.events.emit('StageStarted',{stageId:String(this.progression.stage),seed:this.seed});this.started=true;
       // Sem o GLB da nave não existe deck para correr: a entrada cai direto no mergulho original.
@@ -569,7 +582,8 @@ export class PlayerScene implements SceneModule {
 
     if(!training){this.input.yaw=-.13;this.player.yaw=this.input.yaw;}
 
-    this.visual=new CharacterVisual(this.scene,()=>{this.checkReady();for(const mesh of this.visual.meshes)shadows.addShadowCaster(mesh);});
+    beginTask('visual',3);
+    this.visual=new CharacterVisual(this.scene,()=>{endTask('visual');this.checkReady();for(const mesh of this.visual.meshes)shadows.addShadowCaster(mesh);});
     // No planeta a visual ganha um PAI radial e passa a receber pose LOCAL; os clipes autorais
     // (Idle/Walk/Run/Jump/Dodge/Land/combos) tocam exatamente como no mundo plano.
     this.avatar=this.radial?new RadialAvatar(this.scene,this.visual,()=>this.world.surface):undefined;
@@ -582,7 +596,7 @@ export class PlayerScene implements SceneModule {
       // A casca do planeta não tem corpo estático de Havok; o cadáver leva um recorte local.
       ...(this.radial?{terrain:(centre:Vec3)=>this.localRagdollTerrain(centre)}:{}),
     });
-    void this.playerRagdoll.prepare().then(()=>{if(!this.disposed)this.checkReady();});
+    void track('ragdoll',this.playerRagdoll.prepare(),3).then(()=>{if(!this.disposed)this.checkReady();});
     // Co-op continua EXATAMENTE como está na fazenda. No planeta ele é recusado em voz alta em vez
     // de aberto pela metade: `Reconciliation` e `RemotePlayers` reproduzem o passo do motor com
     // gravidade em `−Y`, então um segundo jogador apareceria andando para o lado errado da casca e
@@ -622,20 +636,20 @@ export class PlayerScene implements SceneModule {
       body:()=>this.visual.position,visuals:this.prismVisuals,...(combatSpace?{space:combatSpace}:{}),
     });
 
-    this.elements=new ElementalEffects(this.scene,collision);this.skillAura=new SkillAura(this.scene,collision);void this.skillAura.load().then(()=>{if(!this.disposed)this.checkReady();});
-    void this.weapons.load().then(()=>{if(!this.disposed)this.checkReady();});
+    this.elements=new ElementalEffects(this.scene,collision);this.skillAura=new SkillAura(this.scene,collision);void track('skill-aura',this.skillAura.load(),2).then(()=>{if(!this.disposed)this.checkReady();});
+    void track('weapons',this.weapons.load(),3).then(()=>{if(!this.disposed)this.checkReady();});
     // A PRISM não é portão de partida: falhar a carga do GLB deixa o jogo inteiro nas pistolas, com
     // o motivo escrito no diagnóstico. O que ela é é uma ETAPA — o Jogar espera o resultado, seja
     // ele qual for, para o jogador não entrar em campo com a arma padrão ainda no ar.
-    void this.prismRig.load().then(()=>{
+    void track('prism.rig',this.prismRig.load(),5).then(()=>{
       if(this.disposed)return;
       // A PRISM entra nas mãos só se a CLASSE for Soldado. O pistoleiro nunca a equipa.
       this.applyPlayerClass();
     }).catch((error:unknown)=>{
       if(!this.disposed)this.prismError=error instanceof Error?error.message:'Falha no rig da PRISM';
     }).finally(()=>{if(!this.disposed){this.prismSettled=true;this.applyPlayerClass();this.checkReady();}});
-    void this.prismVisuals.load();
-    void this.prismVisuals.loadMissile();
+    void track('prism.visuals',this.prismVisuals.load(),3).catch(()=>{});
+    void track('prism.missile',this.prismVisuals.loadMissile(),2).catch(()=>{});
 
     // Arco previsto do lança-granadas e a lente limpa da luneta. Os dois são apresentação de MIRA:
     // não colidem, não são atingíveis e não entram na lista de alvos.
@@ -2426,13 +2440,125 @@ export class PlayerScene implements SceneModule {
     const planned=!this.interactables||this.stagePlanSettled;
     // A PRISM entra como ETAPA, não como exigência: `prismSettled` é `true` tanto com o rig pronto
     // quanto com a carga falhada — o jogo então começa com as pistolas e o motivo fica no F1.
-    const stages=[this.visual?.ready,this.weapons?.ready,this.skillAura?.ready,!(this.yard instanceof FarmWorld)||this.yard.ready,(!(this.enemies instanceof EnemySwarm)||this.enemies.ready),!(this.enemies instanceof EnemySwarm)||this.enemies.navigationReady,!this.interactables||this.interactables.ready,deckReady,planned,this.prismSettled];
+    const stages=[this.visual?.ready,this.weapons?.ready,this.skillAura?.ready,!(this.yard instanceof FarmWorld)||this.yard.ready,(!(this.enemies instanceof EnemySwarm)||this.enemies.ready),!(this.enemies instanceof EnemySwarm)||this.enemies.navigationReady,!this.interactables||this.interactables.ready,deckReady,planned,this.prismSettled,
+      // A PRONTIDÃO DA CENA é a décima primeira etapa, e é real: entre a última carga e o primeiro
+      // quadro desenhável existe compilação de material e de sombra. Enquanto ela não entrou na
+      // lista, o mostrador tinha dez etapas cumpridas e nada para onde ir — ficava preso no fim da
+      // faixa (o "99%") sem que houvesse etapa alguma representando o que faltava.
+      this.warmed];
+    /** As cargas concluídas — a prontidão da cena é a etapa SEGUINTE, não uma delas. */
+    const assetsDone=stages.slice(0,-1).every(Boolean);
+    // Os portões que não nascem de uma promessa fecham as suas tarefas AQUI. Sem isto eles ficariam
+    // de fora do denominador e a barra voltaria a chegar perto do fim com trabalho ainda correndo.
+    if(this.enemies instanceof EnemySwarm&&this.enemies.navigationReady)endTask('enemies.navigation');
+    else if(!(this.enemies instanceof EnemySwarm))endTask('enemies.navigation');
+    if(planned)endTask('stage.plan');
+    if(this.prismSettled)endTask('prism.class');
+    if(deckReady)endTask('dropship');
     const label=this.planError?`FALHA NA ROTA · ${this.planError} · tentando de novo`
       // O cálice é etapa de carga como qualquer outra: se ele não montou, o rótulo diz isso.
       :this.siteError&&!planned?`CARREGANDO O CÁLICE · ${this.siteError}`
       :!planned?'SORTEANDO ILHA DE PARTIDA E MONTANDO O CÁLICE'
-      :stages.every(Boolean)?'PREPARANDO LUZ E MATERIAIS':'CARREGANDO FAZENDAS E ROTAS';
-    this.hud?.loading(stages.filter(Boolean).length,stages.length,label);for(const material of this.scene.materials){const lit=material as typeof material & {maxSimultaneousLights?:number};if(lit.maxSimultaneousLights!==undefined&&lit.maxSimultaneousLights>4){lit.unfreeze();lit.maxSimultaneousLights=4;}}if(this.visual?.ready&&this.weapons?.ready&&this.skillAura?.ready&&(!(this.yard instanceof FarmWorld)||this.yard.ready)&&(!(this.enemies instanceof EnemySwarm)||(this.enemies.ready&&this.enemies.navigationReady))&&(!this.interactables||this.interactables.ready)&&deckReady&&planned&&this.prismSettled){if(this.warming)return;this.warming=true;this.scene.executeWhenReady(()=>{if(!this.disposed)this.hud.ready();});}}
+      :assetsDone?'PREPARANDO LUZ E MATERIAIS':'CARREGANDO FAZENDAS E ROTAS';
+    // O PROGRESSO SAI DO RASTRO, não de uma contagem de bandeiras.
+    //
+    // `loadProgress()` devolve peso concluído sobre peso total, com o denominador fixado antes de
+    // qualquer trabalho começar (ver `LOAD_WEIGHTS`). É o que faz 100% significar uma coisa só: não
+    // sobrou dependência bloqueante. A contagem antiga dava peso igual a um GLB de 25 s e a uma
+    // esfera de 40 ms, e ignorava a prontidão da cena — daí os degraus e a parada no fim.
+    const progress=loadProgress();
+    this.hud?.loading(progress.done,progress.total,label);
+    this.clampSceneLights();
+    if(assetsDone)this.beginWarmup();}
+
+  /**
+   * Teto de luzes simultâneas por material.
+   *
+   * O dispositivo aceita um número finito de UBOs de luz. Um material que nasce pedindo mais do que
+   * isso NUNCA compila — e um material que nunca compila deixa `scene.isReady()` falso para sempre,
+   * que é precisamente o travamento em "PREPARANDO LUZ E MATERIAIS". O corte existia, mas só rodava
+   * dentro de `checkReady`, ou seja, apenas quando uma promessa de carga terminava: material criado
+   * DEPOIS da última promessa (efeitos, míssil, cálice) escapava do corte e segurava o portão.
+   * Agora o corte roda também durante a espera, a cada verificação do aquecimento.
+   */
+  private clampSceneLights():void {
+    for(const material of this.scene.materials){
+      const lit=material as typeof material & {maxSimultaneousLights?:number};
+      if(lit.maxSimultaneousLights!==undefined&&lit.maxSimultaneousLights>4){lit.unfreeze();lit.maxSimultaneousLights=4;}
+    }
+  }
+
+  /**
+   * O que segura `scene.isReady()` agora, em uma linha.
+   *
+   * `getWaitingItemsCount()` é o contador interno do Babylon de cargas ainda em voo; um item que
+   * nunca sai daí é uma carga que morreu sem avisar, e mantém `isReady()` falso para sempre. Os
+   * meshes listados são os que ainda não têm efeito compilado — é aí que aparece um material em
+   * estado inválido, que é a outra maneira de `isReady()` nunca virar verdadeiro.
+   */
+  private sceneReadinessReport():string {
+    if(this.disposed)return 'cena descartada';
+    const waiting=this.scene.getWaitingItemsCount();
+    const meshes=this.scene.meshes.filter(m=>m.isEnabled()&&!m.isReady(true)).slice(0,8)
+      .map(m=>`${m.name}:${m.material?.name??'sem material'}`);
+    return `waiting=${waiting} meshes-não-prontos=${meshes.length?meshes.join(','):'nenhum'}`;
+  }
+
+  /**
+   * O ÚLTIMO passo da carga: esperar a cena poder desenhar o primeiro quadro.
+   *
+   * ## O que estava errado
+   *
+   * `scene.executeWhenReady` era armado UMA vez (`warming` nunca volta a ser falso) e sem rede de
+   * segurança. Se `scene.isReady()` ficasse falso para sempre — um material sem compilar, uma
+   * textura que falhou em silêncio, um item de carga pendente de uma cena anterior — o retorno
+   * nunca era chamado, `hud.ready()` nunca rodava e o carregamento morria no fim da barra. Não
+   * havia erro no console, porque ninguém tinha prometido nada: a espera era um retorno de chamada
+   * abandonado, não uma promessa rejeitada.
+   *
+   * ## O que é feito
+   *
+   * A espera vira TAREFA rastreada, com nome e cão de guarda — se ela passar do prazo, sai no log o
+   * que exatamente está pendente. E a espera é reexaminada a cada verificação: quem segura a cena
+   * costuma ser um material recém-criado, e `clampSceneLights` corrige isso a tempo do exame
+   * seguinte em vez de esperar um retorno que não vem.
+   */
+  /**
+   * A linha da carga no diagnóstico (F1).
+   *
+   * Enquanto sobra dependência, é o relatório `[LOAD HANG]` inteiro — pendentes e concluídas com
+   * duração. Quando não sobra, uma linha só. Quem abre o F1 durante um carregamento lento quer
+   * saber O QUE está pendurado, e essa era exatamente a informação que não existia em lugar nenhum.
+   */
+  private loadDebugLine():string {
+    return pendingTasks().length?hangReport():'Carga: sem dependência bloqueante';
+  }
+
+  private beginWarmup():void {
+    if(this.warming||this.disposed)return;
+    this.warming=true;
+    beginTask('scene.readiness',5);
+    const finish=():void=>{
+      if(this.warmed||this.disposed)return;
+      this.warmed=true;
+      if(this.warmupTimer){clearTimeout(this.warmupTimer);this.warmupTimer=undefined;}
+      endTask('scene.readiness');
+      this.hud.ready();
+    };
+    // O exame periódico é a rede: `executeWhenReady` continua sendo o caminho normal, mas o teto de
+    // luzes precisa ser reaplicado entre as tentativas para que a cena POSSA ficar pronta.
+    const examine=():void=>{
+      this.warmupTimer=undefined;
+      if(this.disposed||this.warmed)return;
+      this.clampSceneLights();
+      if(this.scene.isReady()){finish();return;}
+      this.warmupTimer=setTimeout(examine,120);
+    };
+    this.scene.executeWhenReady(()=>finish());
+    this.warmupTimer=setTimeout(examine,120);
+  }
+  private warmed=false;
+  private warmupTimer:ReturnType<typeof setTimeout>|undefined;
 
   configure(name: string,value: number): void {
     if(name==='review-enemy-distance'&&this.yard instanceof PlanetWorld&&this.yard.manifest){
@@ -2607,6 +2733,7 @@ export class PlayerScene implements SceneModule {
       // Jogar por "Recarregue a página". Degradação anunciada não é partida quebrada.
       player:`${this.networkNotice?this.networkNotice+'\n':''}${this.navigationNotice?this.navigationNotice+'\n':''}${this.expeditionSites?.notice?this.expeditionSites.notice+'\n':''}${this.qaNotice?this.qaNotice+'\n':''}${this.net?.debugLine()??''}${this.yard instanceof FarmWorld?this.yard.regionStatus:this.world.regionStatus??''}${this.cameraAudit}`
       +`\nEntrada ${this.intro.phase}${this.intro.skipped?' (pulada)':''} · deck ${this.dropship?this.dropship.error||(this.dropship.ready?'pronto':'carregando'):'treino'} · controle ${this.intro.holdsControl?'RETIDO':'livre'}`
+      +`\n${this.loadDebugLine()}`
       +`\nDiscos: ${this.raidStatus||'sem disco no cenário'}`
       +`\n${this.stagePlanDescription}`
       +(this.meleeReview.active?`\nRevisão corpo a corpo · ${this.meleeReview.label} · voltas ${this.meleeReview.loops} · armas ${this.weapons.holstered?'guardadas':'EM MÃOS'}`:'')
@@ -2615,6 +2742,10 @@ export class PlayerScene implements SceneModule {
   }
 
   dispose(): void {if(this.disposed)return;this.disposed=true;
+    // O exame de prontidão é um temporizador vivo: sem isto ele continuaria batendo numa cena morta
+    // depois da troca planeta→fazenda. Ver `beginWarmup`.
+    if(this.warmupTimer){clearTimeout(this.warmupTimer);this.warmupTimer=undefined;}
+    describePending(undefined);
     // Invalida qualquer carregamento de destino em voo: o `.then` tardio vê a versão mudada e sai.
     this.planVersion++;this.planning=false;this.journey.reset();this.pendingSetup=undefined;this.stagePlans.clear();
     this.cancelAim();this.aimOverlay.dispose();this.trajectory.dispose();this.scopeOcclusion.dispose();
@@ -2623,6 +2754,37 @@ export class PlayerScene implements SceneModule {
     // `main`. Os dois conjuntos são disjuntos — perder qualquer um vaza recurso no fim da corrida.
     this.weatherView?.dispose();this.weatherView=undefined;this.wildlife?.dispose();this.wildlife=undefined;for(const beam of this.beams)beam.dispose();this.beams.length=0;this.raids.length=0;this.raidWave.clear();this.raidFirstEt=-1;this.dropship?.dispose();this.dropship=undefined;this.collision.detachRadialProps('expedition-sites');this.collision.detachRadialProps('loot');this.expeditionSites?.dispose();this.expeditionSites=undefined;this.pendingSites?.dispose();this.pendingSites=undefined;this.playerRagdoll.dispose();this.avatar?.dispose();this.net?.dispose();this.cancelCinematic();this.cutIn.dispose();this.skillAura.dispose();this.elements.dispose();this.world.dispose();this.input.dispose();this.enemies.dispose();this.explorationMap?.dispose();this.runHUD?.dispose();this.interactables?.dispose();this.events.clear();this.prism.dispose();this.prismVisuals.dispose();this.ionBeam.dispose();this.groundFireView.dispose();this.strikeMarker.dispose();this.prismRig.dispose();this.weapons.dispose();this.footing.dispose();this.abyss?.dispose();this.visual.dispose();this.audio.dispose();this.hud.dispose();this.instrumentation.dispose();this.scene.dispose();}
 
+}
+
+/**
+ * O PESO DE CADA TAREFA DE CARGA, em segundos típicos.
+ *
+ * Medido no navegador com `?debug=1` (o rastro imprime `nome.done Xms`), não estimado. Os números
+ * não precisam ser exatos — precisam ser da ORDEM certa, senão a barra volta a andar em degraus
+ * mentirosos: o mapa e a horda custam dezenas de segundos, a aura e a nave custam um ou dois.
+ *
+ * Toda tarefa que pode bloquear o portão está aqui, inclusive as que não são promessas: a navegação
+ * da horda, o plano do estágio, o desfecho da PRISM e a prontidão da cena. Uma dependência fora
+ * desta lista é uma dependência que a barra não conhece — e é assim que se chega a 99% com trabalho
+ * ainda rodando.
+ */
+function LOAD_WEIGHTS(radial:boolean,training:boolean):readonly (readonly [string,number])[] {
+  const list:(readonly [string,number])[]=[
+    [radial?'planet.world':'farm.world',25],
+    ['enemies',25],
+    ['visual',3],['ragdoll',3],['weapons',3],['skill-aura',2],
+    ['prism.rig',5],['prism.visuals',3],['prism.missile',2],
+    // A prontidão da cena é a ÚLTIMA tarefa real: entre o fim das cargas e o primeiro quadro
+    // desenhável existe compilação de material e de sombra, e ela não é instantânea.
+    ['scene.readiness',5],
+  ];
+  if(!radial)list.push(['farm.navigation',1]);
+  if(!training){
+    list.push(['interactables',5],['dropship',2]);
+    // Portões que não nascem de uma promessa, mas bloqueiam igual. Ver `checkReady`.
+    list.push(['enemies.navigation',2],['stage.plan',5],['prism.class',1]);
+  }
+  return list;
 }
 
 /**
