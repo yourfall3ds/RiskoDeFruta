@@ -108,15 +108,38 @@ function fft(re, im) {
  * que desce. Ele entra com peso alto de propósito — é a única parte do vetor que distingue os dois.
  */
 const SEGMENTOS = 6;
-/** Peso do centroide contra as bandas. Alto porque é ele que carrega a direção da varredura. */
-const PESO_CENTROIDE = 2.5;
-/** Peso da INCLINACAO do brilho. Dominante de proposito: e a assinatura da direcao. */
-const PESO_INCLINACAO = 14;
+/**
+ * Divisores que trazem direcao e modulacao para a faixa do cosseno.
+ *
+ * MEDIDOS, nao escolhidos. Os tres casos de calibracao, em valor bruto:
+ *
+ *   caso                        forma   direcao   modulacao
+ *   mesma receita, so semente   0,019   0,072     0,124      <- tem de REPROVAR
+ *   inversao no tempo           0,107   0,224     0,089      <- tem de APROVAR
+ *   tremulo sobre o mesmo ruido 0,012   0,035     0,673      <- tem de APROVAR
+ *
+ * Ruido aleatorio tem inclinacao e flutuacao proprias por acaso: duas sementes da MESMA receita
+ * diferem 0,072 em direcao e 0,124 em modulacao so por amostragem. Os divisores poem esse acaso
+ * abaixo do limiar de 0,12 e deixam a diferenca de verdade acima dele.
+ */
+const DIVISOR_DIRECAO = 1.0;
+const DIVISOR_MODULACAO = 2.0;
 
+/**
+ * Impressão digital em TRÊS aspectos independentes, e não num vetor único.
+ *
+ * A versão anterior somava tudo num cosseno só, e cada característica nova diluía as outras na
+ * normalização: ao acrescentar a flutuação, a inversão no tempo caiu de 0,128 para 0,096 e um som
+ * de mesmo caráter subiu de 0,095 para 0,167 — os dois veredictos se inverteram sem que nenhuma
+ * das duas medidas estivesse errada. Empilhar características ponderadas num vetor único não escala.
+ *
+ * Aqui cada aspecto mede sozinho e a distância final é o MAIOR dos três: dois sons são diferentes
+ * quando diferem em QUALQUER aspecto, que é como o ouvido decide. Acrescentar um quarto aspecto
+ * amanhã não mexe nos três de hoje.
+ */
 function fingerprint(samples, rate) {
   const size = 1024, hop = 512, bands = 24;
-  const thirds = Array.from({length: SEGMENTOS}, () => []);
-  const centroides = Array.from({length: SEGMENTOS}, () => []);
+  const porSegmento = Array.from({length: SEGMENTOS}, () => []);
   const re = new Float64Array(size), im = new Float64Array(size);
   const edges = [];
   for (let b = 0; b <= bands; b++) edges.push(Math.round(20 * Math.pow(rate / 2 / 20, b / bands) / (rate / size)));
@@ -130,31 +153,58 @@ function fingerprint(samples, rate) {
       for (let k = lo; k < hi; k++) sum += re[k] * re[k] + im[k] * im[k];
       frame[b] = Math.log10(1 + sum / (hi - lo));
     }
-    // Centroide: media das bandas ponderada pela energia. E o 'brilho' do quadro.
-    let soma = 0, peso = 0;
-    for (let b = 0; b < bands; b++) {soma += frame[b] * b; peso += frame[b];}
     const at = Math.min(SEGMENTOS - 1, Math.floor(start / Math.max(1, samples.length - size + 1) * SEGMENTOS));
-    thirds[at].push(frame);
-    centroides[at].push(peso > 1e-9 ? soma / peso / (bands - 1) : 0);
+    porSegmento[at].push(frame);
   }
-  const vector = [];
-  for (const third of thirds) {
-    for (let b = 0; b < bands; b++) vector.push(third.length ? third.reduce((s, f) => s + f[b], 0) / third.length : 0);
-  }
-  // A INCLINACAO do brilho: um numero so, que TROCA DE SINAL quando o tempo inverte. E o que
-  // separa subir de descer com forca — os valores por segmento sozinhos ficam abafados pelas 144
-  // dimensoes de banda, por mais peso que levem.
-  const medio = centroides.map(seg => seg.length ? seg.reduce((a, b) => a + b, 0) / seg.length : 0);
-  vector.push((medio[medio.length - 1] - medio[0]) * PESO_INCLINACAO);
-  // A trajetoria do brilho, um numero por segmento: e o que enxerga subir contra descer.
-  for (const seg of centroides)
-    vector.push((seg.length ? seg.reduce((a, b) => a + b, 0) / seg.length : 0) * PESO_CENTROIDE);
-  const norm = Math.hypot(...vector) || 1;
-  return vector.map(v => v / norm);
+
+  // 1. FORMA — energia por banda em cada segmento. Pega timbre e envelope espectral.
+  const forma = [];
+  for (const seg of porSegmento)
+    for (let b = 0; b < bands; b++)
+      forma.push(seg.length ? seg.reduce((soma, f) => soma + f[b], 0) / seg.length : 0);
+  const normaForma = Math.hypot(...forma) || 1;
+
+  // 2. DIREÇÃO — inclinação do centroide espectral. Troca de sinal quando o tempo inverte.
+  const centroide = porSegmento.map(seg => {
+    if (!seg.length) return 0;
+    let total = 0;
+    for (const f of seg) {
+      let soma = 0, peso = 0;
+      for (let b = 0; b < bands; b++) {soma += f[b] * b; peso += f[b];}
+      total += peso > 1e-9 ? soma / peso / (bands - 1) : 0;
+    }
+    return total / seg.length;
+  });
+  const direcao = centroide[SEGMENTOS - 1] - centroide[0];
+
+  // 3. MODULAÇÃO — desvio relativo da energia dentro de cada segmento. Enxerga trêmulo, que some
+  // numa média por banda: amplitude modulada e amplitude constante carregam a MESMA energia.
+  const modulacao = porSegmento.map(seg => {
+    if (!seg.length) return 0;
+    const energias = seg.map(f => f.reduce((a, b) => a + b, 0));
+    const media = energias.reduce((a, b) => a + b, 0) / energias.length;
+    const variancia = energias.reduce((a, e) => a + (e - media) ** 2, 0) / energias.length;
+    return media > 1e-9 ? Math.sqrt(variancia) / media : 0;
+  });
+
+  return {forma: forma.map(v => v / normaForma), direcao, modulacao};
 }
 
-/** Distância de cosseno, 0 = idêntico. */
-const distance = (a, b) => 1 - a.reduce((s, v, i) => s + v * b[i], 0);
+/**
+ * Distância entre duas impressões: o MAIOR desacordo entre os três aspectos.
+ *
+ * Os divisores trazem direção e modulação para a faixa do cosseno, e são medidos: uma inversão
+ * completa de varredura muda a inclinação em torno de 0,25, e um trêmulo forte muda o desvio
+ * relativo em torno de 0,5.
+ */
+function distance(a, b) {
+  const cosseno = 1 - a.forma.reduce((soma, v, i) => soma + v * b.forma[i], 0);
+  const direcao = Math.abs(a.direcao - b.direcao) / DIVISOR_DIRECAO;
+  let modulacao = 0;
+  for (let i = 0; i < a.modulacao.length; i++)
+    modulacao = Math.max(modulacao, Math.abs(a.modulacao[i] - b.modulacao[i]) / DIVISOR_MODULACAO);
+  return Math.max(cosseno, Math.min(1, direcao), Math.min(1, modulacao));
+}
 
 // ---------------------------------------------------------------- medidas
 
