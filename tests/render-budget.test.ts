@@ -3,7 +3,7 @@ import { openSync,readSync,closeSync } from 'node:fs';
 import { resolveRenderScale } from '../src/engine/createEngine';
 import { SHADOW_EXEMPT } from '../src/world/FarmWorld';
 
-/** Lê só o bloco JSON do GLB — o arquivo tem 52 MB e o resto é binário. */
+/** Lê só o bloco JSON do GLB — o arquivo tem 16 MB e o resto é binário (Draco + WebP). */
 function farmNodeNames():string[] {
   const fd=openSync('public/models/farm-world.glb','r');
   try {
@@ -26,12 +26,26 @@ describe('render budget',()=>{
 
   it('isenta de sombra os grupos numerosos e mantém o que projeta sombra visível',()=>{
     const names=farmNodeNames();
-    expect(names.length).toBe(862);
+    // Contagem medida no `farm-world.glb` com a lavoura plantada. Os números antigos (862 nós, 767
+    // isentos) descreviam um mundo que este `build-farm-world.py` não constrói mais: o comentário
+    // deles citava "84 tomates + 24 melancias", e o script de hoje carrega QUATRO assets
+    // (`coast_land_rocks_02`, `fern_02`, `grass_medium_01`, `island_tree_01`) — colheita nenhuma.
+    // Os nomes `Harvest tomato`/`Harvest watermelon` continuam na regex porque são de OUTROS mundos
+    // (`farm-city`, `highland-farms`); só a atribuição deles a este arquivo estava errada.
+    //
+    // A conta de hoje bate com o script linha a linha: 253 pés de milho, 164 pedras de borda,
+    // 120 samambaias, 77 forrações, 76 moitas de margarida, 11 árvores, 6 espantalhos e 8 peças
+    // autorais de construção. 715 nós sobre apenas 23 malhas distintas — é essa razão que prova que
+    // a compressão continuou instanciando em vez de fundir geometria.
+    expect(names.length).toBe(715);
     const exempt=names.filter(name=>SHADOW_EXEMPT.test(name));
-    // 455 fern + 108 pedras de borda + 96 forrações + 84 tomates + 24 melancias
-    expect(exempt.length).toBe(767);
-    for(const prefix of ['fern_02','coast_land_rocks_02','coast_land dressed','Harvest tomato','Harvest watermelon'])
-      expect(names.some(n=>n.startsWith(prefix)&&SHADOW_EXEMPT.test(n))).toBe(true);
+    // 253 milho + 164 pedras + 120 samambaias + 77 forrações + 76 margaridas
+    expect(exempt.length).toBe(690);
+    for(const prefix of ['fern_02','coast_land_rocks_02','grass_medium_01','Milho plantado','Margaridas do campo'])
+      expect(names.some(n=>n.startsWith(prefix)&&SHADOW_EXEMPT.test(n)),prefix).toBe(true);
+    // O espantalho é a exceção deliberada: seis no mapa inteiro, alto, e a sombra dele é o efeito.
+    expect(names.some(n=>n.startsWith('Espantalho'))).toBe(true);
+    expect(SHADOW_EXEMPT.test('Espantalho')).toBe(false);
     // copas, troncos e as construções continuam projetando
     for(const keep of ['tree-canopy-island_tree dressed-0','island_tree dressed','Barn side wall','Gambrel roof','Weathered agricultural silo','Open barn door'])
       expect(SHADOW_EXEMPT.test(keep)).toBe(false);

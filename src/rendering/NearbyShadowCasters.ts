@@ -15,10 +15,16 @@ import type {Vec3} from '../core/contracts';
  * `renderList` arrasta todas as instâncias visíveis dela para o shadow map, e o teto de 16
  * projetores deixa de ser teto. Folha alpha-test num mapa de 2048 com PCF rende pouco e custa caro.
  *
+ * O milho e as margaridas entraram com a lavoura: são ~350 pés e ~76 moitas, o maior grupo do mapa
+ * depois das samambaias. O problema não é o custo de cada um — é o TETO de 16 projetores: parado
+ * dentro do milharal, os 16 vizinhos mais próximos são todos pé de milho, e o celeiro atrás para de
+ * projetar sombra. Sombra de folha fina com PCF rende quase nada e custaria justamente a sombra que
+ * se vê. O espantalho NÃO entra: são seis no mapa inteiro, e é alto — a sombra dele é o efeito.
+ *
  * Fonte ÚNICA da regra: `FarmWorld` reexporta esta constante para o teste de orçamento conferir o
  * comportamento real, em vez de uma cópia divergente.
  */
-export const SHADOW_EXEMPT=/grass|fern|coast_land|connected earth trails|trail union|OrchardLOD|harvest\s+(tomato|watermelon)/i;
+export const SHADOW_EXEMPT=/grass|fern|coast_land|connected earth trails|trail union|OrchardLOD|harvest\s+(tomato|watermelon)|milho plantado|margaridas do campo/i;
 
 /** Owns only this container's casters. Bounds distance also handles meshes batched across a district. */
 export class NearbyShadowCasters {

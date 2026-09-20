@@ -25,7 +25,15 @@ export interface TrainingTarget { id: number; mesh: Mesh; meshes?:readonly Mesh[
  */
 export const SAUCER_TARGET_BASE=90000;
 /**
- * O disco voador NÃO é alvo de mira automática.
+ * Primeiro id de alvo reservado aos bichos de cenário da fazenda (galinha, corvo, pardal).
+ *
+ * Fica ACIMA de `SAUCER_TARGET_BASE` de propósito: a regra de mira automática abaixo é um único
+ * `<`, e uma faixa nova acima do disco herda a exclusão sem precisar de um segundo teste que
+ * pudesse divergir dela. Sobra folga de 5000 ids para os discos, que hoje são meia dúzia.
+ */
+export const AMBIENT_TARGET_BASE=95000;
+/**
+ * Nem o disco voador nem os bichos de cenário são alvo de mira automática.
  *
  * Ele é cenário até alguém decidir atirar nele; provocar a represália tem que ser uma escolha do
  * jogador, mirando à mão. As habilidades que elegem alvo sozinhas (a tempestade de MP III, a
@@ -33,6 +41,11 @@ export const SAUCER_TARGET_BASE=90000;
  * jogador e chamariam a invasão sem que ele tivesse pedido — era exatamente a reclamação.
  *
  * Tiro normal e granada continuam acertando o disco: lá a mira é do jogador.
+ *
+ * A galinha tem o mesmo direito, por outro motivo: ela é CENÁRIO, não mob. Uma habilidade que
+ * escolhe alvo sozinha travando numa galinha em vez do inimigo que vem vindo é o pior resultado
+ * possível — o jogador gastou a MP para matar um bicho de enfeite. Bala e granada continuam
+ * acertando, porque lá quem mirou foi ele.
  */
 export const isAutoAimTarget=(id:number):boolean=>id<SAUCER_TARGET_BASE;
 export class TrainingYard {

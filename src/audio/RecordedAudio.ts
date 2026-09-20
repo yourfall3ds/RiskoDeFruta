@@ -125,6 +125,36 @@ export class WeaponAudio {
  }
 
  impact(heavy=false):void {this.play(heavy?'heavy':'impact',heavy?.5:.32,1,0,.08);}
+
+ /**
+  * Bicho de cenário da fazenda: galinha, corvo, pardal.
+  *
+  * NÃO passa por `enemy()`. Aquele caminho valida `kind` contra o catálogo de inimigos e devolve
+  * silêncio para qualquer coisa fora dele — `enemy('hurt','chicken',…)` não toca nada e não avisa.
+  * E não DEVE passar: bicho de enfeite não tem entrada no painel do estúdio, não tem substituição
+  * de arquivo do usuário e não deve aparecer lá.
+  *
+  * Só grupos que existem no `foley-manifest.json`: `swish` (bater de asa), `growl`/`hurt`
+  * (cacarejo/grasnado), `impact` + `body-ground` (o baque molhado), `casing` (o estalo seco).
+  *
+  * O `pan` vem pronto de quem chama, como em `enemyEvent`: o áudio não conhece a câmera, e inventar
+  * uma referência aqui seria a segunda fonte de verdade sobre onde o ouvinte está.
+  */
+ ambientAnimal(event:'flap'|'call'|'death',distance:number,pan=0):void {
+  // Longe demais nem entra na fila de vozes. 26 m é mais curto que o alcance de inimigo (32) de
+  // propósito: uma galinha cacarejando do outro lado do mapa é ruído, não ambiente.
+  if(!(distance<=26))return;
+  const near=Math.max(0,1-distance/26);
+  if(event==='flap'){this.play('swish',.16*near,1.55,pan,.22);return;}
+  // O chilro é RARO e BAIXO. Quem decide a raridade é quem chama; o teto de volume é daqui, e o
+  // `gap` largo é a rede de segurança para o caso de a cadência de lá regredir.
+  if(event==='call'){this.play('growl',.12*near,1.85,pan,1.6);return;}
+  // Morte: baque molhado + estalo + um guincho curto agudo, tudo em cima do mesmo quadro.
+  this.play('impact',.4*near,1.35,pan,.02);
+  this.play('body-ground',.26*near,1.5,pan,.02);
+  this.play('hurt',.3*near,1.9,pan,.05);
+  this.play('casing',.18*near,1.4,pan,.04);
+ }
  /** Air displacement at the active frame; an impact is played separately only after contact. */
  meleeSwing():void {this.play('melee-swing',.22,1,0,.08);}
  /** Only real lethal heavy-melee launches; short fade prevents a long flight loop over combat. */
