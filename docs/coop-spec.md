@@ -303,7 +303,37 @@ estágio, progresso do evento, estado de interactable.
 **Efêmero (mensagem):** tiro, feedback de acerto, feedback de coleta, FX de morte, ping, deixa de
 som, FX de câmera.
 
-### 18.11 Os dois testes que revelam autoridade escondida
+### 18.11 Alvo do inimigo — "mais próximo" NÃO é a regra universal
+
+`nearestLivingPlayer()` pode ser fallback inicial, candidato ou política de **alguns** arquétipos.
+Nunca a regra única: com 4 jogadores, 30 inimigos colapsariam no mesmo alvo e a pressão viraria
+uma pilha — muito abaixo da sensação do RoR2, onde a IA tem alvo próprio com vida útil e cada
+arquétipo avalia distância, linha de visão, mira, cooldown e estado.
+
+**`EnemyState` carrega o alvo:** `targetPlayerId`, `targetLockTime`, `lastTargetSwitchTime`,
+`aggroSource?`, além de `archetype`, `state`, `hp`, `position`, `velocity`, `alive`.
+
+**Aquisição:** pegar `livingPlayers` → descartar inválidos → avaliar candidatos → selecionar pela
+política do arquétipo → gravar → **manter enquanto válido**. Não reselecionar a cada tick.
+
+**Invalidação:** alvo morreu · desconectou e deixou de ser elegível · ficou inalcançável por tempo
+suficiente · IA entrou em estado explícito de retarget · regra do arquétipo · aggro de outro.
+
+**Políticas que a arquitetura precisa comportar:** `NEAREST`, `RANDOM_LIVING`, `STICKY_NEAREST`,
+`THREAT`, `DIRECTOR_ASSIGNED`. Nem todas em uso desde já, mas nenhuma pode ser impossível depois.
+**`STICKY_NEAREST` é o padrão dos comuns** — é o que evita jitter quando dois jogadores se cruzam
+em distância.
+
+**Director ≠ alvo.** "Jogador usado como referência de spawn" não é "alvo definitivo". O Director
+considera todos os `livingPlayers` e varia a referência ao longo do tempo; depois de nascer, a IA
+adquire o próprio alvo.
+
+**O alvo é só uma ENTRADA.** `targetPlayerId = B` não é "correr reto até B":
+corpo a corpo → longe persegue, perto ataca · à distância → longe aproxima, ideal flanqueia e
+atira, perto recua · saltador → alcance + linha de visão dispara o salto · voador → mantém
+altitude e alcance.
+
+### 18.12 Os dois testes que revelam autoridade escondida
 
 **Teste do desligamento.** *"Se eu desligar completamente a renderização de um cliente, o servidor
 ainda completa a run corretamente?"* Se não, ainda existe gameplay client-authoritative escondido.
