@@ -7,7 +7,18 @@ import type { RandomStream } from '../core/RunRNG';
  * `docs/ASSET_LICENSES.md`). Ele **não entra no sorteio das hordas** — o diretor nunca o escolhe;
  * só a represália (`SaucerRaid`) o coloca em campo.
  */
-export type EnemyKind='eggplant'|'corn'|'watermelon'|'tomato'|'carrot'|'boss'|'invader';
+export type EnemyKind='eggplant'|'corn'|'watermelon'|'tomato'|'carrot'|'boss'
+ |'grey'|'invader'|'demon'|'predator'|'strutter'|'hound';
+
+/**
+ * Espécies alienígenas trazidas pelos discos voadores.
+ *
+ * Nenhuma entra no sorteio das hordas: todas têm `cost` zero e o diretor nunca as escolhe. Elas só
+ * chegam pela represália (`SaucerRaid`). Os modelos são CC-BY da Sketchfab, com rig e animações do
+ * autor original, adaptados em tempo de carregamento por `normalizeAnimatedCharacter`.
+ */
+export const SAUCER_SPECIES=['grey','invader','demon','predator','strutter','hound'] as const;
+export const isSaucerSpecies=(kind:EnemyKind):boolean=>(SAUCER_SPECIES as readonly string[]).includes(kind);
 
 /** Vida base da Praga Alfa no estágio 1, nível 1. Ver `bossHealth`. */
 export const BOSS_BASE_HP=1500;
@@ -33,6 +44,14 @@ export const AMBIENT_EXPLORATION_CAP=8;
  */
 export const INVADER_HP=960;
 /**
+ * Vida do E.T. clássico que o disco deposita na primeira visita.
+ *
+ * Oito vezes a melancia esmagadora, que é o inimigo comum mais duro do catálogo. É de propósito:
+ * ele vem sozinho e precisa segurar a luta inteira, porque é a morte dele que chama o disco de
+ * volta com os dez.
+ */
+export const GREY_HP=1920;
+/**
  * Altura da origem do modelo acima dos pés, em unidades do próprio GLB.
  *
  * Os cinco originais foram autorados com a raiz **1 unidade acima da sola**, e o enxame compensa
@@ -48,9 +67,16 @@ export const ENEMIES:Record<EnemyKind,{name:string;model:string;hp:number;speed:
   tomato:{name:'Tomate de praga voador',model:'original-tomato',hp:115,speed:3.3,range:15,cost:8,radius:1.1,scale:1.25},
   carrot:{name:'Cenoura de raízes',model:'original-carrot',hp:90,speed:3,range:13,cost:6,radius:.7,scale:1.25},
   boss:{name:'PRAGA ALFA',model:'original-watermelon',hp:BOSS_BASE_HP,speed:1.5,range:18,cost:0,radius:2.3,scale:2.5},
-  // Despejado pelos discos voadores. Vida de quatro inimigos comuns somados e porte bem acima do
-  // jogador: é para dar trabalho sozinho, e susto quando vierem dez.
-  invader:{name:'INVASOR DO DISCO',model:'menu-alien-ninja',hp:INVADER_HP,speed:3.2,range:11,cost:0,radius:1.1,scale:1.55},
+  // --- trazidos pelos discos voadores ---------------------------------------------------------
+  // `scale` é 1 em todos: a escala real sai de `ALIEN_PROFILES.height`, medida na pose animada.
+  // Deixar o fator aqui também multiplicaria duas vezes.
+  /** O E.T. clássico da primeira visita. Bem mais duro que qualquer inimigo comum. */
+  grey:{name:'VISITANTE CINZENTO',model:'menu-alien-grey',hp:GREY_HP,speed:2.4,range:10,cost:0,radius:.75,scale:1},
+  invader:{name:'NINJA DO DISCO',model:'menu-alien-ninja',hp:INVADER_HP,speed:3.4,range:11,cost:0,radius:.9,scale:1},
+  demon:{name:'CARRASCO DO DISCO',model:'menu-alien-demon',hp:INVADER_HP*1.4,speed:2.6,range:12,cost:0,radius:1.25,scale:1},
+  predator:{name:'PREDADOR GELADO',model:'menu-alien-predator',hp:INVADER_HP*.8,speed:3.9,range:10,cost:0,radius:.95,scale:1},
+  strutter:{name:'AVE DE CARNE',model:'menu-alien-strutter',hp:INVADER_HP*.6,speed:3.1,range:9,cost:0,radius:.8,scale:1},
+  hound:{name:'CÃO DE FOSSO',model:'menu-alien-hound',hp:INVADER_HP*.55,speed:4.2,range:8,cost:0,radius:.7,scale:1},
 };
 
 /**

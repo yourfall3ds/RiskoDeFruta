@@ -37,20 +37,38 @@ Baixados pela API oficial da Sketchfab com o token da conta do usuário. **A lic
 crédito**, então os autores ficam registrados aqui e o crédito deve acompanhar qualquer distribuição
 do jogo. Metadados completos e medidas em [menu-aliens.json](menu-aliens.json).
 
-| Runtime | Obra original | Autor | Licença |
-| --- | --- | --- | --- |
-| `public/models/menu-alien-ninja.glb` | [Alien Ninja Creature with 45 animations](https://sketchfab.com/3d-models/d332cac883f54a2c98492e85f41455b2) | Jungle Jim | CC BY 4.0 |
-| `public/models/menu-alien-strutter.glb` | [Alien Bird - Meat Struter](https://sketchfab.com/3d-models/100254f3a4794ca491f5143e96a43ce5) | Obulman | CC BY 4.0 |
+| Runtime | Espécie | Obra original | Autor | Licença |
+| --- | --- | --- | --- | --- |
+| `menu-alien-grey.glb` | `grey` | [Grey Alien idle](https://sketchfab.com/3d-models/4983ac47fa674c1e8e9230c8afa4546e) | ShaxerTakkuY | CC BY 4.0 |
+| `menu-alien-ninja.glb` | `invader` | [Alien Ninja Creature with 45 animations](https://sketchfab.com/3d-models/d332cac883f54a2c98492e85f41455b2) | Jungle Jim | CC BY 4.0 |
+| `menu-alien-demon.glb` | `demon` | [HellDemon Reborn](https://sketchfab.com/3d-models/43e163c12f304a35b1f85476ca2549f6) | ArtistForge16 | CC BY 4.0 |
+| `menu-alien-predator.glb` | `predator` | [Four-Legged-Frost-Predator](https://sketchfab.com/3d-models/3ddc6f711201449cbc33617f430d1b20) | bensimulator2 | CC BY 4.0 |
+| `menu-alien-strutter.glb` | `strutter` | [Alien Bird - Meat Struter](https://sketchfab.com/3d-models/100254f3a4794ca491f5143e96a43ce5) | Obulman | CC BY 4.0 |
+| `menu-alien-hound.glb` | `hound` | [Ditch Dog - Rigged and Animated](https://sketchfab.com/3d-models/d3507ae804604930b1b8534d2ac1c0da) | HighPolyDensity | CC BY 4.0 |
 
-O preparo está em `scripts/build-menu-aliens.py`: descarta os auxiliares que a Sketchfab embrulha,
-normaliza a escala para a altura de jogo, assenta os pés em Z=0, mantém apenas os clipes usados
-(`Idle`, `Walk`, `Run`, `Attack`, `Death`) e empilha cada ação numa trilha NLA, porque o exportador
-glTF só escreve ações ativas ou empilhadas. A malha, o esqueleto e as animações são os do autor
-original — o único clipe derivado é o `Death` do ninja, que é o `A_rise1` do próprio autor com o
-tempo invertido. Nada foi gerado proceduralmente.
+**O Blender não altera nada.** `scripts/build-menu-aliens.py` só remove a esfera de pré-visualização
+que a Sketchfab embrulha em volta do modelo e reempacota em GLB único com as texturas em JPEG.
+Hierarquia, esqueleto, pesos, matrizes de vínculo, ações e canais de animação ficam como o autor
+entregou. Foi uma descoberta cara: a versão anterior normalizava escala e pose no Blender e isso
+**matava as animações** de três dos seis rigs — os clipes sobreviviam com o nome certo e paravam de
+mover a malha.
 
-`menu-alien-ninja.glb` é o corpo do **invasor do disco** (`ENEMIES.invader`), o monstro que a
-represália dos discos voadores despeja pelo feixe de contra-abdução.
+Escala, orientação e apoio no chão são resolvidos em tempo de carregamento por
+`src/world/AnimatedCharacter.ts`, medindo a geometria deformada pelo esqueleto. Os perfis por
+espécie estão em `src/enemies/AlienProfiles.ts`.
+
+Um único clipe é derivado: a morte do ninja é o `A_rise1` do próprio autor com o tempo invertido,
+montado em tempo de execução. Nada é gerado proceduralmente.
+
+Estes seis são os corpos que a represália dos discos voadores despeja pelo feixe de contra-abdução:
+o `grey` na primeira visita, os outros cinco em dupla na segunda.
+
+### Modelos baixados e descartados
+
+- [Allan the Grey](https://sketchfab.com/3d-models/4544e06bbb344c6cad54505584a1a6ad), de Rasmus:
+  a única ação do arquivo não corresponde ao esqueleto e estilhaça a malha ao ser aplicada.
+- Alguns pacotes "GameReadyCharacter" trazem 150 MB a 180 MB de textura para sete clipes de fala e
+  pose, sem caminhada, corrida, ataque nem queda.
 
 ## Áudio gravado e acessórios — 07/09/2026
 

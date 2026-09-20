@@ -11,6 +11,7 @@ import {NetworkSession} from '../net/NetworkSession';
 import {IntroSequence,type IntroCue} from '../player/IntroSequence';
 import {DropshipDeck} from '../world/DropshipDeck';
 import {SaucerRaid} from '../run/SaucerRaid';
+import {RAID_SWARM_SPECIES,RAID_FIRST_SPECIES} from '../enemies/AlienProfiles';
 import {AbductionBeam} from '../vfx/AbductionBeam';
 import {SAUCER_TARGET_BASE} from '../world/FarmWorld';
 import {MeleeReview,meleeReviewShot} from '../animation/MeleeReview';
@@ -409,8 +410,12 @@ export class PlayerScene implements SceneModule {
    */
   private readonly raids:SaucerRaid[]=[];
   private readonly beams:AbductionBeam[]=[];
-  /** Ids dos monstros despejados por investida: ao morrerem, largam um item raro. */
-  private readonly raidBounty=new Set<number>();
+  /** Id do E.T. clássico da primeira visita. A morte DELE chama o disco de volta. */
+  private raidFirstEt=-1;
+  /** Ids dos dez da segunda visita. O último a cair larga o item raro. */
+  private readonly raidWave=new Set<number>();
+  /** Qual investida largou cada corpo, para o disco certo voltar. */
+  private raidOwner=0;
   private raidsArmed=false;
   /** Texto curto do estado da investida para o painel F1. */
   private raidStatus='';
@@ -641,16 +646,32 @@ export class PlayerScene implements SceneModule {
 
     // Lentidão só em finalizações fortes (habilidade ou golpe pesado), com intervalo próprio.
     this.events.on('EnemyKilled',context=>{if(context.attackerId!==1)return;if(context.damageTags.includes('skill')||context.damageTags.includes('melee_heavy'))this.slowMotion.request(true);});
-    // Monstro despejado por um disco voador: ao cair, larga um item raro no chão, recolhido com E
-    // como qualquer outra recompensa. O id sai do conjunto para o prêmio não sair duas vezes.
+    // Fim de cada etapa do evento do disco.
+    //
+    // A morte do E.T. clássico é o GATILHO da segunda visita: não há tiro nem temporizador, é o
+    // evento de morte que chama a nave de volta com os dez. E o item raro sai do ÚLTIMO dos dez,
+    // não de cada um, para valer a luta inteira.
     this.events.on('EnemyKilled',context=>{
       const victim=context.victimId;
-      if(!this.raidBounty.delete(victim))return;
+      if(victim===this.raidFirstEt){
+        this.raidFirstEt=-1;
+        const raid=this.raids[this.raidOwner];
+        const count=raid?.etDefeated()??0;
+        if(count&&this.enemies instanceof EnemySwarm)
+          this.enemies.message=`O DISCO VOLTOU · ${count} chegando`;
+        return;
+      }
+      if(!this.raidWave.delete(victim))return;
+      if(this.raidWave.size>0){
+        if(this.enemies instanceof EnemySwarm)this.enemies.message=`RESTAM ${this.raidWave.size}`;
+        return;
+      }
+      this.raids[this.raidOwner]?.waveCleared();
       const drops=this.interactables?.drops;
       if(!drops)return;
       const item=this.progression.randomItem(rng.stream('loot'));
       drops.eject(item,context.hitPosition,this.player.position);
-      if(this.enemies instanceof EnemySwarm)this.enemies.message=`ITEM RARO LARGADO · ${item.name}`;
+      if(this.enemies instanceof EnemySwarm)this.enemies.message=`ONDA LIMPA · ITEM RARO: ${item.name}`;
     });
     this.events.on('FruitHarvested',kill=>{
       if(this.directorMode!=='expedition')return;
@@ -1254,6 +1275,7 @@ export class PlayerScene implements SceneModule {
           const from=yard.saucerOrbit(index)??{x:saucer.root.position.x,y:saucer.root.position.y,z:saucer.root.position.z};
           const count=raid.provoke(from);
           if(!count)return;
+          this.raidOwner=index;
           saucers[index]!.commanded=true;
           this.audio.enemy('windup','boss',18);
           if(this.enemies instanceof EnemySwarm)
@@ -1269,17 +1291,19 @@ export class PlayerScene implements SceneModule {
         saucer.commanded=false;beam.hide();
         continue;
       }
-      raid.update(dt,this.player.position,(x,z)=>yard.collision.groundAt(x,z,this.player.position.y+3),(at,dropIndex,total)=>{
-        // O corpo toca o chão: o monstro real nasce aqui, grande e resistente, e fica marcado
-        // para largar um item raro quando morrer.
+      raid.update(dt,this.player.position,(x,z)=>yard.collision.groundAt(x,z,this.player.position.y+3),(at,dropIndex,total,wave)=>{
         const swarm=this.enemies as EnemySwarm;
         swarm.initialize();
-        // O invasor é o alienígena baixado da Sketchfab, com o rig e as animações do autor original.
-        // Variante normal: a dureza vem da vida dele (quatro inimigos comuns), não de um multiplicador.
-        if(!swarm.spawn('invader',at,'normal'))return;
-        if(swarm.lastSpawnedId>=0)this.raidBounty.add(swarm.lastSpawnedId);
+        // Primeira visita: UM E.T. clássico, o mais duro do lote. Visitas seguintes: dois de cada
+        // uma das cinco espécies alienígenas, na ordem, o que dá os dez.
+        const kind=wave?RAID_SWARM_SPECIES[dropIndex%RAID_SWARM_SPECIES.length]!:RAID_FIRST_SPECIES;
+        if(!swarm.spawn(kind,at,'normal'))return;
+        const spawned=swarm.lastSpawnedId;
+        if(spawned<0)return;
+        if(wave)this.raidWave.add(spawned);
+        else this.raidFirstEt=spawned;
         this.audio.enemy('spawn','boss',Math.max(1,Math.hypot(at.x-this.player.position.x,at.z-this.player.position.z)));
-        swarm.message=total>1?`DESPEJO ${dropIndex+1} de ${total}`:'MONSTRO DESPEJADO · mate para o item raro';
+        swarm.message=wave?`DESPEJO ${dropIndex+1} de ${total}`:'VISITANTE CINZENTO DEPOSITADO · derrote-o';
       });
       saucer.commanded=raid.commanding;
       saucer.root.position.set(raid.position.x,raid.position.y,raid.position.z);
@@ -1290,10 +1314,11 @@ export class PlayerScene implements SceneModule {
         beam.show(from,to,Math.min(1,raid.beam/.18,(1-raid.beam)/.18+.35),dt);
       } else beam.hide();
     }
-    const busy=this.raids.filter(r=>r.commanding);
+    const busy=this.raids.filter(r=>r.engaged);
     this.raidStatus=busy.length
-      ?busy.map((r,i)=>`disco ${i} ${r.phase} · faltam ${r.pending}`).join(' | ')
-      :`ocioso · investidas ${this.raids.reduce((total,r)=>total+r.provocations,0)} · caçados ${this.raidBounty.size}`;
+      ?busy.map((r,i)=>`disco ${i} ${r.phase} · faltam ${r.pending}${r.beaming?` · feixe ${(r.beam*100).toFixed(0)}%`:''}`).join(' | ')
+        +(this.raidFirstEt>=0?` · E.T. #${this.raidFirstEt} vivo`:'')+(this.raidWave.size?` · onda ${this.raidWave.size}`:'')
+      :`ocioso · ${this.raids.map(r=>r.phase).join('/')}`;
   }
 
   private introCue(cue:IntroCue):void {
@@ -2341,7 +2366,7 @@ export class PlayerScene implements SceneModule {
     // Invalida qualquer carregamento de destino em voo: o `.then` tardio vê a versão mudada e sai.
     this.planVersion++;this.planning=false;this.journey.reset();this.pendingSetup=undefined;this.stagePlans.clear();
     this.cancelAim();this.aimOverlay.dispose();this.trajectory.dispose();this.scopeOcclusion.dispose();
-    this.weatherView?.dispose();this.weatherView=undefined;for(const beam of this.beams)beam.dispose();this.beams.length=0;this.raids.length=0;this.raidBounty.clear();this.dropship?.dispose();this.dropship=undefined;this.collision.detachRadialProps('expedition-sites');this.collision.detachRadialProps('loot');this.expeditionSites?.dispose();this.expeditionSites=undefined;this.pendingSites?.dispose();this.pendingSites=undefined;this.playerRagdoll.dispose();this.avatar?.dispose();this.net?.dispose();this.cancelCinematic();this.cutIn.dispose();this.skillAura.dispose();this.elements.dispose();this.world.dispose();this.input.dispose();this.enemies.dispose();this.explorationMap?.dispose();this.runHUD?.dispose();this.interactables?.dispose();this.events.clear();this.prism.dispose();this.prismVisuals.dispose();this.prismRig.dispose();this.weapons.dispose();this.footing.dispose();this.abyss?.dispose();this.visual.dispose();this.audio.dispose();this.hud.dispose();this.instrumentation.dispose();this.scene.dispose();}
+    this.weatherView?.dispose();this.weatherView=undefined;for(const beam of this.beams)beam.dispose();this.beams.length=0;this.raids.length=0;this.raidWave.clear();this.raidFirstEt=-1;this.dropship?.dispose();this.dropship=undefined;this.collision.detachRadialProps('expedition-sites');this.collision.detachRadialProps('loot');this.expeditionSites?.dispose();this.expeditionSites=undefined;this.pendingSites?.dispose();this.pendingSites=undefined;this.playerRagdoll.dispose();this.avatar?.dispose();this.net?.dispose();this.cancelCinematic();this.cutIn.dispose();this.skillAura.dispose();this.elements.dispose();this.world.dispose();this.input.dispose();this.enemies.dispose();this.explorationMap?.dispose();this.runHUD?.dispose();this.interactables?.dispose();this.events.clear();this.prism.dispose();this.prismVisuals.dispose();this.prismRig.dispose();this.weapons.dispose();this.footing.dispose();this.abyss?.dispose();this.visual.dispose();this.audio.dispose();this.hud.dispose();this.instrumentation.dispose();this.scene.dispose();}
 
 }
 

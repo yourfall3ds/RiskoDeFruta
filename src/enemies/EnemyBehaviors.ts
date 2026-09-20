@@ -121,16 +121,7 @@ export const ENEMY_BEHAVIORS:Record<EnemyKind,EnemyBehavior>={
     // era prometer um golpe que não podia acertar. A varredura agora fecha a distância antes de abrir.
     engage:a=>nextAttack(a)%5===4?BOSS_SWEEP_REACH*MELEE_COMMIT:ENEMIES.boss.range,
     perform:c=>BOSS_ATTACKS[c.actor.attack%5]!(c)},
-  /**
-   * Invasor do disco: caçador corpo a corpo, rápido e pesado.
-   *
-   * Alterna investida e golpe curto, como a berinjela, mas com alcance e dano maiores — é o preço
-   * de ter provocado a nave. Sem ataque à distância: o perigo é ele CHEGAR.
-   */
-  invader:{windup:.85,contactDamage:30,zigzag:true,
-    recoverySpeed:a=>a.time<1.05&&Math.hypot(a.direction.x,a.direction.z)>.1?12:0,
-    telegraph:a=>lunges(a,2.8)?{shape:'band',width:contactWidth('invader'),reach:10.5}:{shape:'cone',radius:3.1},
-    perform:c=>{if(lunges(c.actor,2.8))aimRush(c.actor);else{bite(c,3.2,30,'invader_slash');c.effects.burst(c.player,'juice',1);}}},
+  ...saucerBehaviours(),
 };
 
 /** Um tiro do leque: o alvo girado de `angle` em torno da vertical local da origem. */
@@ -147,6 +138,35 @@ function offset(centre:Vec3,right:number,forward:number,space?:EnemySpace):Vec3 
   if(!space)return{x:centre.x+right,y:centre.y,z:centre.z+forward};
   const angle=Math.atan2(right,forward),radius=Math.hypot(right,forward);
   return vec(space.ringPoint(centre,angle,radius,0,rush));
+}
+
+/**
+ * Comportamento das espécies trazidas pelos discos voadores.
+ *
+ * Todas são caçadoras corpo a corpo: alternam investida e golpe curto, como a berinjela, mas com
+ * alcance e dano maiores. Nenhuma tem ataque à distância de propósito — o perigo delas é CHEGAR, e
+ * é isso que torna a fuga do jogador uma decisão real.
+ *
+ * A receita é uma só, parametrizada por espécie, em vez de seis blocos quase iguais.
+ */
+function saucerBehaviours():Record<'grey'|'invader'|'demon'|'predator'|'strutter'|'hound',EnemyBehavior> {
+  const hunter=(kind:EnemyKind,windup:number,damage:number,reach:number,dash:number):EnemyBehavior=>({
+    windup,contactDamage:damage,zigzag:true,
+    recoverySpeed:a=>a.time<1.05&&Math.hypot(a.direction.x,a.direction.z)>.1?dash:0,
+    telegraph:a=>lunges(a,reach)?{shape:'band',width:contactWidth(kind),reach:10.5}:{shape:'cone',radius:reach+.3},
+    perform:c=>{
+      if(lunges(c.actor,reach))aimRush(c.actor);
+      else{bite(c,reach+.4,damage,kind+'_strike');c.effects.burst(c.player,'juice',1);}
+    },
+  });
+  return {
+    grey:hunter('grey',1.0,26,2.6,9),
+    invader:hunter('invader',.85,30,2.8,12),
+    demon:hunter('demon',1.05,38,3.2,10),
+    predator:hunter('predator',.7,24,2.6,14),
+    strutter:hunter('strutter',.8,20,2.4,11),
+    hound:hunter('hound',.6,18,2.2,15),
+  };
 }
 
 /**

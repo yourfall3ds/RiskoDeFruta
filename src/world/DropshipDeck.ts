@@ -150,7 +150,6 @@ export class DropshipDeck {
     this.root.setEnabled(visible&&this.ready);
     if(!visible||!this.ready)return;
     this.clock+=Math.max(0,Number.isFinite(dt)?dt:0);
-    const float=deckFloat(this.clock);
     // Flutuação lenta do voo estacionário, sempre calculada a partir da âncora — nunca acumulada.
     this.root.position.copyFrom(this.base);
     // Os números vêm de `deckFloat` porque a `IntroSequence` precisa EXATAMENTE dos mesmos para

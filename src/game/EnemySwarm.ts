@@ -22,9 +22,11 @@ import type { PlayerMotor } from '../player/PlayerMotor';
 import type { TrainingTarget } from '../world/TrainingYard';
 import { FarmNavigation } from '../ai/FarmNavigation';
 import { AIScheduler } from '../ai/AIScheduler';
-import { ENEMIES,ENEMY_VISUAL_DROP,MonsterDirector,bossHealth,killBounty,type DirectorMode,type EnemyKind } from '../run/MonsterDirector';
+import { ENEMIES,ENEMY_VISUAL_DROP,MonsterDirector,bossHealth,killBounty,isSaucerSpecies,type DirectorMode,type EnemyKind } from '../run/MonsterDirector';
 import { WEAK_POINTS,resolveWeakPoint,weakPointDamageMultiplier,weakPointEligible,type WeakPointSphere,type WeakPointZone } from '../combat/WeakPoints';
 import { INCENDIARY_SECONDS,INCENDIARY_TAG } from '../combat/PrismSkills';
+import { normalizeAnimatedCharacter,type NormalizedCharacter } from '../world/AnimatedCharacter';
+import { ALIEN_PROFILES } from '../enemies/AlienProfiles';
 import type { RunProgression } from '../run/RunProgression';
 import { CombatPresentation } from '../vfx/CombatPresentation';
 import { ENEMY_BEHAVIORS,type TelegraphPlan } from '../enemies/EnemyBehaviors';
@@ -119,6 +121,8 @@ export class EnemySwarm {
    * é assim que a represália dos discos sabe qual corpo deve largar o item raro ao morrer.
    */
   lastSpawnedId=-1;
+  /** Espécies cujo relatório de importação já foi impresso: um por espécie, não um por corpo. */
+  private readonly reported=new Set<EnemyKind>();
   /**
    * Onde caiu o último inimigo abatido pelo jogador. A recompensa da horda/evento é ejetada
    * neste ponto (ou no piso seguro mais próximo), em vez de um campo fixo no centro do mapa.
@@ -356,12 +360,31 @@ export class EnemySwarm {
     if(!this.ready||(this.count>=this.populationCap&&kind!=='boss'))return false;const at=position??this.spawnPosition();if(!at)return false;
     if(this.count>=this.populationCap){const retired=this.farthestRetirable(0);if(!retired)return false;this.retire(retired);}
     const definition=ENEMIES[kind],affix=ENEMY_AFFIXES[variant];let actor=this.actors.find(a=>!a.active&&a.kind===kind);
-    if(!actor){const container=this.containers.get(definition.model);if(!container)return false;const instance=container.instantiateModelsToScene(n=>`enemy-${this.nextId}-${n}`,false,{doNotInstantiate:true});const root=new TransformNode(`enemy-${this.nextId}`,this.scene),visual=new TransformNode(`enemy-visual-${this.nextId}`,this.scene);visual.parent=root;for(const node of instance.rootNodes)node.parent=visual;
+    if(!actor){const container=this.containers.get(definition.model);if(!container)return false;
+      const root=new TransformNode(`enemy-${this.nextId}`,this.scene),visual=new TransformNode(`enemy-visual-${this.nextId}`,this.scene);visual.parent=root;
+      // Espécies de disco voador entram pelo importador: ele resolve orientação, escala e apoio no
+      // chão MEDINDO a pose animada, e pendura a hierarquia original intocada sob dois nós próprios
+      // (`placement` e `orientation`) abaixo do `visual` que o enxame já controla. Os cinco originais
+      // do jogo continuam no caminho antigo, que funciona e não precisa mudar.
+      const profile=ALIEN_PROFILES[kind];
+      let normalized:NormalizedCharacter|undefined;
+      let instance:ReturnType<AssetContainer['instantiateModelsToScene']>|undefined;
+      if(profile){
+        normalized=normalizeAnimatedCharacter(container,this.scene,profile,this.nextId,visual);
+        if(!normalized){root.dispose();return false;}
+        if(!this.reported.has(kind)){this.reported.add(kind);console.info(normalized.report);}
+      } else {
+        instance=container.instantiateModelsToScene(n=>`enemy-${this.nextId}-${n}`,false,{doNotInstantiate:true});
+        for(const node of instance.rootNodes)node.parent=visual;
+      }
       const meshes=visual.getChildMeshes();const body=meshes.filter(x=>x.getTotalVertices()>0).sort((a,b)=>b.getTotalVertices()-a.getTotalVertices())[0] as Mesh|undefined;if(!body){root.dispose();return false;}
       for(const mesh of meshes){mesh.isPickable=mesh.getTotalVertices()>0;mesh.receiveShadows=true;}body.isPickable=true;
-      const id=this.nextId++,health=new Health(id,this.healthFor(kind,variant),this.events);const target:TrainingTarget={id,mesh:body,hits:0};const clips=new Map<string,AnimationGroup>();for(const clip of instance.animationGroups){clip.stop();for(const name of ['Spawn','Walk','Run','Idle','Hit','Death','Attack','Cast','Fly','Spit','Bite','Roll'])if(clip.name.endsWith(name))clips.set(name,clip);}
+      const id=this.nextId++,health=new Health(id,this.healthFor(kind,variant),this.events);const target:TrainingTarget={id,mesh:body,hits:0};
+      const clips=normalized?normalized.clips:new Map<string,AnimationGroup>();
+      if(instance)for(const clip of instance.animationGroups){clip.stop();for(const name of ['Spawn','Walk','Run','Idle','Hit','Death','Attack','Cast','Fly','Spit','Bite','Roll'])if(clip.name.endsWith(name))clips.set(name,clip);}
+      const skeletons=normalized?normalized.skeletons:instance!.skeletons;
       target.meshes=meshes.filter(mesh=>mesh.getTotalVertices()>0) as Mesh[];
-      actor={id,kind,variant,scale:definition.scale,push:Vector3.Zero(),root,visual,body,health,target,clips,machine:new AnimationStateMachine(clips),skeleton:instance.skeletons[0],ragdoll:undefined,healthTrail:health.maximum,gait:0,lastPosePosition:Vector3.FromArray([at.x,at.y,at.z]),palette:new PosePalette(instance.skeletons),state:'spawn',time:0,attack:0,locked:{...at},direction:{x:0,z:0},facing:new Vector3(0,0,1),burn:0,burnClock:0,anim:0,hit:0,stagger:0,staggerCooldown:0,deathVelocity:Vector3.Zero(),active:true,cooldown:0};const captured=actor;target.onHit=context=>this.hit(captured,context);if(kind==='carrot'){const nodes=visual.getChildTransformNodes(),hand=nodes.find(n=>n.name.endsWith('RightHand')),arm=nodes.find(n=>n.name.endsWith('RightArm'));if(hand&&arm){const socket=new TransformNode('carrot-right-palm-muzzle',this.scene);socket.parent=hand;socket.position.set(0,6,0);socket.rotationQuaternion=Quaternion.FromUnitVectorsToRef(Vector3.Forward(),Vector3.Up(),Quaternion.Identity());actor.laserSocket=socket;actor.laserArm=arm;}}this.actors.push(actor);this.byId.set(actor.id,actor);this.world.targets.push(target);
+      actor={id,kind,variant,scale:definition.scale,push:Vector3.Zero(),root,visual,body,health,target,clips,machine:new AnimationStateMachine(clips),skeleton:skeletons[0],ragdoll:undefined,healthTrail:health.maximum,gait:0,lastPosePosition:Vector3.FromArray([at.x,at.y,at.z]),palette:new PosePalette(skeletons),state:'spawn',time:0,attack:0,locked:{...at},direction:{x:0,z:0},facing:new Vector3(0,0,1),burn:0,burnClock:0,anim:0,hit:0,stagger:0,staggerCooldown:0,deathVelocity:Vector3.Zero(),active:true,cooldown:0};const captured=actor;target.onHit=context=>this.hit(captured,context);if(kind==='carrot'){const nodes=visual.getChildTransformNodes(),hand=nodes.find(n=>n.name.endsWith('RightHand')),arm=nodes.find(n=>n.name.endsWith('RightArm'));if(hand&&arm){const socket=new TransformNode('carrot-right-palm-muzzle',this.scene);socket.parent=hand;socket.position.set(0,6,0);socket.rotationQuaternion=Quaternion.FromUnitVectorsToRef(Vector3.Forward(),Vector3.Up(),Quaternion.Identity());actor.laserSocket=socket;actor.laserArm=arm;}}this.actors.push(actor);this.byId.set(actor.id,actor);this.world.targets.push(target);
     }
     this.ragdolls.release(actor.ragdoll);actor.ragdoll=undefined;actor.machine.reset();actor.gait=0;actor.lastPosePosition.set(at.x,at.y,at.z);
     actor.variant=variant;actor.scale=definition.scale*affix.scale;actor.push.setAll(0);actor.active=true;actor.health=new Health(actor.id,this.healthFor(kind,variant),this.events);actor.healthTrail=actor.health.maximum;actor.state='spawn';actor.time=0;actor.burn=0;actor.hit=0;actor.stagger=0;actor.staggerCooldown=0;actor.cooldown=1;actor.direction={x:0,z:0};actor.attack=0;actor.root.position.set(at.x,at.y,at.z);this.space.faceAt(actor.root,actor.facing,at,this.player.position);actor.root.scaling.setAll(actor.scale);actor.visual.rotationQuaternion=null;actor.visual.rotation.set(0,0,0);actor.visual.position.set(0,isSaucerSpecies(kind)?0:-(ENEMY_VISUAL_DROP[kind]??1),0);actor.body.isPickable=true;actor.root.setEnabled(true);
@@ -668,7 +691,15 @@ export class EnemySwarm {
         }
         a.visual.rotation.z=Math.min(1.45,a.time*2.5);if(a.time>7){a.active=false;a.root.setEnabled(false);}continue;}
       if(a.burn>0){a.burn-=dt;a.burnClock-=dt;if(a.burnClock<=0){a.burnClock=.5;this.effects.burst(a.root.position,'seed',.35);this.hit(a,{...this.damageContext(1,5,a.root.position,'burn'),victimId:a.id,procChainDepth:1,sourceProcId:'burn'});}if(a.health.dead)continue;}
-      if(a.state==='spawn'){this.tactical?.velocity(a.id,{x:0,y:0,z:0},0);const duration=a.kind==='carrot'?1.15:a.kind==='watermelon'?1.8:a.kind==='tomato'?1.6:1.5,t=Math.min(1,a.time/duration),ease=t*t*(3-2*t),depth=a.kind==='watermelon'?1.4:2;a.visual.position.y=-depth*(1-ease)+(a.kind==='tomato'?2*ease:a.kind==='carrot'?.18*Math.sin(t*Math.PI):0);if(a.time>=duration){a.state='chase';a.time=0;}continue;}
+      // Nascimento: os originais brotam da terra, afundados, e sobem. As espécies de disco voador
+      // NÃO nascem do chão — elas são depositadas pelo feixe e já chegam de pé. Aplicar o
+      // afundamento nelas é exatamente o que as fazia aparecer enterradas.
+      if(a.state==='spawn'){this.tactical?.velocity(a.id,{x:0,y:0,z:0},0);
+        const saucer=isSaucerSpecies(a.kind);
+        const duration=saucer?.45:a.kind==='carrot'?1.15:a.kind==='watermelon'?1.8:a.kind==='tomato'?1.6:1.5;
+        const t=Math.min(1,a.time/duration),ease=t*t*(3-2*t),depth=a.kind==='watermelon'?1.4:2;
+        a.visual.position.y=saucer?0:-depth*(1-ease)+(a.kind==='tomato'?2*ease:a.kind==='carrot'?.18*Math.sin(t*Math.PI):0);
+        if(a.time>=duration){a.state='chase';a.time=0;}continue;}
       const behavior=ENEMY_BEHAVIORS[a.kind];
       // Quem persegue cai no bloco do Detour lá embaixo, que refaz exatamente esta sincronização.
       // Repeti-la aqui custava um segundo `position()` + `groundAt` por ator por frame, sem efeito.

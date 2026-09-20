@@ -4,93 +4,93 @@ import type {Vec3} from '../src/core/contracts';
 
 const PLAYER:Vec3={x:0,y:5,z:0};
 const ORBIT:Vec3={x:-30,y:26,z:48};
-/** Piso plano na altura do jogador; é o que o `CollisionWorld` devolveria num terreno liso. */
 const ground=():number=>PLAYER.y;
 
-/** Avança a investida em passos fixos de 1/60 s, como o laço do jogo. */
-function run(raid:SaucerRaid,seconds:number,onDeliver:(at:Vec3,index:number,total:number)=>void=()=>{}):void {
+type Delivery=[Vec3,number,number,boolean];
+
+function run(raid:SaucerRaid,seconds:number,onDeliver:(at:Vec3,index:number,total:number,wave:boolean)=>void=()=>{}):void {
   const step=1/60;
   for(let elapsed=0;elapsed<seconds;elapsed+=step)raid.update(step,PLAYER,ground,onDeliver);
 }
 
-describe('represália dos discos voadores',()=>{
-  it('um tiro basta, e a escalada é 1 na primeira investida e 10 nas seguintes',()=>{
+describe('evento do disco voador',()=>{
+  it('um tiro abre o evento e a primeira visita deixa UM corpo',()=>{
     const raid=new SaucerRaid();
-    expect(raid.phase).toBe('patrol');
+    expect(raid.phase).toBe('patrulha');
     expect(raid.provoke(ORBIT)).toBe(RAID_FIRST_DROP);
-    expect(raid.phase).toBe('approach');
-    // Provocar de novo no meio da investida não empilha nem reinicia nada.
+    expect(raid.phase).toBe('primeira-chegada');
+    // Tiros durante o evento não empilham investidas.
     expect(raid.provoke(ORBIT)).toBe(0);
-    expect(raid.pending).toBe(RAID_FIRST_DROP);
-    raid.reset();
-    raid.provoke(ORBIT);
-    raid.reset();
-    // Depois do primeiro ciclo completo, toda nova investida traz o enxame.
-    const second=new SaucerRaid();
-    second.provoke(ORBIT);
-    run(second,40);
-    expect(second.phase).toBe('patrol');
-    expect(second.provoke(ORBIT)).toBe(RAID_SWARM_DROP);
-  });
-
-  it('sai da órbita, chega em cima do jogador e só então acende o feixe',()=>{
-    const raid=new SaucerRaid();
-    raid.provoke(ORBIT);
-    expect(Math.hypot(raid.position.x-PLAYER.x,raid.position.z-PLAYER.z)).toBeGreaterThan(40);
-    let beamedBeforeArrival=false;
-    const step=1/60;
-    for(let i=0;i<60*6;i++){
-      raid.update(step,PLAYER,ground,()=>{});
-      const horizontal=Math.hypot(raid.position.x-PLAYER.x,raid.position.z-PLAYER.z);
-      if(raid.beaming&&horizontal>RAID_ARRIVAL_RADIUS+.5)beamedBeforeArrival=true;
-      if(raid.phase==='beam')break;
-    }
-    expect(raid.phase).toBe('beam');
-    expect(beamedBeforeArrival,'o feixe acendeu antes de a nave chegar').toBe(false);
-    // Paira acima, nunca dentro do jogador.
-    expect(raid.position.y-PLAYER.y).toBeGreaterThan(RAID_HOVER_HEIGHT*.6);
-  });
-
-  it('entrega exatamente um monstro por despejo, no chão, e some no fim',()=>{
-    const raid=new SaucerRaid();
-    raid.provoke(ORBIT);
-    const deliver=vi.fn();
-    run(raid,40,deliver);
-    expect(deliver).toHaveBeenCalledTimes(RAID_FIRST_DROP);
-    const [at]=deliver.mock.calls[0]! as [Vec3,number,number];
-    expect(at.y).toBeCloseTo(PLAYER.y,5);
-    expect(Math.hypot(at.x-PLAYER.x,at.z-PLAYER.z)).toBeLessThan(2);
-    expect(raid.phase).toBe('patrol');
-    expect(raid.pending).toBe(0);
-    expect(raid.beam).toBe(0);
+    const deliveries:Delivery[]=[];
+    run(raid,40,(at,index,total,wave)=>deliveries.push([at,index,total,wave]));
+    expect(deliveries).toHaveLength(RAID_FIRST_DROP);
+    expect(deliveries[0]![3],'o primeiro despejo não é da onda').toBe(false);
+    // Entregue o E.T., a nave sai e o evento espera a luta.
+    expect(raid.phase).toBe('luta-et');
     expect(raid.commanding).toBe(false);
   });
 
-  it('a investida do enxame larga os dez, um a um, espalhados em volta do jogador',()=>{
+  it('sai da órbita e só acende o feixe depois de chegar em cima do jogador',()=>{
     const raid=new SaucerRaid();
-    raid.provoke(ORBIT);run(raid,40);            // primeira investida, consome o "1"
-    expect(raid.provoke(ORBIT)).toBe(RAID_SWARM_DROP);
-    const landings:Vec3[]=[];const order:number[]=[];
-    run(raid,60,(at,index,total)=>{landings.push(at);order.push(index);expect(total).toBeGreaterThanOrEqual(RAID_SWARM_DROP);});
-    expect(landings).toHaveLength(RAID_SWARM_DROP);
-    // Um a um e em ordem: nenhum índice repetido nem fora de sequência.
-    expect(order).toEqual([...Array(RAID_SWARM_DROP).keys()]);
-    // Espalhados: nenhum par exatamente sobreposto, e todos perto o bastante para assustar.
-    for(let i=0;i<landings.length;i++){
-      const a=landings[i]!;
-      expect(Math.hypot(a.x-PLAYER.x,a.z-PLAYER.z)).toBeLessThan(6);
-      for(let j=i+1;j<landings.length;j++){
-        const b=landings[j]!;
-        expect(Math.hypot(a.x-b.x,a.z-b.z)).toBeGreaterThan(.4);
-      }
+    raid.provoke(ORBIT);
+    expect(Math.hypot(raid.position.x-PLAYER.x,raid.position.z-PLAYER.z)).toBeGreaterThan(40);
+    let beamedEarly=false;
+    for(let i=0;i<60*8;i++){
+      raid.update(1/60,PLAYER,ground,()=>{});
+      if(raid.beaming&&Math.hypot(raid.position.x-PLAYER.x,raid.position.z-PLAYER.z)>RAID_ARRIVAL_RADIUS+.5)beamedEarly=true;
+      if(raid.phase==='depositando-et')break;
     }
-    expect(raid.phase).toBe('patrol');
+    expect(raid.phase).toBe('depositando-et');
+    expect(beamedEarly,'o feixe acendeu antes de a nave chegar').toBe(false);
+    expect(raid.position.y-PLAYER.y).toBeGreaterThan(RAID_HOVER_HEIGHT*.6);
   });
 
-  it('passo inválido e nave em órbita não movem nada',()=>{
+  it('é a MORTE do E.T. que chama o disco de volta, sem novo tiro',()=>{
+    const raid=new SaucerRaid();
+    raid.provoke(ORBIT);
+    run(raid,40);
+    expect(raid.phase).toBe('luta-et');
+    // Enquanto o E.T. vive, nada acontece por mais que o tempo passe.
+    const idle=vi.fn();
+    run(raid,30,idle);
+    expect(idle).not.toHaveBeenCalled();
+    expect(raid.phase).toBe('luta-et');
+    // Morreu: a segunda visita é anunciada na hora, e traz dez.
+    expect(raid.etDefeated()).toBe(RAID_SWARM_DROP);
+    expect(raid.phase).toBe('retornando');
+    // Chamar de novo não repete o evento.
+    expect(raid.etDefeated()).toBe(0);
+  });
+
+  it('a segunda visita despeja dez, um a um, espalhados e sem repetir índice',()=>{
+    const raid=new SaucerRaid();
+    raid.provoke(ORBIT);run(raid,40);
+    raid.etDefeated();
+    const deliveries:Delivery[]=[];
+    run(raid,90,(at,index,total,wave)=>deliveries.push([{...at},index,total,wave]));
+    expect(deliveries).toHaveLength(RAID_SWARM_DROP);
+    expect(deliveries.map(d=>d[1])).toEqual([...Array(RAID_SWARM_DROP).keys()]);
+    expect(deliveries.every(d=>d[3]),'todos os dez são da onda').toBe(true);
+    for(let i=0;i<deliveries.length;i++){
+      const a=deliveries[i]![0];
+      expect(a.y).toBeCloseTo(PLAYER.y,5);
+      expect(Math.hypot(a.x-PLAYER.x,a.z-PLAYER.z)).toBeLessThan(9);
+      for(let j=i+1;j<deliveries.length;j++){
+        const b=deliveries[j]![0];
+        expect(Math.hypot(a.x-b.x,a.z-b.z),`despejo ${i} e ${j} no mesmo ponto`).toBeGreaterThan(.5);
+      }
+    }
+    expect(raid.phase).toBe('onda-ativa');
+    raid.waveCleared();
+    expect(raid.phase).toBe('concluido');
+    // Evento encerrado: nem tiro reabre.
+    expect(raid.provoke(ORBIT)).toBe(0);
+  });
+
+  it('passo inválido e fases sem nave não movem nada',()=>{
     const raid=new SaucerRaid();
     const deliver=vi.fn();
-    raid.update(.016,PLAYER,ground,deliver);          // em patrulha: ignora
+    raid.update(.016,PLAYER,ground,deliver);      // em patrulha
     raid.provoke(ORBIT);
     const before={...raid.position};
     raid.update(Number.NaN,PLAYER,ground,deliver);
@@ -99,15 +99,25 @@ describe('represália dos discos voadores',()=>{
     expect(deliver).not.toHaveBeenCalled();
   });
 
-  it('o piso inválido não deixa o monstro nascer flutuando',()=>{
+  it('piso inválido não deixa ninguém nascer flutuando',()=>{
     const raid=new SaucerRaid();
     raid.provoke(ORBIT);
     const deliver=vi.fn();
-    // Sem piso resolvido, o pouso cai no nível em que o próprio jogador está pisando.
     for(let i=0;i<60*40;i++)raid.update(1/60,PLAYER,()=>Number.NaN,deliver);
     expect(deliver).toHaveBeenCalledTimes(RAID_FIRST_DROP);
-    const [at]=deliver.mock.calls[0]! as [Vec3,number,number];
+    const [at]=deliver.mock.calls[0]! as Delivery;
     expect(Number.isFinite(at.y)).toBe(true);
     expect(at.y).toBeCloseTo(PLAYER.y,5);
+  });
+
+  it('reset devolve tudo ao repouso',()=>{
+    const raid=new SaucerRaid();
+    raid.provoke(ORBIT);run(raid,40);raid.etDefeated();run(raid,20);
+    raid.reset();
+    expect(raid.phase).toBe('patrulha');
+    expect(raid.pending).toBe(0);
+    expect(raid.beam).toBe(0);
+    expect(raid.commanding).toBe(false);
+    expect(raid.provoke(ORBIT)).toBe(RAID_FIRST_DROP);
   });
 });
