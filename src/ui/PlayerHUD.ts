@@ -13,6 +13,7 @@ import { MenuShell } from './MenuShell';
 import type { LobbyLink } from '../net/LobbyLink';
 import { lobbyBlockerText } from '../net/LobbyStatus';
 import { browserMultiplayer,type MultiplayerPort } from '../net/Multiplayer';
+import { onRoomChange } from '../net/RoomSession';
 import { encodeRoomCode,formatRoomCode } from '../net/RoomCode';
 import { DEFAULT_PLAYER_CLASS,PLAYER_CLASSES,type PlayerClassId } from '../run/PlayerClass';
 
@@ -94,13 +95,31 @@ export class PlayerHUD {
   private lobby:LobbyLink|undefined;
   private unsubscribeLobby:(()=>void)|undefined;
   /**
+   * `true` quando a CENA desta tela é a da partida — a fazenda, com `NetworkSession` de pé.
+   *
+   * É a diferença entre o lobby e a partida, e ela decide as duas coisas que importam aqui: quem
+   * começa a partida quando a sala larga (a cena do menu precisa ser refeita; a da partida já está
+   * no lugar certo) e o que fazer ao sair da sala (voltar ao menu exige refazer a cena só quando
+   * saímos de dentro do mundo da fazenda).
+   */
+  private sceneOnline=false;
+  /** A ordem de entrar em campo é dada UMA vez; a sala avisa a fase em cada patch. */
+  private entering=false;
+  /**
    * Liga o menu à sala cooperativa.
    *
-   * Chamado só por `PlayerScene` quando `?online` criou a sessão. O PRONTO deixa de começar a
-   * partida e passa a anunciar prontidão; quem larga é a sala, por unanimidade.
+   * Chamado por `PlayerScene` quando a cena tem sessão de rede (`sceneOwned`), e por `RoomSession`
+   * quando o MENU abriu a sala sem trocar de cena — que é o caminho normal desde que o lobby
+   * deixou de exigir o mundo da fazenda. O PRONTO deixa de começar a partida e passa a anunciar
+   * prontidão; quem larga é a sala, por unanimidade.
    */
-  attachLobby(lobby:LobbyLink):void {
+  attachLobby(lobby:LobbyLink,sceneOwned=false):void {
+    // A mesma sala chega duas vezes de propósito: o menu a adota no lobby e a cena da partida a
+    // adota de novo ao nascer. A segunda chegada não reinscreve nada — só promove a tela a partida.
+    if(this.lobby===lobby){if(sceneOwned&&!this.sceneOnline){this.sceneOnline=true;this.syncLobby();}return;}
+    this.detachLobby();
     this.lobby=lobby;
+    this.sceneOnline=sceneOwned;
     this.menu?.setReadyHandler(()=>{lobby.chooseClass(this.playerClass);lobby.setReady(true);});
     lobby.chooseClass(this.playerClass);
     // As ações da sala são da REDE; o menu só as dispara. Sair, encerrar e ser expulso terminam
@@ -112,29 +131,66 @@ export class PlayerHUD {
       leave:()=>{lobby.leaveRoom();this.coopExit('VOCÊ SAIU DA SALA');},
     });
     this.unsubscribeLobbyClosed=lobby.onClosed(reason=>this.coopExit(reason));
-    this.unsubscribeLobby=lobby.onChange(()=>{
-      this.refreshRoster();
-      const mine=lobby.players.find(p=>p.self);
-      this.menu?.setReadyLabel(lobby.phase==='playing'?'ENTRANDO…':mine?.ready?'AGUARDANDO A SALA':'PRONTO');
-      this.menu?.setHost(lobby.isHost);
-      this.menu?.setRoomStatus(lobbyBlockerText(lobby.players,lobby.phase));
-      this.menu?.setRoomCode(this.roomCode(lobby.address));
-      if(lobby.roomName)this.menu?.showRoomName(lobby.roomName);
-      if(lobby.phase==='playing')this.menu?.startRun();
-    });
-    this.menu?.setHost(lobby.isHost);
-    this.menu?.setRoomStatus(lobbyBlockerText(lobby.players,lobby.phase));
+    this.unsubscribeLobby=lobby.onChange(()=>this.syncLobby());
     // Quem chegou aqui PELO MENU abre direto na sala: foi o que ele pediu dois cliques atrás. Quem
     // chegou pela URL (`?online=1&seed=`) continua caindo na raiz, porque ali não houve sala
     // nenhuma escolhida na interface — e é esse o caminho de desenvolvimento que não pode mudar.
     if(this.multiplayer?.currentRoom())this.menu?.showRoom(this.roomCode(lobby.address),lobby.roomName);
+    this.syncLobby();
+  }
+  /**
+   * A tela inteira da sala a partir do estado da sala — e nada além dele.
+   *
+   * Chamada na inscrição e a cada patch, e não só no `onChange`: a cena da partida nasce com a sala
+   * JÁ em `playing` (foi isso que a fez nascer), e esperar por um próximo evento que talvez nunca
+   * viesse deixaria o jogador olhando o lobby com o mundo já montado atrás.
+   */
+  private syncLobby():void {
+    const lobby=this.lobby;
+    if(!lobby)return;
     this.refreshRoster();
+    const mine=lobby.players.find(p=>p.self);
+    this.menu?.setReadyLabel(lobby.phase==='playing'?'ENTRANDO…':mine?.ready?'AGUARDANDO A SALA':'PRONTO');
+    this.menu?.setHost(lobby.isHost);
+    this.menu?.setRoomStatus(lobbyBlockerText(lobby.players,lobby.phase));
+    this.menu?.setRoomCode(this.roomCode(lobby.address));
+    if(lobby.roomName)this.menu?.showRoomName(lobby.roomName);
+    if(lobby.phase!=='playing')return;
+    /**
+     * A PARTIDA COMEÇOU — e é só aqui que um mapa é construído.
+     *
+     * Na cena da partida a largada é a de sempre. No MENU, a cena de pé é a de fora (o planeta) e
+     * o mundo da fazenda ainda não existe: `enterMatch` é o pedido para construí-lo, e a tela de
+     * carregamento que aparece em seguida é a única de todo o caminho do co-op.
+     */
+    if(this.sceneOnline){this.menu?.startRun();return;}
+    if(this.entering)return;
+    this.entering=true;
+    this.multiplayer?.enterMatch();
+  }
+  /** Desliga a tela da sala. A conexão não é tocada: quem a fecha é quem a abriu. */
+  private detachLobby():void {
+    this.unsubscribeLobby?.();this.unsubscribeLobby=undefined;
+    this.unsubscribeLobbyClosed?.();this.unsubscribeLobbyClosed=undefined;
+    this.lobby=undefined;
+    this.menu?.setReadyHandler(undefined);
   }
   private unsubscribeLobbyClosed:(()=>void)|undefined;
+  /** Inscrição na sala que vive FORA da cena (`RoomSession`). Desfeita no descarte do HUD. */
+  private unsubscribeRoom:(()=>void)|undefined;
   /** O porto de multijogador, quando esta cena o oferece. */
   private multiplayer:MultiplayerPort|undefined;
-  /** Sala acabou (saiu, expulso, encerrada): volta ao menu com o motivo escrito. */
-  private coopExit(reason:string):void {this.multiplayer?.backToMenu(reason);}
+  /**
+   * Sala acabou (saiu, expulso, encerrada): volta ao menu com o motivo escrito.
+   *
+   * De DENTRO da partida isso exige refazer a cena, porque o mundo da fazenda tem de dar lugar ao
+   * de fora. De dentro do LOBBY não exige nada: a cena de fora é a que já está de pé, e o jogador
+   * volta para a lista de salas no mesmo quadro, sem tela de carregamento nenhuma.
+   */
+  private coopExit(reason:string):void {
+    if(this.sceneOnline)this.multiplayer?.backToMenu(reason);
+    else this.multiplayer?.exitRoom(reason);
+  }
   /**
    * O CÓDIGO COMPLETO, montado só quando o endereço chega.
    *
@@ -284,7 +340,37 @@ export class PlayerHUD {
      * Só nas cenas que oferecem escolha de personagem — o campo de treino não tem co-op, e um botão
      * que leva a uma sala impossível é pior do que a sua ausência.
      */
-    if(classPicker){this.multiplayer=browserMultiplayer();this.menu?.enableMultiplayer(this.multiplayer);}
+    if(classPicker){
+      this.multiplayer=browserMultiplayer();
+      this.menu?.enableMultiplayer(this.multiplayer);
+      /**
+       * A SALA CHEGA DE FORA DA CENA.
+       *
+       * Este é o fio que faz o lobby caber no menu: `RoomSession` abre a sala onde o jogador está
+       * e avisa aqui, e a tela da sala se monta sobre a cena que já estava de pé. `undefined` é a
+       * sala fechando — saiu, foi expulso, o anfitrião encerrou —, e a volta para a lista é
+       * imediata pelo mesmo motivo: não há nada para reconstruir.
+       */
+      this.unsubscribeRoom=onRoomChange((room,notice)=>{
+        if(room){this.attachLobby(room);return;}
+        this.detachLobby();
+        this.refreshRoster();
+        // Dentro da partida quem leva o jogador de volta é a reconstrução da cena, com o recado
+        // guardado para depois dela (`writeCoopNotice`); escrever na lista aqui seria escrever num
+        // menu que está prestes a ser descartado.
+        if(this.sceneOnline)return;
+        this.menu?.setBrowserNotice(notice);
+        this.menu?.show('multijogador');
+      });
+      /**
+       * A sala já aberta NÃO é adotada aqui, e a omissão é deliberada.
+       *
+       * Quando esta tela nasce com sala aberta, a cena é a da partida — ela só existe porque a sala
+       * largou —, e quem sabe disso é `PlayerScene`, que chama `attachLobby(…, true)` logo a
+       * seguir. Adotar antes disso faria a tela se ver no lobby com a fase já em `playing` e pedir
+       * para entrar em campo de novo: um relançamento atrás do outro, sem fim.
+       */
+    }
     this.refreshRoster();
     /**
      * Abandonar a expedição: recarrega a página no MESMO seed.
@@ -509,5 +595,5 @@ export class PlayerHUD {
     if(error){this.diagnostic.textContent=`Falha ao carregar personagem: ${error}`;this.button.textContent='Recarregue a página para tentar novamente';}
     else if(pistols.cadence.shots+pistols.skillShots>0)this.diagnostic.textContent=`${pistols.hits} acertos · ${pistols.cadence.shots+pistols.skillShots} disparos · ${mp.releases} habilidades`;
   }
-  dispose(): void {this.unsubscribeLobby?.();this.unsubscribeLobby=undefined;this.unsubscribeLobbyClosed?.();this.unsubscribeLobbyClosed=undefined;this.lobby=undefined;window.removeEventListener('keydown',this.gateKey);this.onSkipIntro=undefined;this.skipButton.remove();this.classSelect?.dispose();this.journeyCard?.remove();document.body.classList.remove('game-menu-open','arrival-in-progress');this.element.remove();}
+  dispose(): void {this.unsubscribeRoom?.();this.unsubscribeRoom=undefined;this.detachLobby();window.removeEventListener('keydown',this.gateKey);this.onSkipIntro=undefined;this.skipButton.remove();this.classSelect?.dispose();this.journeyCard?.remove();document.body.classList.remove('game-menu-open','arrival-in-progress');this.element.remove();}
 }

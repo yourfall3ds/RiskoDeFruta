@@ -32,7 +32,6 @@ const port = Number(process.env['PORT'] ?? 2567);
  * continua sendo o IP da LAN com a porta de escuta, que é o caso de jogar na mesma casa.
  */
 const address = process.env['PUBLIC_HOST'] ?? `${lanIPv4()}:${port}`;
-const host = address;
 /**
  * O endereço publicado, também no AMBIENTE.
  *
@@ -66,15 +65,49 @@ process.env['PUBLIC_ADDRESS'] = address;
  */
 const httpServer = createServer();
 httpServer.on('request', (req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  res.setHeader('Access-Control-Max-Age', '600');
-  if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); }
+  /**
+   * A guarda não é zelo: sem ela o servidor MORRE.
+   *
+   * O Colyseus também escuta `request` e já responde a boa parte das rotas — inclusive respondendo
+   * ao preflight por conta própria em alguns caminhos. Quando a resposta já saiu, `setHeader` lança
+   * `ERR_HTTP_HEADERS_SENT`, e uma exceção dentro de um ouvinte de evento do Node não é capturada
+   * por ninguém: derruba o processo. Foi o que aconteceu — a porta 2567 caía sozinha no meio do
+   * teste e o sintoma no navegador era "não consegui falar com o servidor", que parece rede e é
+   * processo morto.
+   *
+   * O `try` cobre o resto: nenhum cabeçalho de conveniência vale o servidor cair.
+   */
+  if (res.headersSent) return;
+  try {
+    /**
+     * A ORIGEM É REFLETIDA, e `*` seria um bug silencioso.
+     *
+     * O SDK do Colyseus faz o pedido de matchmaking com credenciais. A especificação do CORS proíbe
+     * `Access-Control-Allow-Origin: *` quando há credenciais: o navegador descarta a resposta e
+     * relata apenas `Failed to fetch` — sem dizer por quê.
+     *
+     * Isso enganou o diagnóstico: um `fetch` escrito à mão no console FUNCIONAVA (200, com `*`),
+     * porque ele não manda credencial; só o caminho do jogo falhava. Refletir a origem e declarar
+     * `Allow-Credentials` conserta os dois casos.
+     *
+     * `Vary: Origin` é obrigatório junto: sem ele, um intermediário guarda a resposta de uma origem
+     * e a devolve para outra, e o erro volta em outra máquina, de forma intermitente.
+     */
+    const origin = req.headers.origin;
+    res.setHeader('Access-Control-Allow-Origin', origin && origin !== 'null' ? origin : '*');
+    res.setHeader('Vary', 'Origin');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.setHeader('Access-Control-Max-Age', '600');
+    if (req.method === 'OPTIONS' && !res.writableEnded) { res.writeHead(204); res.end(); }
+  } catch { /* outra parte já respondeu; os cabeçalhos dela valem */ }
 });
 const server = new Server({ transport: new WebSocketTransport({ server: httpServer }), publicAddress: address });
 // Listagem em tempo real: `client.getAvailableRooms()` saiu no 0.16; quem descobre salas é o LobbyRoom.
 server.define('lobby', LobbyRoom);
 // `filterBy(['seed'])` fica: é o que mantém o atalho `?online=1&seed=` caindo na MESMA sala.
 server.define('farm', FarmRoom).filterBy(['seed']).enableRealtimeListing();
-void server.listen(port).then(() => console.log(`Mutant Farm · servidor Colyseus em ws://${host}:${port}`));
+// `address` JÁ carrega a porta quando ela existe (ver acima), então colá-la de novo imprimia
+// `ws://192.168.15.42:2567:2567` — e alguém acabaria copiando esse endereço de dentro do log.
+void server.listen(port).then(() => console.log(`Mutant Farm · servidor Colyseus em ws://${address}  (escutando na porta ${port})`));

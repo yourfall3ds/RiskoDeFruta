@@ -16,6 +16,7 @@ import { loadPlayerName, savePlayerName } from './PlayerName';
 import { clearOnlineIntent, readCoopNotice, readOnlineIntent, writeCoopNotice, writeOnlineIntent, type OnlineIntent } from './OnlineIntent';
 import { configuredServerUrl, hasSharedServer, serverUrlFor } from './ServerAddress';
 import { relaunch } from './Relaunch';
+import { closeRoom, openRoom } from './RoomSession';
 import { logger } from '../core/Log';
 
 const log = logger('menu');
@@ -32,8 +33,22 @@ export interface MultiplayerPort {
   joinRow(row: RoomRow, name: string): string;
   /** Entra por código digitado. Devolve o motivo da recusa, ou `''` se foi. */
   joinCode(code: string, name: string): string;
-  /** Volta ao menu (saiu, foi expulso, a sala encerrou), com o motivo para mostrar na lista. */
+  /**
+   * Volta ao menu VINDO DA PARTIDA (saiu, foi expulso, a sala encerrou). A cena é do mundo da
+   * fazenda, então ela precisa mesmo ser refeita no mundo de fora — é a única saída que ainda
+   * atravessa uma tela de carregamento, e é legítima.
+   */
   backToMenu(notice: string): void;
+  /**
+   * Sai da sala AINDA NO MENU. Nada é reconstruído: o lobby é menu, e a cena que está de pé
+   * continua de pé. É o caminho de quem criou uma sala, olhou e desistiu.
+   */
+  exitRoom(notice: string): void;
+  /**
+   * A PARTIDA COMEÇOU. Aqui, e só aqui, a cena é refeita no mundo da fazenda — a sala já está
+   * aberta e será adotada pela cena nova, então o jogador não volta para o fim da fila.
+   */
+  enterMatch(): void;
   /** O recado que sobreviveu à recarga. Lido uma vez. */
   notice(): string;
   /** A sala em que esta aba está, se está em alguma. */
@@ -67,20 +82,25 @@ export function pickRoomPart(taken: readonly string[] = [], random: () => number
 }
 
 /**
- * A entrada de fato: grava a intenção e relança o jogo.
+ * A ENTRADA NA SALA, que deixou de ser uma entrada na PARTIDA.
  *
- * "Relançar" era, até aqui, `location.assign()` — uma recarga de página inteira, e a maior parte
- * dos ~40 s que o jogador esperava para entrar numa sala. A cena PRECISA ser reconstruída (o mapa
- * fora do co-op é o planeta e dentro é a fazenda; ver `Relaunch`), mas a página não: o motor, os
- * shaders e os módulos já avaliados podem ficar de pé.
+ * Este era o ponto mais caro do jogo. `startOnline` gravava a intenção e mandava relançar: a cena
+ * inteira ia abaixo e voltava no outro mundo, e o jogador esperava trinta e poucos segundos de
+ * `[planeta] mapa … 35783 ms` para chegar a uma tela de LOBBY — onde ainda ia escolher personagem,
+ * esperar os amigos e talvez desistir. Montava-se um mapa para ninguém pisar nele.
  *
- * Por isso a ordem: primeiro pergunta se alguém sabe relançar em processo (`Application` sabe) e,
- * só se não houver ninguém, recarrega como sempre. A queda importa — é ela que mantém o caminho de
- * URL (`?online=1&seed=`) e os testes funcionando sem nada registrado.
+ * Agora a sala abre onde o jogador está: `openRoom` conecta por fora da cena e o menu passa a
+ * mostrar o roster sobre a cena que já estava de pé. Nenhum mundo é construído aqui. Quem constrói
+ * é `enterMatch`, quando a sala de fato largar.
+ *
+ * A ordem de queda continua a mesma e pelo mesmo motivo: sem quem conecte fora da cena, relança a
+ * cena; sem quem relance, recarrega a página. É a queda que mantém `?online=1&seed=` e
+ * `jogar-coop.ps1` valendo palavra por palavra.
  */
 export function startOnline(intent: OnlineIntent, target: { assign(url: string): void; pathname: string } = location): void {
   writeOnlineIntent(intent);
   log.info('entrando na sala', { codigo: intent.code, servidor: intent.server, sala: intent.roomName });
+  if (openRoom(intent)) return;
   if (relaunch('entrar')) return;
   target.assign(target.pathname);
 }
@@ -142,10 +162,27 @@ export function browserMultiplayer(): MultiplayerPort {
     },
     backToMenu(notice: string): void {
       clearOnlineIntent();
+      // A sala morre ANTES de a cena ser refeita: a cena nova nasce no mundo de fora e não pode
+      // adotar uma sala que o jogador acabou de abandonar.
+      closeRoom();
       if (notice) writeCoopNotice(notice);
-      log.info('voltando ao menu', { motivo: notice || 'sem motivo' });
+      log.info('voltando ao menu vindo da partida', { motivo: notice || 'sem motivo' });
       // Mesma economia da entrada: a cena volta a ser a do menu sem a página inteira recarregar.
       if (relaunch('sair')) return;
+      location.assign(location.pathname);
+    },
+    exitRoom(notice: string): void {
+      clearOnlineIntent();
+      log.info('saindo da sala ainda no menu', { motivo: notice || 'sem motivo' });
+      // Nada de `relaunch`, nada de `writeCoopNotice`: não há recarga nenhuma para o recado
+      // atravessar, e a cena de fora é justamente a que continua de pé. O motivo viaja com o
+      // fechamento e chega ao menu pelo mesmo turno.
+      closeRoom(notice);
+    },
+    enterMatch(): void {
+      log.info('a partida começou: construindo o mundo da fazenda');
+      // A ÚNICA tela de carregamento que sobrou no caminho do co-op — e a única que o jogador pediu.
+      if (relaunch('entrar')) return;
       location.assign(location.pathname);
     },
     notice: () => readCoopNotice(),

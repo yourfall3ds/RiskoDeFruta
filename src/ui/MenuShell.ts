@@ -441,7 +441,12 @@ export class MenuShell {
     criar.type='button';criar.className='rdf-menu-confirm';criar.textContent='CRIAR SALA';
     criar.onclick=()=>{
       const port=this.port;if(!port)return;
-      port.create(port.savedName(),nomeSala.value.trim());
+      const nome=nomeSala.value.trim();
+      port.create(port.savedName(),nome);
+      // A tela da sala aparece no CLIQUE, não quando a conexão responde. O roster vazio e o código
+      // em reticências são a verdade daquele instante — e são os mesmos que esta tela já mostrava
+      // enquanto a boas-vindas não chegava. Esperar aqui seria o único tempo morto que sobrou.
+      this.showRoom('',nome);
     };
 
     // ---- o código: caminho secundário, e escrito como tal -------------------------------------
@@ -469,6 +474,7 @@ export class MenuShell {
       const port=this.port;if(!port)return;
       const motivo=port.joinCode(input.value,port.savedName());
       erro.textContent=motivo;erro.hidden=!motivo;
+      if(!motivo)this.showRoom('','');
     };
     confirmar.onclick=tentar;
     input.onkeydown=event=>{if(event.key==='Enter'){event.preventDefault();tentar();}};
@@ -657,7 +663,8 @@ export class MenuShell {
     if(!atual){this.setBrowserNotice('ESSA SALA NÃO EXISTE MAIS');this.renderRooms(agora??[],this.browser?.error??'');return;}
     if(atual.full){this.setBrowserNotice('ESSA SALA ENCHEU');this.renderRooms(agora??[],this.browser?.error??'');return;}
     const motivo=port.joinRow(atual,port.savedName());
-    if(motivo)this.setBrowserNotice(motivo);
+    if(motivo){this.setBrowserNotice(motivo);return;}
+    this.showRoom('',atual.roomName);
   }
 
   /** Abre a listagem ao vivo enquanto a tela está à vista, e fecha ao sair. Uma conexão, não mais. */

@@ -11,8 +11,9 @@ import { RemotePlayers } from './RemotePlayers';
 import { Reconciliation, type Pose } from './Reconciliation';
 import type { LobbyLink } from './LobbyLink';
 import { readOnlineIntent } from './OnlineIntent';
+import { DEFAULT_COOP_SERVER, currentRoomClient } from './RoomSession';
 
-const DEFAULT_SERVER = 'ws://127.0.0.1:2567';
+const DEFAULT_SERVER = DEFAULT_COOP_SERVER;
 
 /**
  * Sessão online do `PlayerScene`: predição local (o motor continua rodando com a entrada local),
@@ -41,18 +42,42 @@ export class NetworkSession {
     const params = new URL(location.href).searchParams;
     const intent = readOnlineIntent();
     if (!params.get('online') && !intent) return undefined;
+    /**
+     * A SALA QUE JÁ ESTÁ ABERTA vem primeiro.
+     *
+     * Quem entrou pelo menu já está numa sala desde o lobby — o roster respondeu, o personagem foi
+     * escolhido e o PRONTO foi dado, tudo isso antes de esta cena existir (ver `RoomSession`).
+     * Conectar de novo aqui abriria uma SEGUNDA conexão para o mesmo jogador e o mandaria para o
+     * fim da fila de uma sala em que ele já tem vaga. A cena adota e segue.
+     */
+    const open = currentRoomClient();
+    if (open) return new NetworkSession(scene, collision, shadows, events, seed, open.url, intent?.name ?? '', intent?.roomName ?? '', open);
     const url = params.get('server') || intent?.server || DEFAULT_SERVER;
     return new NetworkSession(scene, collision, shadows, events, seed, url, intent?.name ?? '', intent?.roomName ?? '');
   }
 
-  constructor(scene: Scene, collision: CollisionWorld, shadows: ShadowGenerator, events: EventBus<GameEvents>, seed: string, url: string, playerName = '', roomName = '') {
-    this.client = new NetworkClient(url, seed, playerName, roomName);
+  /**
+   * `true` quando a sala foi ABERTA por esta sessão — e portanto é esta sessão que a descarta.
+   *
+   * Uma sala adotada pertence ao menu (`RoomSession`), que a abriu antes desta cena nascer e a
+   * fecha quando o jogador sai. Descartá-la aqui derrubaria o jogador da sala toda vez que a cena
+   * fosse refeita, que é precisamente o que o trabalho inteiro existe para impedir.
+   */
+  private readonly ownsClient: boolean;
+
+  constructor(scene: Scene, collision: CollisionWorld, shadows: ShadowGenerator, events: EventBus<GameEvents>, seed: string, url: string, playerName = '', roomName = '', adopted?: NetworkClient) {
+    this.client = adopted ?? new NetworkClient(url, seed, playerName, roomName);
+    this.ownsClient = !adopted;
     this.remotes = new RemotePlayers(scene, collision, shadows, events);
-    void this.client.connect().then(() => {
+    const ready = (): void => {
       this.status = 'online';
       // A assinatura só pode existir depois da sala; até lá os vereditos ainda não têm por onde vir.
       this.client.onPurchaseResolved(result => { for (const listener of this.purchaseListeners) listener(result); });
-    }).catch(() => { this.status = 'falha: ' + this.client.error; });
+    };
+    // A sala adotada já está conectada: não há o que esperar, e esperar deixaria a cena sem
+    // vereditos de compra até o próximo evento que nunca viria.
+    if (adopted) ready();
+    else void this.client.connect().then(ready).catch(() => { this.status = 'falha: ' + this.client.error; });
   }
 
   get online(): boolean { return this.client.connected; }
@@ -140,7 +165,13 @@ export class NetworkSession {
       + `Correções ${r.corrections} · último erro ${r.lastError.toFixed(3)} m · replays ${this.replays}\n`;
   }
 
-  dispose(): void { this.remotes.dispose(); this.client.dispose(); this.frames.clear(); }
+  dispose(): void {
+    this.remotes.dispose();
+    // A sala adotada NÃO é descartada aqui: ela é do menu (`RoomSession`) e precisa sobreviver à
+    // troca de cena — descartá-la derrubaria o jogador de uma sala em que ele tem vaga.
+    if (this.ownsClient) this.client.dispose();
+    this.frames.clear();
+  }
 }
 
 function pose(motor: PlayerMotor): Pose {

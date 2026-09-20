@@ -588,7 +588,9 @@ export class PlayerScene implements SceneModule {
     // pedir `?online=1&world=planet` recebe o motivo escrito e joga na fazenda.
     this.net=this.radial?undefined:NetworkSession.fromLocation(this.scene,collision,shadows,this.events,seed);
     // Sem sala o menu não muda de comportamento em nada: o PRONTO continua largando na hora.
-    if(this.net)this.hud.attachLobby(this.net.lobby);
+    // `true`: esta cena É a da partida. É o que autoriza o menu a largar aqui mesmo em vez de
+    // pedir que o mundo da fazenda seja construído — ele já está, e é este.
+    if(this.net)this.hud.attachLobby(this.net.lobby,true);
     // ECONOMIA AUTORITATIVA (contrato §21). Com sala, a compra vira pedido e o veredito volta
     // replicado; o espelho `economy` é só o que a tela EXIBE, e nenhuma regra daqui o lê.
     if(this.net){
