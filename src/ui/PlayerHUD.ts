@@ -10,7 +10,7 @@ import { createSeed } from '../core/RunRNG';
 import { weaponReadout,type WeaponReadoutView } from './WeaponReadout';
 import { ClassSelect } from './ClassSelect';
 import { MenuShell } from './MenuShell';
-import { DEFAULT_PLAYER_CLASS,type PlayerClassId } from '../run/PlayerClass';
+import { DEFAULT_PLAYER_CLASS,PLAYER_CLASSES,type PlayerClassId } from '../run/PlayerClass';
 
 /**
  * A porta da escolha de classe, do ponto de vista do menu.
@@ -66,6 +66,15 @@ export class PlayerHUD {
   private readonly classSelect:ClassSelect|undefined;
   /** Composição do menu em telas (raiz / personagem / opções). Ausente no campo de testes. */
   private menu:MenuShell|undefined;
+  /**
+   * Reescreve a lista da sala com a classe escolhida agora.
+   *
+   * Só a vaga local, porque só ela é conhecida aqui — ver `MenuShell.setRoster`. Quando a sala
+   * cooperativa estiver ligada ao menu, é esta chamada que ganha os outros jogadores.
+   */
+  private refreshRoster():void {
+    this.menu?.setRoster([{name:'VOCÊ',classe:PLAYER_CLASSES[this.playerClass].name,pronto:false}]);
+  }
   /** A classe realmente em vigor; o painel de arma e a barra de carga falam por ela. */
   private playerClass:PlayerClassId=DEFAULT_PLAYER_CLASS;
   constructor(private readonly start: () => void,private readonly farm=false,settings?:{volume:(value:number)=>void;quality:(balanced:boolean)=>void},private readonly mode:'expedition'|'horde'|'classic'='expedition',classPicker?:ClassPicker) {
@@ -101,7 +110,13 @@ export class PlayerHUD {
       // O corredor é `<span>`, e não `<b>` nem `<i>`: `loading()` resolve a barra por
       // `querySelector('i')` e a porcentagem por `querySelector('b')`, então qualquer uma dessas
       // duas etiquetas aqui sequestraria a consulta e quebraria o carregamento.
-      +'<div class=loading-track><i></i><span class=rdf-runner aria-hidden=true></span></div>'
+      +'<div class=loading-track><i></i></div>'
+      // O corredor fica COLADO no número, correndo parado — não atravessando a barra. É assim em
+      // Risk of Rain 2, e a razão é boa: um boneco que anda junto do progresso vira um segundo
+      // indicador de progresso, concorrendo com a barra e com a porcentagem pela mesma leitura.
+      // Correndo no lugar ele informa outra coisa, que nenhum dos dois informa: que o processo
+      // não morreu.
+      +'<span class=rdf-runner aria-hidden=true></span>'
       +'<b>0%</b><small>Montando fazendas, rotas e ameaças…</small></div>');document.getElementById('boot-menu')?.remove();document.body.classList.add('game-menu-open');
     this.gate=this.element.querySelector('.play-gate')!;this.hp=this.element.querySelector('.hp-value')!;
     this.charges=this.element.querySelector('.dodge-charges')!;this.crosshair=this.element.querySelector('.crosshair')!;
@@ -128,9 +143,16 @@ export class PlayerHUD {
     };window.addEventListener('keydown',this.gateKey);
     if(farm){this.element.classList.add('farm-hud');
       this.element.querySelector('.field-objective span')!.textContent=mode==='expedition'?'EXPEDIÇÃO':'EXPLORE A FAZENDA';
-      // O sobretítulo ("MUTANT FARM / ILHAS SUSPENSAS") saiu: era a legenda de um cabeçalho de
-      // site em cima do título do próprio jogo, repetindo o que o título já diz.
-      (this.element.querySelector('.gate-card .eyebrow') as HTMLElement|null)?.remove();
+      /**
+       * O sobretítulo ("MUTANT FARM / ILHAS SUSPENSAS") sai do menu: era a legenda de um cabeçalho
+       * de site em cima do título do próprio jogo, repetindo o que o título já diz.
+       *
+       * ESVAZIADO, e não removido. `defeated()` escreve neste mesmo elemento com asserção de não
+       * nulo (`querySelector(...)!.textContent=…`); tirá-lo da árvore derrubava a tela de morte
+       * com TypeError no momento exato em que o jogador morre. Quem o esconde no menu é o CSS,
+       * que o mostra de volta na derrota — onde ele tem conteúdo e função.
+       */
+      this.element.querySelector<HTMLElement>('.gate-card .eyebrow')!.textContent='';
       this.element.querySelector('h1')!.innerHTML='A colheita<br>se revoltou.';
       /**
        * Texto do modo realmente ativo, em UMA linha.
@@ -157,7 +179,7 @@ export class PlayerHUD {
     // A escolha de classe entra ANTES das opções de som/visual: é a primeira decisão da expedição.
     if(classPicker){
       this.playerClass=classPicker.initial;
-      this.classSelect=new ClassSelect(classPicker.initial,id=>{this.playerClass=id;classPicker.choose(id);});
+      this.classSelect=new ClassSelect(classPicker.initial,id=>{this.playerClass=id;classPicker.choose(id);this.refreshRoster();});
       this.element.querySelector('.gate-card .controls')!.after(this.classSelect.element);
       const controls=this.element.querySelector('.gate-card .controls')!;
       const help=document.createElement('details');help.className='class-controls-help';
@@ -184,6 +206,7 @@ export class PlayerHUD {
       // classe, e pegar o primeiro da árvore movia o elemento errado para a tela de opções.
       notes:[card.querySelector<HTMLElement>(':scope > small')],
     });
+    this.refreshRoster();
   }
 
   /**
@@ -222,7 +245,9 @@ export class PlayerHUD {
   defeated(summary:AttemptSummary,retry?:()=>void|Promise<void>): void {
     this.skipIntro(false);this.fatalReaction(false);this.dead=true;this.syncClassSelect();this.gate.hidden=false;this.gate.classList.remove('loading');this.gate.classList.add('defeated');document.body.classList.add('game-menu-open');
     this.gate.querySelector<HTMLVideoElement>('video')?.pause();this.element.querySelector('.gate-card .eyebrow')!.textContent='EXPEDIÇÃO ENCERRADA';
-    this.element.querySelector('h1')!.textContent='A última colheita.';
+    // "VOCÊ MORREU" primeiro, do tamanho da tela; a frase de luto vira subtítulo. A informação
+    // que o jogador precisa no instante em que a tela aparece é O QUE ACONTECEU, não poesia.
+    this.element.querySelector('h1')!.innerHTML='VOCÊ MORREU<small>A última colheita.</small>';
     const objectives=summary.objectives,expedition=objectives.mode==='expedition';
     const reached=expedition
       ?objectives.phase==='extract'?'cálice cheio · pronto para embarcar'
@@ -278,7 +303,11 @@ export class PlayerHUD {
   setActive(active: boolean): void {this.playActive=active;const film=this.gate.querySelector<HTMLVideoElement>('video');if(active)film?.pause();else if(film)void film.play().catch(()=>{});document.body.classList.toggle('game-menu-open',!active);this.gate.hidden=active;if(active)this.entered=true;else if(this.entered&&!this.dead){this.element.querySelector('h1')!.textContent='Campo pausado.';this.button.textContent='CONTINUAR EXPEDIÇÃO →';}
     // Reabrir a pausa sempre cai na raiz: ninguém espera voltar direto na tela de opções em que
     // estava dez minutos antes, e a ação que 99% das vezes se quer é "continuar".
-    if(!active)this.menu?.show('raiz');this.syncClassSelect();}
+    if(!active)this.menu?.show('raiz');
+    // A partida começou por QUALQUER caminho (lobby, atalho de Enter, retomada): o desvio do
+    // lobby sai de cena para sempre nesta sessão, senão a pausa passaria a abrir a escolha de
+    // classe em vez de retomar.
+    if(active)this.menu?.disableLobby();this.syncClassSelect();}
   /**
    * `weapon` é o painel já resolvido (ver `weaponReadout`). Quando ausente, o painel cai no texto
    * das pistolas de sempre — é o caminho do pátio de treino e de qualquer cena sem a PRISM.

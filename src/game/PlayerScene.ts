@@ -1345,12 +1345,45 @@ export class PlayerScene implements SceneModule {
     const at=new Vector3(this.player.position.x,this.player.position.y,this.player.position.z);
     if(cue==='step'){this.audio.footstep('concrete',1.7);return;}
     if(cue==='launch'){this.audio.skill('jump');this.audio.arrivalWind(.5);this.camera.impulse(.028);return;}
-    if(cue==='wind'){this.audio.arrivalWind(Math.min(1,.35+this.intro.flight.flutter));return;}
+    if(cue==='wind'){
+      /**
+       * Reentrada: o corpo desce EM CHAMAS.
+       *
+       * A intensidade vem de `flutter` (0..1, derivado da altitude), então o fogo engrossa
+       * conforme ele acelera, em vez de ser um efeito ligado e desligado. `wind` já era emitido a
+       * cada 0,85 s durante o voo; aproveitar essa cadência evita criar um segundo relógio só
+       * para a apresentação.
+       */
+      const force=Math.min(1,.35+this.intro.flight.flutter);
+      this.audio.arrivalWind(force);
+      // Dois focos por batida, deslocados, para o rastro não piscar sempre no mesmo ponto.
+      this.elements.emit('fire',new Vector3(at.x,at.y+1.1,at.z),.7+force*.9);
+      this.elements.emit('fire',new Vector3(at.x+(Math.random()-.5)*.7,at.y+.3,at.z+(Math.random()-.5)*.7),.5+force*.7);
+      // A energia da queda: o ar rasgando em volta do corpo.
+      this.elements.emit('electricity',new Vector3(at.x,at.y+.6,at.z),.35+force*.5);
+      // Sensação de velocidade: a lente abre junto com a aceleração. `sprintBlendTarget` é o mesmo
+      // canal que a corrida usa, então isto não cria um segundo dono do campo de visão.
+      this.camera.sprintBlendTarget=Math.min(1,force*1.15);
+      this.camera.impulse(.012+force*.02);
+      return;
+    }
     if(cue==='impact'){
       this.elements.aura('fire',[],0,0);
-      this.elements.emit('explosion',at,1.3);this.elements.emit('earth',at,1.5);
+      this.elements.emit('explosion',at,1.9);this.elements.emit('earth',at,2.1);
+      this.elements.emit('fire',at,1.4);
       this.footing.impactCracks(this.player.position);
-      this.audio.impact(true);this.audio.skill('meteor-impact');this.camera.hurt(.10,1);
+      /**
+       * A PANCADA. Três camadas somadas porque nenhuma sozinha entrega o peso: o corpo batendo, o
+       * estouro grave e a assinatura do meteoro. O tranco de câmera sobe de 0,10 para 0,22 — é o
+       * clímax da entrada, e era o momento mais silencioso dela.
+       */
+      this.audio.impact(true);
+      this.audio.fatalImpact();
+      this.audio.bodyGround(1);
+      this.audio.skill('meteor-impact');
+      this.camera.impulse(.085);
+      this.camera.hurt(.22,1);
+      this.camera.sprintBlendTarget=0;
       return;
     }
     if(cue==='rise')this.audio.arrivalRise();

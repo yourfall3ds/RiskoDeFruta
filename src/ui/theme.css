@@ -642,8 +642,16 @@ button:disabled::after  { background-position: 100% 0, 0 0; }
    COMPOSIÇÃO DO MENU — uma decisão por vez, no centro da tela
    =============================================================================================== */
 
+/* O ATRIBUTO `hidden` MANDA, sempre.
+   `PlayerHUD.setActive(true)` esconde o menu escrevendo `gate.hidden = true`, o que depende da
+   regra `display:none` da folha do navegador. Um `display:grid !important` aqui vence essa regra
+   e o menu ficava na tela com a partida já rodando por baixo. A ressalva `:not([hidden])` devolve
+   a decisão para quem é dono dela — e a declaração abaixo fecha a porta contra qualquer outra
+   regra da folha herdada que tente reabrir o portão escondido. */
+.play-gate[hidden] { display: none !important; }
+
 /* O portão deixa de ser uma coluna encostada à esquerda. */
-.play-gate:not(.defeated) {
+.play-gate:not(.defeated):not([hidden]) {
   display: grid !important;
   place-items: center !important;
   padding: 4vh 4vw !important;
@@ -776,6 +784,69 @@ body.rdf-quit::after {
   font-size: 13px;
   letter-spacing: .06em;
 }
+/* -----------------------------------------------------------------------------------------------
+   LOBBY
+   ----------------------------------------------------------------------------------------------- */
+
+.rdf-menu-ready {
+  --rdf-cut: var(--rdf-cut-lg);
+  margin-top: 4px;
+  justify-self: center;
+  width: min(340px, 100%);
+  font-family: var(--rdf-display);
+  font-size: clamp(14px, 1.3vw, 19px) !important;
+  letter-spacing: .14em !important;
+  padding: clamp(13px, 1.4vw, 18px) 24px !important;
+  color: var(--rdf-wheat-hot) !important;
+}
+.rdf-menu-ready::before { background: var(--rdf-rind); }
+.rdf-menu-ready::after {
+  background:
+    linear-gradient(90deg, var(--rdf-rind) 0 50%, transparent 50% 100%),
+    linear-gradient(180deg, #14352f, var(--rdf-soil));
+  background-size: 200% 100%, 100% 100%;
+  background-position: 100% 0, 0 0;
+  background-repeat: no-repeat;
+}
+.rdf-menu-ready:hover:not(:disabled) { color: var(--rdf-ink-invert) !important; }
+
+.rdf-roster {
+  justify-self: center;
+  width: min(420px, 100%);
+  margin-top: 4px;
+  text-align: left;
+}
+.rdf-roster > small {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 10px;
+  letter-spacing: .26em;
+  color: var(--rdf-wheat);
+}
+.rdf-roster-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
+.rdf-roster-item {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: var(--rdf-hair) solid var(--rdf-line);
+  background: #08202ecc;
+  font-size: 12px;
+  clip-path: polygon(
+    8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px
+  );
+}
+.rdf-roster-item > b { color: var(--rdf-ink); letter-spacing: .1em; }
+.rdf-roster-item > span { color: var(--rdf-rind); }
+.rdf-roster-item > em {
+  font-style: normal;
+  font-size: 9px;
+  letter-spacing: .16em;
+  color: var(--rdf-ink-faint);
+}
+.rdf-roster-item.pronto > em { color: var(--rdf-rind); }
+
 .rdf-menu-note {
   font-size: 10px !important;
   line-height: 1.5 !important;
@@ -827,21 +898,19 @@ body.rdf-quit::after {
    Ele corre sempre, independente do progresso: é essa a informação que a porcentagem não dá
    quando trava num passo longo.
    ----------------------------------------------------------------------------------------------- */
+/* Corre PARADO, À DIREITA do número — a ordem do anexo: "51%" e o boneco logo depois. */
 .rdf-runner {
-  position: absolute;
-  bottom: 100%;
-  left: 0;
+  position: relative;
+  grid-column: 3;
+  grid-row: 2;
+  align-self: end;
   width: 4px;
   height: 4px;
-  margin-bottom: 2px;
+  /* O boneco é desenhado em sombras a partir deste ponto de 4px; a margem reserva a caixa que as
+     sombras ocupam (16px de largura, 24px de altura) para ele não invadir a coluna vizinha. */
+  margin: 0 14px 6px 0;
   background: transparent;
-  animation:
-    rdf-run-across 3.6s linear infinite,
-    rdf-run-legs .18s steps(1) infinite;
-}
-@keyframes rdf-run-across {
-  from { transform: translateX(-12px); }
-  to   { transform: translateX(calc(100% + 12px)); }
+  animation: rdf-run-legs .16s steps(1) infinite;
 }
 /* Quadro A e quadro B da passada. As coordenadas são múltiplos de 4px = o "pixel" do boneco. */
 @keyframes rdf-run-legs {
@@ -873,9 +942,10 @@ body.rdf-quit::after {
 
 .loading-progress {
   display: grid !important;
-  grid-template-columns: 1fr auto;
+  /* passo | corredor | porcentagem — cada um na sua coluna, sem sobreposição por margem. */
+  grid-template-columns: 1fr auto auto;
   align-items: center;
-  gap: 4px 14px;
+  gap: 4px 12px;
   padding: 12px 16px !important;
   border: var(--rdf-hair) solid var(--rdf-line) !important;
   background: linear-gradient(180deg, #08202ef2, #04121cf7) !important;
@@ -1003,9 +1073,60 @@ body.rdf-quit::after {
   background: linear-gradient(90deg, var(--rdf-pulp), var(--rdf-pulp-hot)) !important;
 }
 
-/* MP: clorofila. Carregado = são. */
+/* -----------------------------------------------------------------------------------------------
+   CARGA DE HABILIDADE — a peça mais "viva" da HUD
+
+   Era um texto estático numa cor. Vira um medidor de energia: trilho escuro chanfrado, barra de
+   clorofila que sobe, e três marcas de nível (I, II, III) desenhadas no próprio trilho em
+   gradiente — quando a carga passa de uma marca, o medidor PULSA e a moldura acende.
+
+   `--mp` (0..1) e `.charged` já são escritos pela HUD; aqui eles só ganham corpo. Tudo em
+   `opacity`/`transform`, nada de repintura em laço.
+   ----------------------------------------------------------------------------------------------- */
 .mp-meter,
 .mp-resource { color: var(--rdf-chloro) !important; }
+
+.mp-resource {
+  position: relative;
+  overflow: hidden;
+  border: var(--rdf-hair) solid var(--rdf-line) !important;
+  border-radius: 0 !important;
+  background: #00000073 !important;
+  /* As três marcas de nível, em 25% / 55% / 100% do trilho. */
+  background-image:
+    linear-gradient(90deg, transparent 0 24.6%, var(--rdf-line-hot) 24.6% 25%, transparent 25% 54.6%,
+                    var(--rdf-line-hot) 54.6% 55%, transparent 55% 100%) !important;
+  clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
+  transition: box-shadow var(--rdf-snap) var(--rdf-ease);
+}
+/* O enchimento. Faixa diagonal correndo por dentro = energia em movimento, não líquido parado. */
+.mp-resource > i,
+.mp-resource > span,
+.mp-meter > i {
+  background:
+    repeating-linear-gradient(45deg, #ffffff2e 0 7px, transparent 7px 14px),
+    linear-gradient(90deg, var(--rdf-rind), var(--rdf-chloro)) !important;
+  background-size: 19.8px 100%, 100% 100% !important;
+  animation: rdf-hazard-crawl 900ms linear infinite;
+}
+/* Carregado: a moldura acende e o medidor respira. É o aviso de que dá para soltar. */
+.mp-resource.charged,
+.mp-meter.charged {
+  border-color: var(--rdf-chloro) !important;
+  box-shadow: 0 0 16px #a9e7d759, inset 0 0 10px #a9e7d733;
+  animation: rdf-charged-pulse .9s ease-in-out infinite;
+}
+@keyframes rdf-charged-pulse {
+  0%, 100% { transform: scaleY(1); }
+  50%      { transform: scaleY(1.12); }
+}
+/* Reserva baixa: a barra avisa em polpa antes de o jogador tentar e não ter. */
+.mp-resource.mp-low { border-color: var(--rdf-pulp) !important; }
+.mp-resource.mp-low > i,
+.mp-resource.mp-low > span {
+  background: linear-gradient(90deg, var(--rdf-pulp), var(--rdf-pulp-hot)) !important;
+  animation: none;
+}
 
 /* Barra de vida do inimigo: chanfro pequeno e numeral tabular, para não dançar ao levar dano. */
 .enemy-health {
@@ -1044,14 +1165,181 @@ body.rdf-quit::after {
 }
 
 /* ===============================================================================================
+   O BOTÃO DE DIAGNÓSTICO NÃO FICA NA TELA
+
+   `#debug-toggle` é ferramenta de QA e estava permanentemente no canto, por cima do jogo. A tecla
+   F1 continua abrindo o painel — some o BOTÃO, não o recurso. Ele volta ao aparecer com o painel
+   aberto, para quem entrou por F1 ter como fechar pelo mouse.
+   =============================================================================================== */
+#debug-toggle { display: none !important; }
+body:has(#debug:not([hidden])) #debug-toggle { display: block !important; }
+
+/* O lobby mantém os cartões de classe mesmo na tela de derrota: depois de morrer, trocar de
+   personagem para a próxima tentativa é justamente o que se quer fazer. A regra herdada
+   (`.play-gate.defeated .class-select{display:none}`) escondia-os e deixava o lobby com o título
+   e a lista da sala flutuando sobre o vazio. */
+.play-gate.defeated .rdf-screen[data-screen="personagem"] .class-select { display: grid !important; }
+/* Na derrota o menu começa na raiz: a tela tem conteúdo próprio (relatório e itens) e abrir
+   direto no lobby esconderia o resultado da expedição. */
+.play-gate.defeated .rdf-logo { display: none; }
+
+/* ===============================================================================================
+   PAINÉIS DE PARTIDA — a gramática única da HUD
+
+   Os cartões de objetivo, rota, contrato e dica estavam cada um com a sua caixa: cantos
+   arredondados diferentes, fundos diferentes, tipografia diferente. Uma HUD boa tem UMA moldura,
+   repetida — é isso que faz o jogador parar de ler a interface e começar a ler a informação.
+
+   A moldura: placa de vidro escuro, filete dourado de 1px, canto chanfrado, faixa de acento na
+   borda esquerda e rótulo em caixa alta condensada. Números sempre tabulares.
+   =============================================================================================== */
+
+.field-objective,
+#run-hud .expedition-route,
+#run-hud .district-contract,
+.harvest-resonance,
+.wave-reward-guide,
+.run-mission,
+.run-interact,
+.island-ferry-hint,
+.run-stats,
+.stage-journey {
+  border: var(--rdf-hair) solid var(--rdf-line) !important;
+  border-left: 3px solid var(--rdf-wheat) !important;
+  border-radius: 0 !important;
+  background: linear-gradient(180deg, #071a26e8, #04121ceb) !important;
+  box-shadow: 0 8px 26px #0007;
+  clip-path: polygon(
+    0 0, 100% 0,
+    100% calc(100% - var(--rdf-cut-sm)), calc(100% - var(--rdf-cut-sm)) 100%,
+    0 100%
+  );
+}
+
+/* O rótulo de cada painel: pequeno, dourado, espaçado. É o que dá ritmo de HUD. */
+.field-objective span,
+#run-hud .expedition-route > small,
+.harvest-resonance > small,
+#run-hud .district-contract > b,
+.run-stats .stats-hint {
+  font-family: var(--rdf-ui) !important;
+  font-weight: 600;
+  font-size: 10px !important;
+  letter-spacing: .22em !important;
+  text-transform: uppercase;
+  color: var(--rdf-wheat) !important;
+}
+
+/* A dica de interação (o "E · ABRIR") é a única que pulsa: ela pede uma ação AGORA. */
+.run-interact {
+  font-family: var(--rdf-display);
+  letter-spacing: .1em;
+  animation: rdf-breathe 1.6s ease-in-out infinite;
+}
+
+/* Cartões de controle: viram teclas de verdade, não itens de lista. */
+.controls { gap: 8px 12px !important; }
+.controls span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: var(--rdf-hair) solid var(--rdf-line);
+  background: #071a2699;
+  font-size: 11px;
+  text-align: left;
+  clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
+}
+.controls kbd {
+  flex: none;
+  min-width: 46px;
+  text-align: center;
+  font-weight: 700 !important;
+}
+
+/* ===============================================================================================
    RELATÓRIO DE DERROTA — aqui o risco venceu, e a tela assume a polpa
    =============================================================================================== */
 
-.play-gate.defeated .gate-card {
-  border-color: #e2704f55;
+/* A tela de derrota é um RELATÓRIO, e estava com cara de erro de formulário: caixa clara, texto
+   corrido, números soltos. Vira um informe de campo — luto em cima, dados embaixo, uma ação. */
+.play-gate.defeated {
+  display: grid !important;
+  place-items: center !important;
+  background: radial-gradient(70% 70% at 50% 45%, #1a0a08cc, #05090dfa) !important;
 }
-.play-gate.defeated .gate-card h1 { color: var(--rdf-pulp-hot); }
+.play-gate.defeated .gate-card {
+  width: min(640px, 92vw) !important;
+  text-align: center;
+  border: var(--rdf-hair) solid #e2704f4d !important;
+  background: linear-gradient(160deg, #1d0d0ae8, #05090df5) !important;
+}
+/* A fita de risco do topo vira vermelha: a contenção falhou. */
+.play-gate.defeated .gate-card::before {
+  background: repeating-linear-gradient(45deg, var(--rdf-pulp) 0 7px, transparent 7px 14px);
+}
+.play-gate.defeated .gate-card h1 {
+  font-family: var(--rdf-display);
+  font-size: clamp(30px, 3.8vw, 56px) !important;
+  text-transform: uppercase;
+  color: var(--rdf-pulp-hot) !important;
+  text-shadow: 0 0 40px #e2704f4d, 0 8px 30px #000;
+}
 .play-gate.defeated .gate-card .eyebrow { color: var(--rdf-pulp) !important; }
+
+/* O sobretítulo só existe na derrota (onde diz "EXPEDIÇÃO ENCERRADA"); no menu ele fica vazio. */
+.play-gate:not(.defeated) .gate-card .eyebrow { display: none; }
+
+/* "VOCÊ MORREU" grande; a frase de luto desce como subtítulo dentro do mesmo h1. */
+.play-gate.defeated .gate-card h1 > small {
+  display: block;
+  margin-top: 8px;
+  font-family: var(--rdf-ui);
+  font-weight: 600;
+  font-size: clamp(13px, 1.2vw, 17px);
+  letter-spacing: .04em;
+  text-transform: none;
+  color: var(--rdf-ink-soft);
+  text-shadow: none;
+}
+
+/* Voltar ao menu: ação secundária, do tamanho das outras da pilha. */
+.play-gate.defeated .return-menu {
+  width: min(340px, 100%);
+  justify-self: center;
+  font-family: var(--rdf-ui);
+  font-weight: 600;
+  letter-spacing: .18em;
+  padding: 11px 18px !important;
+}
+
+/* Placar: números grandes e tabulares, rótulo pequeno embaixo. */
+.play-gate.defeated .defeat-score {
+  font-family: var(--rdf-display);
+  font-variant-numeric: tabular-nums;
+}
+.play-gate.defeated .defeat-report dl {
+  justify-content: center;
+  gap: 18px 26px;
+}
+.play-gate.defeated .defeat-report dt {
+  font-size: 9px !important;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--rdf-ink-faint) !important;
+}
+.play-gate.defeated .defeat-report dd {
+  font-family: var(--rdf-display);
+  font-size: clamp(17px, 1.8vw, 26px);
+  font-variant-numeric: tabular-nums;
+  color: var(--rdf-ink) !important;
+}
+.play-gate.defeated .defeat-items h2 {
+  font-size: 10px !important;
+  letter-spacing: .24em !important;
+  text-transform: uppercase;
+  color: var(--rdf-wheat) !important;
+}
 
 .play-gate.defeated .start-play {
   color: var(--rdf-pulp-hot) !important;

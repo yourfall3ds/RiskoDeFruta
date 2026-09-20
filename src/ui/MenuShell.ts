@@ -73,15 +73,37 @@ export class MenuShell {
 
     this.nav.className='rdf-menu-nav';
     if(parts.play){parts.play.classList.add('rdf-menu-primary');this.nav.append(parts.play);}
-    if(parts.classSelect)this.nav.append(this.link('PERSONAGEM','personagem'));
     if(parts.options)this.nav.append(this.link('OPÇÕES','opcoes'));
     this.nav.append(this.quit());
     root.append(this.nav);
 
-    // ---- personagem -------------------------------------------------------------------------
-    if(parts.classSelect){
+    // ---- personagem: o LOBBY ----------------------------------------------------------------
+    /**
+     * Não existe botão "PERSONAGEM" no menu principal. Escolher personagem não é uma opção
+     * paralela a jogar — é o primeiro passo DE jogar. Então `PRESS START` abre o lobby, e é o
+     * `PRONTO` do lobby que começa a partida de verdade.
+     *
+     * O desvio é feito envolvendo o manipulador que `PlayerHUD` já ligou no botão, capturado aqui
+     * e chamado intacto pelo `PRONTO`. Isso mantém um caminho de início só, e é o que permite que
+     * a PAUSA continue funcionando: lá o mesmo botão vira "CONTINUAR EXPEDIÇÃO" e precisa
+     * retomar direto, sem passar pelo lobby — `disableLobby()` desarma o desvio no momento em que
+     * a partida começa.
+     */
+    if(parts.classSelect&&parts.play){
+      const play=parts.play as HTMLButtonElement;
+      const realStart=play.onclick;
+      play.onclick=event=>{
+        if(!this.lobbyArmed)return realStart?.call(play,event) as void;
+        event.preventDefault();
+        this.show('personagem');
+      };
       const screen=this.makeScreen('personagem');
-      screen.append(this.heading('PERSONAGEM'),parts.classSelect,this.back());
+      const ready=document.createElement('button');
+      ready.type='button';
+      ready.className='rdf-menu-primary rdf-menu-ready';
+      ready.textContent='PRONTO';
+      ready.onclick=event=>{this.disableLobby();realStart?.call(play,event);};
+      screen.append(this.heading('ESCOLHA SEU PERSONAGEM'),parts.classSelect,this.roster(),ready,this.back());
     }
 
     // ---- opções -----------------------------------------------------------------------------
@@ -96,6 +118,49 @@ export class MenuShell {
     }
 
     card.append(this.element);
+  }
+
+  /**
+   * Enquanto armado, `PRESS START` abre o lobby em vez de começar a partida.
+   *
+   * Desarma na primeira partida — a partir daí o mesmo botão é o "CONTINUAR EXPEDIÇÃO" da pausa,
+   * que tem de retomar direto. Um jogador pausando no meio da horda não quer revisitar a tela de
+   * escolha de classe (que, aliás, está travada nesse momento).
+   */
+  private lobbyArmed=true;
+  disableLobby():void {this.lobbyArmed=false;}
+
+  /**
+   * Quem está na sala.
+   *
+   * Hoje lista só a vaga local, porque é essa a verdade: a sala cooperativa existe no servidor
+   * (`server/`, Colyseus), mas o menu ainda não está ligado nela — o estado dos outros jogadores
+   * não chega até aqui. A lista é montada por `setRoster`, que qualquer código com acesso à sala
+   * pode chamar sem mudar nada desta classe. Inventar nomes de jogadores fictícios para "parecer"
+   * multijogador seria mentira na tela.
+   */
+  private readonly rosterList=document.createElement('ul');
+  setRoster(players:readonly {name:string;classe?:string;pronto?:boolean}[]):void {
+    this.rosterList.replaceChildren();
+    for(const player of players){
+      const item=document.createElement('li');
+      item.className='rdf-roster-item'+(player.pronto?' pronto':'');
+      item.innerHTML=`<b></b><span></span><em></em>`;
+      item.querySelector('b')!.textContent=player.name;
+      item.querySelector('span')!.textContent=player.classe??'—';
+      item.querySelector('em')!.textContent=player.pronto?'PRONTO':'ESCOLHENDO';
+      this.rosterList.append(item);
+    }
+  }
+  private roster():HTMLElement {
+    const box=document.createElement('div');
+    box.className='rdf-roster';
+    const label=document.createElement('small');
+    label.textContent='NA SALA';
+    this.rosterList.className='rdf-roster-list';
+    box.append(label,this.rosterList);
+    this.setRoster([{name:'VOCÊ',pronto:false}]);
+    return box;
   }
 
   /** Troca de tela. Só escreve o atributo: quem mostra e esconde é a folha de estilo. */
