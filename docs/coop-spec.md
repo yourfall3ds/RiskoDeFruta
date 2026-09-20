@@ -208,7 +208,111 @@ L. morte/espectador · M. transição de estágio · N. reconexão · O. escala 
 **Não parar depois de A ou B.** Commits pequenos e verdes; se um bloco grande quebrar, corrigir
 antes do próximo.
 
-## 18. REGRA DE REFATORAÇÃO
+## 18. PRECISÕES QUE NÃO PODEM SER SIMPLIFICADAS
+
+Estas corrigem simplificações erradas. Onde contradisserem qualquer seção acima, **estas valem**.
+
+### 18.1 Ouro tem DUAS regras, não uma
+
+Não existe "gold sharing" como regra única. São duas naturezas distintas:
+
+| TEAM-DISTRIBUTED | OWNER-ONLY |
+|---|---|
+| kills normais | efeitos pessoais de item |
+| barris | efeitos disparados por um jogador |
+| fontes de equipe equivalentes | recompensas específicas do dono |
+
+As carteiras continuam **individuais** em ambos os casos. Exemplo concreto:
+
+```
+inimigo normal morre  →  A +20, B +20, C +20
+A compra baú de 50    →  A −50; B e C intactos
+item pessoal de B     →  somente B +25
+```
+
+**Não criar `TeamWallet`.** Distribuir ≠ compartilhar carteira.
+
+### 18.2 Teleporter: o denominador são os VIVOS
+
+```
+4 participantes: A vivo, B vivo, C morto, D morto
+A e B dentro  → 100%
+só A dentro   →  50%
+```
+
+Mortos **não** reduzem a velocidade de carga — mas continuam pertencendo à run para as regras de
+recompensa e participação.
+
+### 18.3 Recompensa do chefe conta os mortos
+
+`rewardCount = participantes da run` — **mortos incluídos**. Os drops são **entidades físicas
+individuais no mundo**, não atribuição automática (`player1Item`, `player2Item`). Um jogador pode
+fisicamente pegar mais de um se os outros deixarem.
+
+### 18.4 XP compartilhado ≠ inventário compartilhado
+
+São sistemas **independentes**. Nunca derivar um do outro. Dois jogadores no mesmo nível **não**
+têm os mesmos stats, porque survivor + inventário + equipamento + buffs são individuais.
+
+### 18.5 Jogador morto
+
+Não participa da carga do teleporter · não recebe dano · não é alvo normal da IA · **continua
+pertencendo à run** · continua contando para regras de recompensa quando apropriado · mantém
+inventário e build · renasce no próximo estágio.
+
+### 18.6 Director trabalha sobre `livingPlayers`
+
+Nunca `localPlayer`, `players[0]` ou `host` como referência. O alvo/referência de spawn deve
+**variar** entre os jogadores vivos.
+
+### 18.7 Desconectado ≠ morto
+
+Durante a janela de reconexão o participante continua pertencendo à run. Preservar: playerId,
+inventário, dinheiro, vida, equipamento, survivor, stats, participação no estágio.
+
+### 18.8 NUNCA DOIS DONOS DA MESMA REGRA
+
+Durante a migração, para cada subsistema, a ordem é atômica:
+
+```
+SERVIDOR vira autoridade → CLIENTE vira apresentação → REMOVER a decisão local antiga
+```
+
+Proibido, nem temporariamente: `EnemySimulation` no servidor decidindo spawn **enquanto**
+`EnemySwarm` ainda cria inimigo localmente. Isso duplica entidade e diverge mundo.
+
+### 18.9 `mirror()` NÃO é uma segunda simulação
+
+A hierarquia é única e não admite atalho:
+
+```
+INPUT → FarmSimulation → estado autoritativo → FarmRoom/Schema → rede → apresentação no cliente
+```
+
+`FarmSimulation` é a **origem** do estado. `FarmRoom` **replica**. Schema **transporta**. Cliente
+**apresenta**. Não colocar gameplay dentro de `mirror()` — preencher os Schemas não pode virar
+desculpa para uma segunda simulação.
+
+O anti-padrão a evitar: `FarmSimulation` + `FarmRoom` fazendo gameplay + `EnemySwarm` ainda
+decidindo + cliente rolando RNG.
+
+### 18.10 Schema vs evento
+
+**Persistente (Schema):** HP do jogador, HP do inimigo, posição, inventário, dinheiro, fase do
+estágio, progresso do evento, estado de interactable.
+**Efêmero (mensagem):** tiro, feedback de acerto, feedback de coleta, FX de morte, ping, deixa de
+som, FX de câmera.
+
+### 18.11 Os dois testes que revelam autoridade escondida
+
+**Teste do desligamento.** *"Se eu desligar completamente a renderização de um cliente, o servidor
+ainda completa a run corretamente?"* Se não, ainda existe gameplay client-authoritative escondido.
+
+**Teste do observador.** Dois clientes: A fica **parado**; B anda, atira, mata, abre baú, pega
+item e ativa o objetivo. A deve apenas observar e chegar **exatamente** ao mesmo estado de mundo.
+Depois **inverter**. Isso detecta qualquer dependência de "jogador local".
+
+## 19. REGRA DE REFATORAÇÃO
 
 Ao encontrar implementação que contradiz esta especificação: **não contorne com um boolean.**
 Refatore a responsabilidade para o lugar certo.
