@@ -26,3 +26,6 @@ Itens 3d/
 # Ambiente de geracao 3D local: venv, pesos e repo vendorizado ficam fora do repositorio.
 tools/asset-gen/.venv/
 tools/asset-gen/vendor/
+tools/partcrafter/.venv/
+tools/partcrafter/results/
+public/pc-preview/
