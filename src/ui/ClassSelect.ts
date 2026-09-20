@@ -42,7 +42,7 @@ interface ClassArt {
   readonly bust: string;
   readonly weaponIcon: string;
   readonly weaponName: string;
-  readonly skills: readonly {readonly name: string; readonly text: string}[];
+  readonly skills: readonly {readonly name: string; readonly text: string; readonly icon: string}[];
 }
 
 const ART: Readonly<Record<PlayerClassId, ClassArt>> = {
@@ -51,10 +51,10 @@ const ART: Readonly<Record<PlayerClassId, ClassArt>> = {
     weaponIcon: '/ui/select/weapon-pistols.png',
     weaponName: 'PISTOLAS DUPLAS',
     skills: [
-      {name: 'LEQUE RICOCHETEANTE', text: 'MP I · salva que quica entre alvos.'},
-      {name: 'BARRAGEM COM MORTAL', text: 'MP II · mortal para trás disparando sem parar.'},
-      {name: 'TEMPESTADE DA COLHEITA', text: 'MP III · mira sozinha e satura a área.'},
-      {name: 'COMBATE DESARMADO', text: 'V · golpes de perto, sem gastar munição.'},
+      {name: 'LEQUE RICOCHETEANTE', text: 'MP I · salva que quica entre alvos.', icon: '/ui/select/skill-fan.png'},
+      {name: 'BARRAGEM COM MORTAL', text: 'MP II · mortal para trás disparando sem parar.', icon: '/ui/select/skill-barrage.png'},
+      {name: 'TEMPESTADE DA COLHEITA', text: 'MP III · mira sozinha e satura a área.', icon: '/ui/select/skill-storm.png'},
+      {name: 'COMBATE DESARMADO', text: 'V · golpes de perto, sem gastar munição.', icon: '/ui/select/skill-fist.png'},
     ],
   },
   soldier: {
@@ -62,10 +62,10 @@ const ART: Readonly<Record<PlayerClassId, ClassArt>> = {
     weaponIcon: '/ui/select/weapon-prism.png',
     weaponName: 'PRISM TRIFORME',
     skills: [
-      {name: 'TRÊS FORMAS', text: 'T · assalto, lança de íons e lança-granadas, cada uma com carregador próprio.'},
-      {name: 'TRANSFORMAR', text: 'Q nível I · troca de forma de graça.'},
-      {name: 'MP II e III', text: 'Habilidades DIFERENTES em cada forma, com munição e MP próprios.'},
-      {name: 'MIRA APURADA', text: 'Botão direito · luneta na forma de precisão.'},
+      {name: 'TRÊS FORMAS', text: 'T · assalto, lança de íons e lança-granadas, cada uma com carregador próprio.', icon: '/ui/select/skill-triform.png'},
+      {name: 'TRANSFORMAR', text: 'Q nível I · troca de forma de graça.', icon: '/ui/select/skill-transform.png'},
+      {name: 'MP II e III', text: 'Habilidades DIFERENTES em cada forma, com munição e MP próprios.', icon: '/ui/select/skill-orbs.png'},
+      {name: 'MIRA APURADA', text: 'Botão direito · luneta na forma de precisão.', icon: '/ui/select/skill-scope.png'},
     ],
   },
 };
@@ -200,11 +200,18 @@ export class ClassSelect {
     list.className = 'class-skills';
     for (const skill of art.skills) {
       const item = document.createElement('li');
+      const icon = document.createElement('img');
+      icon.className = 'class-skill-icon';
+      icon.src = skill.icon;
+      icon.alt = '';
+      icon.decoding = 'async';
+      const body = document.createElement('div');
       const label = document.createElement('b');
       label.textContent = skill.name;
       const text = document.createElement('span');
       text.textContent = skill.text;
-      item.append(label, text);
+      body.append(label, text);
+      item.append(icon, body);
       list.append(item);
     }
 

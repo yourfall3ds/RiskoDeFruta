@@ -883,8 +883,47 @@ body.rdf-quit::after {
   background: #08202ecc;
   clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
 }
-.class-weapon img { width: 34px; height: 34px; object-fit: contain; }
-.class-weapon b { font-size: 11px; letter-spacing: .12em; color: var(--rdf-ink); }
+/* 34px era ilegível — uma pistola inteira em 34 px vira um borrão. */
+.class-weapon img { width: 58px; height: 58px; object-fit: contain; }
+.class-weapon b { font-size: 12px; letter-spacing: .12em; color: var(--rdf-ink); }
+.class-slot-badge { width: 52%; }
+
+/* ===============================================================================================
+   NENHUMA TELA PODE ROLAR
+
+   Menu de jogo não tem barra de rolagem: se não coube, o layout está errado. A regra é dupla —
+   o cartão nunca passa da altura da janela, e quando o conteúdo ainda assim for maior, quem
+   encolhe é a ÚNICA lista que pode encolher sem perder função (as habilidades), com rolagem
+   interna e discreta. O resto (retratos, nome, arma, PRONTO) permanece sempre inteiro na tela.
+   =============================================================================================== */
+.play-gate .gate-card {
+  max-height: calc(100vh - 8vh);
+  overflow: hidden;
+}
+.rdf-menu,
+.rdf-screen { min-height: 0; }
+.rdf-screen[data-screen="personagem"] {
+  max-height: calc(100vh - 14vh);
+  grid-template-rows: auto minmax(0, 1fr) auto auto auto;
+}
+.class-select { display: grid; min-height: 0; grid-template-rows: auto minmax(0, 1fr) auto; }
+.class-detail { min-height: 0; display: grid; grid-template-rows: auto auto auto auto minmax(0, 1fr); }
+/* A lista é o conteúdo principal da tela: ela pode encolher, mas não pode sumir. O piso de 168px
+   garante três habilidades visíveis mesmo na janela mais baixa; abaixo disso a rolagem interna
+   entra — e ela é a ÚNICA rolagem tolerada em qualquer tela do jogo. */
+/* SEM piso: um `min-height` aqui força a lista a ser maior que a linha da grade que a contém, e
+   ela transborda por cima do aviso de baixo. O teto sozinho resolve — a lista cresce com o
+   conteúdo até 34vh e só então rola por dentro. */
+.class-skills {
+  max-height: 34vh;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--rdf-wheat-dim) transparent;
+}
+/* Com piso na lista, quem cede espaço primeiro são os retratos, não a informação. */
+.play-gate:has(.rdf-menu[data-screen="personagem"]) .class-grid {
+  grid-template-columns: repeat(auto-fill, minmax(52px, 1fr));
+}
 
 .class-skills-heading {
   display: block;
@@ -894,16 +933,26 @@ body.rdf-quit::after {
   color: var(--rdf-wheat);
 }
 .class-skills { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; }
+/* Ícone à esquerda, texto à direita — a estrutura da lista de habilidades de qualquer jogo. */
 .class-skills li {
   display: grid;
-  gap: 1px;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  gap: 8px;
   padding: 5px 8px;
   border-left: 2px solid var(--rdf-wheat-dim);
   background: #06161f99;
   font-size: 11px;
   line-height: 1.3;
 }
-.class-skills b { color: var(--rdf-ink); letter-spacing: .06em; }
+.class-skills li > div { display: grid; gap: 1px; min-width: 0; }
+.class-skill-icon {
+  width: 34px;
+  height: 34px;
+  object-fit: cover;
+  border: var(--rdf-hair) solid var(--rdf-line);
+}
+.class-skills b { color: var(--rdf-wheat-hot); letter-spacing: .06em; }
 .class-skills span { color: var(--rdf-ink-soft); }
 
 /* ESTREITO de propósito. O personagem fica em torno do CENTRO da tela — é ali que ele está de pé
