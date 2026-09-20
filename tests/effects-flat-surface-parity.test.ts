@@ -11,7 +11,7 @@ import {ElementalEffects} from '../src/vfx/ElementalEffects';
 import {ShellCasings} from '../src/vfx/ShellCasings';
 import {CorpseDebris} from '../src/physics/CorpseDebris';
 import type {EnemySurface} from '../src/enemies/EnemySpace';
-import type {WeaponAudio} from '../src/audio/WeaponAudio';
+import type {WeaponAudio} from '../src/audio/RecordedAudio';
 
 /**
  * O `GameWorld` entrega `collision.surface` SEMPRE. Na fazenda isso é um `FlatSurface`, e cada

@@ -11,7 +11,7 @@ import type {EventBus} from '../core/EventBus';
 import type {RandomStream} from '../core/RunRNG';
 import {Health} from '../combat/Health';
 import {ENEMIES, bossHealth, type EnemyKind} from '../run/MonsterDirector';
-import type {WeaponAudio} from '../audio/WeaponAudio';
+import type {WeaponAudio} from '../audio/RecordedAudio';
 import {ShotEffects} from '../vfx/ShotEffects';
 import type {PlanetCollision} from '../planet/PlanetCollision';
 import {PlanetFrame, add, cross, dot, length, normalize, quaternionFromBasis, reject, scale, sub} from '../planet/PlanetFrame';

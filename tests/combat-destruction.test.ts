@@ -14,7 +14,7 @@ import {PlanetDestructionLedger, type DestructionHit, type DestructionOutcome, t
 import {PISTOL_TUNING} from '../src/player/PlayerTuning';
 import type {CharacterVisual} from '../src/animation/CharacterVisual';
 import type {TrainingTarget} from '../src/world/TrainingYard';
-import type {WeaponAudio} from '../src/audio/WeaponAudio';
+import type {WeaponAudio} from '../src/audio/RecordedAudio';
 
 /**
  * As pistolas AUTORAIS contra os destrutíveis do planeta.

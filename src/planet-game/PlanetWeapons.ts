@@ -14,7 +14,7 @@ import {PistolMagazine} from '../combat/PistolMagazine';
 import {MP_COSTS, type MPTier} from '../combat/MPCharge';
 import {PISTOL_TUNING as t} from '../player/PlayerTuning';
 import {ShotEffects} from '../vfx/ShotEffects';
-import type {WeaponAudio} from '../audio/WeaponAudio';
+import type {WeaponAudio} from '../audio/RecordedAudio';
 import type {PlanetCollision} from '../planet/PlanetCollision';
 import {add, dot, length, normalize, scale, sub} from '../planet/PlanetFrame';
 import {hitscan, tangentSpread, type HitCapsule, type HitscanResult} from './PlanetHitscan';

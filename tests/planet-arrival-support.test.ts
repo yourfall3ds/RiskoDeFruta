@@ -1,4 +1,5 @@
 import {readFileSync} from 'node:fs';
+import {gunzipSync} from 'node:zlib';
 import {describe, expect, it} from 'vitest';
 import {CollisionWorld} from '../src/physics/CollisionWorld';
 import {PlanetCollision} from '../src/planet/PlanetCollision';
@@ -13,9 +14,16 @@ import {PLAYER_TUNING} from '../src/player/PlayerTuning';
  * O QA de navegador viu o corpo pousar no vazio e a recuperação de emergência disparar sozinha
  * (1 retorno, 46 de dano). Um teste de função isolada não pega isso: o que importa é o ponto que a
  * cena entrega ao motor, medido contra a casca autoral. Por isso aqui o manifesto é o do jogo —
- * `public/models/planet-archipelago.json`, 38 ilhas, 1,75 M de triângulos.
+ * `public/models/planet-archipelago.json.gz`, 38 ilhas, 1,75 M de triângulos.
+ *
+ * Lê o `.gz`, que é o arquivo VERSIONADO e o mesmo que o jogo baixa (`PLANET_MANIFEST_URL`). A
+ * versão descompactada `.json` está no `.gitignore`, então ler dela só funcionava em máquina que
+ * já tivesse uma cópia solta — num clone limpo este arquivo inteiro falhava com ENOENT. Todos os
+ * outros consumidores (`scripts/audit-planet-*`, `bake-island-navmeshes`) já liam o `.gz`.
  */
-const manifest = parsePlanetManifest(JSON.parse(readFileSync('public/models/planet-archipelago.json', 'utf8')));
+const manifest = parsePlanetManifest(
+  JSON.parse(gunzipSync(readFileSync('public/models/planet-archipelago.json.gz')).toString('utf8')),
+);
 
 const frame = new PlanetFrame({
   centre: manifest.centre,

@@ -17,6 +17,7 @@ import {PlanetFrame} from '../src/planet/PlanetFrame';
 import {PlanetCollision} from '../src/planet/PlanetCollision';
 import {chooseSpawnAround} from '../src/ai/SpawnPlanner';
 import {ENEMY_BEHAVIORS} from '../src/enemies/EnemyBehaviors';
+import {SAUCER_SPECIES} from '../src/run/MonsterDirector';
 import type {TrainingTarget} from '../src/world/TrainingYard';
 import {radialSurface,SIX_POLES,onDeck,sphereShell} from './support/radial-surface';
 
@@ -228,8 +229,15 @@ describe('o que a esfera quebraria se ninguém olhasse',()=>{
   it('todas as receitas do catálogo continuam existindo e decidindo igual',async()=>{
     const t=await setup({x:0,y:0,z:1});
     try{
-      // Nenhuma espécie, afixo ou aviso sumiu no porte: o catálogo é o mesmo objeto de sempre.
-      expect(Object.keys(ENEMY_BEHAVIORS).sort()).toEqual(['boss','carrot','corn','eggplant','tomato','watermelon']);
+      // Nenhuma espécie, afixo ou aviso sumiu no porte: o catálogo da fazenda é o de sempre.
+      // A lista deixou de ser igualdade exata quando as espécies dos discos voadores entraram
+      // (`SAUCER_SPECIES`): o invariante que este teste defende é que nada SUMIU, não que nada
+      // possa ser acrescentado. As duas metades são verificadas separadamente, sem "contém".
+      const kinds=Object.keys(ENEMY_BEHAVIORS).sort();
+      expect(kinds.filter(kind=>!SAUCER_SPECIES.includes(kind as never)))
+        .toEqual(['boss','carrot','corn','eggplant','tomato','watermelon']);
+      expect(kinds.filter(kind=>SAUCER_SPECIES.includes(kind as never)))
+        .toEqual([...SAUCER_SPECIES].sort());
       const at=nearby(t,3);
       const close={id:1,attack:1,time:0,direction:{x:0,z:0},locked:at,root:{position:at}};
       // A 3 m o berinjela morde; a decisão é a MESMA com e sem superfície, porque a medida é arco.

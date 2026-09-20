@@ -149,13 +149,24 @@ function offset(centre:Vec3,right:number,forward:number,space?:EnemySpace):Vec3 
  *
  * A receita é uma só, parametrizada por espécie, em vez de seis blocos quase iguais.
  */
+/** Duração do impulso comprometido das caçadoras alienígenas, em segundos. */
+const DASH_WINDOW=1.05;
 function saucerBehaviours():Record<'grey'|'invader'|'demon'|'predator'|'strutter'|'hound',EnemyBehavior> {
   const hunter=(kind:EnemyKind,windup:number,damage:number,reach:number,dash:number):EnemyBehavior=>({
     windup,contactDamage:damage,zigzag:true,
-    recoverySpeed:a=>a.time<1.05&&Math.hypot(a.direction.x,a.direction.z)>.1?dash:0,
-    telegraph:a=>lunges(a,reach)?{shape:'band',width:contactWidth(kind),reach:10.5}:{shape:'cone',radius:reach+.3},
+    recoverySpeed:a=>a.time<DASH_WINDOW&&Math.hypot(a.direction.x,a.direction.z)>.1?dash:0,
+    telegraph:(a,space)=>lunges(a,reach,space)
+      ?{shape:'band',width:contactWidth(kind),reach:dash*DASH_WINDOW}
+      :{shape:'cone',radius:reach+.3},
+    /**
+     * O alcance REAL da investida, não um literal: `recoverySpeed` empurra `dash` m/s durante
+     * `DASH_WINDOW`, então é esse produto (com a mesma margem de compromisso das outras receitas
+     * corpo a corpo) que o `engage` autoriza e que a faixa do windup desenha. O `Math.max` cobre a
+     * espécie lenta, que ainda assim morde de perto.
+     */
+    engage:()=>Math.max(reach+.4,dash*DASH_WINDOW*MELEE_COMMIT),
     perform:c=>{
-      if(lunges(c.actor,reach))aimRush(c.actor);
+      if(lunges(c.actor,reach,c.space))aimRush(c.actor,0,c.space);
       else{bite(c,reach+.4,damage,kind+'_strike');c.effects.burst(c.player,'juice',1);}
     },
   });

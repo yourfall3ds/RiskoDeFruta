@@ -12,7 +12,7 @@ import {DualPistols,WORLD_SPACE,type CombatBasis,type CombatCamera,type CombatSp
 import {PlanetFrame} from '../src/planet/PlanetFrame';
 import type {CharacterVisual} from '../src/animation/CharacterVisual';
 import type {TrainingTarget} from '../src/world/TrainingYard';
-import type {WeaponAudio} from '../src/audio/WeaponAudio';
+import type {WeaponAudio} from '../src/audio/RecordedAudio';
 
 /**
  * O combate AUTORAL num mapa esférico.

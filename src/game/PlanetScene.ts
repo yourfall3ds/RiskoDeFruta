@@ -11,7 +11,7 @@ import {PLAYER_TUNING, CAMERA_TUNING} from '../player/PlayerTuning';
 import {MPCharge, type MPTier} from '../combat/MPCharge';
 import {RunProgression} from '../run/RunProgression';
 import {MonsterDirector, finalHordePressure, killBounty, type EnemyKind} from '../run/MonsterDirector';
-import {WeaponAudio} from '../audio/WeaponAudio';
+import {WeaponAudio} from '../audio/RecordedAudio';
 import {FootstepSync, type FootSample} from '../animation/FootstepSync';
 import {PlanetFrame, add, cross, dot, length, normalize, reject, scale, sub, transport} from '../planet/PlanetFrame';
 import {PlanetCollision} from '../planet/PlanetCollision';

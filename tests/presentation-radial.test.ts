@@ -10,7 +10,7 @@ import '@babylonjs/loaders/glTF/2.0';
 import {CollisionWorld} from '../src/physics/CollisionWorld';
 import {EventBus} from '../src/core/EventBus';
 import type {GameEvents,Vec3} from '../src/core/contracts';
-import type {WeaponAudio} from '../src/audio/WeaponAudio';
+import type {WeaponAudio} from '../src/audio/RecordedAudio';
 import {PlayerMotor} from '../src/player/PlayerMotor';
 import {PLAYER_TUNING} from '../src/player/PlayerTuning';
 import {DeathFlight} from '../src/player/DeathFlight';

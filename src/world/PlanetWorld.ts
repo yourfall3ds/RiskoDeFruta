@@ -15,7 +15,7 @@ import {NO_DESTRUCTION, PlanetDestructionLedger, type DestructionPort} from '../
 import {
   DestructionSystem, DestructionVisuals, materialDestructionAudio, parseDestructibles, type DestructibleRecord,
 } from '../destruction';
-import type {WeaponAudio} from '../audio/WeaponAudio';
+import type {WeaponAudio} from '../audio/RecordedAudio';
 import type {GameWorld, WorldSite} from './GameWorld';
 import type {TrainingTarget} from './TrainingYard';
 
