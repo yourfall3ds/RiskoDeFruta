@@ -22,3 +22,7 @@ __pycache__/
 
 # Fontes 3D do Meshy (177 MB): autoria local, como art/ e assets/. O jogo carrega de public/.
 Itens 3d/
+
+# Ambiente de geracao 3D local: venv, pesos e repo vendorizado ficam fora do repositorio.
+tools/asset-gen/.venv/
+tools/asset-gen/vendor/

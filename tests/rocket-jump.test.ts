@@ -3,6 +3,8 @@ import {EventBus} from '../src/core/EventBus';
 import type {GameEvents} from '../src/core/contracts';
 import {CollisionWorld} from '../src/physics/CollisionWorld';
 import {PlayerMotor, BLAST_IMPULSE_CAP} from '../src/player/PlayerMotor';
+import {corpseLaunch, CORPSE_BLAST_LIFT, CORPSE_BLAST_SPEED_CAP} from '../src/enemies/EnemyImpact';
+import type {DamageContext} from '../src/core/contracts';
 
 /**
  * O salto de foguete.
@@ -80,5 +82,37 @@ describe('salto de foguete', () => {
     expect(player.grounded).toBe(true);
     player.blastImpulse({x: 0, y: 1, z: 0}, -5);
     expect(player.grounded).toBe(true);
+  });
+});
+
+describe('explosão arremessa o cadáver', () => {
+  const context = (tags: string[], force: number): DamageContext => ({
+    attackerId: 1, victimId: 2, sourceId: 'prism_grenade', attackId: 'blast',
+    baseDamage: 40, finalDamage: 40, crit: false, procCoefficient: 1, procChainDepth: 0,
+    damageTags: tags, hitPosition: {x: 0, y: 1, z: 0}, hitNormal: {x: 0, y: 1, z: 0},
+    forceDirection: {x: 0, y: 0, z: 1}, hitDirection: {x: 0, y: 0, z: 1}, forceMagnitude: force,
+  });
+
+  it('manda o corpo MUITO mais longe e mais alto que o golpe pesado', () => {
+    const explosivo = corpseLaunch(context(['explosive', 'skill'], 10));
+    const pesado = corpseLaunch({...context(['melee', 'melee_heavy'], 10)});
+    expect(explosivo.z, 'alcance').toBeGreaterThan(pesado.z);
+    expect(explosivo.y, 'altura').toBeGreaterThan(pesado.y);
+    expect(explosivo.y).toBe(CORPSE_BLAST_LIFT);
+  });
+
+  it('uma explosão fraca ainda arremessa: o piso não deixa virar cutucão', () => {
+    const fraco = corpseLaunch(context(['explosive'], 1));
+    expect(Math.hypot(fraco.x, fraco.z)).toBeGreaterThanOrEqual(9);
+  });
+
+  it('respeita o teto para o corpo não sumir da tela', () => {
+    const absurdo = corpseLaunch(context(['explosive'], 9_000));
+    expect(Math.hypot(absurdo.x, absurdo.z)).toBeLessThanOrEqual(CORPSE_BLAST_SPEED_CAP);
+  });
+
+  it('o eco de um proc de item continua sendo eco, não explosão', () => {
+    const eco = corpseLaunch({...context(['explosive'], 10), procChainDepth: 1});
+    expect(eco.y).toBeLessThan(CORPSE_BLAST_LIFT);
   });
 });

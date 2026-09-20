@@ -1,7 +1,33 @@
 import type {DamageContext} from '../core/contracts';
 /** Shared by articulated and fallback corpses so the launch sound matches actual movement. */
+/**
+ * Teto da velocidade com que um cadáver é arremessado por explosão, em m/s.
+ *
+ * Bem acima do chute pesado (10): a onda de choque é o golpe mais violento do jogo e o corpo tem
+ * de ATRAVESSAR a tela, não escorregar. O teto existe porque acima disto o cadáver some do campo
+ * de visão antes de o jogador registrar que matou alguém.
+ */
+export const CORPSE_BLAST_SPEED_CAP=26;
+/** Elevação do arremesso explosivo. Alta de propósito: explosão joga para CIMA, não para o lado. */
+export const CORPSE_BLAST_LIFT=9;
+
 export function corpseLaunch(context:DamageContext):{x:number;y:number;z:number} {
  const heavy=context.damageTags.includes('melee_heavy')&&context.forceMagnitude>=8;
+ /**
+  * Explosão arremessa de verdade.
+  *
+  * Antes, estilhaço e míssil caíam no ramo genérico — velocidade 3 e elevação 2,2, ou seja um
+  * empurrão mais fraco que o de um soco. O corpo mal saía do lugar, e a arma explosiva não se
+  * distinguia da balística nem na morte. É o mesmo remendo que `enemyImpact` levou para os VIVOS,
+  * aplicado agora a quem a explosão matou.
+  *
+  * O eco de proc de item continua de fora: a explosão secundária de uma bomba não é o golpe.
+  */
+ const blast=context.damageTags.includes('explosive')&&context.procChainDepth===0;
+ if(blast){
+  const speed=Math.min(CORPSE_BLAST_SPEED_CAP,Math.max(9,context.forceMagnitude*1.9));
+  return {x:context.forceDirection.x*speed,y:CORPSE_BLAST_LIFT,z:context.forceDirection.z*speed};
+ }
  const speed=heavy?Math.min(10,context.forceMagnitude):3;
  return {x:context.forceDirection.x*speed,y:heavy?4:2.2,z:context.forceDirection.z*speed};
 }
