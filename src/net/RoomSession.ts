@@ -37,11 +37,24 @@
 import type { LobbyLink } from './LobbyLink';
 import type { OnlineIntent } from './OnlineIntent';
 import { logger } from '../core/Log';
+import { LOCAL_SERVER_URL, serverUrlFor } from './ServerAddress';
 
 const log = logger('sala');
 
-/** O endereço padrão: a máquina do próprio jogador, que é o caso de quem hospeda. */
-export const DEFAULT_COOP_SERVER = 'ws://127.0.0.1:2567';
+/**
+ * O endereço padrão: o HOST DE ONDE A PÁGINA VEIO, e só depois a máquina local.
+ *
+ * Era `ws://127.0.0.1:2567` cravado, e isso serve a exatamente uma pessoa — quem hospeda. Quem abre
+ * `http://192.168.15.42:5173` na LAN do anfitrião e entra por `?online=1` (o caminho do
+ * `jogar-coop.ps1` e o da URL colada à mão) era mandado a falar com o `127.0.0.1` da PRÓPRIA
+ * máquina, onde não há servidor nenhum: a sala não responde e a tela diz só "não consegui entrar",
+ * sem nada ligando isso ao endereço.
+ *
+ * O caminho do MENU já resolvia certo por `ServerAddress.serverUrlFor`; era este atalho que ficou
+ * para trás. `LOCAL_SERVER_URL` continua sendo a queda final para quando não há página legível
+ * (`file://`, href inválido, testes) — aí a máquina local é de fato o único palpite honesto.
+ */
+export const DEFAULT_COOP_SERVER = typeof location === 'undefined' ? LOCAL_SERVER_URL : serverUrlFor(location.href);
 
 /**
  * O que a sala viva precisa saber fazer: é `LobbyLink` (tudo o que a interface enxerga) mais o
