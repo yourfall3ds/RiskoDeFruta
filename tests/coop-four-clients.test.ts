@@ -493,7 +493,17 @@ describe('a mesa cheia: quatro clientes reais contra a FarmRoom', () => {
     }
   }, 180_000);
 
-  it('14. entrada TARDIA com a corrida em PLAYING: a sala aceita (não há porteiro nem token)', async () => {
+  /**
+   * A PORTA FECHA QUANDO A CORRIDA LARGA.
+   *
+   * Antes não fechava: `joinOrCreate` com a mesma semente entregava um desconhecido no meio do
+   * estágio, sem itens e sem nível, numa mesa que não o convidou. A sala agora tranca ao largar.
+   *
+   * A recusa não é um erro na cara de quem procura: a sala trancada sai do emparelhamento, então
+   * `joinOrCreate` devolve uma sala NOVA. É por isso que o caso afirma "outra sala", e não
+   * "rejeitou" — quem quer jogar continua conseguindo jogar, só não por cima da corrida alheia.
+   */
+  it('14. entrada TARDIA com a corrida em PLAYING: a porta está trancada e o tardio ganha OUTRA sala', async () => {
     const seed = nextSeed();
     const m = await mesa(seed, 3, ['ANA', 'BENTO', 'CLARA']);
     let tardio: Espelho | undefined;
@@ -503,20 +513,30 @@ describe('a mesa cheia: quatro clientes reais contra a FarmRoom', () => {
       await wait(PAST_COUNTDOWN);
       expect(m.room.state.phase).toBe(PHASE.playing);
 
-      // A `FarmRoom` NÃO tem política de entrada tardia: sem token, sem recusa, sem reserva. A única
-      // barreira é `maxClients`. Este caso fixa o comportamento REAL para a política, quando existir,
-      // não poder ser acrescentada em silêncio.
       tardio = await colyseus.sdk.joinOrCreate<FarmState>('farm', { seed, name: 'DINO' });
-      expect(await until(() => !!m.room.state.players.get(tardio!.sessionId))).toBe(true);
-      expect(m.room.state.playerCount).toBe(4);
-      expect(m.room.state.phase).toBe(PHASE.playing);            // a entrada não devolve a sala ao lobby
-      expect(m.room.state.players.get(tardio!.sessionId)!.entityId).toBe(4);
-      // O quinto é recusado — pelo `maxClients`, que é a única regra que existe.
+      // Sala OUTRA: a corrida em curso não ganhou passageiro.
+      expect(tardio.roomId).not.toBe(m.room.roomId);
+      expect(m.room.state.playerCount).toBe(3);
+      expect(m.room.state.phase).toBe(PHASE.playing);
+      expect(m.room.state.players.size).toBe(3);
+      // E entrar PELO ID da sala trancada é recusado de vez: não há porta lateral.
       await expect(colyseus.sdk.joinById(m.room.roomId, { seed })).rejects.toBeDefined();
     } finally { if (tardio) await tardio.leave(); await m.close(); }
   }, 180_000);
 
-  it('12. quem sai e volta é um JOGADOR NOVO: a sala não tem reconexão por token', async () => {
+  /**
+   * SAIR DE PROPÓSITO é definitivo: quem clica em SAIR abre mão do sobrevivente, e o inventário
+   * morre com ele. NO LOBBY a vaga volta a ser ocupável — a sala ainda não largou, e é justamente
+   * aí que um amigo entra no lugar de quem desistiu.
+   *
+   * Duas coisas que este caso NÃO cobre, e que vivem em outro lugar de propósito:
+   *
+   * - a QUEDA, em `tests/coop-reconnect`: lá a vaga é segurada por trinta segundos e a volta é a
+   *   MESMA corrida, com o mesmo inventário. A diferença entre os dois é o código de fecho do
+   *   WebSocket, e é ela que separa "eu quis sair" de "a internet caiu";
+   * - a corrida JÁ LARGADA, no caso 14: aí a sala está trancada e ninguém entra por cima.
+   */
+  it('12. quem SAI de propósito perde o sobrevivente, e no LOBBY a vaga é reocupada por outro', async () => {
     const seed = nextSeed();
     const m = await mesa(seed);
     let volta: Espelho | undefined;
@@ -530,18 +550,20 @@ describe('a mesa cheia: quatro clientes reais contra a FarmRoom', () => {
       expect([...m.sim.players.get(d.sessionId)!.loadout.inventory.values()].reduce((s, n) => s + n, 0)).toBe(1);
 
       const idAntes = d.sessionId, entidadeAntes = entityIdOf(m, 3);
+      // A sala ainda está no LOBBY: é isso que mantém a porta aberta para o substituto.
+      expect(m.room.state.phase).toBe(PHASE.lobby);
       await d.leave();
       expect(await until(() => m.room.state.players.size === 3)).toBe(true);
-      // `onLeave` APAGA o jogador da simulação e do schema: não há `allowReconnection`, não há token,
-      // e o inventário dele morre com a saída.
+      // Saída PEDIDA: `onLeave` apaga o jogador da simulação e do schema, e o inventário morre com
+      // ele. Sem janela de volta — essa é só para a queda, e com a corrida em curso.
       expect(m.sim.players.get(idAntes)).toBeUndefined();
 
       volta = await colyseus.sdk.joinOrCreate<FarmState>('farm', { seed, name: 'DINO' });
       expect(await until(() => !!m.room.state.players.get(volta!.sessionId))).toBe(true);
+      expect(volta!.roomId).toBe(m.room.roomId);                   // a MESMA sala: ela não largou
       expect(volta!.sessionId).not.toBe(idAntes);                  // sessão nova, sobrevivente novo
       expect(m.room.state.players.get(volta!.sessionId)!.entityId).toBe(entidadeAntes); // o buraco 1..4 é reaproveitado
       expect([...m.sim.players.get(volta!.sessionId)!.loadout.inventory.values()]).toHaveLength(0);
-      // A corrida (semente, estágio, carteira) continua a mesma para quem ficou.
       expect(m.room.state.seed).toBe(m.sim.seed);
     } finally { if (volta) await volta.leave(); await m.close(); }
   }, 180_000);

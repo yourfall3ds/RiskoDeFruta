@@ -295,6 +295,20 @@ export class FarmRoom extends Room<{ state: FarmState; input: NetInput; metadata
     if (this.state.phase === PHASE.lobby && this.startAt && Date.now() >= this.startAt) {
       this.startAt = 0;
       this.state.phase = PHASE.playing;
+      /**
+       * A PORTA FECHA QUANDO A CORRIDA LARGA.
+       *
+       * Sem isto, `joinOrCreate` com a mesma semente entregava um desconhecido no meio do estágio
+       * 5, sem itens, sem nível e sem a menor chance — e a mesa de quem estava jogando ganhava um
+       * passageiro que ninguém convidou. `tests/coop-four-clients` registrava exatamente isso:
+       * "a sala aceita (não há porteiro nem token)".
+       *
+       * `lock()` e não uma recusa no `onJoin`: a sala trancada sai do emparelhamento, então quem
+       * procura sala com esta semente recebe uma NOVA em vez de um erro. E `allowReconnection`
+       * atravessa a tranca de propósito — quem CAIU continua podendo voltar, que é a diferença
+       * entre fechar a porta e trancar alguém do lado de fora.
+       */
+      void this.lock();
       this.broadcast('runStarted', { seed: this.sim.seed });
     }
     for (const client of this.clients) {
