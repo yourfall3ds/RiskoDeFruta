@@ -63,6 +63,21 @@ export class RemotePlayers {
   }
 
   dispose(): void { for (const remote of this.remotes.values()) remote.visual.dispose(); this.remotes.clear(); }
+
+  /**
+   * A velocidade DERIVADA de um remoto, e a pose de habilidade DELE.
+   *
+   * Existem para que o fio possa ser afirmado sem GPU (`tests/remote-avatars`): a regra pura já é
+   * coberta, e o que falta provar é que ela chega ao boneco em vez de ser calculada e descartada.
+   * Leitura apenas — nada aqui muda estado.
+   */
+  velocityOf(id: string): {x: number; y: number; z: number} | undefined {
+    const v = this.remotes.get(id)?.motor.velocity;
+    return v ? {x: v.x, y: v.y, z: v.z} : undefined;
+  }
+  skillOf(id: string): {tier: 1 | 2 | 3; progress: number} | undefined {
+    return this.remotes.get(id)?.visual.skillPerformance;
+  }
 }
 
 /**
