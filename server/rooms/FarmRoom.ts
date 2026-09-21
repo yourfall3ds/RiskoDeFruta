@@ -266,7 +266,12 @@ export class FarmRoom extends Room<{ state: FarmState; input: NetInput; metadata
       this.broadcast('roomClosed', { reason: 'O ANFITRIÃO ENCERROU A SALA' });
       // `disconnect()` desliga todo mundo e descarta a sala — é o que impede a sala fantasma na
       // listagem depois que o anfitrião desiste.
-      void this.disconnect();
+      //
+      // O `.catch` não é zelo: o servidor NÃO tem rede para rejeição não tratada
+      // (`server/index.ts` não instala `unhandledRejection`), e no Node atual uma rejeição solta
+      // derruba o processo inteiro — a sala de todo mundo cai junto com a de quem encerrou. Já
+      // aconteceu nesta base, pelo handler de CORS, e o sintoma era "a porta 2567 morre sozinha".
+      this.disconnect().catch(motivo => console.warn(`[farm] ${this.roomId} · falha ao encerrar`, motivo));
     });
   }
 
@@ -308,7 +313,10 @@ export class FarmRoom extends Room<{ state: FarmState; input: NetInput; metadata
        * atravessa a tranca de propósito — quem CAIU continua podendo voltar, que é a diferença
        * entre fechar a porta e trancar alguém do lado de fora.
        */
-      void this.lock();
+      // Mesma razão do `.catch` em `closeRoom`: rejeição solta aqui derruba o processo, e com ele a
+      // corrida que acabou de largar. Falhar a tranca é ruim — entra estranho na sala —, derrubar o
+      // servidor é pior.
+      this.lock().catch(motivo => console.warn(`[farm] ${this.roomId} · falha ao trancar a sala`, motivo));
       this.broadcast('runStarted', { seed: this.sim.seed });
     }
     for (const client of this.clients) {

@@ -120,6 +120,42 @@ describe('a queda no meio da corrida', () => {
   }, 120_000);
 
   /**
+   * O ÚLTIMO A CAIR — o caso que a auditoria levantou.
+   *
+   * `autoDispose` não está configurado na `FarmRoom`, então vale o padrão do Colyseus: a sala se
+   * descarta quando fica sem cliente. A pergunta é se a janela de reconexão SEGURA a sala de pé
+   * quando quem caiu era o único que restava — porque, se não segurar, a promessa de "volta para a
+   * mesma corrida" é falsa exatamente no caso mais provável de um co-op de amigos: dois jogando, um
+   * sai para o jantar, o outro perde o wi-fi por dez segundos.
+   *
+   * Este caso EXISTE para fixar a resposta, qualquer que ela seja — se um dia o Colyseus mudar o
+   * comportamento, ele avisa.
+   */
+  it('o ÚLTIMO jogador caindo: a sala sobrevive à janela e a volta é a mesma corrida', async () => {
+    const {a, b, room, sim} = await mesaDeDois('reconectar-4');
+    try {
+      await largar(room, [a, b]);
+      const sessaoA = a.sessionId;
+      sim.players.get(sessaoA)!.loadout.addItem('battery');
+      const token = a.reconnectionToken;
+
+      // B sai de propósito: some na hora, e A fica sozinho.
+      await b.leave(true);
+      expect(await until(() => room.state.players.size === 1)).toBe(true);
+
+      // Agora o ÚNICO que restava cai.
+      await a.leave(false);
+      expect(await until(() => room.state.players.get(sessaoA)?.connected === false)).toBe(true);
+
+      const volta = await colyseus.sdk.reconnect(token) as unknown as Cliente;
+      expect(volta.sessionId).toBe(sessaoA);
+      expect(await until(() => room.state.players.get(sessaoA)?.connected === true)).toBe(true);
+      expect(sim.players.get(sessaoA)!.loadout.inventory.get('battery')).toBe(1);
+      await volta.leave();
+    } finally { /* a sala morre com o último cliente */ }
+  }, 120_000);
+
+  /**
    * NO LOBBY não há corrida a preservar: nem posição, nem inventário, nem estágio. Segurar a vaga
    * ali só atrasaria a mesa de quem ficou esperando para começar.
    */

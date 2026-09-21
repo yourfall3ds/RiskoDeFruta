@@ -110,4 +110,19 @@ server.define('lobby', LobbyRoom);
 server.define('farm', FarmRoom).filterBy(['seed']).enableRealtimeListing();
 // `address` JÁ carrega a porta quando ela existe (ver acima), então colá-la de novo imprimia
 // `ws://192.168.15.42:2567:2567` — e alguém acabaria copiando esse endereço de dentro do log.
+/**
+ * A REDE DE SEGURANÇA DO PROCESSO.
+ *
+ * Uma exceção em retorno de chamada do Node — ou uma promessa rejeitada que ninguém esperou —
+ * derruba o processo inteiro na versão atual. Para um servidor de jogo isso significa a sala de
+ * TODO MUNDO caindo por causa de uma falha de um só, e o sintoma que chega ao jogador é o pior
+ * possível: "a porta 2567 morreu sozinha", sem erro em lugar nenhum.
+ *
+ * Já aconteceu nesta base duas vezes — o handler de CORS acima (`ERR_HTTP_HEADERS_SENT`) e o
+ * `.catch` que faltava no encerrar/trancar sala. Isto não substitui tratar o erro onde ele nasce:
+ * é o que garante que a PRÓXIMA falha não tratada vire uma linha no log em vez de uma queda.
+ */
+process.on('unhandledRejection', motivo => console.error('[servidor] promessa rejeitada sem dono', motivo));
+process.on('uncaughtException', erro => console.error('[servidor] exceção sem dono', erro));
+
 void server.listen(port).then(() => console.log(`Mutant Farm · servidor Colyseus em ws://${address}  (escutando na porta ${port})`));
