@@ -120,6 +120,15 @@ export interface Player {
   input: InputFrame; yaw: number; pitch: number; seq: number; shots: number;
   /** Tiros DESTE jogador que encostaram num corpo. Diagnóstico; nenhuma regra lê este número. */
   hits: number;
+  /**
+   * A conexão caiu e a janela de volta ainda está aberta.
+   *
+   * NÃO é o mesmo que morrer e não é o mesmo que sair: o corpo continua na corrida, com inventário,
+   * numeração e vida intactos, mas deixa de ser alvo legítimo da horda. Sem isto, quem perde o
+   * wi-fi por dez segundos volta para um cadáver — morto por bichos que ele não podia ver nem
+   * correr de.
+   */
+  disconnected: boolean;
 }
 
 /**
@@ -192,7 +201,7 @@ export class FarmSimulation {
       // Domínio `combatProc`, nunca `loot` nem `director`: um proc a mais não pode mexer em qual
       // elite nasce nem em qual item cai (adendo §1).
       procs: new ItemProcs(loadout, this.rng.stream('combatProc')),
-      input: EMPTY_INPUT, yaw: -.13, pitch: .02, seq: 0, shots: 0, hits: 0,
+      input: EMPTY_INPUT, yaw: -.13, pitch: .02, seq: 0, shots: 0, hits: 0, disconnected: false,
     };
     player.motor.yaw = player.yaw;
     // Sem isto o motor recusaria todo dano cujo `victimId` não fosse 1 — jogadores 2..4 imortais.
@@ -202,6 +211,25 @@ export class FarmSimulation {
   }
 
   removePlayer(id: string): void { this.players.delete(id); }
+
+  /**
+   * A conexão caiu, ou voltou.
+   *
+   * Enquanto a janela de volta está aberta o jogador NÃO sai da corrida: some da mira da horda
+   * (`eligible`) e nada mais. O corpo, o inventário, a numeração e a vida continuam exatamente onde
+   * estavam, porque é isso que faz a volta ser a MESMA corrida e não uma corrida nova.
+   *
+   * A entrada é zerada junto: sem isso, o último quadro enviado antes da queda ficaria repetindo, e
+   * quem caísse correndo para a frente continuaria correndo para a frente — direto no abismo, sem
+   * ninguém ao volante.
+   */
+  setDisconnected(id: string, disconnected: boolean): boolean {
+    const player = this.players.get(id);
+    if (!player) return false;
+    player.disconnected = disconnected;
+    if (disconnected) player.input = EMPTY_INPUT;
+    return true;
+  }
 
   applyInput(id: string, input: PlayerCommand): void {
     const player = this.players.get(id);
@@ -405,7 +433,9 @@ export class FarmSimulation {
       entityId: player.entityId,
       position: player.motor.position,
       alive: player.motor.hp > 0,
-      eligible: true,
+      // Quem caiu da rede não é alvo legítimo enquanto a janela de volta está aberta. O campo já
+      // existia com `true` cravado; este é o caso que ele sempre existiu para distinguir.
+      eligible: !player.disconnected,
       get hp() { return player.motor.hp; },
       applyDamage: (context) => player.motor.applyDamage(context),
       push: (x, y, z) => { player.motor.velocity.x += x; player.motor.velocity.y += y; player.motor.velocity.z += z; },

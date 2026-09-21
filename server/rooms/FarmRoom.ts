@@ -19,6 +19,24 @@ const PATCH_HZ = 30;         // estado na rede a 30 Hz; o cliente interpola
  * — entrada, desistência ou queda — cancela a largada e a sala continua no lobby.
  */
 const COUNTDOWN_MS = 3000;
+/**
+ * Quanto tempo a sala segura o lugar de quem caiu.
+ *
+ * Trinta segundos é o que cobre o acidente real — wi-fi oscilando, notebook dormindo, cabo puxado —
+ * sem transformar a corrida de quem ficou numa sala de espera. Passado isso a vaga é liberada e a
+ * saída segue o caminho de sempre.
+ */
+const RECONNECT_SECONDS = 30;
+/**
+ * O código de fecho que o Colyseus usa quando a saída foi PEDIDA, não sofrida.
+ *
+ * É `CloseCode.CONSENTED` (`@colyseus/core/Protocol`), e NÃO o 1000 do WebSocket — que foi o meu
+ * primeiro palpite e fazia toda saída normal cair na janela de reconexão: `leave()` só resolvia
+ * trinta segundos depois, e a suíte inteira de lobby passou a estourar por tempo.
+ *
+ * `kickClient` usa o mesmo código, e isso é desejável: quem foi EXPULSO não ganha janela de volta.
+ */
+const CONSENTED_CLOSE = 4000;
 /** Ajustes que o anfitrião pode mudar. Chave fora desta lista é recusada como qualquer outra. */
 const SETTINGS = new Set(['seed', 'mode', 'roomName']);
 
@@ -88,6 +106,7 @@ export class FarmRoom extends Room<{ state: FarmState; input: NetInput; metadata
     state.id = client.sessionId;
     state.entityId = snapshot.entityId;
     state.name = options?.name?.trim().slice(0, 24) || `JOGADOR ${snapshot.entityId}`;
+    state.connected = true;
     this.state.players.set(client.sessionId, state);
     // Anfitrião é o primeiro a entrar. Escolher aqui e não no primeiro `setSetting` evita uma sala
     // sem dono enquanto ninguém mexe nos ajustes.
@@ -111,7 +130,44 @@ export class FarmRoom extends Room<{ state: FarmState; input: NetInput; metadata
     this.evaluateStart();
   }
 
-  onLeave(client: Client): void {
+  /**
+   * A SAÍDA, e a queda — que não são a mesma coisa.
+   *
+   * Sair é uma decisão: o jogador clicou em SAIR DA SALA, e a vaga é liberada na hora. Cair é um
+   * acidente: o wi-fi oscilou, o notebook dormiu, o cabo foi puxado. Até aqui o servidor tratava as
+   * duas iguais — quem caía perdia o corpo, o inventário e a numeração, e voltava como JOGADOR
+   * NOVO no fim da fila de uma corrida que já ia pela metade. Era o comportamento que
+   * `tests/coop-four-clients` documentava como "a sala não tem reconexão por token".
+   *
+   * Agora a queda ABRE UMA JANELA. Dentro dela o `PlayerState` continua na sala, com tudo no lugar,
+   * e `allowReconnection` devolve o MESMO `sessionId` quando o cliente volta — que é o que faz o
+   * inventário e a vaga serem os mesmos sem precisar de token nenhum: a identidade é a sessão.
+   *
+   * A janela só existe com a corrida EM CURSO. No lobby não há nada a preservar, e segurar uma vaga
+   * de quatro por meio minuto por causa de quem fechou a aba é pior do que liberá-la.
+   */
+  async onLeave(client: Client, code?: number): Promise<void> {
+    // Saída pedida (ou expulsão). Qualquer outro código é acidente — e é só o acidente que merece
+    // a janela de volta.
+    const consented = code === CONSENTED_CLOSE;
+    const playing = this.state.phase === PHASE.playing;
+    if (!consented && playing && this.sim.setDisconnected(client.sessionId, true)) {
+      const state = this.state.players.get(client.sessionId);
+      if (state) state.connected = false;
+      console.log(`[farm] ${this.roomId} · caiu ${client.sessionId} · esperando ${RECONNECT_SECONDS}s`);
+      try {
+        await this.allowReconnection(client, RECONNECT_SECONDS);
+        this.sim.setDisconnected(client.sessionId, false);
+        const back = this.state.players.get(client.sessionId);
+        if (back) back.connected = true;
+        console.log(`[farm] ${this.roomId} · voltou ${client.sessionId} · mesma corrida`);
+        this.publish();
+        return;
+      } catch {
+        // A janela fechou sem ele. Daqui para baixo é a saída de sempre.
+        console.log(`[farm] ${this.roomId} · não voltou ${client.sessionId}`);
+      }
+    }
     this.sim.removePlayer(client.sessionId);
     this.state.players.delete(client.sessionId);
     this.state.playerCount = this.state.players.size;

@@ -24,6 +24,12 @@ export const PlayerState = schema({
   // ordem do mapa renumerava os jogadores restantes quando alguém caía no meio da corrida.
   entityId: t.uint8(),
   name: t.string(), classId: t.uint8(), classChosen: t.boolean(), ready: t.boolean(),
+  /**
+   * A conexão está de pé? `false` é a JANELA DE VOLTA aberta — o jogador caiu e a sala está
+   * segurando o lugar dele. A tela precisa disso para dizer "reconectando…" em vez de mostrar um
+   * companheiro parado no meio do campo sem explicação nenhuma.
+   */
+  connected: t.boolean(),
   x: t.number(), y: t.number(), z: t.number(), yaw: t.number(), pitch: t.number(),
   seq: t.uint32(),
   hp: t.number(), maxHP: t.number(),
