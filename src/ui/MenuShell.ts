@@ -247,7 +247,7 @@ export class MenuShell {
    * multijogador seria mentira na tela.
    */
   private readonly rosterList=document.createElement('ul');
-  setRoster(players:readonly {id?:string;name:string;classe?:string;pronto?:boolean}[]):void {
+  setRoster(players:readonly {id?:string;name:string;classe?:string;pronto?:boolean;caiu?:boolean}[]):void {
     // A MESMA verdade nas duas telas: a lista do lobby de personagem e as quatro vagas da sala são
     // duas apresentações do mesmo roster, e nunca podem discordar.
     this.renderSlots(players);
@@ -620,17 +620,19 @@ export class MenuShell {
    * Cada linha diz o que a sala está esperando daquele jogador — personagem escolhido e prontidão —
    * porque são exatamente essas duas coisas que a unanimidade estrita da `FarmRoom` exige.
    */
-  private renderSlots(players:readonly {id?:string;name:string;classe?:string;pronto?:boolean}[]):void {
+  private renderSlots(players:readonly {id?:string;name:string;classe?:string;pronto?:boolean;caiu?:boolean}[]):void {
     this.salaSlots.replaceChildren();
     for(let i=0;i<4;i++){
       const player=players[i];
       const item=document.createElement('li');
-      item.className='rdf-slot'+(player?'':' vazio')+(player?.pronto?' pronto':'');
+      // `caiu` vence `pronto` na linha: quem perdeu a conexão não está pronto para nada, e mostrar
+      // PRONTO ao lado de um companheiro que sumiu é a informação errada na hora errada.
+      item.className='rdf-slot'+(player?'':' vazio')+(player?.caiu?' caiu':player?.pronto?' pronto':'');
       item.innerHTML='<i></i><b></b><span></span><em></em>';
       item.querySelector('i')!.textContent=`P${i+1}`;
       item.querySelector('b')!.textContent=player?player.name:'aguardando…';
       item.querySelector('span')!.textContent=player?(player.classe??'escolhendo…'):'';
-      item.querySelector('em')!.textContent=player?(player.pronto?'PRONTO':'AGUARDANDO'):'';
+      item.querySelector('em')!.textContent=player?(player.caiu?'RECONECTANDO…':player.pronto?'PRONTO':'AGUARDANDO'):'';
       // Expulsar: só o anfitrião, e nunca a si mesmo (a primeira vaga é sempre dele).
       if(player&&this.isHost&&i>0&&player.id){
         const expulsar=document.createElement('button');

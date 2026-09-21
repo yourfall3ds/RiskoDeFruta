@@ -248,7 +248,7 @@ describe('a lista de salas', () => {
 
 describe('o que está travando a largada', () => {
   const jogador = (over: Partial<LobbyPlayer>): LobbyPlayer => ({
-    id: 's1', entityId: 1, name: 'LUCAS', classId: 'gunslinger', ready: true, host: true, self: true, ...over,
+    id: 's1', entityId: 1, name: 'LUCAS', classId: 'gunslinger', connected: true, ready: true, host: true, self: true, ...over,
   });
 
   it('diz QUEM falta e o QUÊ, em vez de deixar o botão morto', () => {

@@ -2430,6 +2430,17 @@ body:has(#view) footer select {
 .rdf-slot > em { font-style: normal; font-size: 9px; letter-spacing: .16em; color: var(--rdf-ink-faint); }
 .rdf-slot.pronto > em { color: var(--rdf-rind); }
 .rdf-slot.vazio > b { color: var(--rdf-ink-faint); letter-spacing: .06em; }
+/*
+ * A QUEDA: a linha apaga e o aviso pisca.
+ *
+ * Apagar a LINHA INTEIRA, e não só o aviso, é o ponto — quem bate o olho na sala precisa ver que
+ * aquela vaga está em suspenso sem ter de ler. O pisca é lento de propósito: é espera, não alarme.
+ * `prefers-reduced-motion` desliga o movimento sem tirar a informação, que continua escrita.
+ */
+.rdf-slot.caiu { opacity: .55; }
+.rdf-slot.caiu > em { color: var(--rdf-ink-faint); animation: rdf-caiu 1.6s ease-in-out infinite; }
+@keyframes rdf-caiu { 0%, 100% { opacity: .4; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .rdf-slot.caiu > em { animation: none; } }
 .rdf-kick {
   padding: 2px 8px !important;
   font-size: 11px !important;

@@ -229,6 +229,9 @@ export class NetworkClient implements LobbyLink {
       id: p.id, entityId: p.entityId, name: p.name,
       classId: p.classChosen ? CLASS_IDS[p.classId] as PlayerClassId | undefined : undefined,
       ready: p.ready, host: p.id === hostId, self: p.id === this.sessionId,
+      // `connected` nasceu `false` no schema antigo; um cliente ligado a um servidor sem o campo
+      // veria a sala inteira "reconectando". Na dúvida, conectado — o estado normal.
+      connected: p.connected !== false,
     })).sort((a, b) => a.entityId - b.entityId);
   }
 

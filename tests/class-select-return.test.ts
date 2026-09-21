@@ -80,8 +80,8 @@ describe('escolher personagem dentro da sala', () => {
   it('não fecha a conexão, não recria a sala e preserva roomId e identidade', async () => {
     // `classId: undefined` é o estado real de quem ainda não escolheu — é ele que trava a largada.
     const players: LobbyPlayer[] = [
-      {id: 'p1', entityId: 1, name: 'ANFITRIAO', classId: undefined, ready: false, host: true, self: false},
-      {id: 'p2', entityId: 2, name: 'LUCAS', classId: undefined, ready: false, host: false, self: true},
+      {id: 'p1', entityId: 1, name: 'ANFITRIAO', classId: undefined, connected: true, ready: false, host: true, self: false},
+      {id: 'p2', entityId: 2, name: 'LUCAS', classId: undefined, connected: true, ready: false, host: false, self: true},
     ];
     const sala = fakeRoom('ABC123', players);
     setRoomConnector(async (_intent: OnlineIntent) => sala);

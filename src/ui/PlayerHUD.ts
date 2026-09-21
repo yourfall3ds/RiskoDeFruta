@@ -86,6 +86,9 @@ export class PlayerHUD {
       id:p.id,
       name:p.self?`VOCÊ · ${p.name}`:p.name,
       pronto:p.ready,
+      // A queda dele aparece NA LINHA dele. Sem isto, o companheiro que perdeu a conexão fica com
+      // a última prontidão congelada na tela, e quem ficou não sabe se espera ou se toca em frente.
+      caiu:!p.connected,
       // Espalhamento condicional e não `classe:…|undefined`: com `exactOptionalPropertyTypes`,
       // `undefined` NÃO é um valor válido para uma propriedade opcional.
       ...(p.classId?{classe:PLAYER_CLASSES[p.classId].name}:{}),

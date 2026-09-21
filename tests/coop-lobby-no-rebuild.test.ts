@@ -102,7 +102,7 @@ describe('entrar numa sala não reconstrói a cena', () => {
     // O lobby inteiro é menu: personagem, prontidão e o roster mudando por baixo.
     sala.chooseClass('gunslinger');
     sala.setReady(true);
-    sala.players = [{ id: 's1', entityId: 1, name: 'LUCAS', classId: 'gunslinger', ready: true, host: true, self: true }];
+    sala.players = [{ id: 's1', entityId: 1, name: 'LUCAS', classId: 'gunslinger', connected: true, ready: true, host: true, self: true }];
     sala.emit();
     expect(rebuilds).toEqual([]);
   });

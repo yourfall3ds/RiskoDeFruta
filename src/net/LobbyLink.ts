@@ -17,6 +17,14 @@ export interface LobbyPlayer {
   readonly ready: boolean;
   readonly host: boolean;
   readonly self: boolean;
+  /**
+   * A conexão dele está de pé?
+   *
+   * `false` é a JANELA DE VOLTA aberta: caiu, e a sala está segurando o lugar por trinta segundos
+   * (ver `FarmRoom.onLeave`). Sem isto na tela, o companheiro simplesmente PARA no meio do campo e
+   * quem ficou não tem como distinguir "a internet dele caiu" de "ele largou o teclado".
+   */
+  readonly connected: boolean;
 }
 
 export type LobbyPhase = 'lobby' | 'playing';
