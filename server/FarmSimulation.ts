@@ -204,10 +204,20 @@ export class FarmSimulation {
   /** Índice de raios da colisão por malha. Em Node cai no caminho síncrono (sem `Worker`); chamar antes do primeiro passo. */
   async prepare(): Promise<void> { await this.collision.prepareRaycastsAsync(); }
 
-  addPlayer(id: string): PlayerSnapshot {
+  /**
+   * Põe um jogador na simulação.
+   *
+   * `seat` é o assento que ele JÁ TEM, quando tem. Existe para a troca de mapa no lobby: a
+   * simulação é refeita por baixo da sala, e cada um tem de voltar com o MESMO número — sem isto,
+   * uma sala com P1 e P3 (P2 saiu) viraria P1 e P2 depois da troca, e o número deixaria de ser uma
+   * identidade para virar uma ordem de chegada. Um assento ocupado é erro, não fallback: dois
+   * jogadores com o mesmo número é o defeito que a reserva de assento existe para impedir.
+   */
+  addPlayer(id: string, seat?: number): PlayerSnapshot {
     if (this.players.has(id)) throw new Error(`Jogador duplicado ${id}`);
+    if (seat !== undefined && [...this.players.values()].some(p => p.entityId === seat)) throw new Error(`Assento ${seat} já ocupado`);
     // A VAGA PRIMEIRO, O LUGAR DEPOIS: é o número do jogador que decide onde ele pisa.
-    const entityId = this.freeEntityId();
+    const entityId = seat ?? this.freeEntityId();
     const spawn = this.spawnPoint(entityId);
     const loadout = new PlayerLoadout(this.progression.level);
     const player: Player = {

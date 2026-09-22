@@ -4,7 +4,7 @@ import { Room, type Client, type StepContext } from 'colyseus';
 import { FarmSimulation, type CollisionData } from '../FarmSimulation';
 import { FarmState, PlayerState, EnemyState, CLASS_IDS, PHASE, enemyStateOrdinal } from '../schema';
 import { NetInput, BUTTON, toFrame } from '../../src/net/NetInput';
-import { TEST_MAP, TEST_MAP_ID, isTestMap, testMapCollision } from '../../src/world/TestMap';
+import { MAP_CHOICES, TEST_MAP, TEST_MAP_ID, isTestMap, testMapCollision } from '../../src/world/TestMap';
 import { FARM_MAP } from '../../src/world/FarmMap';
 export { NetInput, BUTTON, toFrame };
 
@@ -40,7 +40,7 @@ const RECONNECT_SECONDS = 30;
  */
 const CONSENTED_CLOSE = 4000;
 /** Ajustes que o anfitrião pode mudar. Chave fora desta lista é recusada como qualquer outra. */
-const SETTINGS = new Set(['seed', 'mode', 'roomName']);
+const SETTINGS = new Set(['seed', 'mode', 'roomName', 'map']);
 
 /**
  * O ENDEREÇO PÚBLICO desta instalação (`host:porta`), escrito por `server/index.ts`.
@@ -255,6 +255,8 @@ export class FarmRoom extends Room<{ state: FarmState; input: NetInput; metadata
       if (client.sessionId !== this.state.hostId) { client.send('settingRejected', { key, reason: 'host' }); return; }
       if (this.state.phase !== PHASE.lobby) { client.send('settingRejected', { key, reason: 'phase' }); return; }
       if (!SETTINGS.has(key)) { client.send('settingRejected', { key, reason: 'key' }); return; }
+      // O mapa não é um texto: colisão e assentos nascem com a simulação. Caminho próprio, abaixo.
+      if (key === 'map') { void this.selectMap(client, String(message?.value ?? '')); return; }
       this.state.settings.set(key, String(message?.value ?? ''));
       // O nome da sala é o que a LISTAGEM mostra; sem republicar, renomear só apareceria para quem
       // já está dentro — que é justamente quem não precisa do nome.
@@ -298,8 +300,65 @@ export class FarmRoom extends Room<{ state: FarmState; input: NetInput; metadata
     return players.length > 0 && players.every(p => p.ready && p.classChosen);
   }
 
+  /**
+   * O ANFITRIÃO TROCA O MAPA — no lobby, e só fora da contagem.
+   *
+   * ## Por que não é um `settings.set`
+   *
+   * Colisão e assentos nascem COM a simulação: trocar só o texto deixaria a sala anunciando o mapa
+   * de teste e simulando a fazenda. Então a simulação é REFEITA, e é isso que só pode acontecer no
+   * lobby — lá ela não anda (ver `step`), não há horda, projétil nem progresso a perder.
+   *
+   * ## As recusas, cada uma com motivo
+   *
+   * - `value`: mapa que não existe. O cliente nunca inventa mapa; quem manda um id qualquer é outro
+   *   cliente, e a sala não confia.
+   * - `starting`: a contagem já começou. Todos confirmaram UM mapa; trocar debaixo deles faria a
+   *   corrida largar num lugar que ninguém aceitou. É o congelamento pedido para a largada.
+   *
+   * ## Trocar desfaz o PRONTO de todo mundo
+   *
+   * Quem deu PRONTO aceitou o mapa que estava na tela. Com o mapa trocado, esse aceite não vale
+   * mais para o que vai acontecer — então cada um confirma de novo. Sem isto, o anfitrião poderia
+   * trocar o mapa no último segundo e a sala largaria com gente que nunca viu a troca.
+   *
+   * ## O número de cada um sobrevive
+   *
+   * Os jogadores são recolocados com o `entityId` que já tinham. Uma sala com P1 e P3 (P2 saiu) não
+   * vira P1 e P2 depois da troca: o número é identidade, não ordem de chegada.
+   */
+  private async selectMap(client: Client, value: string): Promise<void> {
+    const pedido = value.trim().toLowerCase();
+    if (!MAP_CHOICES.some(m => m.id === pedido)) { client.send('settingRejected', { key: 'map', reason: 'value' }); return; }
+    if (this.startAt) { client.send('settingRejected', { key: 'map', reason: 'starting' }); return; }
+    if ((this.state.settings.get('map') ?? '') === pedido) return;
+
+    const noLaboratorio = isTestMap(pedido);
+    const nova = new FarmSimulation(this.state.seed, noLaboratorio ? testMapCollision() : loadCollision(), noLaboratorio ? TEST_MAP : FARM_MAP);
+    this.rebuilding = true;
+    try {
+      await nova.prepare();
+      // A sala pode ter largado, esvaziado ou recebido outra troca enquanto a colisão preparava.
+      if (this.state.phase !== PHASE.lobby || this.startAt) { client.send('settingRejected', { key: 'map', reason: 'starting' }); return; }
+      const assentos = [...this.state.players.values()].sort((x, y) => x.entityId - y.entityId);
+      for (const p of assentos) nova.addPlayer(p.id, p.entityId);
+      this.sim = nova;
+      this.state.settings.set('map', pedido);
+      for (const p of this.state.players.values()) p.ready = false;
+      this.mirror();
+      this.publish();
+      console.log(`[farm] ${this.roomId} · mapa trocado para "${pedido || 'fazenda'}" pelo anfitrião · prontos desfeitos`);
+    } finally {
+      this.rebuilding = false;
+    }
+  }
+
+  /** Uma troca de mapa em preparo. Enquanto durar, a sala não larga. */
+  private rebuilding = false;
+
   private evaluateStart(): void {
     if (this.state.phase !== PHASE.lobby) return;
+    if (this.rebuilding) return;
     if (this.unanimous()) {
       if (this.startAt) return;
       this.startAt = Date.now() + COUNTDOWN_MS;

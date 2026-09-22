@@ -32,12 +32,29 @@ export const TEST_MAP_SIZE = 80;
 /** A altura do chão. Zero para que `groundAt` e o nascimento concordem sem conta nenhuma. */
 export const TEST_MAP_HEIGHT = 0;
 
+/** Altura das paredes de limite: acima de qualquer pulo, para ninguém sair da bancada. */
+export const TEST_MAP_WALL_HEIGHT = 4;
+/** Espessura das paredes. Grossa o bastante para um passo rápido não atravessar entre dois quadros. */
+export const TEST_MAP_WALL_THICKNESS = 1;
+
 /**
- * A colisão do mapa de teste: UMA superfície plana, e nada mais.
+ * A colisão do mapa de teste: um chão plano CERCADO por quatro paredes.
+ *
+ * ## Um lugar só, para os dois lados
+ *
+ * Esta função é a ÚNICA descrição da área jogável: o servidor simula com ela e o cliente a DESENHA
+ * a partir dela (`TestMapWorld`). Uma parede que existisse só na tela deixaria o cliente prevendo
+ * um jogador parado contra ela enquanto o servidor o deixava cair da borda — e a reconciliação
+ * puxaria o boneco para o vazio a cada passo. Por isso nada do mapa é declarado duas vezes.
+ *
+ * ## Por que paredes
+ *
+ * Sem elas, andar para um lado por alguns segundos derruba o jogador da borda. Num laboratório isso
+ * é ruído: o teste de movimento viraria teste de queda. As paredes ficam FORA do chão (encostadas
+ * na borda), então os 80 m de piso continuam inteiros.
  *
  * `mesh` e `solid` vão vazios de propósito. Eles existem para o relevo esculpido e para os volumes
- * sob as ilhas da fazenda; num plano não há o que esculpir nem sob o que cair, e enchê-los com
- * geometria inventada só daria trabalho à física para descrever o nada.
+ * sob as ilhas da fazenda; num plano cercado não há o que esculpir nem sob o que cair.
  */
 export function testMapCollision(): {
   boxes: BoxCollider[];
@@ -45,8 +62,14 @@ export function testMapCollision(): {
   mesh: { positions: number[]; indices: number[]; boxes: BoxCollider[] };
   solid: { positions: number[]; indices: number[]; boxes: BoxCollider[] };
 } {
+  const meio = TEST_MAP_SIZE / 2, e = TEST_MAP_WALL_THICKNESS, h = TEST_MAP_HEIGHT, topo = TEST_MAP_HEIGHT + TEST_MAP_WALL_HEIGHT;
   return {
-    boxes: [],
+    boxes: [
+      { id: 'test-wall-north', min: { x: -meio - e, y: h, z: meio }, max: { x: meio + e, y: topo, z: meio + e } },
+      { id: 'test-wall-south', min: { x: -meio - e, y: h, z: -meio - e }, max: { x: meio + e, y: topo, z: -meio } },
+      { id: 'test-wall-east', min: { x: meio, y: h, z: -meio }, max: { x: meio + e, y: topo, z: meio } },
+      { id: 'test-wall-west', min: { x: -meio - e, y: h, z: -meio }, max: { x: -meio, y: topo, z: meio } },
+    ],
     surfaces: [{ id: 'test-ground', x: 0, z: 0, width: TEST_MAP_SIZE, depth: TEST_MAP_SIZE, height: TEST_MAP_HEIGHT }],
     mesh: { positions: [], indices: [], boxes: [] },
     solid: { positions: [], indices: [], boxes: [] },

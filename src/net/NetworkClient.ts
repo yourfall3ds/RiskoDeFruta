@@ -249,6 +249,10 @@ export class NetworkClient implements LobbyLink {
 
   /** O nome da sala é um AJUSTE da sala, então passa pelo mesmo `setSetting` já guardado por host. */
   get roomName(): string { return this.room?.state?.settings?.get('roomName') ?? ''; }
+  /** O mapa da sala, como o SERVIDOR o tem. `''` é a fazenda. Estado autoritativo, nunca local. */
+  get mapId(): string { return this.room?.state?.settings?.get('map') ?? ''; }
+  /** O PEDIDO de troca. Quem decide é a sala: anfitrião, lobby e fora da contagem (`FarmRoom.selectMap`). */
+  selectMap(id: string): void { this.setSetting('map', id); }
   rename(name: string): void { this.setSetting('roomName', name); }
   kick(playerId: string): void { this.room?.send('kick', { playerId }); }
   closeRoom(): void { this.room?.send('closeRoom', {}); }
@@ -259,8 +263,16 @@ export class NetworkClient implements LobbyLink {
     return () => this.closedListeners.delete(listener);
   }
 
+  /**
+   * Avisa a interface — só quando algo que ela MOSTRA mudou.
+   *
+   * A chave tem de conter tudo o que a tela desenha, e faltavam duas coisas. `connected`: quando um
+   * jogador caía, nada mais na linha dele mudava, a chave ficava igual e o `RECONECTANDO…` nunca
+   * chegava à tela — o dado estava certo e a notificação o engolia. E o mapa, que passou a ser
+   * escolhido no lobby: sem ele aqui, o convidado continuaria vendo o mapa antigo.
+   */
   private notifyLobby(): void {
-    const key = this.phase + '|' + this.address + '|' + this.roomName + '|' + this.players.map(p => `${p.entityId}:${p.name}:${p.classId ?? ''}:${p.ready ? 1 : 0}:${p.host ? 1 : 0}`).join(',');
+    const key = this.phase + '|' + this.address + '|' + this.roomName + '|' + this.mapId + '|' + this.players.map(p => `${p.entityId}:${p.name}:${p.classId ?? ''}:${p.ready ? 1 : 0}:${p.host ? 1 : 0}:${p.connected ? 1 : 0}`).join(',');
     if (key === this.lobbyKey) return;
     this.lobbyKey = key;
     for (const listener of this.lobbyListeners) listener();

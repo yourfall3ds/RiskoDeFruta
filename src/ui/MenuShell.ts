@@ -36,6 +36,7 @@
 
 import type {MultiplayerPort} from '../net/Multiplayer';
 import type {RoomBrowserLink,RoomRow} from '../net/RoomBrowser';
+import {MAP_CHOICES} from '../world/TestMap';
 
 export type MenuScreen='raiz'|'personagem'|'opcoes'|'abandonar'|'nome'|'multijogador'|'entrar'|'sala';
 
@@ -579,19 +580,59 @@ export class MenuShell {
 
     this.salaSlots.replaceChildren();
     this.renderSlots([]);
-    screen.append(this.salaTitle,this.salaSlots,this.salaStatus,codigo,copiar,iniciar,campoNome,renomear,encerrar,sair);
+    this.mapRow.className='rdf-map-row';
+    this.renderMap();
+    screen.append(this.salaTitle,this.salaSlots,this.mapRow,this.salaStatus,codigo,copiar,iniciar,campoNome,renomear,encerrar,sair);
     this.applyHostOnly();
+  }
+
+  /**
+   * O MAPA DA SALA — o mesmo controle para todos, e só o anfitrião o aciona.
+   *
+   * O convidado vê os MESMOS botões, desabilitados, com o escolhido marcado. Esconder o seletor dele
+   * seria esconder a informação que mais importa antes do PRONTO: em que mapa ele está prestes a
+   * entrar. Desabilitado diz as duas coisas de uma vez — qual é o mapa, e que não é ele quem troca.
+   *
+   * O mapa marcado é SEMPRE o do estado da sala (`setMap`), nunca o clique: o anfitrião pede, o
+   * servidor decide, e a tela só acende o botão quando a decisão volta. Um clique recusado não
+   * deixa a tela mentindo.
+   */
+  private readonly mapRow=document.createElement('div');
+  private currentMap='';
+  private onSelectMap:((id:string)=>void)|undefined;
+  /** O mapa como a SALA o tem. Chamado a cada mudança do lobby. */
+  setMap(id:string):void {if(id!==this.currentMap){this.currentMap=id;this.renderMap();}}
+  private renderMap():void {
+    const rotulo=document.createElement('small');
+    rotulo.textContent='MAPA';
+    const opcoes=document.createElement('div');
+    opcoes.className='rdf-map-options';
+    for(const escolha of MAP_CHOICES){
+      const botao=document.createElement('button');
+      botao.type='button';
+      const ativo=escolha.id===this.currentMap;
+      botao.className='rdf-map-choice'+(ativo?' ativo':'');
+      botao.setAttribute('aria-pressed',String(ativo));
+      botao.disabled=!this.isHost;
+      botao.title=escolha.note;
+      botao.innerHTML='<b></b><span></span>';
+      botao.querySelector('b')!.textContent=escolha.name;
+      botao.querySelector('span')!.textContent=escolha.note;
+      botao.onclick=()=>{if(this.isHost&&!ativo)this.onSelectMap?.(escolha.id);};
+      opcoes.append(botao);
+    }
+    this.mapRow.replaceChildren(rotulo,opcoes);
   }
 
   /** Ações da sala que só a rede pode cumprir. `PlayerHUD` as liga à `LobbyLink`. */
   private onRename:((name:string)=>void)|undefined;
   private onCloseRoom:(()=>void)|undefined;
   private onLeaveRoom:(()=>void)|undefined;
-  setRoomActions(actions:{rename?:(name:string)=>void;close?:()=>void;leave?:()=>void;kick?:(playerId:string)=>void}):void {
-    this.onRename=actions.rename;this.onCloseRoom=actions.close;this.onLeaveRoom=actions.leave;this.onKick=actions.kick;
+  setRoomActions(actions:{rename?:(name:string)=>void;close?:()=>void;leave?:()=>void;kick?:(playerId:string)=>void;selectMap?:(id:string)=>void}):void {
+    this.onRename=actions.rename;this.onCloseRoom=actions.close;this.onLeaveRoom=actions.leave;this.onKick=actions.kick;this.onSelectMap=actions.selectMap;
   }
-  /** Só o anfitrião renomeia, expulsa e encerra — e só ele vê esses botões. */
-  setHost(isHost:boolean):void {this.isHost=isHost;this.applyHostOnly();}
+  /** Só o anfitrião renomeia, expulsa e encerra — e só ele vê esses botões. O mapa, todos veem. */
+  setHost(isHost:boolean):void {const mudou=isHost!==this.isHost;this.isHost=isHost;this.applyHostOnly();if(mudou)this.renderMap();}
   private applyHostOnly():void {for(const node of this.hostOnly)node.hidden=!this.isHost;}
   /** O aviso da sala: o que falta para largar, ou o que deu errado. */
   setRoomStatus(text:string):void {this.salaStatus.textContent=text;}

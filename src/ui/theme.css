@@ -2441,6 +2441,28 @@ body:has(#view) footer select {
 .rdf-slot.caiu > em { color: var(--rdf-ink-faint); animation: rdf-caiu 1.6s ease-in-out infinite; }
 @keyframes rdf-caiu { 0%, 100% { opacity: .4; } 50% { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .rdf-slot.caiu > em { animation: none; } }
+/*
+ * O SELETOR DE MAPA. Todos veem o mesmo controle; só o anfitrião o aciona.
+ *
+ * Desabilitado não pode parecer QUEBRADO: o convidado precisa ler qual mapa vale, então o botão
+ * escolhido continua aceso mesmo sem cursor de clique. O que muda para o convidado é só o cursor e
+ * a ausência de realce ao passar o mouse.
+ */
+.rdf-map-row { display: grid; gap: 6px; margin: 10px 0 4px; }
+.rdf-map-row > small { font-size: 10px; letter-spacing: .2em; color: var(--rdf-wheat); }
+.rdf-map-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
+.rdf-map-choice {
+  display: grid; gap: 2px; text-align: left; padding: 8px 10px;
+  border: 1px solid var(--rdf-ink-faint); background: transparent; color: var(--rdf-ink);
+  font: inherit; cursor: pointer;
+}
+.rdf-map-choice > b { font-size: 12px; letter-spacing: .1em; }
+.rdf-map-choice > span { font-size: 10px; color: var(--rdf-ink-faint); }
+.rdf-map-choice.ativo { border-color: var(--rdf-rind); box-shadow: inset 0 0 0 1px var(--rdf-rind); }
+.rdf-map-choice.ativo > b { color: var(--rdf-rind); }
+.rdf-map-choice:not(:disabled):not(.ativo):hover { border-color: var(--rdf-wheat); }
+.rdf-map-choice:disabled { cursor: default; }
+.rdf-map-choice:disabled:not(.ativo) { opacity: .5; }
 .rdf-kick {
   padding: 2px 8px !important;
   font-size: 11px !important;

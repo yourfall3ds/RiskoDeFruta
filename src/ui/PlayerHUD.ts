@@ -132,6 +132,8 @@ export class PlayerHUD {
       kick:id=>lobby.kick(id),
       close:()=>lobby.closeRoom(),
       leave:()=>{lobby.leaveRoom();this.coopExit('VOCÊ SAIU DA SALA');},
+      // Um PEDIDO. O botão só acende quando o servidor aceitar e o estado voltar — ver `setMap`.
+      selectMap:id=>lobby.selectMap(id),
     });
     this.unsubscribeLobbyClosed=lobby.onClosed(reason=>this.coopExit(reason));
     this.unsubscribeLobby=lobby.onChange(()=>this.syncLobby());
@@ -155,6 +157,8 @@ export class PlayerHUD {
     const mine=lobby.players.find(p=>p.self);
     this.menu?.setReadyLabel(lobby.phase==='playing'?'ENTRANDO…':mine?.ready?'AGUARDANDO A SALA':'PRONTO');
     this.menu?.setHost(lobby.isHost);
+    // O mapa que a SALA tem — o mesmo para todos, e é o que acende o botão no seletor.
+    this.menu?.setMap(lobby.mapId);
     this.menu?.setRoomStatus(lobbyBlockerText(lobby.players,lobby.phase));
     this.menu?.setRoomCode(this.roomCode(lobby.address));
     if(lobby.roomName)this.menu?.showRoomName(lobby.roomName);

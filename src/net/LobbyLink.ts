@@ -44,6 +44,13 @@ export interface LobbyLink {
   readonly address: string;
   /** O nome da sala, editável pelo anfitrião. Vazio até a primeira réplica chegar. */
   readonly roomName: string;
+  /**
+   * O mapa da sala, como o SERVIDOR o tem (`''` é a fazenda). Estado autoritativo: é o mesmo para
+   * todos, e a tela nunca o guarda por conta própria — senão cada um veria um mapa.
+   */
+  readonly mapId: string;
+  /** PEDIR a troca de mapa. A sala decide: só o anfitrião, só no lobby, nunca na contagem. */
+  selectMap(id: string): void;
   /** Motivo, quando a sala caiu ou nunca subiu. Vazio enquanto está tudo de pé. */
   readonly failure: string;
   /** Devolve a função de cancelar a inscrição; o HUD a chama ao ser descartado. */

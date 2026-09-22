@@ -47,7 +47,7 @@ function fakeRoom(url = 'ws://127.0.0.1:2567'): FakeRoom {
   const sala: FakeRoom = {
     url, connects: 0, disposes: 0, phase: 'lobby' as LobbyPhase, players: [] as LobbyPlayer[],
     chosen: [] as string[], readies: [] as boolean[], left: 0,
-    isHost: true, address: '192.168.15.42:2567', roomName: 'SALA DE LUCAS', failure: '',
+    isHost: true, address: '192.168.15.42:2567', roomName: 'SALA DE LUCAS', failure: '', mapId: '',
     async connect() { sala.connects++; },
     dispose() { sala.disposes++; changed.clear(); closed.clear(); },
     onChange(listener: () => void) { changed.add(listener); return () => changed.delete(listener); },
@@ -56,6 +56,7 @@ function fakeRoom(url = 'ws://127.0.0.1:2567'): FakeRoom {
     setReady(ready: boolean) { sala.readies.push(ready); },
     setSetting() { /* sem servidor não há ajuste para guardar */ },
     rename() { /* idem */ },
+    selectMap() { /* idem: quem troca mapa é a sala, e aqui não há sala */ },
     kick() { /* idem */ },
     closeRoom() { /* idem */ },
     leaveRoom() { sala.left++; },

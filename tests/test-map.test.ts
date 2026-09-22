@@ -33,12 +33,32 @@ async function until(condition: () => boolean, attempts = 1600): Promise<boolean
 const PAST_COUNTDOWN = 4200;
 
 describe('a colisão do mapa de teste', () => {
-  it('é um chão só, sem malha e sem volume', () => {
+  it('é um chão só, sem malha e sem volume de relevo', () => {
     const c = testMapCollision();
     expect(c.surfaces).toHaveLength(1);
     expect(c.surfaces[0]!.width).toBe(TEST_MAP_SIZE);
-    expect({ caixas: c.boxes.length, malha: c.mesh.positions.length, solido: c.solid.positions.length })
-      .toEqual({ caixas: 0, malha: 0, solido: 0 });
+    expect({ malha: c.mesh.positions.length, solido: c.solid.positions.length }).toEqual({ malha: 0, solido: 0 });
+  });
+
+  /**
+   * CERCADO, e as paredes ficam FORA do piso. Sem cerco, andar para um lado derruba o jogador da
+   * borda e o teste de movimento vira teste de queda. Encostadas por fora, elas não comem piso.
+   */
+  it('quatro paredes cercam o chão por fora, sem invadir o piso', () => {
+    const { boxes } = testMapCollision();
+    const meio = TEST_MAP_SIZE / 2;
+    expect(boxes).toHaveLength(4);
+    for (const b of boxes) {
+      // Nenhuma parede tem volume DENTRO do quadrado jogável.
+      const invade = b.min.x < meio && b.max.x > -meio && b.min.z < meio && b.max.z > -meio;
+      expect(invade, b.id).toBe(false);
+      expect(b.max.y - b.min.y).toBeGreaterThan(2);
+    }
+    // E fecham os quatro lados: cada lado do quadrado tem uma parede encostada nele.
+    expect(boxes.some(b => b.min.z === meio)).toBe(true);
+    expect(boxes.some(b => b.max.z === -meio)).toBe(true);
+    expect(boxes.some(b => b.min.x === meio)).toBe(true);
+    expect(boxes.some(b => b.max.x === -meio)).toBe(true);
   });
 
   /** Um lugar só decide o que é mapa de teste, e ele não se confunde com o mapa do jogo. */

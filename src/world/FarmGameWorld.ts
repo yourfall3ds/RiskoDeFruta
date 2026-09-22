@@ -6,6 +6,7 @@ import {STAGE_BIOMES} from '../stages/StageRoute';
 import {FarmWorld} from './FarmWorld';
 import type {GameWorld, WorldSite} from './GameWorld';
 import type {TrainingYard} from './TrainingYard';
+import type {TestMapWorld} from './TestMapWorld';
 
 /**
  * A fazenda (e o pátio de treino) vestindo o contrato `GameWorld`.
@@ -21,7 +22,9 @@ import type {TrainingYard} from './TrainingYard';
  */
 export class FarmGameWorld implements GameWorld {
   constructor(
-    private readonly yard: TrainingYard | FarmWorld,
+    // `TestMapWorld` entra pelo mesmo adaptador: plano, como a fazenda, e sem nada que precise do
+    // `instanceof FarmWorld` que guarda carga, streaming e clima abaixo.
+    private readonly yard: TrainingYard | FarmWorld | TestMapWorld,
     /** Rota real entre dois pontos. Na fazenda quem sabe é o Detour, que vive na cena. */
     private readonly route: (from: Vec3, to: Vec3) => number | undefined,
   ) {}

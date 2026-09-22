@@ -2,6 +2,9 @@ import {ExplorationMap} from '../ui/ExplorationMap';
 import {usePlanetWorld} from '../world/WorldSelection';
 import {spawnFor} from '../world/MapDefinition';
 import {FARM_MAP} from '../world/FarmMap';
+import {TestMapWorld} from '../world/TestMapWorld';
+import {isTestMap} from '../world/TestMap';
+import {currentRoomClient} from '../net/RoomSession';
 import {track,beginTask,endTask,describePending,resetLoadTrace,registerTask,loadProgress,hangReport,pendingTasks} from '../core/LoadTrace';
 import {reloadMovement} from '../player/ReloadMovement';
 import {meleeMovement} from '../combat/MeleeMovement';
@@ -312,7 +315,15 @@ export class PlayerScene implements SceneModule {
 
   private abyss:AbyssPresentation|undefined;private readonly audio=new WeaponAudio();private readonly footing:FootingPresentation;
 
-  private readonly yard: TrainingYard | FarmWorld | PlanetWorld;
+  private readonly yard: TrainingYard | FarmWorld | PlanetWorld | TestMapWorld;
+  /**
+   * Esta cena é o TEST MAP V1.0 — decidido pelo `mapId` da SALA aberta, nunca por parâmetro de URL.
+   *
+   * Não existe `?testMap=1`: o laboratório só é alcançável pelo caminho verdadeiro — lobby, mapa
+   * escolhido pelo anfitrião, PRONTO, largada. O mapa simplifica o CONTEÚDO; o multiplayer que se
+   * testa nele é o mesmo, byte por byte, do jogo.
+   */
+  private readonly laboratorio: boolean;
 
   private readonly spawn=new Vector3(0,0,-10);
 
@@ -494,13 +505,17 @@ export class PlayerScene implements SceneModule {
     // Os modos anteriores continuam acessíveis: `?mode=horde` e `?mode=classic` (antigo `legacy`).
     this.directorMode=mode==='horde'?'horde':(mode==='classic'||mode==='legacy')?'classic':'expedition';
 
+    // O mapa da SALA — o mesmo que o servidor está simulando. Fora de sala (single-player, ou o
+    // atalho `?online=1&seed=` sem menu) não há mapa escolhido, e o mundo é o de sempre.
+    this.laboratorio=!training&&!planetWorld&&isTestMap(currentRoomClient()?.mapId);
     this.yard=training?new TrainingYard(this.scene,shadows,rng)
       :planetWorld?planetWorld
+      :this.laboratorio?new TestMapWorld(this.scene,collision,shadows)
       :new FarmWorld(this.scene,collision,shadows,!new URL(coopHref(location.href)).searchParams.get('online'));
 
     // O contrato de mundo: é o que a horda e as armas recebem, nos dois mapas.
     if(planetWorld)this.explorationMap=new ExplorationMap();
-    this.world=planetWorld??new FarmGameWorld(this.yard as TrainingYard|FarmWorld,(from,to)=>this.routeLength(from,to));
+    this.world=planetWorld??new FarmGameWorld(this.yard as TrainingYard|FarmWorld|TestMapWorld,(from,to)=>this.routeLength(from,to));
 
     traceBoot(this.radial?'cena:construtor radial':'cena:construtor plano');
     const worldStarted=performance.now();
@@ -515,7 +530,22 @@ export class PlayerScene implements SceneModule {
     // preso ali. Aqui todas as tarefas desta cena são anunciadas de uma vez, com PESO — a duração
     // típica em segundos, medida no navegador, não estimada. Sem peso, um GLB de 25 s e uma esfera
     // de 40 ms movem a barra a mesma coisa.
-    for(const [name,weight] of LOAD_WEIGHTS(this.radial,training))registerTask(name,weight);
+    for(const [name,weight] of LOAD_WEIGHTS(this.radial,training,this.laboratorio))registerTask(name,weight);
+    /**
+     * O MUNDO DO LABORATÓRIO já está pronto: ele se desenha no construtor, sem arquivo nenhum. A
+     * tarefa existe e fecha na hora para o rastro dizer isso com número — e a navegação da horda é
+     * preparada sobre a MESMA colisão que o servidor usa, porque `checkReady` a exige de qualquer
+     * `EnemySwarm`; sem este passo, o mapa leve travaria no fim da barra esperando uma navegação
+     * que só a fazenda preparava.
+     */
+    if(this.laboratorio){
+      beginTask('test.world',.1);endTask('test.world');
+      void Promise.resolve().then(async()=>{
+        if(this.disposed)return;
+        if(this.enemies instanceof EnemySwarm)await track('farm.navigation',this.enemies.prepareNavigation(),1);
+        if(!this.disposed)this.checkReady();
+      });
+    }
     if(planetWorld)void track('planet.world',planetWorld.load(),25).then(async()=>{
       stageTiming('mapa (manifesto + casca + colisão + destrutíveis)',worldStarted);
       traceBoot('mapa:carregado');
@@ -569,9 +599,14 @@ export class PlayerScene implements SceneModule {
 
     this.enemies=training?new EnemyReview(this.scene,this.world,this.events,shadows):new EnemySwarm(this.scene,this.world,this.events,shadows,this.player,this.progression,rng,this.directorMode);if(this.enemies instanceof EnemySwarm)this.enemies.audio=this.audio;void track('enemies',this.enemies.load(),25).then(()=>{if(!this.disposed)this.checkReady();});
 
-    if(!training){this.runHUD=new RunHUD();this.interactables=new RunInteractables(this.scene,this.player,this.progression,this.events,rng.stream('interactable'),collision);void track('interactables',this.interactables.load(this.scene),5).then(()=>{if(this.disposed)return;this.lootReady=true;this.applyLootPlacement();this.checkReady();});}
+    // Laboratório: HUD de corrida sim (relógio, estágio, créditos), baús não — são conteúdo, e o baú
+    // de teste da fase de economia entra como item próprio do mapa, não pela carga da fazenda.
+    if(!training)this.runHUD=new RunHUD();
+    if(!training&&!this.laboratorio){this.interactables=new RunInteractables(this.scene,this.player,this.progression,this.events,rng.stream('interactable'),collision);void track('interactables',this.interactables.load(this.scene),5).then(()=>{if(this.disposed)return;this.lootReady=true;this.applyLootPlacement();this.checkReady();});}
 
-    this.dropship=training?undefined:new DropshipDeck(this.scene);
+    // Sem nave de entrada no laboratório: a cinemática é conteúdo, e a validação quer o jogador em
+    // pé no assento no primeiro quadro.
+    this.dropship=training||this.laboratorio?undefined:new DropshipDeck(this.scene);
     if(this.dropship)void track('dropship',this.dropship.load(),2).then(()=>{if(!this.disposed)this.checkReady();});
 
     this.hud=new PlayerHUD(()=>{if(this.progression.time===0)this.events.emit('StageStarted',{stageId:String(this.progression.stage),seed:this.seed});this.started=true;
@@ -2774,9 +2809,10 @@ export class PlayerScene implements SceneModule {
  * desta lista é uma dependência que a barra não conhece — e é assim que se chega a 99% com trabalho
  * ainda rodando.
  */
-function LOAD_WEIGHTS(radial:boolean,training:boolean):readonly (readonly [string,number])[] {
+function LOAD_WEIGHTS(radial:boolean,training:boolean,laboratorio=false):readonly (readonly [string,number])[] {
   const list:(readonly [string,number])[]=[
-    [radial?'planet.world':'farm.world',25],
+    // O mundo do laboratório se desenha no construtor: peso de décimo de segundo, não de vinte e cinco.
+    [radial?'planet.world':laboratorio?'test.world':'farm.world',laboratorio?.1:25],
     ['enemies',25],
     ['visual',3],['ragdoll',3],['weapons',3],['skill-aura',2],
     ['prism.rig',5],['prism.visuals',3],['prism.missile',2],
@@ -2786,7 +2822,10 @@ function LOAD_WEIGHTS(radial:boolean,training:boolean):readonly (readonly [strin
   ];
   if(!radial)list.push(['farm.navigation',1]);
   if(!training){
-    list.push(['interactables',5],['dropship',2]);
+    // Sem baús nem nave de entrada no laboratório: são conteúdo, e o mapa de teste não carrega
+    // conteúdo que a validação de rede não pediu. Tarefa anunciada e nunca iniciada seria uma barra
+    // presa no fim — por isso elas nem entram na lista.
+    if(!laboratorio)list.push(['interactables',5],['dropship',2]);
     // Portões que não nascem de uma promessa, mas bloqueiam igual. Ver `checkReady`.
     list.push(['enemies.navigation',2],['stage.plan',5],['prism.class',1]);
   }
