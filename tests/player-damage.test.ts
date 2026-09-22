@@ -209,7 +209,7 @@ describe('RNG de combate: um domínio por tipo de decisão', () => {
   it('CENTENAS de rolagens de loot antes de cada acerto não movem um bit do combate', () => {
     const clean = critSequence('rng-cruel', 12);
     const noisy = critSequence('rng-cruel', 12, sim => {
-      for (let i = 0; i < 400; i++) { sim.rng.stream('loot').next(); sim.rng.stream('director').next(); sim.rng.stream('interactable').next(); sim.rng.stream('spawn').next(); }
+      for (let i = 0; i < 400; i++) { sim.rng.stream('loot').next(); sim.rng.stream('director').next(); sim.rng.stream('interactable').next(); sim.rng.stream('enemySpawn').next(); sim.rng.stream('world').next(); }
     });
     expect(noisy).toEqual(clean);
   }, 120_000);

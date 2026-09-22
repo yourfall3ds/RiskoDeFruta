@@ -98,7 +98,7 @@ describe('diretor perto do jogador',()=>{
     expect(validSpawnGround(narrow,0,0,0)).toBe(false);
   });
   it('gera no anel pedido, nunca no corpo do jogador',()=>{
-    const world=terrain(),rng=new RunRNG('ring').stream('spawn'),player={x:0,y:0,z:0};
+    const world=terrain(),rng=new RunRNG('ring').stream('enemySpawn'),player={x:0,y:0,z:0};
     for(let i=0;i<200;i++){
       const p=chooseSpawnAround(player,rng,world,()=>true,()=>false);
       expect(p).toBeDefined();

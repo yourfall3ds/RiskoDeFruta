@@ -24,7 +24,7 @@ describe('probe',()=>{it('spawn no pos',async()=>{
   await swarm.load(async model=>{const c=new AssetContainer(scene),mesh=CreateBox(model,{size:1},scene);c.meshes.push(mesh);c.populateRootNodes();c.removeAllFromScene();return c;});
   swarm.initialize();swarm.director.stopped=true;
   const rng=new RunRNG('recycling-test');
-  const p=chooseSpawnAround(player.position,rng.stream('spawn'),collision,()=>true,()=>false);
+  const p=chooseSpawnAround(player.position,rng.stream('enemySpawn'),collision,()=>true,()=>false);
   process.stdout.write(`chooseSpawnAround(always reachable)=${JSON.stringify(p)}\n`);
   process.stdout.write(`groundAt(20,10,6)=${collision.groundAt(20,10,6)}\n`);
   process.stdout.write(`ready=${swarm.ready} cap=${swarm.populationCap} count=${swarm.count}\n`);

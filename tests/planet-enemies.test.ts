@@ -154,7 +154,7 @@ describe('a horda ORIGINAL na esfera, nos seis polos',()=>{
   it.each(SIX_POLES.map(p=>[p.name,p.direction] as const))('%s: o anel de nascimento é geodésico e sempre apoiado',async(_name,direction)=>{
     const t=await setup(direction);
     try{
-      const rng=new RunRNG('spawn-ring').stream('spawn');
+      const rng=new RunRNG('spawn-ring').stream('enemySpawn');
       let found=0;
       for(let i=0;i<24;i++){
         const p=chooseSpawnAround(t.player.position,rng,t.collision,()=>true,()=>false,15,35,surface);

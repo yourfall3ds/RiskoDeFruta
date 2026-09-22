@@ -1,5 +1,7 @@
 import {ExplorationMap} from '../ui/ExplorationMap';
 import {usePlanetWorld} from '../world/WorldSelection';
+import {spawnFor} from '../world/MapDefinition';
+import {FARM_MAP} from '../world/FarmMap';
 import {track,beginTask,endTask,describePending,resetLoadTrace,registerTask,loadProgress,hangReport,pendingTasks} from '../core/LoadTrace';
 import {reloadMovement} from '../player/ReloadMovement';
 import {meleeMovement} from '../combat/MeleeMovement';
@@ -557,7 +559,11 @@ export class PlayerScene implements SceneModule {
 
     if(training){collision.boxes.push(...this.yard.collision.boxes);collision.surfaces.push(...this.yard.collision.surfaces);}
 
-    if(!training){this.spawn.x=rng.stream('spawn').range(-2,2);this.spawn.z=rng.stream('spawn').range(-17,-10);}
+    // O NASCIMENTO É DADO DO MAPA, e não consome RNG nenhum. Era um sorteio no fluxo `spawn`, o mesmo
+    // que a horda usava — cada número tirado aqui movia um corpo lá. Com um jogador só a defasagem
+    // era sempre a mesma e ninguém via; no co-op ela variava com a lotação da sala. O single-player
+    // é o assento 1 da fazenda, exatamente onde o servidor põe P1. Ver `core/RunRNG` e `world/FarmMap`.
+    if(!training){const assento=spawnFor(FARM_MAP,1);this.spawn.x=assento.x;this.spawn.z=assento.z;}
 
     this.player=new PlayerMotor(collision,this.events,this.spawn);
 

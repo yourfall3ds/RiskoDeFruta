@@ -533,20 +533,6 @@ export class FarmSimulation {
    */
   private spawnPoint(entityId: number): Vec3 {
     /**
-     * O SORTEIO CONTINUA SENDO CONSUMIDO, mesmo sem ser usado.
-     *
-     * A posição virou determinística, mas simplesmente parar de puxar do fluxo `spawn` mudaria a
-     * TRAJETÓRIA do mundo inteiro: o gerador é semeado, e quantos números cada fluxo consome faz
-     * parte do que torna uma semente reprodutível. Quando tirei o sorteio, a distribuição da horda
-     * mudou junto — e `tests/enemy-simulation` pegou: os sete corpos passaram a nascer todos em
-     * cima do mesmo jogador, quebrando o §18.6 sem que ninguém tivesse tocado na horda.
-     *
-     * Duas retiradas, exatamente como antes, e o resto do mundo continua sendo o mesmo mundo.
-     */
-    const stream = this.rng.stream('spawn');
-    stream.range(-2, 2); stream.range(-17, -10);
-
-    /**
      * O ASSENTO é do `entityId`; a COORDENADA é do MAPA.
      *
      * Esta função não conhece número nenhum, e é essa a diferença que faz o laboratório existir: a

@@ -387,8 +387,11 @@ export class EnemySwarm {
    * Sem Detour E sem grade da fazenda (caso do planeta enquanto a carta assa) não existe oráculo de
    * alcançabilidade: aceitar o ponto é o certo, porque o apoio já foi medido pelo `SpawnPlanner` e
    * recusar tudo esvaziaria a horda. É a mesma decisão que o modo de treino já toma hoje.
+   *
+   * `enemySpawn`: domínio próprio da horda. O antigo `spawn` era partilhado com o nascimento do
+   * jogador e com a ilha-casa do planeta, e quem puxasse número lá movia corpo aqui. Ver `core/RunRNG`.
    */
-  private spawnPosition(min?:number,max?:number):Vec3|undefined {return chooseSpawnAround(this.player.position,this.rng.stream('spawn'),this.world.collision,p=>this.tactical?this.tactical.reachable(p,this.player.position):this.navigation?this.navigation.reachable(p):this.space.radial,p=>this.actors.some(a=>a.active&&!a.health.dead&&this.distance(p,a.root.position)<2),min,max,this.radial);}
+  private spawnPosition(min?:number,max?:number):Vec3|undefined {return chooseSpawnAround(this.player.position,this.rng.stream('enemySpawn'),this.world.collision,p=>this.tactical?this.tactical.reachable(p,this.player.position):this.navigation?this.navigation.reachable(p):this.space.radial,p=>this.actors.some(a=>a.active&&!a.health.dead&&this.distance(p,a.root.position)<2),min,max,this.radial);}
   /** Chefe do último evento da expedição: nasce num anel um pouco maior, sempre em piso válido. */
   requestBoss():boolean {
     if(this.boss&&this.boss.active&&!this.boss.health.dead)return true;

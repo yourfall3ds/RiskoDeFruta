@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, existsSync } from 'node:fs';
 import { FarmSimulation, EMPTY_INPUT, type CollisionData } from '../server/FarmSimulation';
-import { NO_TARGET, STICKY_LOCK_SECONDS } from '../src/enemies/EnemyTargeting';
+import { NO_TARGET } from '../src/enemies/EnemyTargeting';
+import { UNREACHABLE_SECONDS } from '../server/EnemySimulation';
 
 /**
  * O TESTE DO DESLIGAMENTO (contrato §18.11).
@@ -27,6 +28,29 @@ function place(sim: FarmSimulation, id: string, x: number, z: number): void {
   Object.assign(motor.previous, motor.position);
 }
 const kill = (sim: FarmSimulation, id: string) => { sim.players.get(id)!.motor.hp = 0; };
+
+/**
+ * JOGADORES COMO BONECOS DE TREINO: posição fixa e vida enorme a cada passo.
+ *
+ * Os casos de DISTRIBUIÇÃO da horda (para quem ela nasce, quem ela persegue) mediam a propriedade
+ * misturada com sobrevivência e física: jogadores parados morrem, caem de ilha e são arremessados
+ * pelo golpe. Medido em 23 sementes, dois desses casos só passavam na semente que tinham porque,
+ * nela, o time sobrevivia até o fim — em treze das outras a horda matava os quatro e "zero corpos
+ * com alvo" era a resposta CERTA para um campo sem vivos. Presos e imortais, os dois passam em
+ * 23 de 23. Vida "cheia" não basta: o enxame zera a vida DENTRO de um passo, e aí `alive` fica
+ * falso naquele instante e invalida alvos. Por isso 1e9.
+ */
+function pinAll(sim: FarmSimulation, pontos: ReadonlyMap<string, { x: number; z: number }>): void {
+  for (const [id, p] of pontos) {
+    const m = sim.players.get(id)!.motor;
+    m.position.x = p.x; m.position.z = p.z; m.velocity.x = 0; m.velocity.z = 0;
+    Object.assign(m.previous, m.position); m.maxHP = 1e9; m.hp = 1e9;
+  }
+}
+const runPinned = (sim: FarmSimulation, pontos: ReadonlyMap<string, { x: number; z: number }>, seconds: number) => {
+  for (let i = 0; i < Math.round(seconds * 60); i++) { pinAll(sim, pontos); sim.step(DT); }
+  pinAll(sim, pontos);
+};
 
 describe('horda autoritativa, sem renderização nenhuma', () => {
   it('nasce, persegue e morre com a renderização completamente ausente', async () => {
@@ -79,21 +103,49 @@ describe('alvo por política, não "o vivo mais próximo"', () => {
     expect(Math.max(...hunters.map(e => e.targetLockTime))).toBeGreaterThan(1);
   }, 60_000);
 
-  it('um sticky NÃO troca de alvo porque o outro jogador ficou centímetros mais perto', async () => {
-    const sim = make('sticky');
-    sim.addPlayer('a'); sim.addPlayer('b');
-    place(sim, 'a', 0, -14); place(sim, 'b', 40, -14);
-    run(sim, 20);
-    const sticky = sim.enemies.actors.find(a => a.active && a.kind === 'eggplant' && a.targetPlayerId !== NO_TARGET);
-    expect(sticky).toBeDefined();
-    const before = sticky!.targetPlayerId;
-    const other = before === 1 ? 'b' : 'a';
-    // O outro jogador é teleportado para 5 cm mais perto do corpo do que o alvo atual.
-    const target = sim.players.get(before === 1 ? 'a' : 'b')!.motor.position;
-    place(sim, other, sticky!.position.x + (target.x - sticky!.position.x) * .99, sticky!.position.z + (target.z - sticky!.position.z) * .99);
-    run(sim, 6);   // além do travamento, para provar que nem destravado ele troca por centímetros
-    expect(sticky!.targetLockTime).toBeGreaterThan(STICKY_LOCK_SECONDS);
-    expect(sticky!.targetPlayerId).toBe(before);
+  /**
+   * QUEM CHEGOU NÃO ESTÁ PRESO.
+   *
+   * Este lugar tinha "um sticky NÃO troca de alvo porque o outro jogador ficou centímetros mais
+   * perto", e ele passava numa semente e falhava em catorze de vinte e três. A regra estava certa e
+   * o teste era degenerado: punha o companheiro SOBRE A LINHA até o alvo, e quando o corpo chegava
+   * os três ocupavam o mesmo ponto — dois centímetros para cada um —, onde qualquer razão de
+   * distância é ruído. A regra do sticky agora é afirmada onde ela mora, com distâncias controladas:
+   * `tests/enemy-targeting-rule`.
+   *
+   * A investigação achou, no caminho, um defeito de verdade, e é ele que este caso fecha. A
+   * invalidação por rota contava "não conseguiu chegar mais perto" — e o corpo que JÁ CHEGOU e está
+   * batendo não consegue chegar mais perto. Aos `UNREACHABLE_SECONDS` ele era declarado
+   * inalcançável e largava o alvo que estava acertando. Para quem atira era pior: o atirador SEGURA
+   * posição no alcance ideal de propósito, e era punido por isso a cada doze segundos.
+   *
+   * O caso afirma o MOTIVO, e não só o alvo, porque com um jogador só a readquisição devolve o
+   * mesmo — e aí o alvo não denuncia nada. O motivo denuncia: dentro do próprio alcance, nunca
+   * "alvo inalcançável".
+   */
+  it('quem CHEGOU e está batendo nunca é declarado inalcançável', async () => {
+    const sim = make('chegada');
+    sim.enemies.director.stopped = true;
+    sim.addPlayer('a');
+    const pontos = new Map([['a', { x: 0, z: -14 }]]);
+    pinAll(sim, pontos);
+    const motor = sim.players.get('a')!.motor;
+    expect(sim.enemies.spawn('eggplant', { x: 0, y: motor.position.y, z: -11 }, 'normal')).toBe(true);
+    const corpo = sim.enemies.actor(sim.enemies.lastSpawnedId)!;
+
+    let maisPerto = Number.POSITIVE_INFINITY, pior = 0;
+    const motivos = new Set<string>();
+    for (let i = 0; i < Math.round((UNREACHABLE_SECONDS + 4) * 60); i++) {
+      pinAll(sim, pontos); sim.step(DT);
+      maisPerto = Math.min(maisPerto, Math.hypot(corpo.position.x - motor.position.x, corpo.position.z - motor.position.z));
+      pior = Math.max(pior, corpo.unreachableFor);
+      motivos.add(sim.enemies.targetInvalidation(corpo));
+    }
+    // Ele de fato chegou — senão o caso provaria outra coisa.
+    expect(maisPerto).toBeLessThan(2);
+    expect(corpo.targetPlayerId).toBe(sim.players.get('a')!.entityId);
+    expect(motivos.has('alvo inalcançável')).toBe(false);
+    expect(pior).toBeLessThan(UNREACHABLE_SECONDS);
   }, 60_000);
 
   it('RETARGETA quando o alvo morre, e o motivo da invalidação é a morte', async () => {
@@ -126,8 +178,9 @@ describe('alvo por política, não "o vivo mais próximo"', () => {
   it('muitos inimigos e muitos jogadores NÃO convergem todos no mesmo alvo', async () => {
     const sim = make('spread');
     for (const id of ['a', 'b', 'c', 'd']) sim.addPlayer(id);
-    place(sim, 'a', 0, -14); place(sim, 'b', 14, -14); place(sim, 'c', -14, -14); place(sim, 'd', 0, -28);
-    run(sim, 60);
+    // `d` ficava em (0,-28), que é VAZIO em toda semente — caía da ilha. (0,-8) tem chão. E os quatro
+    // seguem vivos: a pergunta é para QUEM a horda vai, não se quatro parados sobrevivem um minuto.
+    runPinned(sim, new Map([['a', { x: 0, z: -14 }], ['b', { x: 14, z: -14 }], ['c', { x: -14, z: -14 }], ['d', { x: 0, z: -8 }]]), 60);
     const targeted = sim.snapshot().enemies.filter(e => e.targetPlayerId !== NO_TARGET);
     expect(targeted.length).toBeGreaterThan(2);
     // A prova do enunciado: o alvo VARIA entre os vivos. Com `nearestLivingPlayer` como regra única
@@ -138,8 +191,9 @@ describe('alvo por política, não "o vivo mais próximo"', () => {
   it('o nascimento roda entre os vivos: a horda não brota toda em cima de um jogador só', async () => {
     const sim = make('reference');
     for (const id of ['a', 'b', 'c']) sim.addPlayer(id);
-    place(sim, 'a', 0, -14); place(sim, 'b', 45, -14); place(sim, 'c', -45, -14);
-    run(sim, 70);
+    // Vivos o tempo todo: o nascimento roda entre os VIVOS, e um jogador que morre no meio sai da
+    // roda — o caso passaria a medir quem sobreviveu, e não para onde a horda nasce.
+    runPinned(sim, new Map([['a', { x: 0, z: -14 }], ['b', { x: 45, z: -14 }], ['c', { x: -45, z: -14 }]]), 70);
     const born = sim.snapshot().enemies;
     expect(born.length).toBeGreaterThan(1);
     const nearestTo = (x: number) => born.filter(e => Math.abs(e.x - x) < 36).length;

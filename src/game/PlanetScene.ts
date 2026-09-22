@@ -389,7 +389,9 @@ export class PlanetScene implements SceneModule {
   private inspectCursor = -1;
 
   private pickHomeIsland(manifest: PlanetManifest, graph: PlanetGraph): IslandRecord | undefined {
-    const stream = this.rng.stream('spawn');
+    // `world`: qual ilha é a casa é disposição do MUNDO, não nascimento de coisa alguma. Sob o
+    // antigo `spawn` esta escolha dividia fluxo com a horda. Ver `core/RunRNG`.
+    const stream = this.rng.stream('world');
     const islands = [...manifest.islands].filter(island => graph.neighbours(island.id).length > 0);
     const pool = islands.length > 0 ? islands : [...manifest.islands];
     return pool[Math.min(pool.length - 1, Math.floor(stream.next() * pool.length))];

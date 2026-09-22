@@ -197,9 +197,26 @@ export class EnemySimulation {
     return living[this.spawnReference];
   }
 
+  /**
+   * O NASCIMENTO DA HORDA TEM FLUXO PRÓPRIO — e antes não tinha.
+   *
+   * Era `stream('spawn')`, o MESMO que o nascimento dos JOGADORES usava. Com o fluxo partilhado, a
+   * posição de cada corpo dependia de quantos jogadores já tinham entrado: dois davam uma horda,
+   * três davam outra, e a mesma semente deixava de reproduzir a mesma corrida por um motivo que
+   * não tem nada a ver com a horda.
+   *
+   * O acoplamento só apareceu porque o nascimento dos jogadores virou determinístico e parou de
+   * puxar números — e a distribuição da horda mudou junto, sem ninguém ter tocado nela. O remendo
+   * óbvio seria queimar números falsos para manter a sequência antiga; isso preserva o
+   * comportamento e mantém a armadilha armada para o próximo que acrescentar um sorteio em
+   * qualquer lugar.
+   *
+   * Com `enemySpawn`, este fluxo é só da horda. Acrescentar ou tirar sorteio em outro domínio não
+   * move mais um corpo de lugar.
+   */
   private spawnPosition(reference:Vec3,min?:number,max?:number):Vec3|undefined {
     return chooseSpawnAround(
-      reference,this.options.rng.stream('spawn'),this.options.collision,
+      reference,this.options.rng.stream('enemySpawn'),this.options.collision,
       ()=>true,
       p=>this.actors.some(a=>a.active&&!a.health.dead&&this.space.distance(p,a.position)<2),
       min,max,this.radial,
@@ -296,10 +313,35 @@ export class EnemySimulation {
     const target=this.targetOf(a);
     if(target){
       const d=this.space.distance(a.position,target.position);
-      // "Inalcançável" é não conseguir CHEGAR MAIS PERTO do que já chegou, não estar longe: um
-      // corpo do outro lado de um muro fica preso no mesmo raio e perde o alvo; um que ainda avança
-      // nunca perde, por mais longe que esteja.
-      if(d<a.closestApproach-.5){a.closestApproach=d;a.unreachableFor=0;}
+      /**
+       * "Inalcançável" é não conseguir CHEGAR MAIS PERTO do que já chegou, não estar longe: um
+       * corpo do outro lado de um muro fica preso no mesmo raio e perde o alvo; um que ainda avança
+       * nunca perde, por mais longe que esteja.
+       *
+       * ## E CHEGAR não é ficar preso
+       *
+       * A regra acima, sozinha, não distinguia o corpo PRESO ATRÁS DE UM MURO do corpo que JÁ
+       * CHEGOU. O que alcançou o alvo e está batendo nele não consegue ficar mais perto — ele já está
+       * lá —, então `unreachableFor` crescia, estourava `UNREACHABLE_SECONDS`, e o corpo largava o
+       * alvo QUE ESTAVA ACERTANDO por "alvo inalcançável". Readquiria do zero e pegava o mais perto:
+       * às vezes o mesmo, com a trava zerada; às vezes o companheiro ao lado. Em campo, a horda
+       * chegava em você, batia uns segundos e começava a quicar entre você e seu amigo — o exato
+       * comportamento que `STICKY_NEAREST` existe para impedir.
+       *
+       * Para quem atira era pior: o corpo à distância SEGURA POSIÇÃO no alcance ideal de propósito
+       * (`think`), escolhendo não se aproximar — e era punido por isso a cada doze segundos.
+       *
+       * Dentro do próprio alcance de combate (`engage`) o corpo chegou, e chegar zera a conta. O
+       * `closestApproach` passa a acompanhar a posição real, para que um empurrão que o jogue para
+       * fora do alcance recomece a medida do ponto onde ele de fato estava.
+       *
+       * Achado quando o fluxo de RNG da horda foi separado do nascimento dos jogadores: a sequência
+       * nova pôs corpos chegando antes, e o teste de sticky que passava por sorte começou a falhar em
+       * 14 de 23 sementes — sem morte, sem empurrão e com o candidato preso a 99% da distância.
+       */
+      const alcance=ENEMY_BEHAVIORS[a.kind].engage(this.attacking(a));
+      if(d<=alcance){a.closestApproach=d;a.unreachableFor=0;}
+      else if(d<a.closestApproach-.5){a.closestApproach=d;a.unreachableFor=0;}
       else a.unreachableFor+=dt;
     }
     const chosen=acquireTarget(a,{
