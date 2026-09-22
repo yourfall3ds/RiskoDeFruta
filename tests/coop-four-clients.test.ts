@@ -61,6 +61,23 @@ type Mesa = {
   close(): Promise<void>;
 };
 
+/**
+ * LARGAR A CORRIDA — que passou a ser obrigatório para a simulação andar.
+ *
+ * O lobby não simula mais: enquanto a sala está escolhendo personagem, o mundo fica PARADO. Antes
+ * ele corria, e era um defeito — a horda nascia e feria quem ainda estava no menu, e o jogador
+ * entrava em campo já machucado, ou morto, sem ter visto o que o matou.
+ *
+ * Os casos que mexem com MOVIMENTO, ALVO ou SOCO precisam do mundo andando, então largam aqui. Os
+ * que só empurram estado na simulação (dano direto, compra, inventário) continuam sem largar: eles
+ * não dependem do passo, e largar só os deixaria mais lentos.
+ */
+async function largar(m: Mesa): Promise<void> {
+  for (const client of m.clients) { client.send('chooseClass', { classId: 'gunslinger' }); client.send('setReady', { ready: true }); }
+  await wait(PAST_COUNTDOWN);
+  expect(m.room.state.phase).toBe(PHASE.playing);
+}
+
 /** A,B,C,D na MESMA sala, em ordem de entrada — é a ordem que decide anfitrião e `entityId`. */
 async function mesa(seed: string, count = 4, names = ['ANA', 'BENTO', 'CLARA', 'DINO']): Promise<Mesa> {
   const clients: Espelho[] = [];
@@ -217,6 +234,7 @@ describe('a mesa cheia: quatro clientes reais contra a FarmRoom', () => {
     const m = await mesa(nextSeed());
     try {
       freeze(m.sim);
+      await largar(m);
       // Números copiados um a um: espalhar um `Schema` copia os campos internos, não os valores.
       const before = m.clients.map(c => { const p = m.room.state.players.get(c.sessionId)!; return { x: p.x, z: p.z }; });
       const direction = [{ x: 0, z: 1 }, { x: 0, z: -1 }, { x: 1, z: 0 }, { x: -1, z: 0 }];
@@ -261,6 +279,7 @@ describe('a mesa cheia: quatro clientes reais contra a FarmRoom', () => {
     const m = await mesa(nextSeed());
     try {
       freeze(m.sim);
+      await largar(m);
       const spots = spread(m);
       // Um corpo colado em cada um dos quatro. Se o alvo fosse "o jogador 1", nenhum deles caçaria
       // o vizinho — que é exatamente a regressão que este caso fecha.
@@ -317,6 +336,7 @@ describe('a mesa cheia: quatro clientes reais contra a FarmRoom', () => {
     const m = await mesa(nextSeed());
     try {
       freeze(m.sim);
+      await largar(m);
       const base = { ...m.sim.players.get(m.clients[0]!.sessionId)!.motor.position };
       expect(m.sim.enemies.spawn('eggplant', { x: base.x, y: base.y, z: base.z + 3 }, 'normal')).toBe(true);
       const enemy = m.sim.enemies.actor(m.sim.enemies.lastSpawnedId)!;
@@ -463,6 +483,7 @@ describe('a mesa cheia: quatro clientes reais contra a FarmRoom', () => {
     process.on('unhandledRejection', onError);
     try {
       freeze(m.sim);
+      await largar(m);
       const spots = spread(m);
       const d = m.clients[3]!, entidadeD = entityIdOf(m, 3);
       expect(m.sim.enemies.spawn('eggplant', { x: spots[3]!.x + 2, y: spots[3]!.y, z: spots[3]!.z + 2 }, 'normal')).toBe(true);

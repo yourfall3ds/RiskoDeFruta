@@ -51,6 +51,25 @@ async function until(condition: () => boolean, attempts = 240): Promise<boolean>
   for (let i = 0; i < attempts; i++) { if (condition()) return true; await wait(50); }
   return false;
 }
+/**
+ * LARGAR A CORRIDA, que passou a ser obrigatório para haver horda.
+ *
+ * Estes casos juntavam dois clientes e esperavam o diretor pagar o primeiro corpo SEM largar nada
+ * — o que funcionava porque a simulação rodava também no lobby. Isso era um defeito: o mundo ficava
+ * vivo enquanto os jogadores ainda escolhiam personagem, e eles entravam em campo já feridos, ou
+ * mortos, sem ter visto o que os matou. Um cliente de testes chegou a sair com `vida: 0` de uma
+ * sala que nunca começou.
+ *
+ * Com o lobby parado, a horda só existe depois da largada — e é assim que o jogo se comporta para
+ * quem joga. O que estes casos afirmam sobre REPLICAÇÃO continua idêntico; só passaram a afirmá-lo
+ * no estado em que o jogador de fato veria a horda.
+ */
+async function largar(clients: readonly { send(type: string, message?: unknown): void }[]): Promise<void> {
+  for (const c of clients) { c.send('chooseClass', { classId: 'gunslinger' }); c.send('setReady', { ready: true }); }
+  // A contagem da sala é de 3 s; esperar além dela é o que garante que a corrida largou.
+  await wait(4200);
+}
+
 /** `enemies` é `undefined` no cliente até a primeira patch chegar — antes disso não há mundo ainda. */
 const rows = (state: FarmState) => state?.enemies ? [...state.enemies.values()] : [];
 const ids = (state: FarmState) => rows(state).map(e => e.id).sort((x, y) => x - y);
@@ -62,6 +81,7 @@ describe('a horda replicada é a mesma nos dois clientes', () => {
     expect(b.roomId).toBe(a.roomId);
     const room = colyseus.getRoomById<FarmRoom>(a.roomId);
     await untilPlayer(room, a.sessionId); await untilPlayer(room, b.sessionId);
+    await largar([a, b]);
 
     // O diretor precisa de tempo de relógio para pagar o primeiro corpo.
     expect(await until(() => rows(a.state).length > 0 && rows(b.state).length > 0)).toBe(true);
@@ -92,6 +112,7 @@ describe('a horda replicada é a mesma nos dois clientes', () => {
     const b = await colyseus.sdk.joinOrCreate<FarmState>('farm', { seed: 'net-enemies-2' });
     const room = colyseus.getRoomById<FarmRoom>(a.roomId);
     await untilPlayer(room, a.sessionId); await untilPlayer(room, b.sessionId);
+    await largar([a, b]);
     expect(await until(() => rows(a.state).length > 0 && rows(b.state).length > 0)).toBe(true);
 
     const victim = rows(room.state)[0]!;
@@ -114,16 +135,31 @@ describe('a horda replicada é a mesma nos dois clientes', () => {
     await a.leave(); await b.leave();
   }, 120_000);
 
-  it('quem entra depois recebe a horda que já está em campo, sem inventar corpo nenhum', async () => {
+  /**
+   * ESTE CASO MUDOU DE PREMISSA, e a premissa antiga não existe mais.
+   *
+   * Ele entrava com um cliente, esperava a horda nascer e SÓ ENTÃO trazia um segundo — provando que
+   * quem chega depois recebe os corpos que já estão em campo. Duas coisas tiraram o chão dele: o
+   * lobby parou de simular (não há horda antes da largada) e a sala passou a TRANCAR quando a
+   * corrida começa (não há entrada tardia). A recusa do retardatário é afirmada em
+   * `tests/coop-four-clients`, caso 14.
+   *
+   * O que este caso protegia continua valendo e continua aqui: os dois clientes veem EXATAMENTE a
+   * mesma horda, com os mesmos ids — nenhum deles inventa corpo, e nenhum deles perde corpo. A
+   * diferença é que agora os dois entram antes da largada, que é como a sala funciona.
+   */
+  it('os dois veem exatamente a mesma horda, sem inventar nem perder corpo', async () => {
     const a = await colyseus.sdk.joinOrCreate<FarmState>('farm', { seed: 'net-enemies-3' });
+    const b = await colyseus.sdk.joinOrCreate<FarmState>('farm', { seed: 'net-enemies-3' });
     const room = colyseus.getRoomById<FarmRoom>(a.roomId);
-    await untilPlayer(room, a.sessionId);
-    expect(await until(() => rows(a.state).length > 0)).toBe(true);
+    await untilPlayer(room, a.sessionId); await untilPlayer(room, b.sessionId);
+    await largar([a, b]);
 
-    const late = await colyseus.sdk.joinOrCreate<FarmState>('farm', { seed: 'net-enemies-3' });
-    await untilPlayer(room, late.sessionId);
-    expect(await until(() => rows(late.state).length > 0 && JSON.stringify(ids(late.state)) === JSON.stringify(ids(room.state)))).toBe(true);
-    expect(ids(late.state)).toEqual(ids(room.state));
-    await a.leave(); await late.leave();
+    expect(await until(() => rows(a.state).length > 0 && rows(b.state).length > 0)).toBe(true);
+    expect(await until(() => JSON.stringify(ids(a.state)) === JSON.stringify(ids(room.state))
+      && JSON.stringify(ids(b.state)) === JSON.stringify(ids(room.state)))).toBe(true);
+    expect(ids(a.state)).toEqual(ids(room.state));
+    expect(ids(b.state)).toEqual(ids(room.state));
+    await a.leave(); await b.leave();
   }, 120_000);
 });

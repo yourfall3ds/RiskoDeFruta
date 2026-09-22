@@ -101,6 +101,41 @@ describe('a queda no meio da corrida', () => {
   }, 120_000);
 
   /**
+   * O ASSENTO DE QUEM CAIU NÃO É REVENDIDO.
+   *
+   * "Reservado" tem de valer para os três de uma vez: identidade, NÚMERO e vaga de nascimento — e
+   * a vaga é derivada do número. Se P2 perde o wi-fi por cinco segundos e a sala entrega o assento
+   * 2 a quem chegar, P2 volta e encontra o próprio lugar ocupado: outro inventário, outra posição,
+   * outro nascimento. A regra do "menor buraco livre" só vale para vaga de fato liberada.
+   *
+   * Com a corrida em curso a sala está TRANCADA, então o invasor nem chega à porta. Este caso
+   * fecha o degrau anterior: enquanto a janela está aberta, o número continua sendo dele no estado
+   * e na simulação — não vira buraco esperando ocupante.
+   */
+  it('o número de quem caiu continua sendo dele enquanto a janela está aberta', async () => {
+    const {a, b, room, sim} = await mesaDeDois('reconectar-5');
+    try {
+      await largar(room, [a, b]);
+      const sessaoB = b.sessionId, entidadeB = room.state.players.get(sessaoB)!.entityId;
+      const token = b.reconnectionToken;
+
+      await b.leave(false);
+      expect(await until(() => room.state.players.get(sessaoB)?.connected === false)).toBe(true);
+
+      // O assento NÃO virou buraco: ele continua ocupado, na sala e na simulação.
+      expect(room.state.players.get(sessaoB)!.entityId).toBe(entidadeB);
+      expect(sim.players.get(sessaoB)!.entityId).toBe(entidadeB);
+      expect([...sim.players.values()].filter(p => p.entityId === entidadeB)).toHaveLength(1);
+
+      const volta = await colyseus.sdk.reconnect(token) as unknown as Cliente;
+      expect(room.state.players.get(sessaoB)!.entityId).toBe(entidadeB);
+      // E continua único depois da volta: ninguém ganhou uma cópia do número dele.
+      expect([...room.state.players.values()].filter(p => p.entityId === entidadeB)).toHaveLength(1);
+      await a.leave(); await volta.leave();
+    } finally { /* a sala morre com o último cliente */ }
+  }, 120_000);
+
+  /**
    * Sair é uma DECISÃO. Guardar o lugar de quem clicou em SAIR bloquearia uma vaga de quatro por
    * meio minuto — e é justamente quando um amigo quer entrar no lugar dele.
    */

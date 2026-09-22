@@ -41,6 +41,13 @@ describe('sala cooperativa (Colyseus 0.18)', () => {
     expect(b.roomId).toBe(a.roomId);
     const room = colyseus.getRoomById<FarmRoom>(a.roomId);
     await untilPlayer(room, a.sessionId); await untilPlayer(room, b.sessionId);
+    /**
+     * LARGAR A CORRIDA. O lobby parou de simular — antes o mundo corria enquanto os jogadores
+     * ainda escolhiam personagem, e eles entravam em campo já feridos, ou mortos. Movimento por
+     * intenção, que é o que este caso afirma, só vale depois da largada.
+     */
+    for (const c of [a, b]) { c.send('chooseClass', { classId: 'gunslinger' }); c.send('setReady', { ready: true }); }
+    await wait(4200);                                         // a contagem da sala é de 3 s
     await wait(150);                                          // primeiras patches
     const before = room.state.players.get(a.sessionId)!.z, bBefore = room.state.players.get(b.sessionId)!.z;
 
@@ -70,6 +77,9 @@ describe('sala cooperativa (Colyseus 0.18)', () => {
     const a = await colyseus.sdk.joinOrCreate<FarmState>('farm', { seed: 'net-room-2' });
     const room = colyseus.getRoomById<FarmRoom>(a.roomId);
     await untilPlayer(room, a.sessionId);
+    // Sem largar não há tiro: o lobby não simula. Um jogador sozinho fecha a unanimidade.
+    a.send('chooseClass', { classId: 'gunslinger' }); a.send('setReady', { ready: true });
+    await wait(4200);
     const input = a.input({ type: NetInput });
     // 10 pacotes de FIRE em ~160 ms, todos com seq=1: só o primeiro é válido; FIRE mantido vira intenção contínua.
     for (let i = 0; i < 10; i++) { input.data.buttons = BUTTON.FIRE; input.data.seq = 1; input.send(); await wait(1000 / 60); }

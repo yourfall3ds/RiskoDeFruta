@@ -4,9 +4,11 @@ import { Room, type Client, type StepContext } from 'colyseus';
 import { FarmSimulation, type CollisionData } from '../FarmSimulation';
 import { FarmState, PlayerState, EnemyState, CLASS_IDS, PHASE, enemyStateOrdinal } from '../schema';
 import { NetInput, BUTTON, toFrame } from '../../src/net/NetInput';
+import { TEST_MAP, TEST_MAP_ID, isTestMap, testMapCollision } from '../../src/world/TestMap';
+import { FARM_MAP } from '../../src/world/FarmMap';
 export { NetInput, BUTTON, toFrame };
 
-export interface FarmRoomOptions { seed?: string; name?: string; roomName?: string }
+export interface FarmRoomOptions { seed?: string; name?: string; roomName?: string; map?: string }
 const MAX_PLAYERS = 4;
 const TICK_HZ = 60;          // calibração do FixedLoop/PlayerMotor e dos 203 testes
 const PATCH_HZ = 30;         // estado na rede a 30 Hz; o cliente interpola
@@ -85,12 +87,27 @@ export class FarmRoom extends Room<{ state: FarmState; input: NetInput; metadata
 
   async onCreate(options: FarmRoomOptions): Promise<void> {
     const seed = options.seed?.trim() || `farm-${Date.now().toString(16)}`;
-    this.sim = new FarmSimulation(seed, loadCollision());
+    /**
+     * O MAPA É DECIDIDO NA CRIAÇÃO, e não muda depois.
+     *
+     * A colisão inteira — chão, relevo, cidade, pedras — nasce com a simulação, e o nascimento dos
+     * jogadores já consultou o chão. Trocar de mapa com a sala de pé exigiria refazer a simulação
+     * por baixo de quem já está nela, e isso é uma segunda máquina de estado para manter alinhada.
+     * Quem quer outro mapa cria outra sala, que custa um clique.
+     *
+     * O `map` viaja em `settings` como qualquer outro ajuste: é assim que o CLIENTE descobre qual
+     * mundo montar sem ter de perguntar.
+     */
+    const noLaboratorio = isTestMap(options.map);
+    const map = noLaboratorio ? TEST_MAP_ID : '';
+    // Colisão E assentos vêm do MESMO mapa: é o que impede um nascer num mundo e o outro em outro.
+    this.sim = new FarmSimulation(seed, noLaboratorio ? testMapCollision() : loadCollision(), noLaboratorio ? TEST_MAP : FARM_MAP);
     await this.sim.prepare();
     this.state = new FarmState();
     this.state.seed = seed;
     this.state.phase = PHASE.lobby;
     this.state.settings.set('seed', seed);
+    this.state.settings.set('map', map);
     // Nome da sala: o que quem criou escreveu. Sem nada escrito, `onJoin` batiza pelo anfitrião.
     if (options.roomName?.trim()) this.state.settings.set('roomName', options.roomName.trim().slice(0, 24));
     this.patchRate = 1000 / PATCH_HZ;
@@ -319,10 +336,28 @@ export class FarmRoom extends Room<{ state: FarmState; input: NetInput; metadata
       this.lock().catch(motivo => console.warn(`[farm] ${this.roomId} · falha ao trancar a sala`, motivo));
       this.broadcast('runStarted', { seed: this.sim.seed });
     }
+    /**
+     * O LOBBY É MENU, E MENU NÃO SIMULA.
+     *
+     * `sim.step` rodava sem olhar a fase. Do lado do jogador o lobby é uma TELA DE MENU — ele está
+     * escolhendo personagem —, mas do lado do servidor a fazenda já estava viva: relógio correndo,
+     * diretor acumulando, horda nascendo e ferindo. O jogador entrava em campo já machucado, ou
+     * entrava morto, sem nunca ter visto o que o matou.
+     *
+     * Não é teoria: um cliente de testes ficou numa sala que NUNCA largou e saiu assim —
+     * `saindo {"vida":0,"municao":23}`. Morto, numa corrida que não tinha começado.
+     *
+     * A entrada continua sendo CONSUMIDA no lobby, de propósito: o buffer por cliente tem tamanho
+     * finito, e deixá-lo encher durante a escolha de personagem faria o primeiro segundo da corrida
+     * reproduzir comandos velhos — o jogador largaria correndo para um lado que ele quis dois
+     * minutos atrás. Consumir e descartar é o que mantém a largada limpa.
+     */
+    const emCurso = this.state.phase === PHASE.playing;
     for (const client of this.clients) {
       const input = this.inputs.get(client.sessionId).next();   // UM input por cliente por passo
-      if (input) this.sim.applyInput(client.sessionId, { frame: toFrame(input), yaw: input.yaw, pitch: input.pitch, seq: input.seq });
+      if (input && emCurso) this.sim.applyInput(client.sessionId, { frame: toFrame(input), yaw: input.yaw, pitch: input.pitch, seq: input.seq });
     }
+    if (!emCurso) { this.mirror(); return; }
     this.sim.step(ctx.dt);
     this.mirror();
     for (const event of this.sim.drain()) this.broadcast(event.type, event.payload);

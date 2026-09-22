@@ -34,6 +34,19 @@ async function until(condition: () => boolean, attempts = 200): Promise<boolean>
 }
 
 /**
+ * LARGAR A CORRIDA — obrigatório desde que o lobby parou de simular.
+ *
+ * O mundo ficava vivo enquanto os jogadores ainda escolhiam personagem: a horda nascia e feria
+ * quem estava no menu, e o jogador entrava em campo já machucado, ou morto, sem ter visto o quê.
+ * Com o lobby parado, tiro e movimento só valem depois da largada — que é como o jogo se comporta
+ * para quem joga. O que estes casos afirmam sobre AUTORIDADE continua idêntico.
+ */
+async function largar(clients: readonly { send(type: string, message?: unknown): void }[]): Promise<void> {
+  for (const c of clients) { c.send('chooseClass', { classId: 'gunslinger' }); c.send('setReady', { ready: true }); }
+  await wait(4200);   // a contagem da sala é de 3 s
+}
+
+/**
  * Um alvo parado à frente do atirador, com o diretor desligado.
  *
  * Sem isso a horda espontânea entraria na linha da bala e o caso deixaria de dizer o que promete.
@@ -61,6 +74,7 @@ describe('o tiro atravessa a rede como intenção e volta como estado', () => {
     expect(b.roomId).toBe(a.roomId);
     const room = colyseus.getRoomById<FarmRoom>(a.roomId);
     await untilPlayer(room, a.sessionId); await untilPlayer(room, b.sessionId);
+    await largar([a, b]);
 
     const sim = room['sim'] as FarmSimulation;
     const enemy = plant(sim, a.sessionId);
@@ -92,6 +106,7 @@ describe('o tiro atravessa a rede como intenção e volta como estado', () => {
     const b = await colyseus.sdk.joinOrCreate<FarmState>('farm', { seed: 'net-damage-2' });
     const room = colyseus.getRoomById<FarmRoom>(a.roomId);
     await untilPlayer(room, a.sessionId); await untilPlayer(room, b.sessionId);
+    await largar([a, b]);
 
     const sim = room['sim'] as FarmSimulation;
     const enemy = plant(sim, a.sessionId);

@@ -37,7 +37,16 @@ describe('simulação autoritativa da fazenda', () => {
     const pa = snap.players.find(p => p.id === 'a')!, pb = snap.players.find(p => p.id === 'b')!;
     expect(pa.z).toBeGreaterThan(a.z + 3);
     expect(pb.x).toBeCloseTo(b.x, 3); expect(pb.z).toBeCloseTo(b.z, 3);
-    expect(snap.tick).toBe(0); // step() direto não passa pelo FixedLoop
+    /**
+     * O TIQUE CONTA OS PASSOS DADOS.
+     *
+     * Esta linha dizia `toBe(0)`, com o comentário "step() direto não passa pelo FixedLoop" — e
+     * estava documentando um DEFEITO em vez de um contrato. `snapshot().tick` publicava
+     * `loop.tick`, e o `FixedLoop` da simulação nunca corre no servidor: quem dita o passo fixo é o
+     * Colyseus, que chama `step(dt)` direto. O campo viajava replicado e valia zero para sempre;
+     * ninguém no cliente o lia, então ninguém percebeu.
+     */
+    expect(snap.tick).toBe(60);   // `run` conta PASSOS, e foram 60
   });
 
   it('descarta pacotes fora de ordem e mantém a última entrada válida', async () => {
@@ -91,8 +100,19 @@ describe('simulação autoritativa da fazenda', () => {
     };
     const x = script(await make('same-seed')), y = script(await make('same-seed'));
     expect(x.players[0]).toEqual(y.players[0]); expect(x.ferryTime).toBe(y.ferryTime);
+    /**
+     * O NASCIMENTO DEIXOU DE SER SEMEADO, e isso é intencional.
+     *
+     * Esta linha afirmava que outra semente dá outro ponto de partida — o que era verdade quando o
+     * lugar vinha de um sorteio. Agora ele vem do NÚMERO do jogador: P1 sempre no mesmo lugar, P2
+     * ao lado, e assim por diante. Foi o que resolveu dois jogadores caindo um dentro do outro, e
+     * o preço é este: a semente não move mais a fileira de largada.
+     *
+     * O que a semente move continua sendo afirmado acima — o mesmo roteiro na MESMA semente dá o
+     * mesmo snapshot, que é a metade que importa para reproduzir uma corrida.
+     */
     const z = script(await make('other-seed'));
-    expect(z.players[0]!.x).not.toBe(x.players[0]!.x);
+    expect(z.players[0]!.x).toBe(x.players[0]!.x);
   });
 
   it('itens são por jogador: quem pegou as botas anda mais que quem não pegou', async () => {

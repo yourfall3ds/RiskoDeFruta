@@ -26,6 +26,8 @@ import { MELEE_TUNING } from '../src/player/PlayerTuning';
 import { meleeReaches } from '../src/combat/UnarmedCombat';
 import { ENEMIES } from '../src/run/MonsterDirector';
 import { ENEMY_AFFIXES } from '../src/enemies/EnemyAffixes';
+import { spawnFor, type MapDefinition } from '../src/world/MapDefinition';
+import { FARM_MAP } from '../src/world/FarmMap';
 export { EMPTY_INPUT };
 export type { EnemyRow };
 export type { PurchaseResult };
@@ -92,6 +94,7 @@ export interface PlayerCommand { frame: InputFrame; yaw: number; pitch: number; 
  * (`DualPistols`: `body() + up × 1,3`); atirar do pé faria a bala raspar o chão a cada aclive.
  */
 const SHOOTER_HEIGHT = 1.3;
+
 
 export interface PlayerSnapshot {
   id: string; entityId: number; x: number; y: number; z: number; yaw: number; pitch: number; seq: number;
@@ -161,7 +164,17 @@ export class FarmSimulation {
   private readonly outbox: { type: keyof GameEvents; payload: unknown }[] = [];
   time = 0;
 
-  constructor(readonly seed: string, data: CollisionData) {
+  /**
+   * O mapa em que esta simulação acontece. Só o nascimento o consulta hoje, e é de propósito: o
+   * resto da simulação continua ignorando em que mundo está, e é isso que permite testá-la nua.
+   *
+   * O padrão é a FAZENDA para que todo chamador antigo — e são dezenas de testes — continue
+   * valendo sem mudar uma linha.
+   */
+  readonly map: MapDefinition;
+
+  constructor(readonly seed: string, data: CollisionData, map: MapDefinition = FARM_MAP) {
+    this.map = map;
     this.rng = new RunRNG(seed);
     const merged = mergeCollision(data.mesh, data.solid, data.city, data.regions, data.boxes, data.outcrops, data.initialRocks);
     this.collision.boxes.push(...data.boxes, ...merged.mesh.boxes);
@@ -193,10 +206,12 @@ export class FarmSimulation {
 
   addPlayer(id: string): PlayerSnapshot {
     if (this.players.has(id)) throw new Error(`Jogador duplicado ${id}`);
-    const spawn = this.spawnPoint();
+    // A VAGA PRIMEIRO, O LUGAR DEPOIS: é o número do jogador que decide onde ele pisa.
+    const entityId = this.freeEntityId();
+    const spawn = this.spawnPoint(entityId);
     const loadout = new PlayerLoadout(this.progression.level);
     const player: Player = {
-      id, entityId: this.freeEntityId(), motor: new PlayerMotor(this.collision, this.events, spawn), mp: new MPCharge(this.events), cadence: new PistolCadence(),
+      id, entityId, motor: new PlayerMotor(this.collision, this.events, spawn), mp: new MPCharge(this.events), cadence: new PistolCadence(),
       magazine: new PistolMagazine(), skill: new SkillTimeline(), loadout,
       // Domínio `combatProc`, nunca `loot` nem `director`: um proc a mais não pode mexer em qual
       // elite nasce nem em qual item cai (adendo §1).
@@ -242,7 +257,19 @@ export class FarmSimulation {
   frame(nowSeconds: number): void { this.loop.frame(nowSeconds); }
 
   /** Um passo fixo. Exposto para testes determinísticos. */
+  /**
+   * Passos já dados. É o TIQUE que vai para o schema.
+   *
+   * `loop.tick` não serve para isso, e a auditoria mostrou por quê: a sala chama `step(dt)`
+   * DIRETO, sem passar pelo `FixedLoop` — quem dita o passo fixo lá é o Colyseus
+   * (`setFixedTimestep`). Como `loop.frame()` nunca é chamado no servidor, `loop.tick` fica em
+   * ZERO para sempre, e era esse zero que `snapshot()` publicava. O campo chegava replicado e
+   * mentindo: nenhum cliente o lia, então ninguém percebeu.
+   */
+  steps = 0;
+
   step(dt: number): void {
+    this.steps++;
     const first = [...this.players.values()][0];
     if (first) { this.ferry.update(dt, first.motor); this.carryOtherRiders(first); }
     for (const player of this.players.values()) {
@@ -444,7 +471,7 @@ export class FarmSimulation {
 
   snapshot(): Snapshot {
     return {
-      seed: this.seed, tick: this.loop.tick, time: this.time, stage: this.progression.stage, ferryTime: this.ferry.time,
+      seed: this.seed, tick: this.steps, time: this.time, stage: this.progression.stage, ferryTime: this.ferry.time,
       credits: this.progression.credits, xp: this.progression.xp, level: this.progression.level, totalKills: this.progression.totalKills,
       purchases: this.chests.purchases, usedChests: this.chests.usedIds(),
       players: [...this.players.values()].map(p => this.snapshotPlayer(p)),
@@ -473,17 +500,63 @@ export class FarmSimulation {
    * jogadores 3 e 4 viravam 2 e 3 no meio da corrida — com contextos de dano carregando os ids
    * antigos ainda em trânsito. Reaproveitar o buraco mantém a faixa 1..4 sem renumerar ninguém.
    */
+  /**
+   * O MENOR ASSENTO LIVRE — e quem caiu NÃO liberou assento.
+   *
+   * `players` guarda quem caiu enquanto a janela de reconexão está aberta (`disconnected`), então o
+   * `entityId` dele já está neste conjunto e não é oferecido a ninguém. Isto é intencional e vale
+   * dizer em voz alta: se P2 perde o wi-fi por cinco segundos e a sala entrega o assento 2 a quem
+   * chegar, P2 volta e encontra o próprio lugar ocupado — com o inventário, a posição e o
+   * nascimento de outro jogador. "Reservado" tem de valer para os TRÊS: identidade, número e vaga
+   * de nascimento, porque a vaga é derivada do número.
+   *
+   * Quem sai de propósito some de `players` no mesmo quadro, e aí sim o buraco é reaproveitado.
+   */
   private freeEntityId(): number {
     const taken = new Set([...this.players.values()].map(p => p.entityId));
     for (let id = 1; ; id++) if (!taken.has(id)) return id;
   }
 
-  /** Mesmo sorteio de `PlayerScene`: faixa em frente ao celeiro, altura pela colisão. */
-  private spawnPoint(): Vec3 {
+  /**
+   * ONDE CADA JOGADOR PISA — LADO A LADO, e nunca um dentro do outro.
+   *
+   * Era sorteado: `range(-2, 2)` em x por `range(-17, -10)` em z. Numa faixa de quatro metros por
+   * sete, dois sorteios podem cair a centímetros um do outro — e caíam. Dois corpos no mesmo ponto
+   * se empurram, e o primeiro quadro da partida começa com os dois sendo cuspidos para lados
+   * aleatórios, o que parece bug de rede e não é.
+   *
+   * Agora a posição é do NÚMERO do jogador, não da sorte: P1..P4 numa fileira, com
+   * `SPAWN_SPACING` entre eles. Determinístico — o mesmo jogador cai sempre no mesmo lugar, e dois
+   * jogadores nunca dividem o mesmo. A fileira nasce centrada: com dois, um de cada lado do eixo.
+   *
+   * A altura continua vindo da colisão; sem chão legível (o mapa de teste é plano), zero.
+   */
+  private spawnPoint(entityId: number): Vec3 {
+    /**
+     * O SORTEIO CONTINUA SENDO CONSUMIDO, mesmo sem ser usado.
+     *
+     * A posição virou determinística, mas simplesmente parar de puxar do fluxo `spawn` mudaria a
+     * TRAJETÓRIA do mundo inteiro: o gerador é semeado, e quantos números cada fluxo consome faz
+     * parte do que torna uma semente reprodutível. Quando tirei o sorteio, a distribuição da horda
+     * mudou junto — e `tests/enemy-simulation` pegou: os sete corpos passaram a nascer todos em
+     * cima do mesmo jogador, quebrando o §18.6 sem que ninguém tivesse tocado na horda.
+     *
+     * Duas retiradas, exatamente como antes, e o resto do mundo continua sendo o mesmo mundo.
+     */
     const stream = this.rng.stream('spawn');
-    const x = stream.range(-2, 2), z = stream.range(-17, -10);
-    const ground = this.collision.groundAt(x, z, 6);
-    return { x, y: Number.isFinite(ground) ? ground : 0, z };
+    stream.range(-2, 2); stream.range(-17, -10);
+
+    /**
+     * O ASSENTO é do `entityId`; a COORDENADA é do MAPA.
+     *
+     * Esta função não conhece número nenhum, e é essa a diferença que faz o laboratório existir: a
+     * fazenda, o mapa de teste e o que vier têm chão seguro em lugares diferentes, e uma constante
+     * global aqui dentro seria uma que está certa para um mapa e errada para todos os outros.
+     */
+    const assento = spawnFor(this.map, entityId);
+    // A altura vem da colisão quando o mapa está sobre relevo; no plano, o y declarado basta.
+    const ground = this.collision.groundAt(assento.x, assento.z, 6);
+    return { x: assento.x, y: Number.isFinite(ground) ? ground : assento.y, z: assento.z };
   }
 
   /** `IslandFerry.update` transporta um passageiro; os demais recebem o mesmo deslocamento com o mesmo teste de bordo. */
