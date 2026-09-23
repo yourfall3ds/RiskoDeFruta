@@ -30,6 +30,12 @@ export const PlayerState = schema({
    * companheiro parado no meio do campo sem explicação nenhuma.
    */
   connected: t.boolean(),
+  /**
+   * Ida e volta até a sala, em ms, como o PRÓPRIO cliente mede (eco da entrada, `smoothedRtt`).
+   * Informado a cada 2 s pela mensagem `rtt` e replicado para todos verem o de todos na etiqueta
+   * de debug. É leitura de diagnóstico: nenhuma regra do jogo lê este número. `0` = ainda não mediu.
+   */
+  ping: t.uint16(),
   x: t.number(), y: t.number(), z: t.number(), yaw: t.number(), pitch: t.number(),
   seq: t.uint32(),
   hp: t.number(), maxHP: t.number(),

@@ -193,4 +193,39 @@ describe('uma sala no mapa de teste', () => {
     expect(await until(() => sim.steps > 0)).toBe(true);
     await a.leave(); await b.leave();
   }, 120_000);
+
+  /**
+   * FASE 1 — CADA UM VÊ O OUTRO. As duas telas recebem o mesmo elenco: P1 e P2, cada um no assento
+   * que o mapa dá ao número dele, com o nome dele. E o ping que um informa chega à tela do outro:
+   * é o que a etiqueta de debug (`?debug=1`) mostra sobre a cabeça de cada um.
+   */
+  it('cada um vê o outro no assento dele, e o ping que um informa chega ao outro', async () => {
+    const seed = 'mapa-ver-o-outro';
+    const a = await colyseus.sdk.joinOrCreate<FarmState>('farm', { seed, name: 'ANA', map: TEST_MAP_ID });
+    const b = await colyseus.sdk.joinOrCreate<FarmState>('farm', { seed, name: 'BENTO', map: TEST_MAP_ID });
+    const telas = [a, b];
+    const assentado = (p: { entityId: number; x: number; z: number }): boolean => {
+      const s = TEST_MAP.playerSpawns[p.entityId - 1];
+      return !!s && Math.abs(p.x - s.x) < .01 && Math.abs(p.z - s.z) < .01;
+    };
+    // As duas telas, e não só a sala: é o que cada cliente RECEBEU que precisa bater.
+    expect(await until(() => telas.every(t => {
+      const ps: { entityId: number; x: number; z: number }[] = [];
+      t.state.players?.forEach(p => { ps.push(p); });
+      return ps.length === 2 && ps.every(assentado);
+    }))).toBe(true);
+    expect(a.state.players.get(b.sessionId)).toMatchObject({ name: 'BENTO' });
+    expect(b.state.players.get(a.sessionId)).toMatchObject({ name: 'ANA' });
+    expect([a.state.players.get(a.sessionId)!.entityId, b.state.players.get(a.sessionId)!.entityId]).toEqual([1, 1]);
+    expect([a.state.players.get(b.sessionId)!.entityId, b.state.players.get(b.sessionId)!.entityId]).toEqual([2, 2]);
+
+    a.send('rtt', { ms: 42 });
+    b.send('rtt', { ms: 97.6 });
+    expect(await until(() => b.state.players.get(a.sessionId)?.ping === 42 && a.state.players.get(b.sessionId)?.ping === 98)).toBe(true);
+    // Lixo não vira número: o último ping válido fica.
+    a.send('rtt', { ms: 'lixo' });
+    await wait(200);
+    expect(b.state.players.get(a.sessionId)?.ping).toBe(42);
+    await a.leave(); await b.leave();
+  }, 60_000);
 });

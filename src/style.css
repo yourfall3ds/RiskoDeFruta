@@ -61,6 +61,13 @@ button:focus-visible { outline: 2px solid #a6dbe3; outline-offset: 3px; }
 .game-options select{max-width:220px;background:#13272d;color:#f3e9c9;border:1px solid #647774;border-radius:5px;padding:7px;font:inherit}.game-options{flex-wrap:wrap}
 
 .enemy-health-bars {position:absolute;inset:0;pointer-events:none;}
+/* Etiquetas de debug do multiplayer (`?debug=1`, `debug/NetDebugLabels`). */
+.net-debug-labels {position:fixed;inset:0;pointer-events:none;z-index:30;}
+.net-debug-labels span {position:absolute;transform:translate(-50%,-100%);white-space:nowrap;font:700 12px/1.3 ui-monospace,Consolas,monospace;color:#fff;background:#000000b3;border:1px solid #ffffff40;border-radius:3px;padding:2px 6px;}
+.net-debug-labels span.self {color:#8ff0e0;border-color:#3fb6a888;}
+.net-debug-labels span.enemy {color:#ffd08a;border-color:#d9a55688;}
+.net-debug-labels span.al-left {transform:translate(-12px,-100%);}
+.net-debug-labels span.al-right {transform:translate(calc(-100% + 12px),-100%);}
 .enemy-health {position:absolute;width:118px;transform:translate(-50%,-100%);text-align:center;filter:drop-shadow(0 2px 2px #000b);}
 .enemy-health span {display:block;color:#fff7dc;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px;}
 .enemy-health>div {position:relative;height:7px;border:1px solid #f5e5be88;border-radius:2px;background:#091322ec;overflow:hidden;}

@@ -78,6 +78,11 @@ export class RemotePlayers {
   skillOf(id: string): {tier: 1 | 2 | 3; progress: number} | undefined {
     return this.remotes.get(id)?.visual.skillPerformance;
   }
+  /** Onde o remoto está sendo DESENHADO (a amostra interpolada): é sobre essa cabeça que a etiqueta de debug flutua. */
+  positionOf(id: string): {x: number; y: number; z: number} | undefined {
+    const p = this.remotes.get(id)?.motor.position;
+    return p ? {x: p.x, y: p.y, z: p.z} : undefined;
+  }
 }
 
 /**

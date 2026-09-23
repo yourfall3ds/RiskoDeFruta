@@ -17,14 +17,19 @@
  * queda. Por isso este arquivo é TypeScript e importa o `NetInput` do projeto: para falar a mesma
  * língua, e não uma parecida.
  *
- * Uso:  npx tsx scripts/jogador-fantasma.ts <roomId> [nome] [segundos]
+ * Uso:  npx tsx scripts/jogador-fantasma.ts <roomId> [nome] [segundos] [andar|parado]
+ *
+ * `parado` fica no assento, de frente para +z, sem atirar — a Fase 1 do Test Map (dois jogadores
+ * lado a lado). A cada 2 s ele informa o próprio ping (como o jogo faz) e diz o elenco que VÊ: é a
+ * prova, deste lado, de que ele enxerga o outro jogador onde o outro está.
  */
 import { Client } from '@colyseus/sdk';
 import { NetInput, BUTTON } from '../src/net/NetInput';
 import type { FarmState } from '../server/schema';
 
-const [, , roomId, nome = 'FANTASMA', segundos = '240'] = process.argv;
+const [, , roomId, nome = 'FANTASMA', segundos = '240', modo = 'andar'] = process.argv;
 if (!roomId) { console.error('falta o roomId'); process.exit(1); }
+const parado = modo === 'parado';
 
 const diga = (...partes: unknown[]) => console.log('[fantasma]', ...partes);
 
@@ -55,17 +60,23 @@ const relogio = setInterval(() => {
     return;
   }
   // Um quadrado, atirando na segunda metade de cada volta: movimento visível e munição caindo.
+  // Parado, a entrada continua saindo (zerada): é o eco dela que mede o ping.
   const lado = Math.floor(passo / 90) % 4;
   const passos: [number, number][] = [[0, 1], [1, 0], [0, -1], [-1, 0]];
-  const [x, z] = passos[lado]!;
+  const [x, z] = parado ? [0, 0] : passos[lado]!;
   entrada.data.x = x; entrada.data.z = z;
-  entrada.data.yaw = Math.atan2(x, z); entrada.data.pitch = 0;
-  entrada.data.buttons = passo % 180 > 90 ? BUTTON.FIRE : 0;
+  entrada.data.yaw = parado ? 0 : Math.atan2(x, z); entrada.data.pitch = 0;
+  entrada.data.buttons = !parado && passo % 180 > 90 ? BUTTON.FIRE : 0;
   entrada.data.interactOption = 0; entrada.data.seq = ++seq;
   entrada.send();
   passo++;
-  if (passo % 60 === 0) {
-    const meu = sala.state?.players?.get?.(sala.sessionId);
-    diga('andando', JSON.stringify({ x: meu?.x?.toFixed(2), z: meu?.z?.toFixed(2), municao: meu?.ammo, jogadores: sala.state?.players?.size }));
+  if (passo % 120 === 0) {
+    // O ping, como o jogo informa (`NetworkClient`): só depois da primeira medida.
+    const ms = sala.clock.smoothedRtt();
+    if (ms > 0) sala.send('rtt', { ms: Math.round(ms) });
+    // O elenco que ESTE cliente vê — número, nome, posição, vida e ping de cada um.
+    const vistos: string[] = [];
+    sala.state?.players?.forEach(p => { vistos.push(`P${p.entityId} ${p.name} (${p.x.toFixed(2)}, ${p.z.toFixed(2)}) vida ${p.hp} ping ${p.ping}`); });
+    diga(parado ? 'parado, vendo' : 'andando, vendo', JSON.stringify({ fase: sala.state?.phase, vistos }));
   }
 }, 1000 / 60);

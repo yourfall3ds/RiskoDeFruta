@@ -248,6 +248,18 @@ export class FarmRoom extends Room<{ state: FarmState; input: NetInput; metadata
       this.sim.requestMelee(client.sessionId, message ?? {});
     });
 
+    /**
+     * O PING DE CADA UM, para a etiqueta de debug de todos. O cliente mede (eco da entrada) e informa;
+     * a sala só valida o número e o replica. Diagnóstico — nenhuma regra lê `ping`, então um valor
+     * inventado mentiria para a etiqueta e para mais nada.
+     */
+    this.onMessage('rtt', (client: Client, message: { ms?: unknown }) => {
+      const player = this.state.players.get(client.sessionId);
+      const ms = Number(message?.ms);
+      if (!player || !Number.isFinite(ms)) return;
+      player.ping = Math.max(0, Math.min(9999, Math.round(ms)));
+    });
+
     this.onMessage('setSetting', (client: Client, message: { key?: unknown; value?: unknown }) => {
       const key = String(message?.key ?? '');
       // Ajuste da corrida é do anfitrião. A recusa é DITA ao cliente: um botão que não faz nada e

@@ -26,6 +26,7 @@ export interface PurchaseVerdict {
  * Remotos: `Predict` do SDK suaviza/atrasa os campos numéricos dos jogadores (interpolação nativa).
  */
 export interface RemoteSample { x: number; y: number; z: number; yaw: number; state: PlayerState }
+export interface DebugRosterRow { id: string; entityId: number; name: string; ping: number; hp: number; maxHP: number; self: boolean; connected: boolean }
 
 export class NetworkClient implements LobbyLink {
   room: Room<FarmState> | undefined;
@@ -43,6 +44,7 @@ export class NetworkClient implements LobbyLink {
   entityId = 0;
   private closedReason = '';
   private readonly closedListeners = new Set<(reason: string) => void>();
+  private rttTimer: ReturnType<typeof setInterval> | undefined;
   /** `name` viaja no `joinOrCreate`: é assim que `FarmRoom.onJoin` batiza o jogador. */
   constructor(readonly url: string, readonly seed: string, readonly playerName = '', readonly roomLabel = '') {}
 
@@ -73,7 +75,12 @@ export class NetworkClient implements LobbyLink {
       this.input = room.input({ type: NetInput });
       this.predict = Predict.get(room);
       log.info('entrei na sala', { roomId: room.roomId, sessionId: room.sessionId, servidor: this.url });
+      // O PING DE CADA UM, para a etiqueta de debug de todos (ver `PlayerState.ping`). Só quando já
+      // existe medida: o RTT do SDK nasce do eco da entrada, e antes do primeiro eco vale zero —
+      // mandar zero diria "ping perfeito" onde a verdade é "ainda não medi".
+      this.rttTimer = setInterval(() => { const ms = this.rttMs; if (this.room && ms > 0) this.room.send('rtt', { ms: Math.round(ms) }); }, 2000);
       room.onLeave(code => {
+        clearInterval(this.rttTimer);
         this.room = undefined; this.input = undefined;
         // 4000 é o código com que a sala expulsa (`client.leave(4000)`); sem motivo dito antes, a
         // queda é queda mesmo — e as três coisas precisam chegar à tela com nomes diferentes.
@@ -235,6 +242,19 @@ export class NetworkClient implements LobbyLink {
     })).sort((a, b) => a.entityId - b.entityId);
   }
 
+  /**
+   * O que a etiqueta de debug mostra de cada jogador: número, nome, ping e vida. Leitura direta do
+   * estado replicado — o mesmo que todas as telas recebem —, então a vida aqui é a do SERVIDOR, e a
+   * etiqueta mostra a verdade mesmo quando o HUD local diverge dela.
+   */
+  debugRoster(): DebugRosterRow[] {
+    const out: DebugRosterRow[] = [];
+    this.room?.state?.players?.forEach((p: PlayerState, id: string) => {
+      out.push({ id, entityId: p.entityId, name: p.name, ping: p.ping ?? 0, hp: p.hp, maxHP: p.maxHP, self: id === this.sessionId, connected: p.connected !== false });
+    });
+    return out.sort((a, b) => a.entityId - b.entityId);
+  }
+
   get phase(): LobbyPhase { return this.room?.state?.phase === PHASE.playing ? 'playing' : 'lobby'; }
   get isHost(): boolean { return !!this.room && this.room.state?.hostId === this.sessionId; }
 
@@ -279,6 +299,7 @@ export class NetworkClient implements LobbyLink {
   }
 
   dispose(): void {
+    clearInterval(this.rttTimer);
     this.lobbyListeners.clear();
     this.closedListeners.clear();
     this.predict?.dispose();

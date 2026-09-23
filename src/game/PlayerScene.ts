@@ -4,6 +4,9 @@ import {spawnFor} from '../world/MapDefinition';
 import {FARM_MAP} from '../world/FarmMap';
 import {TestMapWorld} from '../world/TestMapWorld';
 import {TEST_MAP,isTestMap} from '../world/TestMap';
+import {NetDebugLabels,playerDebugLabel,enemyDebugLabel,type DebugLabel} from '../debug/NetDebugLabels';
+/** Altura da etiqueta de debug acima dos pés: logo acima da cabeça do personagem. */
+const NET_LABEL_HEIGHT=2.2;
 import {currentRoomClient} from '../net/RoomSession';
 import {track,beginTask,endTask,describePending,resetLoadTrace,registerTask,loadProgress,hangReport,pendingTasks} from '../core/LoadTrace';
 import {reloadMovement} from '../player/ReloadMovement';
@@ -399,6 +402,9 @@ export class PlayerScene implements SceneModule {
   private wildlife:FarmWildlife|undefined;
   /** Sessão online (`?online=1`): predição local, reconciliação e remotos. `undefined` no single-player. */
   private net:NetworkSession|undefined;
+  /** Etiquetas de debug do co-op: só com `?debug=1`, e só nascem quando há sala. */
+  private readonly netLabelsWanted=new URL(location.href).searchParams.get('debug')==='1';
+  private netLabels:NetDebugLabels|undefined;
   /**
    * O ESPELHO DA ECONOMIA (contrato §21.2).
    *
@@ -1210,6 +1216,8 @@ export class PlayerScene implements SceneModule {
       this.camera.blend(this.stageToWorld(shot.position,landing),this.stageToWorld(shot.target,landing),shot.weight);
       this.camera.sprintBlendTarget=shot.sprint*shot.weight;
     }
+    // Depois da câmera: a etiqueta é projetada no mesmo quadro que vai para a tela.
+    this.updateNetLabels();
 
     // O cadáver anda no relógio de apresentação: o passo fixo está parado desde `started=false`.
     this.playerRagdoll.update(this.paused?0:dt);
@@ -1922,6 +1930,23 @@ export class PlayerScene implements SceneModule {
    *
    * No mundo plano devolve o ponto como veio: `groundAt` já é a cota em que o corpo fica de pé.
    */
+  /**
+   * As etiquetas de debug do co-op (`?debug=1`): P#, nome, ping e vida sobre cada jogador, id e vida
+   * sobre cada inimigo. Tudo do estado replicado — a vida é a do SERVIDOR, então a etiqueta mostra a
+   * verdade mesmo quando o HUD local diverge. Ver `debug/NetDebugLabels`.
+   */
+  private updateNetLabels():void {
+    if(!this.netLabelsWanted||!this.net?.online)return;
+    this.netLabels??=new NetDebugLabels();
+    const labels:DebugLabel[]=[];
+    for(const p of this.net.client.debugRoster()){
+      const at=p.self?this.visual.position:this.net.remotes.positionOf(p.id);
+      if(at)labels.push({key:p.id,text:playerDebugLabel(p),kind:p.self?'self':'player',x:at.x,y:at.y+NET_LABEL_HEIGHT,z:at.z});
+    }
+    for(const e of this.net.enemies()??[])if(e.alive)labels.push({key:`e${e.id}`,text:enemyDebugLabel(e),kind:'enemy',x:e.x,y:e.y+NET_LABEL_HEIGHT+.3,z:e.z});
+    this.netLabels.update(this.camera.camera,labels);
+  }
+
   private seatOnDeck(at:Vec3):Vec3 {
     if(!this.radial)return at;
     const surface=this.world.surface;
@@ -2937,7 +2962,7 @@ export class PlayerScene implements SceneModule {
     // Merge das duas frentes: `wildlife`, os feixes e as ondas de disco vêm do trabalho de co-op e
     // fazenda viva; `ionBeam`, `groundFireView` e `strikeMarker` vêm das habilidades novas da
     // `main`. Os dois conjuntos são disjuntos — perder qualquer um vaza recurso no fim da corrida.
-    this.weatherView?.dispose();this.weatherView=undefined;this.wildlife?.dispose();this.wildlife=undefined;for(const beam of this.beams)beam.dispose();this.beams.length=0;this.raids.length=0;this.raidWave.clear();this.raidFirstEt=-1;this.dropship?.dispose();this.dropship=undefined;this.collision.detachRadialProps('expedition-sites');this.collision.detachRadialProps('loot');this.expeditionSites?.dispose();this.expeditionSites=undefined;this.pendingSites?.dispose();this.pendingSites=undefined;this.playerRagdoll.dispose();this.avatar?.dispose();this.net?.dispose();this.cancelCinematic();this.cutIn.dispose();this.skillAura.dispose();this.elements.dispose();this.world.dispose();this.input.dispose();this.enemies.dispose();this.explorationMap?.dispose();this.runHUD?.dispose();this.interactables?.dispose();this.events.clear();this.prism.dispose();this.prismVisuals.dispose();this.ionBeam.dispose();this.groundFireView.dispose();this.strikeMarker.dispose();this.prismRig.dispose();this.weapons.dispose();this.footing.dispose();this.abyss?.dispose();this.visual.dispose();this.audio.dispose();this.hud.dispose();this.instrumentation.dispose();this.scene.dispose();}
+    this.weatherView?.dispose();this.weatherView=undefined;this.wildlife?.dispose();this.wildlife=undefined;for(const beam of this.beams)beam.dispose();this.beams.length=0;this.raids.length=0;this.raidWave.clear();this.raidFirstEt=-1;this.dropship?.dispose();this.dropship=undefined;this.collision.detachRadialProps('expedition-sites');this.collision.detachRadialProps('loot');this.expeditionSites?.dispose();this.expeditionSites=undefined;this.pendingSites?.dispose();this.pendingSites=undefined;this.playerRagdoll.dispose();this.avatar?.dispose();this.net?.dispose();this.netLabels?.dispose();this.cancelCinematic();this.cutIn.dispose();this.skillAura.dispose();this.elements.dispose();this.world.dispose();this.input.dispose();this.enemies.dispose();this.explorationMap?.dispose();this.runHUD?.dispose();this.interactables?.dispose();this.events.clear();this.prism.dispose();this.prismVisuals.dispose();this.ionBeam.dispose();this.groundFireView.dispose();this.strikeMarker.dispose();this.prismRig.dispose();this.weapons.dispose();this.footing.dispose();this.abyss?.dispose();this.visual.dispose();this.audio.dispose();this.hud.dispose();this.instrumentation.dispose();this.scene.dispose();}
 
 }
 
