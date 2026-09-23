@@ -1,4 +1,4 @@
-export type WeaponAimKind='pistols'|'assault'|'sniper'|'grenade';
+export type WeaponAimKind='pistols'|'assault'|'sniper'|'grenade'|'smg';
 export interface WeaponAimView {active:boolean;kind:WeaponAimKind;zoom:number}
 
 /** Screen-centred optics only; camera magnification and ballistics remain in the game. */

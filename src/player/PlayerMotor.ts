@@ -46,6 +46,10 @@ export const BLAST_LIFT_SHARE=1;
 /** Quanto vira deslocamento lateral. Menor que a altura: o salto é para cima, não um arrastão. */
 export const BLAST_TANGENT_SHARE=.75;
 
+/** Campos do motor que a reconciliação salva por `seq`. Vetores são copiados, nunca partilhados. */
+const MOTOR_STATE_KEYS=['velocity','push','launched','grounded','sprinting','sliding','slideSeconds','dashRemaining','dashCooldown','dashDirection','dashAirUsed','lastAxis','bumpRemaining','charges','recharge','dodgeRemaining','invulnerable','dodgeDirection','coyote','jumpBuffer','airDodged','airJumpsUsed','retreatRemaining','retreatYaw','wallSliding','wallKick','lastWall','up','forward','reference','groundNormal'] as const;
+export type MotorState=Readonly<Record<typeof MOTOR_STATE_KEYS[number],unknown>>;
+
 export class PlayerMotor {
   readonly position: Vec3;
   readonly previous: Vec3;
@@ -58,6 +62,29 @@ export class PlayerMotor {
   readonly reference: Vec3 = {x:0,y:0,z:1};
   /** Empurrão de knockback em componentes LOCAIS (`x` em `right`, `z` em `reference`). */
   private readonly push={x:0,z:0};
+  /**
+   * Reexecução da reconciliação em curso. O motor refaz passos que JÁ aconteceram na tela: os
+   * eventos deles (pulo, esquiva, dash, esbarrão) já tocaram som, câmera e ressonância uma vez.
+   */
+  replaying=false;
+  /**
+   * TODO o estado que decide o próximo passo, e não só a posição.
+   *
+   * A reconciliação corrigia a posição e reexecutava os passos pendentes a partir da velocidade,
+   * do `coyote` e do chão do quadro MAIS RECENTE — não dos do `seq` confirmado. Com um pulo entre
+   * os pendentes, o salto não se repetia (coyote já zerado) e o arco saía encurtado: o "pulo
+   * travado, caindo bugado" do co-op. Salvo depois de cada passo, restaurado antes de reexecutar.
+   */
+  captureState():MotorState {
+    const self=this as unknown as Record<string,unknown>,out:Record<string,unknown>={};
+    for(const key of MOTOR_STATE_KEYS){const v=self[key];out[key]=v&&typeof v==='object'?{...(v as object)}:v;}
+    return out as MotorState;
+  }
+  restoreState(state:MotorState):void {
+    const self=this as unknown as Record<string,unknown>;
+    for(const key of MOTOR_STATE_KEYS){const v=(state as Record<string,unknown>)[key];const cur=self[key];
+      if(v&&typeof v==='object'&&cur&&typeof cur==='object')Object.assign(cur as object,v);else self[key]=v;}
+  }
   /** Saiu do apoio por vontade própria (salto, backflip, arremesso). Só a esfera adere ao convés. */
   private launched=false;
   knockback(direction:Vec3,strength:number):void {
@@ -278,7 +305,7 @@ export class PlayerMotor {
       const normalX=dot(wall.normal,reference.right),normalZ=dot(wall.normal,reference.forward);
       if((normalX||normalZ)&&wall.topGap>-.2){
         if(radial<0){this.wallSliding=true;radial=Math.max(-3,radial);}
-        if(input.jump&&this.coyote<=0&&this.lastWall!==wall.id){velocityX=normalX*7;velocityZ=normalZ*7;radial=Math.sqrt(2*t.gravity*1.8);this.wallKick=.28;this.lastWall=wall.id;this.jumpBuffer=0;this.wallJumps++;this.launched=true;this.events.emit('SkillUsed',{entityId:1,skillId:'wall_jump'});}
+        if(input.jump&&this.coyote<=0&&this.lastWall!==wall.id){velocityX=normalX*7;velocityZ=normalZ*7;radial=Math.sqrt(2*t.gravity*1.8);this.wallKick=.28;this.lastWall=wall.id;this.jumpBuffer=0;this.wallJumps++;this.launched=true;this.replaying||this.events.emit('SkillUsed',{entityId:1,skillId:'wall_jump'});}
       }
     }
     // Esquiva durante o dash era cobrada e não deslocava, porque o bloco do dash sobrescreve dx/dz.
@@ -287,14 +314,14 @@ export class PlayerMotor {
       this.dodgeDirection=reach>0?{x:moveX/reach,z:moveZ/reach}:{x:Math.sin(yaw),z:Math.cos(yaw)};
       this.sprinting=magnitude>.1&&!input.fire&&!input.charging;this.dodgeRemaining=t.dodgeSeconds;this.invulnerable=t.dodgeIFrames;this.charges--;this.dodges++;
       if(!this.grounded)this.airDodged=true;
-      this.events.emit('Dodged',{entityId:1,direction:tangentFrom(reference,this.dodgeDirection.x,this.dodgeDirection.z)});
+      this.replaying||this.events.emit('Dodged',{entityId:1,direction:tangentFrom(reference,this.dodgeDirection.x,this.dodgeDirection.z)});
     }
     if(this.jumpBuffer>0 && this.coyote>0) {
       radial=Math.sqrt(2*t.gravity*t.jumpApex*this.jumpMultiplier);this.grounded=false;this.launched=true;this.coyote=0;this.jumpBuffer=0;this.jumps++;
-      this.events.emit('SkillUsed',{entityId:1,skillId:'jump'});
+      this.replaying||this.events.emit('SkillUsed',{entityId:1,skillId:'jump'});
     } else if(input.jump&&this.jumpBuffer>0&&!this.grounded&&this.airJumpsUsed<Math.max(0,Math.floor(this.extraJumps))) {
       radial=Math.sqrt(2*t.gravity*t.jumpApex*this.jumpMultiplier);this.coyote=0;this.jumpBuffer=0;this.airJumpsUsed++;this.jumps++;this.launched=true;
-      this.events.emit('SkillUsed',{entityId:1,skillId:'air_jump'});
+      this.replaying||this.events.emit('SkillUsed',{entityId:1,skillId:'air_jump'});
     }
     const control=this.grounded?1:t.airControl;
     const speed=t.speed*this.moveMultiplier*(this.sprinting?t.sprintMultiplier*this.sprintMultiplier:1)*(input.charging?.7:1);
@@ -345,7 +372,7 @@ export class PlayerMotor {
    */
   private integrateFlat(dt:number,dx:number,dz:number,radial:number,wasGrounded:boolean,evading:boolean,oldY:number):void {
     const motion=this.world.constrainPlayer(this.position,{x:dx,y:radial*dt,z:dz},t.radius,t.height);
-    if(Math.hypot(motion.x-dx,motion.z-dz)>.02&&Math.hypot(dx,dz)/dt>3&&this.bumpRemaining===0){this.bumpRemaining=.24;this.sprinting=false;if(this.dodgeRemaining>0)this.dodgeRemaining=0;this.events.emit('BodyBumped',{entityId:1,strength:Math.min(1,Math.hypot(dx,dz)/dt/13)});}
+    if(Math.hypot(motion.x-dx,motion.z-dz)>.02&&Math.hypot(dx,dz)/dt>3&&this.bumpRemaining===0){this.bumpRemaining=.24;this.sprinting=false;if(this.dodgeRemaining>0)this.dodgeRemaining=0;this.replaying||this.events.emit('BodyBumped',{entityId:1,strength:Math.min(1,Math.hypot(dx,dz)/dt/13)});}
     const beforeX=this.position.x,beforeZ=this.position.z;
     let verticalContact=false;
     if(wasGrounded){this.world.move(this.position,motion.x,motion.z,t.radius,t.height,t.stepHeight,true);this.position.y+=motion.y;}
@@ -479,7 +506,7 @@ export class PlayerMotor {
     this.dashDirection=reach>.1?{x:moveX/reach,z:moveZ/reach}:{x:local.x*Math.cos(yaw)+local.z*Math.sin(yaw),z:local.z*Math.cos(yaw)-local.x*Math.sin(yaw)};
     this.dashRemaining=t.dashSeconds;this.dashCooldown=t.dashCooldownSeconds;this.dashes++;this.tapClock.clear();
     if(!this.grounded)this.dashAirUsed++;
-    this.events.emit('SkillUsed',{entityId:1,skillId:'dash'});
+    this.replaying||this.events.emit('SkillUsed',{entityId:1,skillId:'dash'});
   }
   /** Eixo dominante ainda pressionado; usado quando a intenção chega sem borda no mesmo quadro. */
   private facingAxis(input:InputFrame):'x+'|'x-'|'z+'|'z-' {

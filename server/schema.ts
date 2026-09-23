@@ -12,7 +12,9 @@ import { schema, t } from '@colyseus/schema';
  * `classChosen` existe à parte porque "ainda não escolhi" NÃO pode ser um ordinal válido: a
  * unanimidade do lobby precisa distinguir "escolheu o pistoleiro (0)" de "não escolheu nada".
  */
-export const CLASS_IDS = ['gunslinger', 'soldier'] as const;
+// A ORDEM é o contrato de rede: o ordinal vai no fio, então uma classe nova entra no FIM da lista.
+// Inserir no meio renumeraria todo mundo e um cliente antigo leria soldado onde há marijuano.
+export const CLASS_IDS = ['gunslinger', 'soldier', 'marijuano'] as const;
 export type ClassId = typeof CLASS_IDS[number];
 
 /** Fases da sala. Só duas por enquanto; o plano reserva 2..4 para viagem/extração/derrota. */

@@ -29,7 +29,15 @@ import { ENEMIES } from '../src/run/MonsterDirector';
 import { ENEMY_AFFIXES } from '../src/enemies/EnemyAffixes';
 import { spawnFor, type MapDefinition } from '../src/world/MapDefinition';
 import { FARM_MAP } from '../src/world/FarmMap';
+import { HitBudget, implausibleHit, type HitClaim } from '../src/net/HitClaim';
+import { authorizedBase } from './DamageTable';
+import { INCENDIARY_SECONDS, INCENDIARY_TAG } from '../src/combat/PrismSkills';
 export { EMPTY_INPUT };
+
+/** Passos sem entrada antes de o servidor voltar a simular o corpo com entrada vazia (~0,17 s). */
+export const STARVED_STEPS = 10;
+/** Pausa até o alvo do laboratório renascer. */
+export const TRAINING_RESPAWN_SECONDS = 3;
 export type { EnemyRow };
 export type { PurchaseResult };
 
@@ -122,6 +130,18 @@ export interface Player {
   /** Procs DESTE jogador: eles leem o inventário dele, não um `RunProgression` da sala. */
   procs: ItemProcs;
   input: InputFrame; yaw: number; pitch: number; seq: number; shots: number;
+  /**
+   * Chegou entrada NOVA deste jogador desde o último passo dele. Com `lockstep`, é o que autoriza o
+   * motor a andar: o cliente previu exatamente um passo por `seq`, e um passo a mais aqui (buffer
+   * vazio por jitter) deslocava o arco do pulo em ~0,16 m e disparava correção contínua.
+   */
+  fresh: boolean;
+  /** Diagnóstico de rede: entradas aplicadas, recusadas por `seq` velho e passos sem entrada. */
+  netStats: { applied: number; staleSeq: number; starved: number; lastRejectedSeq: number };
+  /** Teto de dano base por segundo dos pedidos de acerto deste jogador. */
+  hitBudget: HitBudget;
+  /** Passos seguidos sem entrada. Passado `STARVED_STEPS`, o corpo volta a andar com entrada vazia. */
+  starved: number;
   /** Tiros DESTE jogador que encostaram num corpo. Diagnóstico; nenhuma regra lê este número. */
   hits: number;
   /**
@@ -231,12 +251,12 @@ export class FarmSimulation {
     const spawn = this.spawnPoint(entityId);
     const loadout = new PlayerLoadout(this.progression.level);
     const player: Player = {
-      id, entityId, motor: new PlayerMotor(this.collision, this.events, spawn), mp: new MPCharge(this.events), cadence: new PistolCadence(),
+      id, entityId, motor: new PlayerMotor(this.collision, this.events, spawn), mp: new MPCharge(this.events, entityId), cadence: new PistolCadence(),
       magazine: new PistolMagazine(), skill: new SkillTimeline(), loadout,
       // Domínio `combatProc`, nunca `loot` nem `director`: um proc a mais não pode mexer em qual
       // elite nasce nem em qual item cai (adendo §1).
       procs: new ItemProcs(loadout, this.rng.stream('combatProc')),
-      input: EMPTY_INPUT, yaw: -.13, pitch: .02, seq: 0, shots: 0, hits: 0, disconnected: false,
+      input: EMPTY_INPUT, yaw: -.13, pitch: .02, seq: 0, shots: 0, hits: 0, disconnected: false, fresh: false, starved: 0, hitBudget: new HitBudget(), netStats: { applied: 0, staleSeq: 0, starved: 0, lastRejectedSeq: 0 },
     };
     player.motor.yaw = player.yaw;
     // Sem isto o motor recusaria todo dano cujo `victimId` não fosse 1 — jogadores 2..4 imortais.
@@ -268,9 +288,12 @@ export class FarmSimulation {
 
   applyInput(id: string, input: PlayerCommand): void {
     const player = this.players.get(id);
-    if (!player || input.seq <= player.seq) return; // descarta pacotes fora de ordem
+    if (!player) return;
+    if (input.seq <= player.seq) { player.netStats.staleSeq++; player.netStats.lastRejectedSeq = input.seq; return; } // descarta pacotes fora de ordem
+    player.netStats.applied++;
     player.input = input.frame; player.yaw = input.yaw;
     player.pitch = Math.max(-1.1, Math.min(1.1, input.pitch)); player.seq = input.seq;
+    player.fresh = true;
   }
 
   /** Avança o relógio real; o `FixedLoop` converte em passos de 1/60 s. */
@@ -288,37 +311,104 @@ export class FarmSimulation {
    */
   steps = 0;
 
+  /**
+   * Modo de rede: o motor de cada jogador só avança com entrada nova (ver `Player.fresh`). A sala
+   * liga; os testes da simulação pura continuam no modo antigo, em que a última entrada se repete.
+   */
+  lockstep = false;
+
+  /**
+   * ALVOS DO LABORATÓRIO. Mapa sem horda (`MapDefinition.horde === false`) com `enemySpawns`
+   * declarados mantém um corpo vivo em cada ponto: sem isso o Test Map não tinha em quem atirar, e
+   * dano, morte e abate em rede não podiam ser testados lá. Morto, renasce depois de uma pausa.
+   */
+  private readonly trainingTargets = new Map<number, { id: number; respawn: number }>();
+  /** Liga os alvos do laboratório. A SALA liga; a simulação pura do laboratório continua vazia. */
+  trainingTargetsEnabled = false;
+  private keepTrainingTargets(dt: number): void {
+    if (!this.trainingTargetsEnabled || this.map.horde !== false) return;
+    const points = this.map.enemySpawns ?? [];
+    points.forEach((at, index) => {
+      const slot = this.trainingTargets.get(index);
+      const alive = slot && slot.id >= 0 && this.enemies.actor(slot.id)?.active && !this.enemies.actor(slot.id)?.health.dead;
+      if (alive) return;
+      if (slot && slot.id >= 0) { slot.id = -1; slot.respawn = TRAINING_RESPAWN_SECONDS; return; }
+      if (slot && (slot.respawn -= dt) > 0) return;
+      if (this.enemies.spawn('eggplant', { x: at.x, y: at.y, z: at.z }, 'normal'))
+        this.trainingTargets.set(index, { id: this.enemies.lastSpawnedId, respawn: 0 });
+    });
+  }
+
+  /**
+   * Os acertos vêm do ATIRADOR (`claimHit`), não de um tiro refeito aqui. Ligado pela sala: com
+   * isso o servidor deixa de disparar a pistola por conta própria — senão cada tiro valeria duas
+   * vezes. A simulação pura (testes) continua resolvendo o hitscan sozinha.
+   */
+  clientHits = false;
+  /** Pedidos recusados, por motivo. Diagnóstico. */
+  readonly rejectedHits = new Map<string, number>();
+
+  /**
+   * Um passo de UM jogador com a entrada que ele tem agora. Exposto para a sala recuperar fila:
+   * quando o buffer de um cliente acumula, ela aplica a entrada extra e chama isto de novo no mesmo
+   * tique — a fila não cresce para sempre e o `seq` confirmado não fica meio segundo atrás.
+   */
+  stepPlayerById(id: string, dt: number): void {
+    const player = this.players.get(id);
+    if (!player) return;
+    player.fresh = false; player.starved = 0;
+    this.stepPlayer(player, dt);
+  }
+
+  private stepPlayer(player: Player, dt: number): void {
+    // Nível é da SALA, itens são do jogador: os atributos saem do loadout dele, nunca de um
+    // `stats` único — senão o item que um pegou buffaria os quatro.
+    player.loadout.refresh(this.progression.level);
+    const stats = player.loadout.stats;
+    const m = player.motor;
+    m.maxHP = stats.maxHP; m.moveMultiplier = stats.moveSpeed; m.jumpMultiplier = stats.jump; m.extraJumps = stats.extraJumps; m.rechargeMultiplier = stats.dodgeRecharge;
+    m.armor = stats.armor; m.regeneration = stats.regeneration; player.cadence.rateMultiplier = stats.attackSpeed; player.mp.speedMultiplier = 1 + (stats.mp - 1) * .5;
+    // Sem estes dois, o cliente corria mais rápido que o servidor e sofria snap-back contínuo.
+    m.sprintMultiplier = stats.sprintSpeed; player.mp.setMaxCharges(stats.skillCharges);
+    const input = player.input;
+    if (input.reload) player.magazine.request();
+    player.magazine.update(dt);
+    m.fixedUpdate(dt, reloadMovement(input,player.magazine.reloading), player.yaw);
+    const released = m.hp > 0 ? player.mp.update(dt, input.charging && !player.magazine.reloading && !player.skill.active) : 0;
+    if (released) player.skill.start(released);
+    // Timeline da skill é do servidor, com as durações fixas de SKILL_CUES; a voz e a cinemática ficam no cliente.
+    if (player.skill.active) player.skill.update(player.skill.elapsed + dt, tier => this.events.emit('SkillUsed', { entityId: player.entityId, skillId: tier === 1 ? 'ricochet_fan' : tier === 2 ? 'backflip_barrage' : 'harvest_storm' }));
+    const firing = input.fire && !input.charging && m.dodgeRemaining === 0 && m.hp > 0 && !player.skill.active;
+    // Antes este callback só CONTAVA o tiro: a intenção de disparo do jogador não chegava a
+    // `EnemySimulation.applyDamage` por caminho nenhum, e a horda só podia ser ferida pelos
+    // efeitos de área do próprio servidor. É aqui que o bloco E fecha o circuito.
+    player.hitBudget.update(dt);
+    player.cadence.update(dt, firing, () => { if (player.magazine.consume()) { player.shots++; if (!this.clientHits) this.resolveShot(player); } });
+    // Entradas de borda (jump/dodge/reload/interact) valem por um passo; movimento contínuo permanece até o próximo pacote.
+    player.input = { ...input, jump: false, dodge: false, reload: false };
+    delete player.input.interact;
+  }
+
   step(dt: number): void {
     this.steps++;
     const first = [...this.players.values()][0];
     if (first && this.ferry) { this.ferry.update(dt, first.motor); this.carryOtherRiders(first, this.ferry); }
     for (const player of this.players.values()) {
-      // Nível é da SALA, itens são do jogador: os atributos saem do loadout dele, nunca de um
-      // `stats` único — senão o item que um pegou buffaria os quatro.
-      player.loadout.refresh(this.progression.level);
-      const stats = player.loadout.stats;
-      const m = player.motor;
-      m.maxHP = stats.maxHP; m.moveMultiplier = stats.moveSpeed; m.jumpMultiplier = stats.jump; m.extraJumps = stats.extraJumps; m.rechargeMultiplier = stats.dodgeRecharge;
-      m.armor = stats.armor; m.regeneration = stats.regeneration; player.cadence.rateMultiplier = stats.attackSpeed; player.mp.speedMultiplier = 1 + (stats.mp - 1) * .5;
-      // Sem estes dois, o cliente corria mais rápido que o servidor e sofria snap-back contínuo.
-      m.sprintMultiplier = stats.sprintSpeed; player.mp.setMaxCharges(stats.skillCharges);
-      const input = player.input;
-      if (input.reload) player.magazine.request();
-      player.magazine.update(dt);
-      m.fixedUpdate(dt, reloadMovement(input,player.magazine.reloading), player.yaw);
-      const released = m.hp > 0 ? player.mp.update(dt, input.charging && !player.magazine.reloading && !player.skill.active) : 0;
-      if (released) player.skill.start(released);
-      // Timeline da skill é do servidor, com as durações fixas de SKILL_CUES; a voz e a cinemática ficam no cliente.
-      if (player.skill.active) player.skill.update(player.skill.elapsed + dt, tier => this.events.emit('SkillUsed', { entityId: player.entityId, skillId: tier === 1 ? 'ricochet_fan' : tier === 2 ? 'backflip_barrage' : 'harvest_storm' }));
-      const firing = input.fire && !input.charging && m.dodgeRemaining === 0 && m.hp > 0 && !player.skill.active;
-      // Antes este callback só CONTAVA o tiro: a intenção de disparo do jogador não chegava a
-      // `EnemySimulation.applyDamage` por caminho nenhum, e a horda só podia ser ferida pelos
-      // efeitos de área do próprio servidor. É aqui que o bloco E fecha o circuito.
-      player.cadence.update(dt, firing, () => { if (player.magazine.consume()) { player.shots++; this.resolveShot(player); } });
-      // Entradas de borda (jump/dodge/reload/interact) valem por um passo; movimento contínuo permanece até o próximo pacote.
-      player.input = { ...input, jump: false, dodge: false, reload: false };
-      delete player.input.interact;
+      /**
+       * LOCKSTEP: o motor só anda com entrada nova. Sem ela, o corpo espera — é exatamente o que o
+       * cliente fez (ele não simulou passo nenhum que não tenha enviado). Um jogador que parou de
+       * mandar (aba em segundo plano, queda) volta a ser simulado com entrada vazia depois de
+       * `STARVED_STEPS`, para gravidade, dano e balsa continuarem valendo para ele.
+       */
+      if (this.lockstep && !player.fresh) {
+        player.netStats.starved++;
+        if (++player.starved < STARVED_STEPS) continue;
+        player.input = EMPTY_INPUT;
+      } else player.starved = 0;
+      player.fresh = false;
+      this.stepPlayer(player, dt);
     }
+    this.keepTrainingTargets(dt);
     // A horda anda DEPOIS dos jogadores, no mesmo passo fixo: ela persegue a posição deste tique,
     // não a do anterior. Mesma ordem que `PlayerScene.fixedUpdate` usa no cliente.
     this.enemies.step(dt);
@@ -339,6 +429,50 @@ export class FarmSimulation {
    * O DANO É DO ATIRADOR: `loadout.stats` é dele, não da sala. Ler um `stats` compartilhado aqui
    * devolveria os quatro jogadores mecanicamente idênticos, que é a armadilha 8.1/§2.6 do plano.
    */
+  /**
+   * UM PEDIDO DE ACERTO do atirador (ver `src/net/HitClaim.ts`).
+   *
+   * O cliente disse "acertei o inimigo N com dano base B". Aqui se decide se vale: atirador vivo,
+   * corpo vivo e perto do ponto, alcance plausível, orçamento de dano. Valendo, o dano FINAL é
+   * calculado com os itens e o dado de crítico DESTE servidor — a mesma fórmula de
+   * `EnemySwarm.hit` — e entra por `applyDamage`, que recusa corpo morto e evento repetido.
+   * Devolve o motivo da recusa, ou `undefined` quando aplicou.
+   */
+  claimHit(id: string, claim: HitClaim): string | undefined {
+    const player = this.players.get(id);
+    const reject = (why: string) => { this.rejectedHits.set(why, (this.rejectedHits.get(why) ?? 0) + 1); return why; };
+    if (!player || player.motor.hp <= 0) return reject('atirador');
+    const target = this.enemies.actor(claim.enemy);
+    const why = implausibleHit(claim, player.motor.position, target?.position, !!target && target.active && !target.health.dead);
+    if (why) return reject(why);
+    // Proc é consequência que o SERVIDOR deriva do golpe direto; pedido de proc vindo do cliente
+    // seria o mesmo efeito duas vezes.
+    if (claim.proc > 0) return reject('proc');
+    const base = authorizedBase(claim.source, claim.base);
+    if (base === undefined) return reject('fonte');
+    const stats = player.loadout.stats, skill = claim.tags.includes('skill');
+    if (!player.hitBudget.take(base, stats.damage * (skill ? stats.mp : 1))) return reject('orçamento');
+    const crit = !claim.weak && claim.proc === 0 && this.rng.stream('combatCrit').next() < stats.crit;
+    const weakMultiplier = claim.weak && claim.source === 'prism_sniper' ? 2 : weakPointDamageMultiplier(claim.weak, crit);
+    const finalDamage = base * stats.damage * (skill ? stats.mp : 1) * weakMultiplier;
+    player.hits++;
+    const context = {
+      attackerId: player.entityId, victimId: claim.enemy, sourceId: claim.source, attackId: claim.attack || claim.source,
+      baseDamage: base, finalDamage, crit: crit || claim.weak, procCoefficient: claim.proc ? 0 : 1, procChainDepth: claim.proc,
+      damageTags: claim.tags, hitPosition: claim.point, hitNormal: { x: -claim.force.x, y: -claim.force.y, z: -claim.force.z },
+      forceDirection: claim.force, forceMagnitude: claim.forceMagnitude, hitDirection: claim.force,
+      combatEventId: `${player.entityId}:${claim.attack}:${claim.enemy}`,
+    };
+    if (!this.enemies.applyDamage(claim.enemy, context)) return reject('repetido');
+    if (claim.tags.includes(INCENDIARY_TAG)) this.enemies.ignite(claim.enemy, INCENDIARY_SECONDS);
+    if (claim.proc === 0) player.procs.onHit(context, {
+      burn: seconds => this.enemies.ignite(claim.enemy, seconds),
+      blast: radius => this.enemies.blast(claim.enemy, radius, finalDamage * .5, context),
+    });
+    if (this.enemies.actor(claim.enemy)?.health.dead) player.motor.heal(player.procs.onKill());
+    return undefined;
+  }
+
   private resolveShot(player: Player): void {
     const m = player.motor, stats = player.loadout.stats;
     const yaw = player.yaw, pitch = player.pitch;

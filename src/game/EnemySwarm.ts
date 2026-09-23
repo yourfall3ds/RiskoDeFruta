@@ -1,3 +1,4 @@
+import type {HitClaim} from '../net/HitClaim';
 import {chooseSpawnAround} from '../ai/SpawnPlanner';
 import {EnemyLaser} from '../vfx/EnemyLaser';
 import {aimArmAt} from '../animation/AimArm';
@@ -66,7 +67,7 @@ export interface ReplicatedEnemy {
   state:State;time:number;burn:number;stagger:number;targetPlayerId:number;alive:boolean;
 }
 /** Amostras guardadas para desenhar o corpo UM patch no passado (contrato §13). */
-interface ReplicaTrack {previous:Vec3;target:Vec3;yawPrevious:number;yawTarget:number;elapsed:number;interval:number;raw:string}
+interface ReplicaTrack {previous:Vec3;target:Vec3;yawPrevious:number;yawTarget:number;elapsed:number;interval:number;rx:number;ry:number;rz:number;ryaw:number}
 interface Actor {id:number;kind:EnemyKind;variant:EnemyVariant;scale:number;push:Vector3;root:TransformNode;body:Mesh;visual:TransformNode;clips:Map<string,AnimationGroup>;machine:AnimationStateMachine;skeleton:Skeleton|undefined;laserSocket?:TransformNode;laserArm?:TransformNode;
   /** Id do corpo no servidor, quando a horda é replicada. Ausente = corpo decidido localmente. */
   serverId?:number;replica?:ReplicaTrack;
@@ -400,6 +401,9 @@ export class EnemySwarm {
   /** Chefe do último evento da expedição: nasce num anel um pouco maior, sempre em piso válido. */
   requestBoss():boolean {
     if(this.boss&&this.boss.active&&!this.boss.health.dead)return true;
+    // Online o chefe é do servidor: sortear piso e pedir rota ao Detour a cada 1,5 s só para o
+    // `spawn` recusar no fim era custo puro, em pico, no meio da luta.
+    if(this.authority==='server')return false;
     this.initialize();
     const at=this.spawnPosition(20,34);
     return at?this.spawn('boss',at):false;
@@ -408,6 +412,7 @@ export class EnemySwarm {
   get bossReachable():boolean {
     const boss=this.boss;
     if(!boss||!boss.active||boss.health.dead)return true;
+    if(this.authority==='server')return true;   // rota e recuperação do chefe são do servidor
     if(this.distance(boss.root.position,this.player.position)>110)return false;
     if(this.tactical)return this.tactical.reachable(boss.root.position,this.player.position);
     return this.navigation?.reachable(boss.root.position)??true;
@@ -415,7 +420,7 @@ export class EnemySwarm {
   /** Recuperação: recoloca o mesmo chefe em piso válido perto do jogador, sem recriar vida nem recompensa. */
   recoverBoss():boolean {
     const boss=this.boss;
-    if(!boss||!boss.active||boss.health.dead)return false;
+    if(!boss||!boss.active||boss.health.dead||this.authority==='server')return false;
     const at=this.spawnPosition(18,28);
     if(!at)return false;
     boss.root.position.set(at.x,at.y,at.z);boss.push.setAll(0);boss.state='chase';boss.time=0;boss.cooldown=1;boss.direction={x:0,z:0};
@@ -448,12 +453,15 @@ export class EnemySwarm {
      * a onda nunca fecharia — no pior caso os dez falhariam e o evento ficaria preso sem item.
      * São no máximo onze corpos autorados por investida, e eles são o evento inteiro.
      */
-    const exempt=kind==='boss'||isSaucerSpecies(kind);
+    // Réplica do servidor também é isenta: o teto local é orçamento de GPU, e recusar um corpo que o
+    // servidor TEM o deixava invisível aqui — atacando de onde ninguém via — e tentando nascer de novo
+    // a cada passo. Aposentar outro para abrir espaço também não serve: seria sumir com um corpo vivo.
+    const exempt=kind==='boss'||isSaucerSpecies(kind)||this.applyingReplica;
     if(!this.ready||(this.count>=this.populationCap&&!exempt))return false;const at=position??this.spawnPosition();if(!at)return false;
     // Isento no teto: abre espaço aposentando o corpo comum mais distante, como o chefe sempre fez.
     // A diferença é o caso em que NÃO há ninguém aposentável (só corpos da represália em campo):
     // antes isso recusava o nascimento, e agora o corpo autorado nasce mesmo assim.
-    if(this.count>=this.populationCap){const retired=this.farthestRetirable(0);if(retired)this.retire(retired);else if(!exempt)return false;}
+    if(this.count>=this.populationCap&&!this.applyingReplica){const retired=this.farthestRetirable(0);if(retired)this.retire(retired);else if(!exempt)return false;}
     const definition=ENEMIES[kind],affix=ENEMY_AFFIXES[variant];let actor=this.actors.find(a=>!a.active&&a.kind===kind);
     if(!actor){const container=this.containers.get(definition.model);if(!container)return false;
       const root=new TransformNode(`enemy-${this.nextId}`,this.scene),visual=new TransformNode(`enemy-visual-${this.nextId}`,this.scene);visual.parent=root;
@@ -490,7 +498,7 @@ export class EnemySwarm {
       }
     }
     this.world.collision.playerBodies.set(actor.id,{id:actor.id,position:actor.root.position,radius:definition.radius*affix.scale,height:actor.kind==='watermelon'?1.6:2,active:()=>actor!.active&&!actor!.health.dead&&actor!.kind!=='tomato'&&actor!.state!=='spawn'});
-    this.tactical?.add(actor.id,at,definition.radius*affix.scale,definition.speed*affix.speed);this.audio?.enemy('spawn',kind,this.distance(at,this.player.position));
+    if(!this.applyingReplica)this.tactical?.add(actor.id,at,definition.radius*affix.scale,definition.speed*affix.speed);this.audio?.enemy('spawn',kind,this.distance(at,this.player.position));
     const scheduled=actor;this.scheduler.add({id:actor.id,distance:()=>this.distance(scheduled.root.position,this.player.position),update:dt=>{if(scheduled.active&&!scheduled.health.dead)this.think(scheduled,dt);}});
     this.effects.burst(at,'soil',kind==='boss'?3:1);if(kind==='boss'){this.boss=actor;this.events.emit('BossSpawned',{entityId:actor.id,definitionId:'boss_fruit_abomination_01'});}
     this.lastSpawnedId=actor.id;return true;
@@ -592,11 +600,44 @@ export class EnemySwarm {
     const direction=context.hitDirection??context.forceDirection;
     return resolveWeakPoint(context.hitPosition,direction,spheres)>=0?zone:undefined;
   }
+  /**
+   * Para onde vão os pedidos de acerto online (`NetworkSession` → servidor). Sem ele, com a
+   * autoridade no servidor, o acerto local seria descartado como antes.
+   */
+  onServerHit:((claim:HitClaim)=>void)|undefined;
+  private claimSequence=0;
+  /**
+   * O ACERTO ONLINE: pedido ao servidor + retorno IMEDIATO na tela.
+   *
+   * O servidor decide vida, crítico, morte e loot; mas o atirador precisa SENTIR o acerto no mesmo
+   * quadro — piscar, som, número e MP —, que é o que faz o combate parecer tempo real. O número é
+   * uma estimativa (itens e ponto fraco, sem o dado de crítico); a barra de vida e a morte chegam
+   * do servidor ~1 patch depois. O `EnemyHit` local alimenta o MP e o som de impacto da classe.
+   */
+  private claimServerHit(a:Actor,context:DamageContext):void {
+    if(a.serverId===undefined||!this.onServerHit)return;
+    const weak=context.procChainDepth===0?this.weakPointOf(a,context):undefined;
+    const skill=context.damageTags.includes('skill');
+    this.onServerHit({
+      enemy:a.serverId,base:context.baseDamage,tags:[...context.damageTags],source:context.sourceId,
+      attack:`${context.attackId}#${++this.claimSequence}`,weak:weak!==undefined,proc:context.procChainDepth,
+      point:{x:context.hitPosition.x,y:context.hitPosition.y,z:context.hitPosition.z},
+      force:{x:context.forceDirection.x,y:context.forceDirection.y,z:context.forceDirection.z},forceMagnitude:context.forceMagnitude,
+    });
+    const stats=this.progression.stats;
+    const estimate=context.baseDamage*stats.damage*(skill?stats.mp:1)*(weak?2:1)*100/(100+ENEMY_AFFIXES[a.variant].armor);
+    a.hit=.10;
+    this.audio?.enemy('hit',a.kind,this.distance(a.root.position,this.player.position));
+    this.space.lift(a.root.position,1.8,work0);
+    this.labels.push({position:{x:work0.x,y:work0.y,z:work0.z},amount:Math.round(estimate),crit:weak!==undefined,weak:weak!==undefined,time:.7});if(this.labels.length>32)this.labels.shift();
+    if(weak)this.effects.burst(context.hitPosition,'energy',.6);
+    if(context.procChainDepth===0)this.events.emit('EnemyHit',{...context,victimId:a.id,finalDamage:estimate});
+  }
   private hit(a:Actor,context:DamageContext):void {
     if(!a.active||a.health.dead)return;
     // Vida, crítico, proc e morte são do servidor. Aceitar o acerto aqui faria a barra descer duas
-    // vezes no atirador e uma só no companheiro — dois donos da mesma regra.
-    if(this.authority==='server')return;
+    // vezes no atirador e uma só no companheiro — dois donos da mesma regra. O acerto vira PEDIDO.
+    if(this.authority==='server'){this.claimServerHit(a,context);return;}
     const stats=this.progression.stats;
     const weak=this.weakPointOf(a,context);
     // Acerto direto JÁ é crítico. O dado do crítico aleatório nem é rolado quando a zona acertou:
@@ -929,27 +970,29 @@ export class EnemySwarm {
    * medido entre amostras. Desenhar a última posição crua daria o teleporte a 30 Hz que o contrato
    * proíbe; extrapolar daria o corpo atravessando parede quando um pacote atrasa.
    */
+  private readonly replicaSeen=new Set<number>();
   replicate(rows:readonly ReplicatedEnemy[],dt:number):void {
     this.authority='server';
-    const seen=new Set<number>();
+    // Conjunto reaproveitado: isto roda a cada passo fixo, até 5 vezes num quadro atrasado.
+    const seen=this.replicaSeen;seen.clear();
     for(const row of rows){
-      seen.add(row.id);
       let a=this.byServerId.get(row.id);
       if(!a){
         a=this.adoptReplica(row);
         if(!a)continue;               // GLB ainda carregando: o corpo entra no próximo patch
       }
+      seen.add(row.id);               // só corpos ADOTADOS: a limpeza abaixo compara tamanhos
       const track=a.replica!;
       // Assinatura da amostra: só o que MUDA por tique. Sem ela, um corpo parado reiniciaria a
       // interpolação a cada quadro e nunca chegaria ao destino.
-      const raw=`${row.x}|${row.y}|${row.z}|${row.yaw}`;
-      if(raw!==track.raw){
+      // Números, não uma string por corpo por passo: a comparação era lixo para o GC a 60 Hz.
+      if(row.x!==track.rx||row.y!==track.ry||row.z!==track.rz||row.yaw!==track.ryaw){
         track.previous={x:a.root.position.x,y:a.root.position.y,z:a.root.position.z};
         track.yawPrevious=a.root.rotation.y;
         track.target={x:row.x,y:row.y,z:row.z};track.yawTarget=row.yaw;
         // Intervalo real entre amostras, com piso: a sala publica a 30 Hz, mas jitter acontece.
         track.interval=Math.max(1/120,Math.min(.5,track.elapsed));
-        track.elapsed=0;track.raw=raw;
+        track.elapsed=0;track.rx=row.x;track.ry=row.y;track.rz=row.z;track.ryaw=row.yaw;
       }
       track.elapsed+=dt;
       const t=Math.min(1,track.elapsed/track.interval);
@@ -970,7 +1013,7 @@ export class EnemySwarm {
     }
     // Quem o servidor tirou de campo sai aqui — com o cadáver articulado devolvido ao pool, que é
     // o que `fixedUpdate` fazia aos 7 s e não faz mais neste modo.
-    for(const [id,a] of [...this.byServerId]) if(!seen.has(id)){
+    if(this.byServerId.size>seen.size)for(const [id,a] of [...this.byServerId]) if(!seen.has(id)){
       this.ragdolls.release(a.ragdoll);a.ragdoll=undefined;
       this.release(a);this.byServerId.delete(id);
     }
@@ -989,7 +1032,7 @@ export class EnemySwarm {
     // onda nem o nível da sala, e uma barra com denominador diferente mostraria progresso errado.
     a.health=new Health(a.id,row.maxHP,this.events);
     a.health.current=row.hp;
-    a.replica={previous:{x:row.x,y:row.y,z:row.z},target:{x:row.x,y:row.y,z:row.z},yawPrevious:row.yaw,yawTarget:row.yaw,elapsed:0,interval:1/30,raw:''};
+    a.replica={previous:{x:row.x,y:row.y,z:row.z},target:{x:row.x,y:row.y,z:row.z},yawPrevious:row.yaw,yawTarget:row.yaw,elapsed:0,interval:1/30,rx:NaN,ry:NaN,rz:NaN,ryaw:NaN};
     a.root.rotation.y=row.yaw;
     // O escalonador de IA é do servidor: um emprego local aqui faria `think` decidir windup.
     this.scheduler.remove(a.id);

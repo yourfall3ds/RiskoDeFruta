@@ -1,5 +1,6 @@
 import {PRISM_MODES,type PrismMode} from '../combat/PrismTuning';
 import {prismSkill} from '../combat/PrismSkills';
+import {MARIJUANO_SMG,marijuanoSkill} from '../combat/SmgTuning';
 import {AIM_MODES,aimKindFor,type AimKind} from '../combat/AimState';
 import {PLAYER_CLASSES,type PlayerClassId} from '../run/PlayerClass';
 
@@ -14,6 +15,7 @@ const AIM_HINTS:Readonly<Record<AimKind,string>>={
   assault:'DIREITO · ALÇA',
   sniper:'DIREITO · LUNETA',
   grenade:'DIREITO · TRAJETÓRIA',
+  smg:'DIREITO · FECHAR LEQUE',
 };
 
 /** O que o painel de arma mostra: nome, munição e os controles que valem AGORA. */
@@ -55,6 +57,14 @@ export interface WeaponReadoutState {
   readonly prismProgress: number;
   /** Transformação tocando: disparo, recarga e nova troca estão travados. */
   readonly prismBusy: boolean;
+  /** O rig da submetralhadora subiu. Sem ele o Marijuano cai nas pistolas, com o motivo no F1. */
+  readonly smgReady?: boolean;
+  readonly smgEquipped?: boolean;
+  readonly smgAmmo?: number;
+  readonly smgCapacity?: number;
+  readonly smgReloading?: boolean;
+  /** 0…1 */
+  readonly smgProgress?: number;
   readonly pistolAmmo: number;
   readonly pistolCapacity: number;
   readonly pistolReloading: boolean;
@@ -82,8 +92,11 @@ export function weaponReadout(state: WeaponReadoutState): WeaponReadoutView {
   // pistolas, e a cena roteia o `Q` dele pelas habilidades de pistola. Anunciar "habilidade II da
   // forma" ali seria prometer o que a tecla não faz.
   const prism=state.prismEquipped;
+  const smg=Boolean(state.smgEquipped);
   const charge:[string,string,string,string]=prism
     ?['CARREGANDO',PLAYER_CLASSES.soldier.charge[0],prismSkill(state.prismMode,2).name,prismSkill(state.prismMode,3).name]
+    :smg
+    ?['CARREGANDO',...PLAYER_CLASSES.marijuano.charge]
     :['CARREGANDO',...PLAYER_CLASSES.gunslinger.charge];
   const freeFirstTier=prism&&PLAYER_CLASSES.soldier.freeFirstTier;
   if(state.holstered)
@@ -102,6 +115,13 @@ export function weaponReadout(state: WeaponReadoutState): WeaponReadoutView {
       // Nada de `B`: a arma é a da CLASSE e não muda dentro da expedição.
       :`${aim} / R · RECARREGAR / Q I · TRANSFORMAR / ${skill.hint} / ${ultimate.hint}`;
     return {label:mode.name,ammo:`${state.prismAmmo} / ${state.prismCapacity}`,hint,charge,freeFirstTier,active};
+  }
+  if(smg){
+    const hint=active?`${active} · EM CURSO`
+      :state.smgReloading?`RECARREGANDO · ${percent(state.smgProgress??0)}`
+      :`${aim} / R · RECARREGAR / V · GUARDAR / ${marijuanoSkill(1).hint} / ${marijuanoSkill(2).hint} / ${marijuanoSkill(3).hint}`;
+    return {label:MARIJUANO_SMG.name,ammo:`${state.smgAmmo??0} / ${state.smgCapacity??0}`,hint,
+      charge,freeFirstTier,active};
   }
   const hint=state.pistolReloading?`RECARREGANDO · ${percent(state.pistolProgress)}`
     :`${aim} / R · RECARREGAR / V · GUARDAR / Q · ESPECIAL`;

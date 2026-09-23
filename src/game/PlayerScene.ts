@@ -1,3 +1,4 @@
+import { FrameSections } from '../debug/FrameSections';
 import {ExplorationMap} from '../ui/ExplorationMap';
 import {usePlanetWorld} from '../world/WorldSelection';
 import {spawnFor} from '../world/MapDefinition';
@@ -71,6 +72,10 @@ import { TrainingYard } from '../world/TrainingYard';
 import { DualPistols } from '../combat/DualPistols';
 
 import { PrismRig } from '../combat/PrismRig';
+import { SmgRig } from '../combat/SmgRig';
+import { BudShots } from '../combat/BudShots';
+import { MarijuanoWeapon } from '../combat/MarijuanoWeapon';
+import { MARIJUANO_SMG } from '../combat/SmgTuning';
 
 import { PrismWeapon } from '../combat/PrismWeapon';
 
@@ -280,6 +285,8 @@ export class PlayerScene implements SceneModule {
   private readonly classChoice=new PlayerClassChoice(undefined,location.href);
   /** `true` quando a classe é Soldado E a PRISM subiu. Sem rig, o soldado joga nas pistolas. */
   private get soldier():boolean {return this.classChoice.id==='soldier'&&this.prism.ready;}
+  /** `true` quando a classe é Marijuano E a submetralhadora subiu. Sem rig, ele cai nas pistolas. */
+  private get marijuano():boolean {return this.classChoice.id==='marijuano'&&this.smg.ready;}
   get playerClass():PlayerClassId {return this.classChoice.id;}
 
   /**
@@ -304,6 +311,20 @@ export class PlayerScene implements SceneModule {
   /** Carga da PRISM concluída (com ou sem sucesso): é o que libera a barra de carregamento. */
   private prismSettled=false;
   private prismError='';
+
+  /**
+   * A SUBMETRALHADORA DE SEDA do MARIJUANO: rig autoral mais backend de jogo.
+   *
+   * Mesmo arranjo da PRISM e pelo mesmo motivo — uma arma por classe, sem troca em campo. Ela não
+   * é portão de partida: se o GLB não subir, o Marijuano cai nas pistolas com o motivo escrito no
+   * F1, em vez de entrar em campo desarmado.
+   */
+  readonly smg: MarijuanoWeapon;
+  private readonly smgRig: SmgRig;
+  private readonly budShots: BudShots;
+  /** Carga da submetralhadora concluída (com ou sem sucesso). */
+  private smgSettled=false;
+  private smgError='';
 
   readonly enemies:EnemyReview|EnemySwarm;
 
@@ -517,7 +538,12 @@ export class PlayerScene implements SceneModule {
     this.yard=training?new TrainingYard(this.scene,shadows,rng)
       :planetWorld?planetWorld
       :this.laboratorio?new TestMapWorld(this.scene,collision,shadows)
-      :new FarmWorld(this.scene,collision,shadows,!new URL(coopHref(location.href)).searchParams.get('online'));
+      // Carregamento POR REGIÃO também online. Com sala, as 4 regiões eram montadas de uma vez
+      // (~5000 malhas contra ~1550 no single-player, medido nos GLBs): carga mais longa e a CPU do
+      // quadro presa em avaliar malhas que ninguém via. A previsão do movimento só precisa da
+      // colisão perto do jogador — que a residência traz antes de ele chegar, como no single-player
+      // — e o acerto dos tiros é validado no servidor, que tem o mapa inteiro.
+      :new FarmWorld(this.scene,collision,shadows);
 
     // O contrato de mundo: é o que a horda e as armas recebem, nos dois mapas.
     if(planetWorld)this.explorationMap=new ExplorationMap();
@@ -734,6 +760,27 @@ export class PlayerScene implements SceneModule {
     void track('prism.visuals',this.prismVisuals.load(),3).catch(()=>{});
     void track('prism.missile',this.prismVisuals.loadMissile(),2).catch(()=>{});
 
+    // ---- SUBMETRALHADORA DE SEDA (MARIJUANO) ------------------------------------------------
+    // Mesmo arranjo da PRISM: o rig autoral cuida de pose e clipes, o backend cuida de munição,
+    // dano e balística — e a balística é a MESMA porta `CombatServices` do tiro de sempre. O bud
+    // é DESENHO (`BudShots`): o dano é instantâneo, como no assalto.
+    this.smgRig=new SmgRig(this.scene,this.visual);
+    this.budShots=new BudShots(this.scene);
+    this.smg=new MarijuanoWeapon({
+      services:this.weapons,rig:this.smgRig,camera:this.camera,rng:rng.stream('run'),
+      body:()=>this.visual.position,visuals:this.budShots,audio:this.audio,
+      ...(combatSpace?{space:combatSpace}:{}),
+    });
+    void track('smg.rig',this.smgRig.load(),4).then(()=>{
+      if(this.disposed)return;
+      // A submetralhadora entra nas mãos só se a CLASSE for Marijuano.
+      this.applyPlayerClass();
+    }).catch((error:unknown)=>{
+      if(!this.disposed)this.smgError=error instanceof Error?error.message:'Falha no rig da submetralhadora';
+    }).finally(()=>{if(!this.disposed){this.smgSettled=true;this.applyPlayerClass();this.checkReady();}});
+    void track('smg.buds',this.budShots.load(),2).catch(()=>{});
+    this.wireNetworkCombat();
+
     // Arco previsto do lança-granadas e a lente limpa da luneta. Os dois são apresentação de MIRA:
     // não colidem, não são atingíveis e não entram na lista de alvos.
     this.trajectory=new TrajectoryView(this.scene);
@@ -748,7 +795,10 @@ export class PlayerScene implements SceneModule {
     this.footing.footHeights=()=>this.visual.footHeights();
     this.footing.suppressSteps=()=>this.visual.meleePose!==undefined||this.visual.arrivalPose!==undefined||this.visual.deathProgress!==undefined;
 
-    this.weatherView=training?undefined:new WeatherPresentation(this.scene);
+    // CLIMA VISUAL DESLIGADO por padrão: chuva, respingos e materiais molhados reescritos a cada
+    // quadro custavam até ~95 ms por quadro num PC mais modesto (medido no painel). O céu e a luz
+    // ficam no estado de sempre. `?clima=1` religa.
+    this.weatherView=training||new URL(location.href).searchParams.get('clima')!=='1'?undefined:new WeatherPresentation(this.scene);
     // O ambiente de chuva só toca se existir gravação licenciada no manifest (grupo `rain`).
     // `world` é a integração de uma linha documentada em WeatherPresentation: sem ela a chuva roda
     // inteira, mas sem respingo no piso/telhado real e sem supressão sob cobertura.
@@ -864,7 +914,7 @@ export class PlayerScene implements SceneModule {
     this.events.on('PlayerKilled',context=>{if(!this.death.start())return;
       // A PRISM sai das mãos ANTES do cadáver ser montado: sem isto `corpseEquipment` devolveria
       // lista vazia (as pistolas ainda estariam escondidas) e o corpo cairia desarmado.
-      this.prism.suppressed=true;this.prism.cancel();this.weapons.concealed=false;
+      this.prism.suppressed=true;this.prism.cancel();this.smg.suppressed=true;this.smg.cancel();this.weapons.concealed=false;
       // A captura vem ANTES de tudo: `started=false`, `sprinting=false` e o cancelamento das
       // habilidades mexem no corpo, e a velocidade do instante do golpe é o que dá peso à queda.
       this.cancelAim();
@@ -919,12 +969,22 @@ export class PlayerScene implements SceneModule {
     });
   }
 
+  /** Onde o quadro de apresentação gasta o tempo, por trecho. Diagnóstico do F1 e do painel. */
+  readonly frameSections=new FrameSections();
+  /** O que está segurando o passo fixo agora (vazio = rodando). Diagnóstico do F1. */
+  private fixedBlocker='';
   fixedUpdate(dt: number): void {
 
     // Enquanto a entrada, a conclusão do estágio ou uma revisão seguram o controle, o passo fixo
     // inteiro fica parado: nada de motor, diretor, colisão ou envio de intenção para a rede.
     // É assim que a transição congela o que é perigoso — sem nenhuma invulnerabilidade de QA.
-    if(this.intro.holdsControl||this.journey.holdsControl||this.meleeReview.active||this.poseReview||this.paused || !this.started || !this.visual.ready || !this.weapons.ready || !this.skillAura.ready || (this.yard instanceof FarmWorld&&!this.yard.ready)||(this.enemies instanceof EnemySwarm&&(!this.enemies.ready||!this.enemies.navigationReady))||this.interactables&&!this.interactables.ready)return;
+    // O MOTIVO da trava fica guardado e aparece no F1: "não anda mas atira" online era exatamente
+    // este passo parado por uma prontidão que nada tem a ver com o jogador — e sem o motivo escrito
+    // não havia como saber qual. Online, a navegação da horda local NÃO trava o passo: a horda é
+    // do servidor, e o corpo do jogador não depende dela.
+    const blocker=this.intro.holdsControl?'intro':this.journey.holdsControl?'jornada':this.meleeReview.active?'revisão corpo a corpo':this.poseReview?'revisão de pose':this.paused?'pausado':!this.started?'não começou':!this.visual.ready?'visual':!this.weapons.ready?'armas':!this.skillAura.ready?'aura':(this.yard instanceof FarmWorld&&!this.yard.ready)?'mundo':(this.enemies instanceof EnemySwarm&&(!this.enemies.ready||(!this.net&&!this.enemies.navigationReady)))?'horda':this.interactables&&!this.interactables.ready?'interativos':'';
+    this.fixedBlocker=blocker;
+    if(blocker)return;
 
     if(this.skillPending||this.cinematic.preparing)return;
 
@@ -938,7 +998,7 @@ export class PlayerScene implements SceneModule {
     // Os entalhes de roda somam entre passos fixos porque um quadro pode conter vários.
     this.aimHeld=Boolean(input.aim);this.aimWheel+=input.zoomDelta??0;
 
-    const stats=this.progression.stats;this.player.maxHP=stats.maxHP;this.player.moveMultiplier=stats.moveSpeed;this.player.sprintMultiplier=stats.sprintSpeed;this.player.jumpMultiplier=stats.jump;this.player.extraJumps=stats.extraJumps;this.player.rechargeMultiplier=stats.dodgeRecharge;this.player.armor=stats.armor;this.player.regeneration=stats.regeneration;this.weapons.cadence.rateMultiplier=stats.attackSpeed;this.prism.rateMultiplier=stats.attackSpeed;this.mp.speedMultiplier=1+(stats.mp-1)*.5;this.mp.setMaxCharges(stats.skillCharges);
+    const stats=this.progression.stats;this.player.maxHP=stats.maxHP;this.player.moveMultiplier=stats.moveSpeed;this.player.sprintMultiplier=stats.sprintSpeed;this.player.jumpMultiplier=stats.jump;this.player.extraJumps=stats.extraJumps;this.player.rechargeMultiplier=stats.dodgeRecharge;this.player.armor=stats.armor;this.player.regeneration=stats.regeneration;this.weapons.cadence.rateMultiplier=stats.attackSpeed;this.prism.rateMultiplier=stats.attackSpeed;this.smg.rateMultiplier=stats.attackSpeed;this.mp.speedMultiplier=1+(stats.mp-1)*.5;this.mp.setMaxCharges(stats.skillCharges);
 
     // Foco perdido, `Esc` ou pausa: a entrada foi zerada, e a mira vai junto — segurar o botão
     // direito não pode sobreviver a uma janela que deixou de receber eventos de soltar.
@@ -948,7 +1008,7 @@ export class PlayerScene implements SceneModule {
 
     // Não existe troca de arma em campo: a arma é a da CLASSE escolhida no menu (ver `classChoice`).
     // `R` vai para a arma que está na mão; a PRISM recebe o pedido dentro do próprio passo.
-    if(input.reload&&this.unarmed.armed&&!this.prism.equipped)this.weapons.requestReload();
+    if(input.reload&&this.unarmed.armed&&!this.prism.equipped&&!this.smg.equipped)this.weapons.requestReload();
     // Online: reconcilia com o último seq confirmado antes de prever o passo seguinte; depois envia a intenção deste passo.
     this.net?.reconcile(this.player,dt);
     // O movimento enviado ao servidor continua olhando a PISTOLA: a simulação autoritativa do co-op
@@ -972,10 +1032,24 @@ export class PlayerScene implements SceneModule {
     // O `Q` do SOLDADO é outro jogo: nível I transforma (grátis), níveis II e III são as habilidades
     // da FORMA que está nas mãos. Nenhuma cinemática de pistola é disparada por ele.
     const prismSpecial=this.soldier&&this.prism.equipped;
-    const chargingAllowed=this.unarmed.armed&&!this.cinematic.active&&(prismSpecial?!this.prism.busy&&!this.prism.reloading&&!this.prism.skillActive:!this.weapons.magazine.reloading);
+    // O `Q` do MARIJUANO também não tem cinemática: os três níveis são a MESMA submetralhadora em
+    // outra intensidade (ver `src/combat/SmgTuning.ts`). Como o soldado, ele cobra munição junto.
+    const smgSpecial=this.marijuano&&this.smg.equipped;
+    const chargingAllowed=this.unarmed.armed&&!this.cinematic.active
+      &&(prismSpecial?!this.prism.busy&&!this.prism.reloading&&!this.prism.skillActive
+        :smgSpecial?!this.smg.reloading&&!this.smg.skillActive
+        :!this.weapons.magazine.reloading);
     const released=this.player.hp>0?this.mp.update(dt,chargingAllowed&&input.charging,prismSpecial):0;
 
     if(released){
+      if(smgSpecial){
+        this.syncWeapons();
+        // Recusada (sem munição, recarregando, outra no ar): o MP volta. A barra é descontada na
+        // SOLTURA do `Q`, então cobrar por uma habilidade que não saiu seria roubo silencioso.
+        if(!this.smg.releaseSkill(released===1?1:released===2?2:3)){this.mp.gain(MP_COSTS[released-1]!);this.audio.dodge();}
+        else this.audio.skill(`prism_skill_${released}`);
+        return;
+      }
       if(prismSpecial){
         this.syncWeapons();
         if(released===1)this.prism.requestMode();
@@ -987,7 +1061,7 @@ export class PlayerScene implements SceneModule {
       return;
     }
 
-    if(input.stance&&this.unarmed.toggle()){this.mp.cancel();this.weapons.cancelSkills();this.prism.cancel();this.weapons.holstered=!this.unarmed.armed;this.audio.dodge();}
+    if(input.stance&&this.unarmed.toggle()){this.mp.cancel();this.weapons.cancelSkills();this.prism.cancel();this.smg.cancel();this.weapons.holstered=!this.unarmed.armed;this.audio.dodge();}
     this.unarmed.rateMultiplier=stats.attackSpeed;
     const evading=this.player.dodgeRemaining>0||this.player.dashRemaining>0||this.player.backflipProgress>=0;
     if(evading&&this.unarmed.busy)this.unarmed.reset();
@@ -1008,11 +1082,16 @@ export class PlayerScene implements SceneModule {
     // dispara (senão os dois canos cuspiriam ao mesmo tempo) e as pistolas voltam a aparecer.
     this.syncWeapons();
     const armed=this.unarmed.armed&&!input.charging&&this.player.dodgeRemaining===0&&this.player.hp>0;
-    this.weapons.fixedUpdate(dt,input.fire&&armed&&this.weapons.ready&&!this.prism.equipped);
+    this.weapons.fixedUpdate(dt,input.fire&&armed&&this.weapons.ready&&!this.prism.equipped&&!this.smg.equipped);
     this.prism.aiming=this.aimHeld&&this.aimAllowed;
     this.prism.fixedUpdate(dt,{fire:input.fire,reload:Boolean(input.reload)&&this.unarmed.armed,
       // `cycle` já não tem tecla: a forma avança pelo `Q` no nível I (e pelo botão de QA no F1).
       cycle:false,canAct:armed&&!this.weapons.skillActive});
+    // Mirar com a submetralhadora não aproxima quase nada: o que ele compra é o LEQUE apertado,
+    // e é `aiming` que o backend lê para escolher entre as duas aberturas da tabela.
+    this.smg.aiming=this.aimHeld&&this.aimAllowed;
+    this.smg.fixedUpdate(dt,{fire:input.fire,reload:Boolean(input.reload)&&this.unarmed.armed,
+      canAct:armed&&!this.weapons.skillActive});
 
     trace?.('armas:depois');
     if(this.enemies instanceof EnemySwarm){
@@ -1069,6 +1148,7 @@ export class PlayerScene implements SceneModule {
   render(alpha: number): void {
 
     const now=performance.now();const dt=Math.min(.05,(now-this.lastRender)/1000);this.lastRender=now;
+    const prof=this.frameSections;prof.begin();
 
     const deathDt=this.paused?0:dt;
     if(this.death.active)this.deathFlight.update(deathDt);
@@ -1112,11 +1192,14 @@ export class PlayerScene implements SceneModule {
 
     if(this.enemies instanceof EnemySwarm&&animDt>0)this.enemies.updateBudget(animDt,this.scene.getEngine().getDeltaTime());
 
+    prof.mark('morte+cinemática+orçamento');
     this.audio.update(animDt,this.enemies instanceof EnemySwarm?this.enemies.director.state:0);
+    prof.mark('áudio');
 
     // Represália dos discos: corre no relógio do mundo, então pausar congela a investida junto
     // com o resto e nenhuma nave continua descendo com o jogo parado.
     this.updateSaucerRaids(worldDt);
+    prof.mark('discos');
 
     // ---- Entrada pela nave -------------------------------------------------------------------
     // A espera no menu corre no relógio real (o jogador ainda não apertou Jogar); a sequência
@@ -1131,6 +1214,7 @@ export class PlayerScene implements SceneModule {
     // Roda no relógio de apresentação: pausar congela a transição inteira junto com o resto.
     const journeyDt=this.paused?0:dt;
     this.updateJourney(journeyDt);
+    prof.mark('entrada+jornada');
     // Falha de plano no arranque (ou ao reiniciar): tenta de novo sozinho, sem travar o carregamento.
     if(this.planRetry>0&&!this.planning){this.planRetry-=dt;if(this.planRetry<=0)this.ensureStagePlan();}
     // Uma falha de rota espera sozinha, mas o `E` antecipa a nova tentativa. O passo fixo está
@@ -1196,10 +1280,13 @@ export class PlayerScene implements SceneModule {
     const aiming=!this.player.sprinting||this.charging||(this.aimHeld&&this.aimAllowed);
     this.visual.rifleAiming=this.aimHeld&&this.aimAllowed;
     this.prism.aiming=this.visual.rifleAiming;
+    this.smg.aiming=this.visual.rifleAiming;
     if(this.avatar)this.avatar.update(this.player,alpha,poseDt,aiming,this.charging,this.input.pitch,this.mp.seconds/2.6,this.camera.forward);
     else this.visual.update(this.player,alpha,poseDt,aiming,this.charging,this.input.pitch,this.mp.seconds/2.6);
     draw?.('avatar:depois');
+    prof.mark('nave+pose do jogador');
     this.net?.render(animDt);
+    prof.mark('jogadores remotos');
 
     draw?.('câmera:antes');
     // A mira apurada entra ANTES da câmera: `setAimZoom` só deixa um ALVO, e é `camera.update` que
@@ -1218,9 +1305,11 @@ export class PlayerScene implements SceneModule {
     }
     // Depois da câmera: a etiqueta é projetada no mesmo quadro que vai para a tela.
     this.updateNetLabels();
+    prof.mark('câmera');
 
     // O cadáver anda no relógio de apresentação: o passo fixo está parado desde `started=false`.
     this.playerRagdoll.update(this.paused?0:dt);
+    prof.mark('ragdoll do jogador');
     if(this.ragdollOwnsBody){
       // Enquadramento no quadril do cadáver, que é o que o jogador quer ver.
       const focus=this.playerRagdoll.focus;
@@ -1244,10 +1333,12 @@ export class PlayerScene implements SceneModule {
     // A pose do rig da PRISM tem de vir DEPOIS da pose do corpo: ela pendura a arma no punho já
     // amostrado do quadro. Com o cadáver no comando não existe punho vivo para pendurar.
     this.prism.updatePresentation(this.playerRagdoll.active?0:worldDt);
+    this.smg.updatePresentation(this.playerRagdoll.active?0:worldDt);
     this.updateSkillVisuals(this.playerRagdoll.active?0:worldDt);
     // Depois da pose do rig: a prévia da granada sai da BOCA já amostrada deste quadro, e a lente
     // da luneta só sabe o que a bloqueia depois que corpo e arma foram colocados.
     this.updateAimPresentation(aimView,dt);
+    prof.mark('armas');
     this.skillAura.update(this.cinematic,this.visual.position,this.weapons);
     this.elements.update(this.poseReview?0:animDt);if(this.intro.phase==='dive'&&introPose)this.elements.aura('fire',[this.liftWorld(introPose.position,.4)],flight.elapsed,1);
     if(this.elementPreview&&animDt>0){this.elementClock-=animDt;if(this.elementClock<=0){this.elementClock=1.6;const ahead=this.visual.position.add(this.camera.forward.scale(2.4));const at=this.liftWorld({x:ahead.x,y:ahead.y,z:ahead.z},0);this.elements.emit(this.elementPreview,new Vector3(at.x,at.y,at.z));}}
@@ -1255,22 +1346,32 @@ export class PlayerScene implements SceneModule {
 
 
 
+    prof.mark('aura+elementos+cinemática');
     draw?.('câmera:depois');
-    this.enemies.update(worldDt);this.footing.update(worldDt);this.abyss?.update(worldDt);
+    this.enemies.update(worldDt);
+    prof.mark('horda');
+    this.footing.update(worldDt);this.abyss?.update(worldDt);
+    prof.mark('pisada+abismo');
     this.expeditionSites?.update(animDt,this.objectives.totems,this.objectives.activeIndex,
       this.objectives.collected?(this.journey.phase==='harvest'?this.journey.clock/1.8:1):0,this.objectives.discovered);
     // Clima: relógio real + crédito por abates; a chuva viaja com a câmera.
+    prof.mark('sítios da expedição');
     this.weather.paused=this.paused||!this.started;
     this.weather.update(animDt,this.enemies instanceof EnemySwarm?this.enemies.kills:0);
+    prof.mark('clima (lógica)');
     this.weatherView?.update(this.weather,this.camera.camera.position,animDt);
+    prof.mark('clima (chuva/visual)');
     // Bichos de cenário no MESMO `animDt` da apresentação: pausar congela o bando, as penas e o
     // sangue junto com o resto. A câmera manda no orçamento de pose (só bicho perto é amostrado);
     // o corpo do jogador é quem assusta.
     this.wildlife?.update(animDt,this.camera.camera.position,this.player.position);
+    prof.mark('fauna');
 
     if(this.enemies instanceof EnemySwarm)this.enemies.updateCameraVisibility(this.camera.camera.position,dt);
 
+    prof.mark('visibilidade da horda');
     this.world.update(worldDt);
+    prof.mark('mundo');
 
     for(const target of this.yard.targets)if(target.ring)target.ring.scaling.setAll(1+(target.ring.scaling.x-1)*Math.exp(-dt*18));
 
@@ -1279,7 +1380,9 @@ export class PlayerScene implements SceneModule {
     this.scene.physicsEnabled=(this.playerRagdoll.active&&!this.paused)||this.started&&!this.paused&&!this.intro.holdsControl&&!this.meleeReview.active&&!this.cinematic.preparing&&!this.skillPending;draw?.('cena:antes de render');this.scene.render();draw?.('cena:depois de render');this.hud.update(this.player,this.weapons,this.visual.error||this.weapons.error||this.skillAura.error||this.enemies.error||this.interactables?.error||(this.yard instanceof FarmWorld?this.yard.error:''),this.mp,this.enemies,animDt,this.weaponReadout());
 
     if(this.enemies instanceof EnemySwarm){
+      prof.mark('física+alvos');
       this.runHUD!.setVisible(this.started&&this.player.hp>0);
+      prof.mark('hud:visibilidade');this.runHUD!.prof=prof;
       if(this.yard instanceof PlanetWorld&&this.yard.manifest){
         const manifest=this.yard.manifest;
         this.explorationMap?.update(dt,this.started&&this.player.hp>0&&!this.intro.holdsControl&&!this.journey.holdsControl,`${this.attemptSeed}:${this.progression.stage}`,this.world.sites,manifest.bridges,this.world.surface,manifest.centre,this.player.position,this.player.forward,this.objectives.discovered?this.objectives.totems[0]?.site.position:undefined,this.runHUD!.atlasOpen);
@@ -1299,8 +1402,10 @@ export class PlayerScene implements SceneModule {
           :this.objectives.discovered&&pending?`${this.objectives.signalAcquired?'Sinal do cálice':'Cálice encontrado'} · ${pending.totem.site.name} · ${Math.round(pending.distance)} m`
           :'Explore as ilhas · saqueie baús e encontre o cálice');
       }
+      prof.mark('hud:objetivo');
       this.hud.stageJourney(this.journey);
     }
+    prof.mark('hud:jornada');
 
   }
 
@@ -1324,11 +1429,17 @@ export class PlayerScene implements SceneModule {
     this.prism.holstered=!this.unarmed.armed;
     this.prism.suppressed=performing||this.intro.holdsControl||this.journey.holdsControl
       ||this.meleeReview.active||this.poseReview||down;
+    // A submetralhadora segue EXATAMENTE as mesmas retenções da PRISM: o que esconde uma esconde
+    // a outra. Duas listas separadas divergiriam no primeiro estado novo de apresentação.
+    this.smg.holstered=this.prism.holstered;
+    this.smg.suppressed=this.prism.suppressed;
     // Soldado: as pistolas ficam escondidas o tempo TODO, e não só quando a PRISM está no ar. Sem
     // este `||` elas reapareceriam nas mãos durante a entrada pela nave e a viagem — que é
     // exatamente quando a PRISM está suprimida. O cadáver continua recebendo o par de pistolas
     // (o `PlayerKilled` desliga `concealed` de propósito), e é por isso que `down` sai daqui.
-    this.weapons.concealed=this.prism.live||(this.soldier&&this.prism.equipped&&!down);
+    this.weapons.concealed=this.prism.live||this.smg.live
+      ||(this.soldier&&this.prism.equipped&&!down)
+      ||(this.marijuano&&this.smg.equipped&&!down);
   }
 
   /**
@@ -1342,10 +1453,15 @@ export class PlayerScene implements SceneModule {
    * aparece no F1 — entrar em campo desarmado nunca é uma opção.
    */
   private applyPlayerClass():void {
-    const soldier=this.soldier;
-    if(this.prism.equipped!==soldier){
+    const soldier=this.soldier,marijuano=this.marijuano;
+    // As duas armas de classe são exclusivas entre si: equipar uma guarda a outra no MESMO passo,
+    // senão uma troca de classe no menu deixaria as duas ligadas e os dois canos na mesma mão.
+    const changed=this.prism.equipped!==soldier||this.smg.equipped!==marijuano;
+    if(changed){
       this.prism.setEquipped(soldier);
       this.prism.cancel();
+      this.smg.setEquipped(marijuano);
+      this.smg.cancel();
       this.weapons.magazine.cancel();
       this.weapons.cancelSkills();
       this.mp.cancel();
@@ -1376,6 +1492,7 @@ export class PlayerScene implements SceneModule {
     if(!this.unarmed.armed||this.unarmed.busy||this.player.dodgeRemaining>0)return false;
     // Recarga da arma na mão e transformação da PRISM.
     if(this.prism.equipped)return !this.prism.busy&&!this.prism.reloading;
+    if(this.smg.equipped)return !this.smg.reloading;
     return !this.weapons.magazine.reloading;
   }
 
@@ -1390,7 +1507,8 @@ export class PlayerScene implements SceneModule {
     const wheel=this.aimWheel;this.aimWheel=0;
     const view=this.aim.update({
       hold:this.aimHeld,
-      kind:aimKindFor({prismReady:this.prism.ready,prismEquipped:this.prism.equipped,prismMode:this.prism.mode}),
+      kind:aimKindFor({prismReady:this.prism.ready,prismEquipped:this.prism.equipped,prismMode:this.prism.mode,
+        smgEquipped:this.smg.equipped}),
       allowed:this.aimAllowed,
       wheel,
     });
@@ -1446,6 +1564,7 @@ export class PlayerScene implements SceneModule {
   private *scopeCandidates():Iterable<AbstractMesh> {
     for(const mesh of this.visual.meshes)yield mesh;
     if(this.prism.ready)for(const mesh of this.prismRig.root.getChildMeshes())yield mesh;
+    if(this.smg.ready)for(const mesh of this.smgRig.root.getChildMeshes())yield mesh;
   }
 
   /**
@@ -1455,6 +1574,9 @@ export class PlayerScene implements SceneModule {
    */
   private prismDebug():string {
     const cls=`Classe ${PLAYER_CLASSES[this.classChoice.id].name}`;
+    // O Marijuano tem linha própria: dizer "PRISM fora da tentativa · arma da classe: pistolas"
+    // para quem está com a submetralhadora na mão seria o diagnóstico mentindo.
+    if(this.classChoice.id==='marijuano')return this.smgDebug(cls);
     if(!this.prism.ready)
       return `${cls} · PRISM: ${this.prismError||(this.prismSettled?'rig indisponível':'carregando')}`
         +`${this.classChoice.id==='soldier'?' · SOLDADO REBAIXADO ÀS PISTOLAS':' · jogo nas pistolas'}`;
@@ -1477,6 +1599,30 @@ export class PlayerScene implements SceneModule {
       +` · trajetória ${this.trajectory.active?'desenhada':'oculta'}`;
   }
 
+  /**
+   * Linha do F1 para a SUBMETRALHADORA DE SEDA: munição, habilidade no ar e o motivo de uma falha.
+   *
+   * A degradação é escrita como a da PRISM: rig que não subiu vira "MARIJUANO REBAIXADO ÀS
+   * PISTOLAS" em vez de o jogador descobrir sozinho por que a arma não apareceu.
+   */
+  private smgDebug(cls:string):string {
+    if(!this.smg.ready)
+      return `${cls} · SEDA: ${this.smgError||(this.smgSettled?'rig indisponível':'carregando')}`
+        +' · MARIJUANO REBAIXADO ÀS PISTOLAS';
+    const [one,two,three]=[this.smg.skillFor(1),this.smg.skillFor(2),this.smg.skillFor(3)];
+    return `${cls} · Q I ${one.name} (${one.ammoCost} mun · 25 MP)`
+      +` · Q II ${two.name} (${two.ammoCost} mun · 55 MP)`
+      +` · Q III ${three.name} (${three.ammoRequired} mun mínimos · 100 MP)`
+      +`${this.smg.skillActive?` · NO AR: ${this.smg.skillLabel}${this.smg.overdriveRemaining>0?` ${this.smg.overdriveRemaining.toFixed(1)} s`:''}`:''}`
+      +` · habilidades soltas ${this.smg.skillReleases}`
+      +`\n${MARIJUANO_SMG.name} ${this.smg.equipped?'EQUIPADA':'guardada'}`
+      +`${this.smg.reloading?` · recarregando ${Math.round(this.smg.magazine.progress*100)}%`:''}`
+      +` · carregador ${this.smg.magazine.ammo}/${this.smg.magazine.capacity}`
+      +` · disparos ${this.smg.shots} · buds no ar ${this.budShots.count}`
+      +`${this.budShots.error?` · buds: ${this.budShots.error}`:''}`
+      +`\nMira ${this.aim.active?`${this.aim.kind} · ${this.aim.zoom.toFixed(2)}×`:'livre'}`;
+  }
+
   /** Painel de arma: nome, munição e os controles que valem agora (ver `weaponReadout`). */
   private weaponReadout() {
     return weaponReadout({
@@ -1486,11 +1632,15 @@ export class PlayerScene implements SceneModule {
       prismAmmo:this.prism.magazine.ammo,prismCapacity:this.prism.magazine.capacity,
       prismReloading:this.prism.magazine.reloading,prismProgress:this.prism.magazine.progress,
       prismBusy:this.prism.busy,
+      smgReady:this.smg.ready,smgEquipped:this.smg.equipped,
+      smgAmmo:this.smg.magazine.ammo,smgCapacity:this.smg.magazine.capacity,
+      smgReloading:this.smg.magazine.reloading,smgProgress:this.smg.magazine.progress,
       pistolAmmo:this.weapons.magazine.ammo,pistolCapacity:this.weapons.magazine.capacity,
       pistolReloading:this.weapons.magazine.reloading,pistolProgress:this.weapons.magazine.progress,
       aiming:this.aim.active,
       // Uma habilidade no ar manda no painel e na barra de carga, seja de qual classe for.
       activeSkill:this.prism.skillActive?this.prism.skillLabel
+        :this.smg.skillActive?this.smg.skillLabel
         :this.weapons.stormRemaining>0?'TEMPESTADE DA COLHEITA':'',
     });
   }
@@ -1640,7 +1790,7 @@ export class PlayerScene implements SceneModule {
   /** Entra na revisão do combo desarmado guardando origem, mira e guarda das armas. */
   private beginMeleeReview():void {
     if(this.meleeReview.active)return;
-    this.intro.abort();this.cancelCinematic();this.weapons.cancelSkills();this.prism.cancel();
+    this.intro.abort();this.cancelCinematic();this.weapons.cancelSkills();this.prism.cancel();this.smg.cancel();
     this.meleeReviewReturn={position:{x:this.player.position.x,y:this.player.position.y,z:this.player.position.z},yaw:this.input.yaw,pitch:this.input.pitch,armed:this.unarmed.armed};
     this.unarmed.reset();this.unarmed.armed=false;this.weapons.holstered=true;
     this.player.velocity.x=0;this.player.velocity.z=0;this.player.sprinting=false;
@@ -2178,7 +2328,7 @@ export class PlayerScene implements SceneModule {
       // `arriveAt` (e não `resetAt`) reescreve TAMBÉM a origem de recuperação do motor: depois de
       // viajar, cair de uma ilha do bosque não pode devolver o corpo ao campo inicial do estágio 1.
       this.player.arriveAt(this.seatOnDeck(this.spawn));
-      this.mp.cancel();this.cancelCinematic();this.weapons.cancelSkills();this.prism.cancel();this.input.clear();
+      this.mp.cancel();this.cancelCinematic();this.weapons.cancelSkills();this.prism.cancel();this.smg.cancel();this.input.clear();
       // De frente para o destino: a bússola do HUD e o corpo apontam para o mesmo lado.
       // No mapa curvo o rumo é um VETOR tangente — um `atan2(dx,dz)` de mundo apontaria para um
       // canto fixo do espaço, e escrevê-lo em `player.yaw` (que ali é o yaw LOCAL) seria pior
@@ -2215,7 +2365,7 @@ export class PlayerScene implements SceneModule {
     if(!this.journey.begin(this.progression.stage,destination.name)){this.objectives.collected=false;return false;}
     // Congela o que é perigoso: o diretor para e o passo fixo inteiro fica retido por `holdsControl`.
     if(this.enemies instanceof EnemySwarm)this.enemies.director.stopped=true;
-    this.mp.cancel();this.cancelCinematic();this.weapons.cancelSkills();this.prism.cancel();
+    this.mp.cancel();this.cancelCinematic();this.weapons.cancelSkills();this.prism.cancel();this.smg.cancel();
     this.unarmed.reset();this.visual.meleePose=undefined;
     this.player.sprinting=false;this.player.velocity.x=0;this.player.velocity.z=0;
     this.journeyCue('collect');
@@ -2428,7 +2578,7 @@ export class PlayerScene implements SceneModule {
     this.progression.advanceStage();this.enemies.nextStage();this.interactables?.reset();
     this.objectives.reset();this.resonance.reset();
     this.player.maxHP=this.progression.stats.maxHP;this.player.resetAt(this.spawn);
-    this.mp.cancel();this.cancelCinematic();this.weapons.cancelSkills();this.prism.cancel();
+    this.mp.cancel();this.cancelCinematic();this.weapons.cancelSkills();this.prism.cancel();this.smg.cancel();
     this.events.emit('StageStarted',{stageId:String(this.progression.stage),seed:this.seed});
   }
   private async requestSkill(tier:SkillTier):Promise<void>{
@@ -2452,7 +2602,7 @@ export class PlayerScene implements SceneModule {
     if(this.yard instanceof PlanetWorld)this.yard.restoreScenery();
     // A CLASSE sobrevive ao RENASCER: é a mesma expedição tentada de novo. `resetAttempt` da PRISM
     // devolve a arma às mãos por padrão, então `applyPlayerClass` volta a mandar logo em seguida.
-    this.cancelCinematic();this.runHUD?.clearItemPickups();this.progression.reset();this.weapons.resetAttempt();this.prism.resetAttempt();this.applyPlayerClass();this.visual.resetAttempt();this.mp.cancel();this.mp.current=this.mp.maximum;this.mp.releases=0;this.mp.speedMultiplier=1;
+    this.cancelCinematic();this.runHUD?.clearItemPickups();this.progression.reset();this.weapons.resetAttempt();this.prism.resetAttempt();this.smg.resetAttempt();this.applyPlayerClass();this.visual.resetAttempt();this.mp.cancel();this.mp.current=this.mp.maximum;this.mp.releases=0;this.mp.speedMultiplier=1;
     if(this.enemies instanceof EnemySwarm)this.enemies.nextStage();this.interactables?.reset();this.objectives.reset();this.resonance.reset();this.slowMotion.reset();this.weather.reset();this.unarmed.resetAttempt();this.weapons.holstered=false;this.bossRequestClock=0;
     // A viagem volta ao zero e o estágio 1 é replanejado: nada de herdar a partida do estágio onde
     // a tentativa terminou.
@@ -2547,7 +2697,7 @@ export class PlayerScene implements SceneModule {
     const planned=!this.interactables||this.stagePlanSettled;
     // A PRISM entra como ETAPA, não como exigência: `prismSettled` é `true` tanto com o rig pronto
     // quanto com a carga falhada — o jogo então começa com as pistolas e o motivo fica no F1.
-    const stages=[this.visual?.ready,this.weapons?.ready,this.skillAura?.ready,!(this.yard instanceof FarmWorld)||this.yard.ready,(!(this.enemies instanceof EnemySwarm)||this.enemies.ready),!(this.enemies instanceof EnemySwarm)||this.enemies.navigationReady,!this.interactables||this.interactables.ready,deckReady,planned,this.prismSettled,
+    const stages=[this.visual?.ready,this.weapons?.ready,this.skillAura?.ready,!(this.yard instanceof FarmWorld)||this.yard.ready,(!(this.enemies instanceof EnemySwarm)||this.enemies.ready),!(this.enemies instanceof EnemySwarm)||this.enemies.navigationReady,!this.interactables||this.interactables.ready,deckReady,planned,this.prismSettled,this.smgSettled,
       // A PRONTIDÃO DA CENA é a décima primeira etapa, e é real: entre a última carga e o primeiro
       // quadro desenhável existe compilação de material e de sombra. Enquanto ela não entrou na
       // lista, o mostrador tinha dez etapas cumpridas e nada para onde ir — ficava preso no fim da
@@ -2561,6 +2711,7 @@ export class PlayerScene implements SceneModule {
     else if(!(this.enemies instanceof EnemySwarm))endTask('enemies.navigation');
     if(planned)endTask('stage.plan');
     if(this.prismSettled)endTask('prism.class');
+    if(this.smgSettled)endTask('smg.class');
     if(deckReady)endTask('dropship');
     const label=this.planError?`FALHA NA ROTA · ${this.planError} · tentando de novo`
       // O cálice é etapa de carga como qualquer outra: se ele não montou, o rótulo diz isso.
@@ -2815,7 +2966,7 @@ export class PlayerScene implements SceneModule {
     if(name==='intro-skip')this.skipIntro();
     if(name==='intro-replay'){
       // Reencena a entrada inteira a partir do deck, sem mexer no estágio nem no inventário.
-      this.endMeleeReview();this.cancelCinematic();this.mp.cancel();this.weapons.cancelSkills();this.prism.cancel();
+      this.endMeleeReview();this.cancelCinematic();this.mp.cancel();this.weapons.cancelSkills();this.prism.cancel();this.smg.cancel();
       this.intro.reset();this.intro.beginStandby();this.hasArrived=true;this.intro.start(Boolean(this.dropship?.ready));
       this.started=true;this.audio.setActive(true);
     }
@@ -2941,7 +3092,9 @@ export class PlayerScene implements SceneModule {
 
       // Avisos vivem AQUI, no diagnóstico — nunca no parâmetro `error` do HUD, que troca o botão
       // Jogar por "Recarregue a página". Degradação anunciada não é partida quebrada.
-      player:`${this.networkNotice?this.networkNotice+'\n':''}${this.navigationNotice?this.navigationNotice+'\n':''}${this.expeditionSites?.notice?this.expeditionSites.notice+'\n':''}${this.qaNotice?this.qaNotice+'\n':''}${this.net?.debugLine()??''}${this.yard instanceof FarmWorld?this.yard.regionStatus:this.world.regionStatus??''}${this.cameraAudit}`
+      player:`${this.networkNotice?this.networkNotice+'\n':''}${this.navigationNotice?this.navigationNotice+'\n':''}${this.expeditionSites?.notice?this.expeditionSites.notice+'\n':''}${this.qaNotice?this.qaNotice+'\n':''}${this.net?.debugLine()??''}${this.net?`Passo fixo: ${this.fixedBlocker?'PARADO por '+this.fixedBlocker:'rodando'}
+`:''}Mais caros: ${this.frameSections.summary||'medindo…'}
+${this.yard instanceof FarmWorld?this.yard.regionStatus:this.world.regionStatus??''}${this.cameraAudit}`
       +`\nEntrada ${this.intro.phase}${this.intro.skipped?' (pulada)':''} · deck ${this.dropship?this.dropship.error||(this.dropship.ready?'pronto':'carregando'):'treino'} · controle ${this.intro.holdsControl?'RETIDO':'livre'}`
       +`\n${this.loadDebugLine()}`
       +`\nDiscos: ${this.raidStatus||'sem disco no cenário'}`
@@ -2949,6 +3102,35 @@ export class PlayerScene implements SceneModule {
       +(this.meleeReview.active?`\nRevisão corpo a corpo · ${this.meleeReview.label} · voltas ${this.meleeReview.loops} · armas ${this.weapons.holstered?'guardadas':'EM MÃOS'}`:'')
       +`\nPosição${this.player.position.x.toFixed(1)}, ${this.player.position.y.toFixed(1)}, ${this.player.position.z.toFixed(1)}\nVelocidade ${Math.hypot(this.player.velocity.x,this.player.velocity.z).toFixed(2)} m/s · ${this.player.sprinting?'CORRENDO':'NORMAL'}\nMira ${this.input.yaw.toFixed(3)} / ${this.input.pitch.toFixed(3)}\nGrounded ${this.player.grounded} · Saltos ${this.player.jumps}\nEsquivas ${this.player.dodges} · Retornos ${this.player.respawns}\n${this.enemies instanceof EnemySwarm?this.enemies.tactical?.residencyDescription??'':''}\nReciclagem ${this.enemies instanceof EnemySwarm?this.enemies.strays:0} distantes removidos · ${this.enemies instanceof EnemySwarm?this.enemies.recycled:0} repostos perto\nNavmesh ${this.enemies instanceof EnemySwarm?this.enemies.tactical?.count??0:0} agentes · Ragdolls ${this.enemies instanceof EnemySwarm?this.enemies.ragdollCount:0} · Marcas ${this.weapons.effects.decalCount}\nCorpo do jogador: ${this.playerRagdoll.ready?"pronto":"carregando"} · ${this.playerRagdoll.bodies} corpos · ${this.playerRagdoll.active?"física ativa":"inativo"} · ${this.playerRagdoll.error}\nDisparos ${this.weapons.cadence.shots} · Acertos ${this.weapons.hits}\nImpacto ${this.weapons.lastImpact}\n${this.prismDebug()}\nModelo ${this.visual.ready?'pronto':'carregando'} · ${this.visual.skinning}\nInvulnerabilidade QA ${this.player.debugInvincible?'ATIVA':'desligada'}\nDirector ${this.enemies instanceof EnemySwarm?this.enemies.director.state:'treino'} · Estágio ${this.progression.stage}`};
 
+  }
+
+  /**
+   * O COMBATE DE QUEM ATIRA, ligado à sala (ver `src/net/HitClaim.ts`).
+   *
+   * - O acerto que a arma local viu num inimigo do servidor vira PEDIDO (`EnemySwarm.onServerHit`);
+   *   o servidor valida e aplica. As três classes e as habilidades passam pelo mesmo caminho,
+   *   porque todas terminam em `CombatServices.applyHit`.
+   * - Cada disparo passa por `effects.muzzle` — as três armas usam o MESMO pool — e é ali que o
+   *   aviso visual sai para os outros. O rastro deles vai do cano até onde a câmera mira.
+   * - Os remotos recebem os efeitos ORIGINAIS, fora do embrulho: o tiro do companheiro desenhado
+   *   aqui não pode voltar para a rede como se fosse meu.
+   */
+  private wireNetworkCombat():void {
+    const net=this.net;if(!net)return;
+    net.diagSource=()=>this.fixedBlocker;
+    net.costSource=()=>this.frameSections.summary;
+    if(this.enemies instanceof EnemySwarm)this.enemies.onServerHit=claim=>net.claimHit(claim);
+    const effects=this.weapons.effects,muzzle=effects.muzzle.bind(effects);
+    net.remotes.effects={
+      muzzle,tracer:(from,to)=>effects.tracer(from,to),piercer:(from,to)=>effects.piercer(from,to),
+      mark:(p,n)=>effects.mark(p,n),impact:(p,n)=>effects.impact(p,n),burst:(p,size,duration)=>effects.burst(p,size,duration),
+    };
+    effects.muzzle=origin=>{
+      muzzle(origin);
+      const f=this.camera.forward,reach=70;
+      net.shot({weapon:PLAYER_CLASSES[this.playerClass].weapon as 'pistols'|'prism'|'smg',mode:this.prism.mode,
+        from:{x:origin.x,y:origin.y,z:origin.z},to:{x:origin.x+f.x*reach,y:origin.y+f.y*reach,z:origin.z+f.z*reach}});
+    };
   }
 
   dispose(): void {if(this.disposed)return;this.disposed=true;
@@ -2962,7 +3144,7 @@ export class PlayerScene implements SceneModule {
     // Merge das duas frentes: `wildlife`, os feixes e as ondas de disco vêm do trabalho de co-op e
     // fazenda viva; `ionBeam`, `groundFireView` e `strikeMarker` vêm das habilidades novas da
     // `main`. Os dois conjuntos são disjuntos — perder qualquer um vaza recurso no fim da corrida.
-    this.weatherView?.dispose();this.weatherView=undefined;this.wildlife?.dispose();this.wildlife=undefined;for(const beam of this.beams)beam.dispose();this.beams.length=0;this.raids.length=0;this.raidWave.clear();this.raidFirstEt=-1;this.dropship?.dispose();this.dropship=undefined;this.collision.detachRadialProps('expedition-sites');this.collision.detachRadialProps('loot');this.expeditionSites?.dispose();this.expeditionSites=undefined;this.pendingSites?.dispose();this.pendingSites=undefined;this.playerRagdoll.dispose();this.avatar?.dispose();this.net?.dispose();this.netLabels?.dispose();this.cancelCinematic();this.cutIn.dispose();this.skillAura.dispose();this.elements.dispose();this.world.dispose();this.input.dispose();this.enemies.dispose();this.explorationMap?.dispose();this.runHUD?.dispose();this.interactables?.dispose();this.events.clear();this.prism.dispose();this.prismVisuals.dispose();this.ionBeam.dispose();this.groundFireView.dispose();this.strikeMarker.dispose();this.prismRig.dispose();this.weapons.dispose();this.footing.dispose();this.abyss?.dispose();this.visual.dispose();this.audio.dispose();this.hud.dispose();this.instrumentation.dispose();this.scene.dispose();}
+    this.weatherView?.dispose();this.weatherView=undefined;this.wildlife?.dispose();this.wildlife=undefined;for(const beam of this.beams)beam.dispose();this.beams.length=0;this.raids.length=0;this.raidWave.clear();this.raidFirstEt=-1;this.dropship?.dispose();this.dropship=undefined;this.collision.detachRadialProps('expedition-sites');this.collision.detachRadialProps('loot');this.expeditionSites?.dispose();this.expeditionSites=undefined;this.pendingSites?.dispose();this.pendingSites=undefined;this.playerRagdoll.dispose();this.avatar?.dispose();this.net?.dispose();this.netLabels?.dispose();this.cancelCinematic();this.cutIn.dispose();this.skillAura.dispose();this.elements.dispose();this.world.dispose();this.input.dispose();this.enemies.dispose();this.explorationMap?.dispose();this.runHUD?.dispose();this.interactables?.dispose();this.events.clear();this.prism.dispose();this.prismVisuals.dispose();this.ionBeam.dispose();this.groundFireView.dispose();this.strikeMarker.dispose();this.prismRig.dispose();this.smg.dispose();this.budShots.dispose();this.smgRig.dispose();this.weapons.dispose();this.footing.dispose();this.abyss?.dispose();this.visual.dispose();this.audio.dispose();this.hud.dispose();this.instrumentation.dispose();this.scene.dispose();}
 
 }
 
@@ -2996,7 +3178,7 @@ function LOAD_WEIGHTS(radial:boolean,training:boolean,laboratorio=false):readonl
     // presa no fim — por isso elas nem entram na lista.
     if(!laboratorio)list.push(['interactables',5],['dropship',2]);
     // Portões que não nascem de uma promessa, mas bloqueiam igual. Ver `checkReady`.
-    list.push(['enemies.navigation',2],['stage.plan',5],['prism.class',1]);
+    list.push(['enemies.navigation',2],['stage.plan',5],['prism.class',1],['smg.class',1]);
   }
   return list;
 }
