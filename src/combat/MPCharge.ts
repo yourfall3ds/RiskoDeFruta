@@ -1,5 +1,5 @@
 import type { EventBus } from '../core/EventBus';
-import type { DamageContext,GameEvents } from '../core/contracts';
+import type {DamageContext,GameEvents,EntityId} from '../core/contracts';
 
 export type MPTier = 0 | 1 | 2 | 3;
 export const MP_COSTS=[25,55,100] as const;
@@ -28,8 +28,8 @@ const BASIC_TAGS=['bullet','melee'] as const;
  * em `DualPistols`/corpo a corpo, então não prova nada — erro, parede, cadáver e dano recusado
  * também passariam por lá.
  */
-export function awardsMP(hit:DamageContext):boolean {
-  if(hit.attackerId!==1||hit.victimId===1||!(hit.finalDamage>0))return false;
+export function awardsMP(hit:DamageContext,owner:EntityId=1):boolean {
+  if(hit.attackerId!==owner||hit.victimId===owner||!(hit.finalDamage>0))return false;
   // Proc, queimadura e comandos de QA/debug entram com profundidade de cadeia ou id de proc.
   if(hit.procChainDepth>0||hit.sourceProcId!==undefined)return false;
   const tags=hit.damageTags;
@@ -49,7 +49,11 @@ export class MPCharge {
   /** Anel com os carimbos dos últimos acertos premiados; o cursor aponta sempre para o mais antigo. */
   private readonly rewardedAt:number[]=Array.from({length:MP_HIT_WINDOW_HITS},()=>Number.NEGATIVE_INFINITY);
   private rewardCursor=0;private clock=0;
-  constructor(private readonly events: EventBus<GameEvents>) {events.on('EnemyHit',hit=>{if(awardsMP(hit))this.reward();});}
+  /**
+   * `owner`: de QUEM é esta barra. Era sempre 1 — no servidor, com uma barra por jogador no mesmo
+   * barramento, o acerto do P1 carregava as quatro e os do P2–P4 não carregavam nenhuma.
+   */
+  constructor(private readonly events: EventBus<GameEvents>,private readonly owner:EntityId=1) {events.on('EnemyHit',hit=>{if(awardsMP(hit,this.owner))this.reward();});}
   gain(amount:number):void {if(Number.isFinite(amount)&&amount>0)this.current=Math.min(this.maximum,this.current+amount);}
   /** Quanto ainda cabe no último segundo; expõe o teto para HUD/diagnóstico e testes. */
   get hitBudget():number{
@@ -83,12 +87,12 @@ export class MPCharge {
     if(held) {
       this.held=true;this.seconds=Math.min(2.6,this.seconds+dt*this.speedMultiplier);
       for(const tier of [1,2,3] as const)if(this.current+1e-8>=(freeFirstTier&&tier===1?0:MP_COSTS[tier-1]!)&&this.tier<tier&&this.seconds+1e-8>=MP_THRESHOLDS[tier-1]!) {
-        this.tier=tier;this.events.emit('MPCharged',{entityId:1,tier});
+        this.tier=tier;this.events.emit('MPCharged',{entityId:this.owner,tier});
       }
       return 0;
     }
     if(!this.held)return 0;
-    const tier=this.tier;this.events.emit('MPReleased',{entityId:1,tier});
+    const tier=this.tier;this.events.emit('MPReleased',{entityId:this.owner,tier});
     if(tier){this.releases++;this.current=Math.max(0,this.current-(freeFirstTier&&tier===1?0:MP_COSTS[tier-1]!));}
     this.cancel();return tier;
   }

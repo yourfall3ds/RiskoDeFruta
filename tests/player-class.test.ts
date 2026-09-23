@@ -21,8 +21,11 @@ describe('classe · o padrão e o saneamento',()=>{
     expect(new PlayerClassChoice(memoryStore('mago')).id).toBe('gunslinger');
     expect(normalizePlayerClass(undefined)).toBe('gunslinger');
     expect(normalizePlayerClass('soldier')).toBe('soldier');
+    expect(normalizePlayerClass('marijuano')).toBe('marijuano');
     expect(isPlayerClass('soldier')).toBe(true);
+    expect(isPlayerClass('marijuano')).toBe(true);
     expect(isPlayerClass('SOLDIER')).toBe(false);
+    expect(isPlayerClass('maconheiro')).toBe(false);
   });
   it('um armazenamento que estoura (modo privado) não impede jogar',()=>{
     const hostile:PlayerClassStore={
@@ -66,16 +69,25 @@ describe('classe · persistência entre estágios, repetições e sessões',()=>
 });
 
 describe('classe · o que cada uma promete',()=>{
-  it('são duas, com o padrão primeiro e identidades distintas',()=>{
-    expect(PLAYER_CLASS_ORDER).toEqual(['gunslinger','soldier']);
+  it('são três, com o padrão primeiro e uma ARMA distinta em cada',()=>{
+    expect(PLAYER_CLASS_ORDER).toEqual(['gunslinger','soldier','marijuano']);
     expect(PLAYER_CLASS_ORDER[0]).toBe(DEFAULT_PLAYER_CLASS);
     expect(PLAYER_CLASSES.gunslinger.weapon).toBe('pistols');
     expect(PLAYER_CLASSES.soldier.weapon).toBe('prism');
-    expect(PLAYER_CLASSES.gunslinger.name).not.toBe(PLAYER_CLASSES.soldier.name);
+    expect(PLAYER_CLASSES.marijuano.weapon).toBe('smg');
+    // Nome e arma são o que identifica uma classe na tela; duas iguais seriam uma só.
+    const names=PLAYER_CLASS_ORDER.map(id=>PLAYER_CLASSES[id].name);
+    expect(new Set(names).size).toBe(PLAYER_CLASS_ORDER.length);
+    const weapons=PLAYER_CLASS_ORDER.map(id=>PLAYER_CLASSES[id].weapon);
+    expect(new Set(weapons).size).toBe(PLAYER_CLASS_ORDER.length);
+  });
+  it('a ordem do menu cobre o catálogo inteiro — uma classe sem vaga é uma classe inalcançável',()=>{
+    expect([...PLAYER_CLASS_ORDER].sort()).toEqual(Object.keys(PLAYER_CLASSES).sort());
   });
   it('só o soldado transforma de graça no nível I',()=>{
     expect(PLAYER_CLASSES.soldier.freeFirstTier).toBe(true);
     expect(PLAYER_CLASSES.gunslinger.freeFirstTier).toBe(false);
+    expect(PLAYER_CLASSES.marijuano.freeFirstTier).toBe(false);
     expect(PLAYER_CLASSES.soldier.charge[0]).toContain('GRÁTIS');
   });
   it('nenhuma classe promete uma tecla de troca de arma',()=>{

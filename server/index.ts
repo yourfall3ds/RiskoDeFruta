@@ -3,6 +3,7 @@ import { networkInterfaces } from 'node:os';
 import { Server, LobbyRoom } from 'colyseus';
 import { WebSocketTransport } from '@colyseus/ws-transport';
 import { FarmRoom } from './rooms/FarmRoom';
+import { PAINEL_HTML } from './Painel';
 
 /**
  * Primeiro IPv4 não interno das interfaces da máquina.
@@ -103,7 +104,18 @@ httpServer.on('request', (req, res) => {
     if (req.method === 'OPTIONS' && !res.writableEnded) { res.writeHead(204); res.end(); }
   } catch { /* outra parte já respondeu; os cabeçalhos dela valem */ }
 });
-const server = new Server({ transport: new WebSocketTransport({ server: httpServer }), publicAddress: address });
+/**
+ * O PAINEL DE AUDITORIA (`/painel`, dados em `/painel.json`): o estado de cada sala, visível no
+ * navegador ao lado do jogo. Pela opção `express` do Colyseus — o mesmo app que atende o
+ * matchmaking —, e não por um ouvinte `request` à parte, que disputaria a resposta com ele.
+ */
+const server = new Server({
+  transport: new WebSocketTransport({ server: httpServer }), publicAddress: address,
+  express: (app: { get(path: string, handler: (req: unknown, res: { setHeader(k: string, v: string): void; end(body: string): void }) => void): void }) => {
+    app.get('/painel', (_req, res) => { res.setHeader('Content-Type', 'text/html; charset=utf-8'); res.end(PAINEL_HTML); });
+    app.get('/painel.json', (_req, res) => { res.setHeader('Content-Type', 'application/json'); res.setHeader('Cache-Control', 'no-store'); res.end(JSON.stringify([...FarmRoom.live].map(r => r.audit).filter(a => a.roomId))); });
+  },
+});
 // Listagem em tempo real: `client.getAvailableRooms()` saiu no 0.16; quem descobre salas é o LobbyRoom.
 server.define('lobby', LobbyRoom);
 // `filterBy(['seed'])` fica: é o que mantém o atalho `?online=1&seed=` caindo na MESMA sala.

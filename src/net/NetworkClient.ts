@@ -1,3 +1,4 @@
+import { HIT_MESSAGE, SHOT_MESSAGE, type HitClaim, type RelayedShot, type ShotFx } from './HitClaim';
 import { Client, Predict, type Room, type InputHandle } from '@colyseus/sdk';
 import type { FarmState, PlayerState } from '../../server/schema';
 import { CLASS_IDS, PHASE, ENEMY_STATES } from '../../server/schema';
@@ -26,6 +27,8 @@ export interface PurchaseVerdict {
  * Remotos: `Predict` do SDK suaviza/atrasa os campos numéricos dos jogadores (interpolação nativa).
  */
 export interface RemoteSample { x: number; y: number; z: number; yaw: number; state: PlayerState }
+/** O que o PC de cada jogador relata ao painel: sem isso, "travou" dependia de alguém ler o F1 em voz alta. */
+export interface ClientDiag { step: string; fps: number; frameMs: number; gpu: string; activeMeshes: number; meshes: number; enemies: number; hidden: boolean; cost: string }
 export interface DebugRosterRow { id: string; entityId: number; name: string; ping: number; hp: number; maxHP: number; self: boolean; connected: boolean }
 
 export class NetworkClient implements LobbyLink {
@@ -64,13 +67,15 @@ export class NetworkClient implements LobbyLink {
   get rttMs(): number { return this.room?.clock.smoothedRtt() ?? 0; }
   get jitterMs(): number { return this.room?.clock.jitter() ?? 0; }
   get playerCount(): number { return this.room?.state?.players?.size ?? 0; }
+  /** Inimigos que o servidor tem na sala agora. Diagnóstico do painel. */
+  get enemyCount(): number { return this.room?.state?.enemies?.size ?? 0; }
   get lastSentSeq(): number { return this.seq; }
 
   async connect(): Promise<void> {
     try {
       const client = new Client(this.url);
       log.info('conectando', { servidor: this.url, seed: this.seed, nome: this.playerName });
-      const room = await client.joinOrCreate<FarmState>('farm', { seed: this.seed, name: this.playerName, roomName: this.roomLabel });
+      const room = await client.joinOrCreate<FarmState>('farm', { seed: this.seed, name: this.playerName, roomName: this.roomLabel, loadGate: true });
       this.room = room;
       this.input = room.input({ type: NetInput });
       this.predict = Predict.get(room);
@@ -112,6 +117,14 @@ export class NetworkClient implements LobbyLink {
       room.onMessage('PlayerKilled', (payload: { entityId?: number; by?: number }) => {
         log.info('jogador abatido', { vitima: Number(payload?.entityId ?? 0), por: Number(payload?.by ?? 0) });
       });
+      /**
+       * O RESTO DO `GameEvents` que o servidor reencaminha (`EnemyHit`, `EnemyKilled`, `SkillUsed`,
+       * `MPCharged`, `LevelUp`, `runStarting`…). Sem um receptor, o SDK faz `console.warn` para CADA
+       * um — um por bala — e em campo isso virou centenas de avisos por minuto, pesando o quadro de
+       * quem joga com o DevTools aberto. O que eles anunciam já chega pelo estado replicado (`hp`,
+       * `alive`, `ammo`, `skillActive`); o curinga só existe para o SDK não gritar.
+       */
+      room.onMessage('*', () => {});
       // Uma patch por 1/30 s reescreve o roster inteiro; o `lobbyKey` corta o ruído para o DOM só
       // ser reescrito quando nome, classe, prontidão ou fase realmente mudaram.
       room.onStateChange(() => this.notifyLobby());
@@ -217,6 +230,14 @@ export class NetworkClient implements LobbyLink {
 
   /** A TENTATIVA de melee. Pedido possivelmente obsoleto; o servidor responde recusando (§20.22). */
   melee(requestId: string): void { this.room?.send('melee', { requestId }); }
+  /** O estado do PC deste jogador (passo fixo, fps), para o painel de auditoria do servidor. */
+  sendDiag(diag: ClientDiag): void { this.room?.send('diag', diag); }
+  /** Pedido de acerto do atirador (ver `HitClaim`). O servidor valida e aplica. */
+  sendHit(claim: HitClaim): void { this.room?.send(HIT_MESSAGE, claim); }
+  /** Aviso visual do disparo, para os outros desenharem. */
+  sendShot(shot: ShotFx): void { this.room?.send(SHOT_MESSAGE, shot); }
+  /** Disparos dos OUTROS jogadores, repassados pelo servidor. */
+  onShot(listener: (shot: RelayedShot) => void): void { this.room?.onMessage(SHOT_MESSAGE, listener); }
 
   /** Veredito de uma compra, vindo do servidor. O chamador APRESENTA o que veio. */
   onPurchaseResolved(listener: (result: PurchaseVerdict) => void): void {

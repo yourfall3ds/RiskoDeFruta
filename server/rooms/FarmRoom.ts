@@ -4,11 +4,16 @@ import { Room, type Client, type StepContext } from 'colyseus';
 import { FarmSimulation, type CollisionData } from '../FarmSimulation';
 import { FarmState, PlayerState, EnemyState, CLASS_IDS, PHASE, enemyStateOrdinal } from '../schema';
 import { NetInput, BUTTON, toFrame } from '../../src/net/NetInput';
+import { HIT_MESSAGE, SHOT_MESSAGE, sanitizeHitClaim, sanitizeShot } from '../../src/net/HitClaim';
 import { MAP_CHOICES, TEST_MAP, TEST_MAP_ID, isTestMap, testMapCollision } from '../../src/world/TestMap';
 import { FARM_MAP } from '../../src/world/FarmMap';
 export { NetInput, BUTTON, toFrame };
 
-export interface FarmRoomOptions { seed?: string; name?: string; roomName?: string; map?: string }
+/**
+ * `loadGate`: este cliente MONTA um mundo depois da largada (o jogo de verdade) e a sala deve
+ * esperar o primeiro movimento dele antes de o mundo andar. Bots e testes não declaram e não seguram.
+ */
+export interface FarmRoomOptions { seed?: string; name?: string; roomName?: string; map?: string; loadGate?: boolean }
 const MAX_PLAYERS = 4;
 const TICK_HZ = 60;          // calibração do FixedLoop/PlayerMotor e dos 203 testes
 const PATCH_HZ = 30;         // estado na rede a 30 Hz; o cliente interpola
@@ -78,6 +83,37 @@ export function loadCollision(root = process.cwd()): CollisionData {
 /** O que a listagem em tempo real mostra de cada sala, antes de alguém entrar nela. */
 export interface FarmRoomMetadata { seed: string; playerCount: number; maxClients: number; hostName: string; phase: number; roomName: string; address: string }
 
+/**
+ * Eventos da simulação que ATRAVESSAM a rede. Os de alta frequência — `DamageDealt`, `EnemyHit`,
+ * `DamageTaken`, `PlayerHit`, `MPCharged`, `BodyBumped` — saíam um por acerto para cada
+ * cliente e nenhum cliente os lia (o que eles anunciam já chega por `hp`/`alive` replicados):
+ * centenas de mensagens por segundo decodificadas para o lixo. Ficam os raros que alguém usa.
+ */
+const RELAYED_EVENTS: ReadonlySet<string> = new Set(['PlayerKilled', 'EnemyKilled', 'SkillUsed', 'MPReleased', 'LevelUp', 'BossSpawned', 'ItemPicked', 'Dodged']);
+
+export interface AuditPlayer {
+  entityId: number; name: string; classId: string; ready: boolean; loading: boolean; hp: number; maxHP: number;
+  x: number; y: number; z: number; grounded: boolean; inputsPerSecond: number; staleSeq: number; starvedPerSecond: number;
+  queue: number; hits: number; ping: number;
+  /** Relato do PC: 'rodando' / 'PARADO por …' / 'sem relato' (robô, ou jogo antigo). */
+  step: string; fps: number; frameMs: number; gpu: string; activeMeshes: number; meshes: number; enemies: number; hidden: boolean; cost: string;
+}
+interface ClientReport { step: string; fps: number; frameMs: number; gpu: string; activeMeshes: number; meshes: number; enemies: number; hidden: boolean; cost: string }
+
+function clientReport(d: (ClientReport & { at: number }) | undefined, now: number): ClientReport {
+  if (!d || now - d.at > 6000) return { step: 'sem relato', fps: 0, frameMs: 0, gpu: '', activeMeshes: 0, meshes: 0, enemies: 0, hidden: false, cost: '' };
+  const { at: _at, ...rest } = d; return rest;
+}
+export interface RoomAudit {
+  roomId: string; seed: string; map: string; phase: string; loading: number; ticksPerSecond: number;
+  enemies: number; enemiesAlive: number; players: AuditPlayer[]; rejectedHits: Record<string, number>;
+}
+
+/** Entradas que podem esperar na fila de um cliente antes de a sala consumir uma extra por tique. */
+const QUEUE_SLACK = 2;
+/** Quanto a sala espera o carregamento de quem ainda não chegou ao mundo. */
+const LOADING_TIMEOUT_MS = 120_000;
+
 export class FarmRoom extends Room<{ state: FarmState; input: NetInput; metadata: FarmRoomMetadata }> {
   maxClients = MAX_PLAYERS;
   inputs = this.defineInput(NetInput, { seqField: 'seq' });
@@ -85,8 +121,75 @@ export class FarmRoom extends Room<{ state: FarmState; input: NetInput; metadata
   /** Instante (ms) da largada; 0 = sem contagem em curso. É o único estado do lobby fora do schema. */
   private startAt = 0;
 
+  /** Salas vivas neste processo — é o que o painel de auditoria (`/painel`) lista. */
+  static readonly live = new Set<FarmRoom>();
+  /** A última fotografia de auditoria desta sala, refeita a cada segundo. */
+  audit: RoomAudit = { roomId: '', seed: '', map: '', phase: 'lobby', loading: 0, ticksPerSecond: 0, enemies: 0, enemiesAlive: 0, players: [], rejectedHits: {} };
+  private auditSteps = 0;
+  /** Último relato de cada PC (ver mensagem `diag`). */
+  private readonly clientDiag = new Map<string, ClientReport & { at: number }>();
+  private auditWall = 0;
+  private auditLogClock = 0;
+
+  /**
+   * AUDITORIA AO VIVO: por segundo, o que cada jogador REALMENTE mandou e o que o servidor fez
+   * com isso. Alimenta `/painel` (visível no navegador) e, a cada 10 s, o log.
+   */
+  private auditTick(): void {
+    this.auditSteps++;
+    const now = Date.now();
+    if (!this.auditWall) this.auditWall = now;
+    const span = (now - this.auditWall) / 1000;
+    if (span < 1) return;
+    const players: AuditPlayer[] = [];
+    for (const client of this.clients) {
+      const p = this.sim.players.get(client.sessionId), st = this.state.players.get(client.sessionId);
+      if (!p || !st) continue;
+      const n = p.netStats, m = p.motor;
+      players.push({
+        entityId: p.entityId, name: st.name, classId: st.classChosen ? CLASS_IDS[st.classId] ?? '?' : '-', ready: !!st.ready,
+        loading: this.loading.has(client.sessionId), hp: Math.round(m.hp), maxHP: Math.round(m.maxHP),
+        x: +m.position.x.toFixed(1), y: +m.position.y.toFixed(1), z: +m.position.z.toFixed(1), grounded: m.grounded,
+        inputsPerSecond: Math.round(n.applied / span), staleSeq: n.staleSeq, starvedPerSecond: Math.round(n.starved / span),
+        queue: this.inputs.get(client.sessionId).size, hits: p.hits, ping: st.ping ?? 0,
+        ...clientReport(this.clientDiag.get(client.sessionId), now),
+      });
+      n.applied = 0; n.staleSeq = 0; n.starved = 0;
+    }
+    let alive = 0; for (const e of this.state.enemies.values()) if (e.alive) alive++;
+    this.audit = {
+      roomId: this.roomId, seed: this.state.seed, map: this.state.settings.get('map') || 'fazenda',
+      phase: this.state.phase === PHASE.playing ? (this.loading.size ? 'carregando' : 'jogando') : (this.startAt ? 'contagem' : 'lobby'),
+      loading: this.loading.size, ticksPerSecond: Math.round(this.auditSteps / span), enemies: this.state.enemies.size, enemiesAlive: alive,
+      players, rejectedHits: Object.fromEntries(this.sim.rejectedHits),
+    };
+    this.sim.rejectedHits.clear();
+    this.auditSteps = 0; this.auditWall = now;
+    if ((this.auditLogClock += span) >= 10 && this.state.phase === PHASE.playing) {
+      this.auditLogClock = 0;
+      for (const pl of players) console.log(`[rede] ${this.roomId} · P${pl.entityId} ${pl.name} (${pl.classId}) · entradas ${pl.inputsPerSecond}/s · sem entrada ${pl.starvedPerSecond}/s · seq velho ${pl.staleSeq} · fila ${pl.queue} · hp ${pl.hp} · pos ${pl.x},${pl.y},${pl.z}`);
+    }
+  }
+  /**
+   * O PORTÃO DE CARREGAMENTO.
+   *
+   * A corrida largava no servidor no fim da contagem — e o mundo da fazenda só começa a ser MONTADO
+   * no cliente nesse instante (quase um minuto de carga). Nesse minuto a horda nascia e batia em
+   * corpos parados: medido no relatório de rede, os dois jogadores chegaram à tela com a vida em 0.
+   * Agora, depois da largada, relógio, horda e dano esperam até cada jogador presente mandar o
+   * primeiro movimento — o sinal de que o passo fixo DELE está rodando, ou seja, que carregou.
+   * Quem já chegou pode andar; quem não chegar em `LOADING_TIMEOUT_MS` não segura a mesa.
+   */
+  private loading = new Set<string>();
+  /** Quem declarou `loadGate` ao entrar. */
+  private readonly loadGated = new Set<string>();
+  private loadingSince = 0;
+
+  onDispose(): void { FarmRoom.live.delete(this); }
+
   async onCreate(options: FarmRoomOptions): Promise<void> {
-    const seed = options.seed?.trim() || `farm-${Date.now().toString(16)}`;
+    FarmRoom.live.add(this);
+    const seed = (typeof options.seed === 'string' ? options.seed.trim() : '') || `farm-${Date.now().toString(16)}`;
     /**
      * O MAPA É DECIDIDO NA CRIAÇÃO, e não muda depois.
      *
@@ -102,6 +205,7 @@ export class FarmRoom extends Room<{ state: FarmState; input: NetInput; metadata
     const map = noLaboratorio ? TEST_MAP_ID : '';
     // Colisão E assentos vêm do MESMO mapa: é o que impede um nascer num mundo e o outro em outro.
     this.sim = new FarmSimulation(seed, noLaboratorio ? testMapCollision() : loadCollision(), noLaboratorio ? TEST_MAP : FARM_MAP);
+    this.sim.lockstep = true; this.sim.clientHits = true; this.sim.trainingTargetsEnabled = true;
     await this.sim.prepare();
     this.state = new FarmState();
     this.state.seed = seed;
@@ -118,6 +222,7 @@ export class FarmRoom extends Room<{ state: FarmState; input: NetInput; metadata
   }
 
   onJoin(client: Client, options?: FarmRoomOptions): void {
+    if (options?.loadGate === true) this.loadGated.add(client.sessionId);
     const snapshot = this.sim.addPlayer(client.sessionId);
     const state = new PlayerState();
     state.id = client.sessionId;
@@ -209,6 +314,35 @@ export class FarmRoom extends Room<{ state: FarmState; input: NetInput; metadata
    * `evaluateStart`, que é o único lugar onde a sala sai do lobby.
    */
   private registerLobbyMessages(): void {
+    /**
+     * COMBATE DE QUEM ATIRA. `hit`: o pedido de acerto, validado e aplicado pela simulação.
+     * `shot`: o aviso visual do disparo, repassado aos OUTROS (quem atirou já desenhou o seu).
+     * Ambos só valem com a corrida em curso — no lobby não há horda nem arma em punho.
+     */
+    // O relato do PC de cada jogador (passo fixo, fps) — só para o painel; nenhuma regra lê isto.
+    this.onMessage('diag', (client: Client, raw: unknown) => {
+      const num = (v: unknown) => typeof v === 'number' && Number.isFinite(v) ? Math.round(v) : 0;
+      const r = raw as Record<string, unknown>;
+      this.clientDiag.set(client.sessionId, {
+        step: typeof r?.['step'] === 'string' ? (r['step'] as string).slice(0, 60) : '?',
+        fps: num(r?.['fps']), frameMs: num(r?.['frameMs']),
+        gpu: typeof r?.['gpu'] === 'string' ? (r['gpu'] as string).slice(0, 60) : '?',
+        activeMeshes: num(r?.['activeMeshes']), meshes: num(r?.['meshes']), enemies: num(r?.['enemies']), hidden: r?.['hidden'] === true,
+        cost: typeof r?.['cost'] === 'string' ? (r['cost'] as string).slice(0, 160) : '',
+        at: Date.now(),
+      });
+    });
+    this.onMessage(HIT_MESSAGE, (client: Client, raw: unknown) => {
+      if (this.state.phase !== PHASE.playing) return;
+      const claim = sanitizeHitClaim(raw);
+      if (claim) this.sim.claimHit(client.sessionId, claim);
+    });
+    this.onMessage(SHOT_MESSAGE, (client: Client, raw: unknown) => {
+      if (this.state.phase !== PHASE.playing) return;
+      const shot = sanitizeShot(raw);
+      const entityId = this.state.players.get(client.sessionId)?.entityId;
+      if (shot && entityId) this.broadcast(SHOT_MESSAGE, { ...shot, entityId }, { except: client });
+    });
     this.onMessage('chooseClass', (client: Client, message: { classId?: unknown }) => {
       const player = this.state.players.get(client.sessionId);
       if (!player || this.state.phase !== PHASE.lobby) return;
@@ -347,6 +481,7 @@ export class FarmRoom extends Room<{ state: FarmState; input: NetInput; metadata
 
     const noLaboratorio = isTestMap(pedido);
     const nova = new FarmSimulation(this.state.seed, noLaboratorio ? testMapCollision() : loadCollision(), noLaboratorio ? TEST_MAP : FARM_MAP);
+    nova.lockstep = true; nova.clientHits = true; nova.trainingTargetsEnabled = true;
     this.rebuilding = true;
     try {
       await nova.prepare();
@@ -385,6 +520,7 @@ export class FarmRoom extends Room<{ state: FarmState; input: NetInput; metadata
   }
 
   private step(ctx: StepContext): void {
+    this.auditTick();
     if (this.state.phase === PHASE.lobby && this.startAt && Date.now() >= this.startAt) {
       this.startAt = 0;
       this.state.phase = PHASE.playing;
@@ -406,6 +542,9 @@ export class FarmRoom extends Room<{ state: FarmState; input: NetInput; metadata
       // servidor é pior.
       this.lock().catch(motivo => console.warn(`[farm] ${this.roomId} · falha ao trancar a sala`, motivo));
       this.broadcast('runStarted', { seed: this.sim.seed });
+      // Portão de carregamento: quem está na sala agora precisa CHEGAR ao mundo antes de ele andar.
+      this.loading = new Set(this.clients.map(c => c.sessionId).filter(id => this.loadGated.has(id)));
+      this.loadingSince = Date.now();
     }
     /**
      * O LOBBY É MENU, E MENU NÃO SIMULA.
@@ -424,14 +563,39 @@ export class FarmRoom extends Room<{ state: FarmState; input: NetInput; metadata
      * minutos atrás. Consumir e descartar é o que mantém a largada limpa.
      */
     const emCurso = this.state.phase === PHASE.playing;
+    /**
+     * Entradas EXTRAS deste tique, por cliente. O cliente manda uma por passo fixo dele; o servidor
+     * consome uma por passo seu. Qualquer engasgo (GC, aba, rede) deixava um acúmulo que NUNCA mais
+     * drenava — a confirmação ficava cada vez mais atrasada e cada correção reexecutava mais passos.
+     * Acima de `QUEUE_SLACK`, a sala aplica uma entrada extra por tique até a fila voltar.
+     */
+    const extras: { id: string; input: NetInput }[] = [];
+    const gated = this.loading.size > 0;
     for (const client of this.clients) {
-      const input = this.inputs.get(client.sessionId).next();   // UM input por cliente por passo
-      if (input && emCurso) this.sim.applyInput(client.sessionId, { frame: toFrame(input), yaw: input.yaw, pitch: input.pitch, seq: input.seq });
+      const buffer = this.inputs.get(client.sessionId);
+      const input = buffer.next();   // UM input por cliente por passo…
+      if (input && emCurso) {
+        this.sim.applyInput(client.sessionId, { frame: toFrame(input), yaw: input.yaw, pitch: input.pitch, seq: input.seq });
+        if (this.loading.delete(client.sessionId) || gated) this.sim.stepPlayerById(client.sessionId, ctx.dt);
+      }
+      if (buffer.size > QUEUE_SLACK) { const extra = buffer.next(); if (extra && emCurso) extras.push({ id: client.sessionId, input: extra }); }   // …mais um quando a fila acumulou
     }
     if (!emCurso) { this.mirror(); return; }
+    if (this.loading.size > 0) {
+      for (const id of [...this.loading]) if (!this.clients.some(c => c.sessionId === id)) this.loading.delete(id);
+      if (this.loading.size > 0 && Date.now() - this.loadingSince < LOADING_TIMEOUT_MS) { this.mirror(); return; }
+      console.log(`[farm] ${this.roomId} · todos carregaram em ${((Date.now() - this.loadingSince) / 1000).toFixed(1)} s${this.loading.size ? ` (sem esperar ${this.loading.size})` : ''} · a corrida anda`);
+      this.loading.clear();
+    } else if (gated) {
+      console.log(`[farm] ${this.roomId} · todos carregaram em ${((Date.now() - this.loadingSince) / 1000).toFixed(1)} s · a corrida anda`);
+    }
     this.sim.step(ctx.dt);
+    for (const { id, input } of extras) {
+      this.sim.applyInput(id, { frame: toFrame(input), yaw: input.yaw, pitch: input.pitch, seq: input.seq });
+      this.sim.stepPlayerById(id, ctx.dt);
+    }
     this.mirror();
-    for (const event of this.sim.drain()) this.broadcast(event.type, event.payload);
+    for (const event of this.sim.drain()) if (RELAYED_EVENTS.has(event.type)) this.broadcast(event.type, event.payload);
   }
 
   /**

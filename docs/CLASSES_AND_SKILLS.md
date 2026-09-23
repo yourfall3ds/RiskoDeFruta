@@ -1,4 +1,4 @@
-# Classes e habilidades — Pistoleiro e Soldado
+# Classes e habilidades — Pistoleiro, Soldado e Marijuano
 
 A expedição passou a começar com uma DECISÃO: qual exterminador vai a campo. A escolha é feita no
 menu principal, antes do `PRESS START`, e vale a expedição inteira.
@@ -7,13 +7,13 @@ menu principal, antes do `PRESS START`, e vale a expedição inteira.
 forma) foram removidas do jogo — do teclado, do quadro de entrada, do painel de arma, do cartão de
 controles e do F1.
 
-| | Pistoleiro (padrão) | Soldado |
-|---|---|---|
-| Arma | Pistolas duplas | PRISM triforme |
-| `Q` nível I (0,6 s) | Leque ricocheteante (25 MP) | **Transformar a PRISM** (grátis) |
-| `Q` nível II (1,4 s) | Barragem com mortal (55 MP) | Habilidade II **da forma** (55 MP) |
-| `Q` nível III (2,6 s) | Tempestade da colheita (100 MP) | Habilidade III **da forma** (100 MP) |
-| Cinemática de habilidade | sim (voz, pose e coreografia autorais) | **não** |
+| | Pistoleiro (padrão) | Soldado | Marijuano |
+|---|---|---|---|
+| Arma | Pistolas duplas | PRISM triforme | Submetralhadora de seda |
+| `Q` nível I (0,6 s) | Leque ricocheteante (25 MP) | **Transformar a PRISM** (grátis) | Rajada de seda (25 MP) |
+| `Q` nível II (1,4 s) | Barragem com mortal (55 MP) | Habilidade II **da forma** (55 MP) | Chuva de buds (55 MP) |
+| `Q` nível III (2,6 s) | Tempestade da colheita (100 MP) | Habilidade III **da forma** (100 MP) | Bafo do cânhamo (100 MP) |
+| Cinemática de habilidade | sim (voz, pose e coreografia autorais) | **não** | **não** |
 
 O Pistoleiro é exatamente o jogo que já existia: nada do combate dele foi tocado.
 
@@ -130,8 +130,44 @@ Guardas de munição que o teste trava:
 - guardar a arma no meio (punhos, morte, viagem) **corta** as emissões restantes. A munição já
   gasta não volta: é o mesmo princípio da recarga cancelada.
 
+## O Marijuano e a submetralhadora de seda
+
+`src/combat/SmgTuning.ts` (os números), `src/combat/SmgRig.ts` (o rig autoral),
+`src/combat/BudShots.ts` (os buds desenhados) e `src/combat/MarijuanoWeapon.ts` (o backend).
+
+A identidade dela é **volume**, não precisão: cadência 11/s, dano 5,5 por bud, carregador de 45 e
+2,63 s de recarga (casados com o clipe `Reload` do GLB). Não perfura, não explode e não tem luneta
+— mirar APERTA o leque (3,2° → 1,6°) em vez de aproximar.
+
+**O projétil é o bud autoral**, `cannabis_bud_projectile.glb` do pacote, e não o rastro genérico.
+Ele é DESENHO: o dano é instantâneo (o mesmo `hitscan` do assalto da PRISM, pela mesma porta
+`CombatServices`). Duas escolhas existem só para ele ser VISTO, e estão escritas na tabela:
+`budSpeed = 70 m/s` (lento para uma bala, legível para um olho) e `budScale = 3,2` (o modelo tem
+7 cm; a 15 m, em terceira pessoa, isso é meio pixel). Nenhuma das duas toca em colisão.
+
+| | Nome | Munição | Efeito |
+|---|---|---|---|
+| I | RAJADA DE SEDA | 10 buds | 10 tiros a 0,05 s, abertura zero, dano ×1,8 |
+| II | CHUVA DE BUDS | 18 buds | 18 tiros a 0,035 s num leque de 24° |
+| III | BAFO DO CÂNHAMO | exige 12 carregados | 6 s de janela: cadência ×2,2, abertura zero, dano ×1,5 |
+
+As três são o MESMO disparo com outros números — nenhuma abre caminho de dano novo. O leque do
+nível II gira em torno da vertical **local**, não do `+Y` do mundo: ele abre na horizontal do
+jogador em qualquer ponto da casca do planeta, como o leque de cápsulas do Soldado.
+
+O nível III segue a convenção da SOBRECARGA DE DISPARO do Soldado: não cobra munição ao abrir,
+cobra em tempo real queimando o carregador, e a recarga continua **permitida** dentro da janela —
+senão a arma morreria no meio do ultimate. Dentro de uma rajada dos níveis I e II, o `R` é
+recusado, porque encher o carregador ali devolveria de graça a munição que a habilidade cobrou.
+
+Etiquetas: o bud comum é `bullet` (ponto fraco e MP por acerto, como a pistola); os das habilidades
+são `bullet, skill` (ponto fraco sim, MP não, dano escalando por `stats.mp`).
+
 ## Degradação
 
+- **Rig da submetralhadora ausente**: o Marijuano joga com as pistolas, com o motivo no F1
+  (`Classe MARIJUANO · SEDA: … · MARIJUANO REBAIXADO ÀS PISTOLAS`). É a mesma regra do Soldado, e
+  pelo mesmo princípio: entrar em campo desarmado nunca é uma opção.
 - **Rig da PRISM ausente**: o Soldado joga com as pistolas e o `Q` dele roteia pelas habilidades de
   pistola. O painel de arma e a barra de carga passam a anunciar *as de pistola* — a promessa da
   tecla acompanha a arma que está na mão, não o nome da classe. O motivo fica no F1
@@ -150,3 +186,9 @@ Guardas de munição que o teste trava:
   limitada, a etiqueta incendiária e todas as recusas.
 - `tests/prism-weapon.test.ts` e `tests/weapon-ads.test.ts` — o painel não promete mais nenhuma
   tecla de troca, em estado nenhum.
+- `tests/marijuano-weapon.test.ts` — o gatilho automático, a munição, a recarga casada com o clipe,
+  a recusa de recarga instantânea, o bud saindo do cano até o ponto REAL do acerto, as três
+  habilidades (emissões, leque simétrico, janela que reescreve o gatilho) e todas as recusas.
+- `scripts/audit-smg-fit.mjs` — conferência HEADLESS do encaixe, pelo mesmo caminho do Babylon que
+  o jogo usa: o gatilho cai **em cima** do `RightWeaponGrip` (0,0000 m) e o cano aponta para a
+  frente do punho (produto escalar 0,991). É o que impede a arma nascer flutuando ou de costas.

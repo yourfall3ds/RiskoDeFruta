@@ -7,14 +7,15 @@
  *   pistolas → aproximação DISCRETA, sem luneta;
  *   assalto  → alça mais fechada, aproximação discreta;
  *   sniper   → LUNETA, com aproximação ajustável na roda do mouse;
- *   granada  → NENHUMA aproximação: só a trajetória prevista e o ponto de queda.
+ *   granada  → NENHUMA aproximação: só a trajetória prevista e o ponto de queda;
+ *   seda     → aproximação discreta; o que mirar compra é o LEQUE apertado, não zoom.
  *
  * A classe guarda o mínimo — se está mirando, com que arma e em que aproximação — e devolve a
  * mesma view que a sobreposição visual (`WeaponAimOverlay`, do dono da interface) e a câmera
  * consomem. Tudo o mais (quando é PERMITIDO mirar) é decisão da cena, que passa `allowed`.
  */
 
-export type AimKind='pistols'|'assault'|'sniper'|'grenade';
+export type AimKind='pistols'|'assault'|'sniper'|'grenade'|'smg';
 
 export interface AimModeTuning {
   /** Aproximação padrão ao entrar na mira. `1` é "nenhuma". */
@@ -42,6 +43,9 @@ export const AIM_MODES:Readonly<Record<AimKind,AimModeTuning>>={
   assault:{zoom:1.32,minZoom:1.32,maxZoom:1.32,wheelStep:1,scope:false,trajectory:false},
   sniper:{zoom:3,minZoom:1.8,maxZoom:8,wheelStep:1.25,scope:true,trajectory:false},
   grenade:{zoom:1,minZoom:1,maxZoom:1,wheelStep:1,scope:false,trajectory:true},
+  // Submetralhadora: aproximação MENOR que a do assalto. Ela é arma de perto e de horda — tirar
+  // campo de visão dela seria cobrar o preço da luneta sem entregar a precisão dela.
+  smg:{zoom:1.22,minZoom:1.22,maxZoom:1.22,wheelStep:1,scope:false,trajectory:false},
 };
 
 /**
@@ -51,7 +55,12 @@ export const AIM_MODES:Readonly<Record<AimKind,AimModeTuning>>={
  * (que anuncia a tecla) precisam da MESMA resposta — anunciar "luneta" com o assalto na mão seria
  * o tipo de mentira que o painel existe para evitar.
  */
-export function aimKindFor(state:{readonly prismReady:boolean;readonly prismEquipped:boolean;readonly prismMode:0|1|2}):AimKind {
+export function aimKindFor(state:{
+  readonly prismReady:boolean;readonly prismEquipped:boolean;readonly prismMode:0|1|2;
+  /** Submetralhadora de seda nas mãos (Marijuano). Ausente nas cenas que só têm as duas primeiras. */
+  readonly smgEquipped?:boolean|undefined;
+}):AimKind {
+  if(state.smgEquipped)return 'smg';
   if(!state.prismReady||!state.prismEquipped)return 'pistols';
   return state.prismMode===0?'assault':state.prismMode===1?'sniper':'grenade';
 }

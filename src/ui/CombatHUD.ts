@@ -160,6 +160,8 @@ export class RunHUD {
   window.addEventListener('keydown',event=>{if(event.code==='Tab'&&!event.repeat&&!this.element.hidden){event.preventDefault();const panel=this.statsPanel.node;panel.hidden=!panel.hidden;}},{signal:this.controls.signal});
 
  }
+ /** Cronômetro por trecho (ver `FrameSections`), ligado pela cena. Diagnóstico. */
+ prof:{mark(name:string):void}|undefined;
  get atlasOpen():boolean{return !this.statsPanel.node.hidden;}
  setVisible(visible:boolean):void {this.element.hidden=!visible;document.getElementById('player-hud')?.classList.toggle('run-active',visible);}
  /** Nós já criados pelos três pools de marcadores. Exposto para o teste de vazamento de DOM. */
@@ -181,7 +183,12 @@ export class RunHUD {
    * Isto é APRESENTAÇÃO — o número aparece e não decide nada; quem decide a compra é o servidor.
    */
   const credits=economy?.adopted?economy.credits:run.credits;
-  if(run.time>=this.lastUpdate&&run.time-this.lastUpdate<UPDATE_PERIOD)return;this.lastUpdate=run.time;
+  // A trava de 0,1 s. Um RECUO pequeno do relógio (online, o servidor corrige o tempo da corrida
+  // para trás por frações de segundo) não é "hora de redesenhar": antes, qualquer recuo abria a
+  // trava e o HUD inteiro era refeito a cada quadro — medido no painel, 15–55 ms por quadro. Recuo
+  // grande é corrida nova e redesenha.
+  const since=run.time-this.lastUpdate;
+  if(since<UPDATE_PERIOD&&since>-1)return;this.lastUpdate=run.time;
   // Sem fiação nova: quem tem a horda já tem o referencial dela. Na fazenda isto é `undefined` e
   // todos os marcadores seguem pelo caminho plano literal.
   this.surface=this.surfaceOverride??swarm.surface;
@@ -190,10 +197,13 @@ export class RunHUD {
   this.objectiveForward.copyFrom(f);
   this.bearing.set(`${['N','NE','L','SE','S','SO','O','NO'][Math.round(heading/45)%8]} · ${Math.round(heading)}°`);
   this.clockPanel.set(`<b>◷ ${String(Math.floor(seconds/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}</b><span>ESTÁGIO ${run.stage} · ${expedition?.objectives.planned?(expedition.objectives.phase==='extract'?'EMBARQUE LIBERADO':expedition.objectives.phase==='boss'?'HORDA FINAL':['NORMAL','CRESCENTE','DIFÍCIL','CAÓTICA','EXTREMA'][Math.min(4,swarm.director.state)]):['NORMAL','CRESCENTE','DIFÍCIL','CAÓTICA','PRAGA ALFA','FENDA'][swarm.director.state]}</span><strong>◈ ${credits} CRÉDITOS</strong><em class="run-weather">${expedition?.weather?.label??''}</em>`);
+  this.prof?.mark('hud:inventário+relógio');
   this.renderExpedition(expedition,heading);
+  this.prof?.mark('hud:expedição');
   this.mission.set(expedition?.journey?.active?`${expedition.journey.label} · ${expedition.journey.destination}`
    :expedition?.objectives.planned?this.expeditionMission(expedition.objectives,expedition.player,heading):swarm.director.hordeMode?(swarm.director.intermission>0?'PRÓXIMA HORDA EM '+Math.ceil(swarm.director.intermission)+' s':swarm.director.wave%5===0?'ELIMINE O CHEFE E SUA HORDA':'SOBREVIVA À HORDA '+swarm.director.wave):swarm.bossDeadTime>=5?'ENTRE NA FENDA · CELEIRO':swarm.bossDeadTime>=0?'PRAGA ALFA DERROTADA':swarm.boss?'ELIMINE A PRAGA ALFA':['LOCALIZE A PRAGA ALFA','CONTENHA A INFESTAÇÃO','SOBREVIVA AO SURTO','RESISTA À COLHEITA FINAL','A PRAGA ALFA SE APROXIMA'][swarm.director.state]??'');
 
+  this.prof?.mark('hud:missão');
   const radial=radialSurfaceOf(this.surface);
   const nearChest=(interact?.entries??[]).filter(e=>!e.used&&e.kind!=='altar').map(e=>({entry:e,d:radial?radial.planarDistance(camera.position,e):Math.hypot(e.x-camera.position.x,e.z-camera.position.z)})).sort((a,b)=>a.d-b.d)[0];
   const delta=nearChest?new Vector3(nearChest.entry.x-camera.position.x,nearChest.entry.y-camera.position.y,nearChest.entry.z-camera.position.z):Vector3.Zero();
@@ -209,6 +219,7 @@ export class RunHUD {
   const bonus=contract?`<small>${contract.contract.name}: ${contract.opened}/${contract.required} baús → item bônus.</small>`:'';
   this.contract.set(!interact?'':'<small>FIQUE MAIS FORTE</small><b>Abata → ganhe créditos → abra baús</b>'+(nearChest?`<span>${lootArrow} BAÚ · ${Math.round(nearChest.d)} m · ${nearChest.entry.cost} créditos</span><small>${credits>=nearChest.entry.cost?'Você pode abrir este baú. Aproxime-se e aperte [E].':`Faltam ${nearChest.entry.cost-credits} créditos: derrote mais frutas.`} Depois, [E] recolhe o item.</small>`:'<span>Baús esgotados: procure o cálice para avançar.</span>')+'<small>Explore as pontes → encontre e ative o cálice → encha de suco e derrote o chefe → [E] embarque.</small>'+bonus+rewardHint);
 
+  this.prof?.mark('hud:contrato de baús');
   text(this.xpText,`NV. ${run.level} · ${run.xp} / ${run.nextLevelXP} XP`);css(this.xpFill,'width',pct(run.xp/run.nextLevelXP*100));
   this.hostiles.set(`<span>ONDA ${swarm.director.hordeMode?swarm.director.wave:Math.floor(swarm.director.time/36)+1}</span><b>${swarm.count} / ${swarm.populationCap}</b><small>${swarm.kills} abatidos · ${swarm.director.hordeMode?(swarm.director.intermission>0?(swarm.director.completedWaves>0?'RECOLHA O ITEM · PREPARE-SE':'PREPARE-SE'):Math.max(0,swarm.director.waveQuota-swarm.director.spawned)+' por nascer'):(swarm.director.time%36>27?'REAGRUPE-SE':'HORDA ATIVA')}</small>`);
   shown(this.bossBox,Boolean(swarm.boss)&&swarm.bossHP>0);css(this.bossFill,'width',pct(swarm.bossHP/swarm.bossMaxHP*100));text(this.bossText,`${Math.ceil(swarm.bossHP)} / ${swarm.bossMaxHP}`);
@@ -222,7 +233,9 @@ export class RunHUD {
    :boarding?'<b>[E] RECOLHER O SUCO · EMBARCAR</b><span>A nave leva a expedição para outro bioma. Itens, nível e XP seguem com você; os créditos restantes viram XP.</span>'
    :totem?`<b>[E] ATIVAR CÁLICE · INICIAR HORDA FINAL</b><span>A Praga Alfa virá. Colete ${totem.site.juiceTarget} unidades de suco e derrote o chefe. Explore e melhore o equipamento antes: o reforço da horda acompanha o seu nível.</span>`:loot?`<b><i class="item-icon" style='${perkIcon(loot.item.icon)}'></i>${loot.item.name}</b><span>${loot.item.description}</span><span>[E] Recolher item</span>`:entry?`<b>${entry.name} · ◈ ${entry.cost}</b><span>[E] ${entry.kind==='altar'?'Oferecer créditos · 58% de chance':'Abrir · item aleatório'}</span>`:'');
   this.toast.set(interact&&interact.messageTime>0?interact.message:'');
+  this.prof?.mark('hud:horda+interação');
   this.renderStats(run,Boolean(expedition?.objectives.planned),swarm.director.hordeMode);
+  this.prof?.mark('hud:atributos');
   const engine=camera.getEngine(),width=engine.getRenderWidth(),height=engine.getRenderHeight(),viewport=camera.viewport.toGlobal(width,height),transform=camera.getTransformationMatrix();
   const project=(x:number,y:number,z:number):boolean=>{
    Vector3.ProjectToRef(this.world.set(x,y,z),IDENTITY,transform,viewport,this.screen);
@@ -242,6 +255,7 @@ export class RunHUD {
    text(marker.root,`${l.amount}${l.weak?'✦':l.crit?'!':''}`);
   }
   this.damage.end();
+  this.prof?.mark('hud:números de dano');
   const near=this.selectNearby(swarm,camera);
   this.bars.begin();
   for(let i=0;i<near;i++){
@@ -255,6 +269,7 @@ export class RunHUD {
    attr(marker.root,'aria-label',`${ENEMIES[a.kind].name} ${ENEMY_AFFIXES[a.variant].label}: ${Math.ceil(a.health.current)} de ${a.health.maximum} de vida`);
   }
   this.bars.end();
+  this.prof?.mark('hud:barras de vida');
   this.supplies.begin();
   for(const e of interact?.entries??[]){
    if(e.used)continue;
@@ -268,6 +283,7 @@ export class RunHUD {
    text(marker.cost,`${e.kind==='altar'?'ALTAR':'BAÚ'} · ${e.cost} ◈`);
   }
   this.supplies.end();
+  this.prof?.mark('hud:marcadores de baú');
  }
  /** `p` deslocado `height` metros na vertical LOCAL. Sem superfície é o `+Y` de sempre. */
  private lift(p:{x:number;y:number;z:number},height:number,out:Vector3):Vector3 {

@@ -7,7 +7,10 @@
  *   Pistoleiro → pistolas duplas, com as três habilidades autorais de sempre (leque, barragem e
  *                tempestade), com voz, coreografia e clipe próprios;
  *   Soldado    → PRISM triforme, com `Q` nível I transformando a arma e os níveis II e III sendo
- *                habilidades PRÓPRIAS DE CADA FORMA (ver `src/combat/PrismSkills.ts`).
+ *                habilidades PRÓPRIAS DE CADA FORMA (ver `src/combat/PrismSkills.ts`);
+ *   Marijuano  → submetralhadora de seda cuspindo buds, com as três habilidades sendo variações
+ *                do MESMO disparo (ver `src/combat/SmgTuning.ts`) — volume de fogo, não
+ *                coreografia.
  *
  * **Não existe troca de arma dentro de uma tentativa.** A escolha é feita no menu e vale a
  * expedição inteira — estágio após estágio e também depois de um RENASCER. Voltar ao menu (e só
@@ -15,7 +18,7 @@
  * sobrevive aos estágios e às repetições, e o menu é o único lugar em que a decisão pode mudar.
  */
 
-export type PlayerClassId = 'gunslinger' | 'soldier';
+export type PlayerClassId = 'gunslinger' | 'soldier' | 'marijuano';
 
 /** Pedido explícito: quem não escolhe nada entra de Pistoleiro. */
 export const DEFAULT_PLAYER_CLASS: PlayerClassId = 'gunslinger';
@@ -27,7 +30,7 @@ export interface PlayerClassDefinition {
   /** Linha curta de identidade, no cartão de seleção. */
   readonly role: string;
   /** A arma que nasce nas mãos. Nunca muda durante a tentativa. */
-  readonly weapon: 'pistols' | 'prism';
+  readonly weapon: 'pistols' | 'prism' | 'smg';
   /** Parágrafo do cartão: o que muda em JOGO ao escolher esta classe. */
   readonly summary: string;
   /** O que o `Q` faz, por nível. Índice 0 = nível I. */
@@ -59,13 +62,24 @@ export const PLAYER_CLASSES: Readonly<Record<PlayerClassId, PlayerClassDefinitio
     charge: ['TRANSFORMAR · GRÁTIS', 'HABILIDADE II DA FORMA', 'HABILIDADE III DA FORMA'],
     freeFirstTier: true,
   },
+  marijuano: {
+    id: 'marijuano',
+    name: 'MARIJUANO',
+    role: 'Submetralhadora de seda · volume de fogo',
+    weapon: 'smg',
+    summary: 'Uma submetralhadora de papel de seda que cospe buds: cadência altíssima, dano baixo '
+      + 'por acerto e carregador de 45. As três do Q são a MESMA arma em outra intensidade — '
+      + 'rajada certeira, leque largo e uma janela de seis segundos em que ela dobra de cadência.',
+    charge: ['RAJADA DE SEDA', 'CHUVA DE BUDS', 'BAFO DO CANHAMO'],
+    freeFirstTier: false,
+  },
 };
 
 /** Ordem de apresentação no menu. O padrão vem primeiro. */
-export const PLAYER_CLASS_ORDER: readonly PlayerClassId[] = ['gunslinger', 'soldier'];
+export const PLAYER_CLASS_ORDER: readonly PlayerClassId[] = ['gunslinger', 'soldier', 'marijuano'];
 
 export function isPlayerClass(value: unknown): value is PlayerClassId {
-  return value === 'gunslinger' || value === 'soldier';
+  return value === 'gunslinger' || value === 'soldier' || value === 'marijuano';
 }
 
 /** Qualquer entrada suja (armazenamento corrompido, URL inventada) cai no padrão. */

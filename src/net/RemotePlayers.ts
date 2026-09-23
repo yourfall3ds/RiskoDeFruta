@@ -1,3 +1,6 @@
+import { Vector3 } from '@babylonjs/core/Maths/math.vector';
+import type { CombatEffects } from '../combat/CombatServices';
+import type { RelayedShot } from './HitClaim';
 import type { Scene } from '@babylonjs/core/scene';
 import type { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
 import { CharacterVisual } from '../animation/CharacterVisual';
@@ -7,9 +10,16 @@ import type { EventBus } from '../core/EventBus';
 import type { GameEvents } from '../core/contracts';
 import type { RemoteSample } from './NetworkClient';
 import { SKILL_CUES } from '../combat/SkillTimeline';
+import { CLASS_IDS } from '../../server/schema';
+import type { PlayerClassId } from '../run/PlayerClass';
+import { RemoteArms, remoteWeaponFor } from './RemoteArms';
 
 interface Remote {
   motor: PlayerMotor; visual: CharacterVisual; seen: number;
+  /** Quem é este remoto no `PlayerState` — é por ele que os disparos repassados são endereçados. */
+  entityId: number;
+  /** A arma na mão dele, escolhida pela classe replicada. Refeita se a classe mudar. */
+  arms: RemoteArms;
   /** Munição do quadro anterior: é a QUEDA dela que denuncia um tiro que não vi acontecer. */
   ammo: number;
   /** Relógio local da recarga, e o lado do próximo coice. Ver `update`. */
@@ -38,6 +48,26 @@ export class RemotePlayers {
 
   get count(): number { return this.remotes.size; }
 
+  /** O pool de efeitos da cena, para o rastro dos tiros dos outros. Ligado pela cena. */
+  effects: CombatEffects | undefined;
+
+  /**
+   * UM DISPARO DE OUTRO JOGADOR, como o servidor repassou: a arma dele anima e dispara, e o rastro
+   * vai do cano ao ponto que ELE mirou. É o que faltava para "ver os tiros" do companheiro — antes o
+   * tiro dele era inferido da queda da munição de pistola do servidor, para qualquer classe.
+   */
+  shot(s: RelayedShot): void {
+    for (const remote of this.remotes.values()) {
+      if (remote.entityId !== s.entityId) continue;
+      remote.arms.fire(remote.fireSide); remote.fireSide = remote.fireSide === 0 ? 1 : 0;
+      const from = new Vector3(s.from.x, s.from.y, s.from.z), to = new Vector3(s.to.x, s.to.y, s.to.z);
+      this.effects?.muzzle(from);
+      if (s.weapon === 'prism' && s.mode === 1) this.effects?.piercer(from, to);
+      else this.effects?.tracer(from, to);
+      return;
+    }
+  }
+
   update(samples: RemoteSample[], dt: number): void {
     this.frame++;
     for (const sample of samples) {
@@ -47,22 +77,26 @@ export class RemotePlayers {
         const motor = new PlayerMotor(this.collision, this.events, { x: sample.x, y: sample.y, z: sample.z });
         const visual = new CharacterVisual(this.scene, () => { for (const mesh of visual.meshes) this.shadows.addShadowCaster(mesh, false); });
         void visual.load();
-        remote = { motor, visual, seen: this.frame, ammo: sample.state.ammo, reloadClock: 0, fireSide: 0 };
+        const arms = new RemoteArms(this.scene, visual, remoteWeaponFor(classOf(sample.state)));
+        remote = { motor, visual, arms, entityId: sample.state.entityId, seen: this.frame, ammo: sample.state.ammo, reloadClock: 0, fireSide: 0 };
         this.remotes.set(id, remote);
       }
+      const weapon = remoteWeaponFor(classOf(sample.state));
+      if (remote.arms.weapon !== weapon) { remote.arms.dispose(); remote.arms = new RemoteArms(this.scene, remote.visual, weapon); }
       remote.seen = this.frame;
       const m = remote.motor, s = sample.state;
       Object.assign(m.previous, m.position);
       m.position.x = sample.x; m.position.y = sample.y; m.position.z = sample.z;
       if (dt > 0) { m.velocity.x = (m.position.x - m.previous.x) / dt; m.velocity.y = (m.position.y - m.previous.y) / dt; m.velocity.z = (m.position.z - m.previous.z) / dt; }
       m.yaw = sample.yaw; m.grounded = s.grounded; m.sprinting = s.sprinting; m.dodgeRemaining = s.dodgeRemaining; m.hp = s.hp; m.maxHP = s.maxHP;
-      applyCombatPose(remote, s, dt);
+      const reloadProgress = applyCombatPose(remote, s, dt);
       remote.visual.update(m, 1, dt, false);
+      remote.arms.update(dt, reloadProgress);
     }
-    for (const [id, remote] of this.remotes) if (remote.seen !== this.frame) { remote.visual.dispose(); this.remotes.delete(id); }
+    for (const [id, remote] of this.remotes) if (remote.seen !== this.frame) { remote.arms.dispose(); remote.visual.dispose(); this.remotes.delete(id); }
   }
 
-  dispose(): void { for (const remote of this.remotes.values()) remote.visual.dispose(); this.remotes.clear(); }
+  dispose(): void { for (const remote of this.remotes.values()) { remote.arms.dispose(); remote.visual.dispose(); } this.remotes.clear(); }
 
   /**
    * A velocidade DERIVADA de um remoto, e a pose de habilidade DELE.
@@ -136,11 +170,16 @@ export function remoteCombatPose(
   };
 }
 
-function applyCombatPose(remote: Remote, s: RemoteSample['state'], dt: number): void {
+/** A classe replicada, ou nenhuma antes da escolha. */
+function classOf(s: RemoteSample['state']): PlayerClassId | undefined {
+  return s.classChosen ? CLASS_IDS[s.classId] as PlayerClassId | undefined : undefined;
+}
+
+function applyCombatPose(remote: Remote, s: RemoteSample['state'], dt: number): number {
   const pose = remoteCombatPose(remote, s, dt);
   remote.visual.skillPerformance = pose.skill;
   remote.visual.reloadProgress = pose.reloadProgress;
-  if (pose.fired) { remote.visual.fire(remote.fireSide); remote.fireSide = remote.fireSide === 0 ? 1 : 0; }
   remote.reloadClock = pose.reloadClock;
   remote.ammo = s.ammo;
+  return pose.reloadProgress;
 }

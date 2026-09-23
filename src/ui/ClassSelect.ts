@@ -68,10 +68,25 @@ const ART: Readonly<Record<PlayerClassId, ClassArt>> = {
       {name: 'MIRA APURADA', text: 'Botão direito · Luneta com zoom na roda. Reduz dispersão.', icon: '/ui/select/skill-scope.png'},
     ],
   },
+  marijuano: {
+    // O busto sai do MESMO `gunslinger.glb` das outras duas (o jogo tem um modelo de jogador); o
+    // que diferencia é o emblema da arma, e esse é renderizado do `paper-smg.glb` de verdade.
+    bust: '/ui/select/bust-marijuano.png',
+    weaponIcon: '/ui/select/weapon-smg.png',
+    weaponName: 'SUBMETRALHADORA DE SEDA',
+    // Os ícones das habilidades são EMPRESTADOS do pistoleiro por ora — a forma bate (rajada,
+    // leque, janela), mas não são arte própria desta classe. Trocar é render novo, não código.
+    skills: [
+      {name: 'RAJADA DE SEDA', text: 'MP I · 10 buds a queima-roupa, abertura zero e dano ×1,8.', icon: '/ui/select/skill-barrage.png'},
+      {name: 'CHUVA DE BUDS', text: 'MP II · 18 buds num leque de 24° — cobre um corredor inteiro.', icon: '/ui/select/skill-fan.png'},
+      {name: 'BAFO DO CANHAMO', text: 'MP III · 6 s de cadência ×2,2, abertura zero e dano ×1,5.', icon: '/ui/select/skill-storm.png'},
+      {name: 'COMBATE DESARMADO', text: 'V · Combo corpo a corpo. Não gasta munição.', icon: '/ui/select/skill-fist.png'},
+    ],
+  },
 };
 
 /** Vagas ainda não preenchidas. Existem para a grade já mostrar que o elenco vai crescer. */
-const LOCKED_SLOTS = 4;
+const LOCKED_SLOTS = 3;
 
 export class ClassSelect {
   readonly element = document.createElement('section');

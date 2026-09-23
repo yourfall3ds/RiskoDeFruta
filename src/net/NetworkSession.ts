@@ -1,9 +1,10 @@
+import type { HitClaim, ShotFx } from './HitClaim';
 import type { Scene } from '@babylonjs/core/scene';
 import type { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
 import type { CollisionWorld } from '../physics/CollisionWorld';
 import type { EventBus } from '../core/EventBus';
 import type { GameEvents } from '../core/contracts';
-import type { PlayerMotor } from '../player/PlayerMotor';
+import type { MotorState, PlayerMotor } from '../player/PlayerMotor';
 import type { InputFrame } from '../input/InputFrame';
 import { NetworkClient, type PurchaseVerdict } from './NetworkClient';
 import type { EconomyRow, PurchaseChannel } from '../run/RunEconomy';
@@ -24,7 +25,7 @@ export class NetworkSession {
   readonly client: NetworkClient;
   readonly remotes: RemotePlayers;
   readonly reconciliation = new Reconciliation(.12, 240);
-  private readonly frames = new Map<number, { frame: InputFrame; yaw: number }>();
+  private readonly frames = new Map<number, { frame: InputFrame; yaw: number; state: MotorState }>();
   private lastAckedSeq = 0;
   replays = 0;
   status = 'conectando';
@@ -69,16 +70,43 @@ export class NetworkSession {
     this.client = adopted ?? new NetworkClient(url, seed, playerName, roomName);
     this.ownsClient = !adopted;
     this.remotes = new RemotePlayers(scene, collision, shadows, events);
+    /**
+     * O RELATO DESTE PC ao painel, a cada 2 s, por temporizador próprio — e não pelo quadro: se a
+     * cena estiver parada, é exatamente aí que o relato mais importa. `diagSource` é ligado pela
+     * cena (o motivo do passo parado); o fps vem do motor.
+     */
+    const engine = scene.getEngine();
+    let gpu = '';
+    try { gpu = String((engine as unknown as { getGlInfo(): { renderer: string } }).getGlInfo().renderer).replace(/^ANGLE \(/, '').replace(/ Direct3D.*$/, '').slice(0, 60); } catch { gpu = '?'; }
+    this.diagTimer = setInterval(() => {
+      if (!this.online) return;
+      const step = this.diagSource?.() ?? '';
+      const fps = engine.getFps();
+      this.client.sendDiag({
+        step: step ? 'PARADO por ' + step : 'rodando', fps: Number.isFinite(fps) ? Math.round(fps) : 0, frameMs: Math.round(engine.getDeltaTime()),
+        gpu, activeMeshes: scene.getActiveMeshes().length, meshes: scene.meshes.length, enemies: this.client.enemyCount,
+        // Aba em segundo plano: o navegador segura o quadro, e o fps baixo NÃO é peso do jogo.
+        hidden: typeof document !== 'undefined' && document.hidden,
+        cost: this.costSource?.() ?? '',
+      });
+    }, 2000);
     const ready = (): void => {
       this.status = 'online';
       // A assinatura só pode existir depois da sala; até lá os vereditos ainda não têm por onde vir.
       this.client.onPurchaseResolved(result => { for (const listener of this.purchaseListeners) listener(result); });
+      this.client.onShot(shot => this.remotes.shot(shot));
     };
     // A sala adotada já está conectada: não há o que esperar, e esperar deixaria a cena sem
     // vereditos de compra até o próximo evento que nunca viria.
     if (adopted) ready();
     else void this.client.connect().then(ready).catch(() => { this.status = 'falha: ' + this.client.error; });
   }
+
+  /** O motivo de o passo fixo estar parado (vazio = rodando). Ligado pela cena. */
+  diagSource: (() => string) | undefined;
+  /** Os trechos mais caros do quadro (ver `FrameSections`). Ligado pela cena. */
+  costSource: (() => string) | undefined;
+  private readonly diagTimer: ReturnType<typeof setInterval>;
 
   get online(): boolean { return this.client.connected; }
 
@@ -90,7 +118,7 @@ export class NetworkSession {
     if (!this.online) return;
     const seq = this.client.send(frame, yaw, pitch);
     if (!seq) return;
-    this.frames.set(seq, { frame, yaw });
+    this.frames.set(seq, { frame, yaw, state: motor.captureState() });
     this.reconciliation.record(seq, pose(motor));
     for (const key of this.frames.keys()) { if (this.frames.size <= 240) break; this.frames.delete(key); }
   }
@@ -100,18 +128,26 @@ export class NetworkSession {
     const me = this.client.me;
     if (!me || me.seq <= this.lastAckedSeq) return;
     this.lastAckedSeq = me.seq;
+    const acked = this.frames.get(me.seq);
     const result = this.reconciliation.ack(me.seq, { x: me.x, y: me.y, z: me.z, vx: 0, vy: 0, vz: 0 }, server => {
+      // Primeiro o estado previsto NAQUELE seq (velocidade, chão, coyote…), depois a posição do
+      // servidor por cima: a reexecução parte do mesmo ponto em que o servidor estava.
+      if (acked) motor.restoreState(acked.state);
       motor.position.x = server.x; motor.position.y = server.y; motor.position.z = server.z;
       Object.assign(motor.previous, motor.position);
     });
     if (!result.corrected) return;
-    for (const seq of result.pending) {
-      const replay = this.frames.get(seq);
-      if (!replay) continue;
-      motor.fixedUpdate(dt, replay.frame, replay.yaw);
-      this.reconciliation.record(seq, pose(motor));
-      this.replays++;
-    }
+    motor.replaying = true;
+    try {
+      for (const seq of result.pending) {
+        const replay = this.frames.get(seq);
+        if (!replay) continue;
+        motor.fixedUpdate(dt, replay.frame, replay.yaw);
+        replay.state = motor.captureState();
+        this.reconciliation.record(seq, pose(motor));
+        this.replays++;
+      }
+    } finally { motor.replaying = false; }
     for (const seq of [...this.frames.keys()]) if (seq <= me.seq) this.frames.delete(seq);
   }
 
@@ -152,6 +188,13 @@ export class NetworkSession {
   /** Manda o soco. Sem conferir espelho nenhum antes — a recusa é do servidor (§20.22). */
   melee(requestId: string): void { if (this.online) this.client.melee(requestId); }
 
+  /** Pedidos de acerto enviados. Diagnóstico do F1. */
+  hitClaims = 0;
+  /** O acerto que a arma local viu, virando pedido ao servidor. */
+  claimHit(claim: HitClaim): void { if (!this.online) return; this.hitClaims++; this.client.sendHit(claim); }
+  /** O disparo local, para os outros verem. */
+  shot(fx: ShotFx): void { if (this.online) this.client.sendShot(fx); }
+
   /** Por frame de render: interpola e apresenta os remotos. */
   render(dt: number): void {
     if (!this.online) return;
@@ -162,10 +205,11 @@ export class NetworkSession {
     const c = this.client, r = this.reconciliation;
     return `Rede ${this.status} · sala ${c.roomId || '-'} · sessão ${c.sessionId || '-'} · jogadores ${c.playerCount} · remotos ${this.remotes.count}\n`
       + `RTT ${c.rttMs.toFixed(0)} ms · jitter ${c.jitterMs.toFixed(0)} ms · seq ${c.lastSentSeq} · confirmado ${r.lastAcked} · pendentes ${r.pendingCount}\n`
-      + `Correções ${r.corrections} · último erro ${r.lastError.toFixed(3)} m · replays ${this.replays}\n`;
+      + `Correções ${r.corrections} · último erro ${r.lastError.toFixed(3)} m · replays ${this.replays} · acertos pedidos ${this.hitClaims}\n`;
   }
 
   dispose(): void {
+    clearInterval(this.diagTimer);
     this.remotes.dispose();
     // A sala adotada NÃO é descartada aqui: ela é do menu (`RoomSession`) e precisa sobreviver à
     // troca de cena — descartá-la derrubaria o jogador de uma sala em que ele tem vaga.
