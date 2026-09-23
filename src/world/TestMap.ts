@@ -112,6 +112,11 @@ export const TEST_MAP: MapDefinition = {
   displayName: TEST_MAP_NAME,
   playerSpawns: TEST_MAP_PLAYER_SPAWNS,
   enemySpawns: TEST_MAP_ENEMY_SPAWNS,
+  // Sem horda e sem baús: o que se prova aqui é mecanismo de rede. O inimigo do laboratório é o
+  // corpo de teste passivo, e o baú de teste entra como item próprio do mapa quando a fase chegar.
+  horde: false,
+  chests: false,
+  ferry: false,
 };
 
 /** `true` quando o valor guardado na sala pede o mapa de teste. Um só lugar decide isso. */

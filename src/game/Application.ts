@@ -1,4 +1,5 @@
 import { FixedLoop } from '../core/FixedLoop';
+import { FrameGuard } from '../core/FrameGuard';
 import { createSeed } from '../core/RunRNG';
 import { seedPolicy, type SeedPolicy } from '../run/AttemptSeed';
 import { coopHref } from '../net/OnlineIntent';
@@ -31,6 +32,14 @@ export class Application {
   private readonly settings=new Map<string,number>();
   private disposed = false;
   private readonly visibility = (): void => this.loop.suspend();
+  /**
+   * O laço do Babylon não sobrevive a uma exceção: ela pula o pedido do próximo quadro, e o jogo
+   * congela no último desenho sem aviso. Ver `FrameGuard`.
+   */
+  private readonly frames = new FrameGuard({
+    first: (failure, error) => logger('app').erro('quadro abandonado: o laço de desenho segue', {erro: failure.signature, pilha: failure.stack, causa: error}),
+    repeated: (failure, since) => logger('app').erro('o mesmo erro de quadro se repetiu', {erro: failure.signature, vezes: since, total: failure.count}),
+  });
 
   constructor(canvas: HTMLCanvasElement) {
     this.session = createEngine(canvas);
@@ -61,37 +70,43 @@ export class Application {
      * ser usado também quando a resposta a "que mundo é este?" muda. Ver `net/Relaunch`.
      */
     setRelaunchHandler(reason => this.relaunch(reason));
+    if (new URL(location.href).searchParams.has('debug')) (window as unknown as {__rdfFrames?: unknown}).__rdfFrames = () => this.frames.snapshot();
     this.session.engine.runRenderLoop(() => {
       if (document.hidden) return;
-      this.simulationMs=0;this.presentationMs=0;
-      if (this.foundation.isPaused) { this.loop.suspend(); this.renderMeasured(1); }
-      else this.loop.frame(performance.now() / 1000);
-      this.timingFrames++;this.timingSimulation+=this.simulationMs;this.timingPresentation+=this.presentationMs;
-      const measuredAt=performance.now();
-      // Telemetria agregada: o que acontece por quadro virou contador, e o contador é publicado a
-      // cada N segundos. Uma linha por quadro seria a enchente que o pedido proíbe.
-      log.flush(measuredAt,undefined,'telemetria-cliente');
-      if(measuredAt-this.timingSince>=500){
-        this.timingAverage={simulation:this.timingSimulation/this.timingFrames,presentation:this.timingPresentation/this.timingFrames};
-        this.timingFrames=0;this.timingSimulation=0;this.timingPresentation=0;this.timingSince=measuredAt;
-      }
-      // A cena pode sortear uma semente nova sozinha ao repetir depois da derrota, sem passar por
-      // `restart` (os assets ficam de pé). A URL e o overlay têm de mostrar a semente REAL em vigor,
-      // senão o QA reportaria a semente errada.
-      this.adoptSeed((this.foundation as {runSeed?: string}).runSeed);
-      this.debug.update(this.session.engine.getDeltaTime() / 1000, () => {
-        const f = this.foundation;
-        return {
-          paused: f.isPaused, backend: this.session.backend,renderer:this.session.renderer,gpuMs:this.session.gpuMs(), seed: this.seed, tick: this.loop.tick,
-          droppedSeconds: this.loop.droppedSeconds, steps: this.loop.stepsLastFrame,
-          simulationMs:this.timingAverage.simulation,presentationMs:this.timingAverage.presentation,
-          fps: this.session.engine.getFps(), frameMs: f.instrumentation.frameTimeCounter.lastSecAverage,
-          drawCalls: f.instrumentation.drawCallsCounter.current, activeMeshes: f.scene.getActiveMeshes().length,
-          triangles: f.scene.getActiveMeshes().data.slice(0, f.scene.getActiveMeshes().length)
-            .reduce((count, mesh) => count + (mesh.getClassName() === 'LinesMesh' ? 0 : Math.floor(((f.scene.activeCamera?mesh.getLOD(f.scene.activeCamera):mesh)?.getTotalIndices()??0) / 3)), 0),
-          ...f.getDebug(),
-        };
-      });
+      // Um quadro que lança é abandonado e registrado com a pilha; o laço segue. O relógio fixo
+      // recomeça do zero para o quadro abandonado não voltar como uma rajada de passos atrasados.
+      if (!this.frames.run(() => this.frame())) this.loop.suspend();
+    });
+  }
+  private frame(): void {
+    this.simulationMs=0;this.presentationMs=0;
+    if (this.foundation.isPaused) { this.loop.suspend(); this.renderMeasured(1); }
+    else this.loop.frame(performance.now() / 1000);
+    this.timingFrames++;this.timingSimulation+=this.simulationMs;this.timingPresentation+=this.presentationMs;
+    const measuredAt=performance.now();
+    // Telemetria agregada: o que acontece por quadro virou contador, e o contador é publicado a
+    // cada N segundos. Uma linha por quadro seria a enchente que o pedido proíbe.
+    log.flush(measuredAt,undefined,'telemetria-cliente');
+    if(measuredAt-this.timingSince>=500){
+      this.timingAverage={simulation:this.timingSimulation/this.timingFrames,presentation:this.timingPresentation/this.timingFrames};
+      this.timingFrames=0;this.timingSimulation=0;this.timingPresentation=0;this.timingSince=measuredAt;
+    }
+    // A cena pode sortear uma semente nova sozinha ao repetir depois da derrota, sem passar por
+    // `restart` (os assets ficam de pé). A URL e o overlay têm de mostrar a semente REAL em vigor,
+    // senão o QA reportaria a semente errada.
+    this.adoptSeed((this.foundation as {runSeed?: string}).runSeed);
+    this.debug.update(this.session.engine.getDeltaTime() / 1000, () => {
+      const f = this.foundation;
+      return {
+        paused: f.isPaused, backend: this.session.backend,renderer:this.session.renderer,gpuMs:this.session.gpuMs(), seed: this.seed, tick: this.loop.tick,
+        droppedSeconds: this.loop.droppedSeconds, steps: this.loop.stepsLastFrame,
+        simulationMs:this.timingAverage.simulation,presentationMs:this.timingAverage.presentation,
+        fps: this.session.engine.getFps(), frameMs: f.instrumentation.frameTimeCounter.lastSecAverage,
+        drawCalls: f.instrumentation.drawCallsCounter.current, activeMeshes: f.scene.getActiveMeshes().length,
+        triangles: f.scene.getActiveMeshes().data.slice(0, f.scene.getActiveMeshes().length)
+          .reduce((count, mesh) => count + (mesh.getClassName() === 'LinesMesh' ? 0 : Math.floor(((f.scene.activeCamera?mesh.getLOD(f.scene.activeCamera):mesh)?.getTotalIndices()??0) / 3)), 0),
+        ...f.getDebug(),
+      };
     });
   }
   private renderMeasured(alpha:number):void {

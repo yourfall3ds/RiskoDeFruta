@@ -41,6 +41,22 @@ export interface MapDefinition {
   readonly playerSpawns: readonly SpawnPoint[];
   /** Onde um corpo de teste nasce, quando o mapa oferece isso. Só o laboratório usa. */
   readonly enemySpawns?: readonly SpawnPoint[];
+  /**
+   * O diretor nasce inimigos sozinho. `false` no laboratório: lá o único inimigo é o corpo de teste
+   * que o mapa põe, e uma horda caçando os jogadores transforma cada teste de movimento em teste de
+   * sobrevivência. Foi o que a primeira corrida no Test Map mostrou: o jogador nasceu no assento, foi
+   * empurrado pela horda em saltos de cinco metros e estava morto no servidor em meio minuto.
+   *
+   * Obrigatório de propósito: um mapa novo tem de DIZER se tem horda, e não herdá-la por omissão.
+   */
+  readonly horde: boolean;
+  /**
+   * Os baús da fazenda e os colisores deles. Colisor que o servidor tem e o cliente não desenha é
+   * parede invisível: o laboratório declara `false` e não herda caixa nenhuma.
+   */
+  readonly chests: boolean;
+  /** A balsa entre ilhas: uma plataforma que anda. Mesma regra dos baús — sem ela no desenho, sem ela no servidor. */
+  readonly ferry: boolean;
 }
 
 /**

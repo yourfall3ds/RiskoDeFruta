@@ -244,7 +244,12 @@ export class EnemySwarm {
   };
   /** Direção tangente do ator até o jogador, usada quando não há Detour nem grade da fazenda. */
   private headingToward(from:Vec3,to:Vec3):Heading {this.space.towardInto(from,to,work0);return heading(work0);}
-  async load(loader:(model:string)=>Promise<AssetContainer>=model=>LoadAssetContainerAsync(`/models/${model}.glb`,this.scene)):Promise<void>{try{for(const model of new Set(Object.values(ENEMIES).map(x=>x.model))){if(this.disposed)return;const container=await loader(model);if(this.disposed){container.dispose();return;}this.containers.set(model,container);}this.ready=true;}catch(error){if(!this.disposed)this.error=String(error);}}
+  /**
+   * `models` vazio é mapa SEM HORDA (o laboratório): nenhum GLB baixado, pronto na hora. Eram 17 s
+   * de carga — o maior custo do Test Map inteiro — para um elenco que nunca entra em campo lá. Um
+   * corpo replicado de um modelo que não veio simplesmente não nasce: `spawn` devolve `false`.
+   */
+  async load(loader:(model:string)=>Promise<AssetContainer>=model=>LoadAssetContainerAsync(`/models/${model}.glb`,this.scene),models:Iterable<string>=new Set(Object.values(ENEMIES).map(x=>x.model))):Promise<void>{try{for(const model of models){if(this.disposed)return;const container=await loader(model);if(this.disposed){container.dispose();return;}this.containers.set(model,container);}this.ready=true;}catch(error){if(!this.disposed)this.error=String(error);}}
   async prepareNavigation():Promise<void>{try{const tactical=await TacticalNavigation.create(this.world.collision,true);if(this.disposed){tactical.dispose();return;}this.tactical=tactical;this.navigationReady=true;}catch(error){this.error=String(error);}}
   /**
    * A grade de fluxo da fazenda é uma carta plana de 120 m em torno da origem: no planeta ela não

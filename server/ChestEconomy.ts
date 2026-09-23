@@ -41,7 +41,8 @@ export class ChestEconomy {
   /** `requestId` já resolvidos: o mesmo pedido chegando duas vezes não debita duas vezes. */
   private readonly resolved=new Set<string>();
 
-  constructor(){for(const spec of chestCatalog())this.rows.set(spec.id,{...spec,used:false,uses:0});}
+  /** `catalog` vazio é mapa sem baús (o laboratório): todo pedido vira `unknown-chest`, como deve. */
+  constructor(catalog:readonly ChestSpec[]=chestCatalog()){for(const spec of catalog)this.rows.set(spec.id,{...spec,used:false,uses:0});}
 
   get(id:string):Readonly<ChestRow>|undefined {return this.rows.get(id);}
   /** Ids já consumidos, para a sala replicar o que cada tela deve mostrar aberto. */

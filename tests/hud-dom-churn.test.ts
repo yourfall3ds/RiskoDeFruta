@@ -270,6 +270,28 @@ describe('churn de DOM do HUD de combate',()=>{
   expect(t.dom.body.children).toHaveLength(0);
  });
 
+ /**
+  * MAPA SEM BAÚS — o Test Map V1.0. `interact` chega `undefined` e o HUD de corrida tem de seguir
+  * inteiro. Antes, `interact.entries` lançava na primeira atualização, e o laço de desenho do
+  * Babylon morria nesse `TypeError`: jogo congelado na entrada, ENTER sem efeito, nenhum aviso.
+  */
+ it('mapa sem baús: atualiza sem lançar e o resto do HUD de corrida segue de pé',()=>{
+  const t=harness();active=t;
+  t.run.time=10.05;populate(t.swarm,4);
+  const semBaus=():void=>t.hud.update(t.run,t.swarm as unknown as EnemySwarm,undefined,t.camera as unknown as Camera);
+  expect(semBaus).not.toThrow();
+  // Nada da economia de baús: sem contrato, sem etiqueta de suprimento, sem prompt de interação.
+  expect(t.panel('.district-contract').textContent).toBe('');
+  expect(t.panel('.world-supplies').children).toHaveLength(0);
+  expect(t.panel('.run-interact').hidden).toBe(true);
+  // O que não depende de baú continua: relógio, contagem da horda e barras de vida.
+  expect(t.panel('.run-clock').textContent).toContain('00:10');
+  expect(t.panel('.run-hostiles').textContent).toContain('4 / 24');
+  expect(t.panel('.enemy-health-bars').children).toHaveLength(4);
+  t.run.time+=.105;
+  expect(semBaus).not.toThrow();
+ });
+
  it('recomeço de tentativa com o tempo zerado redesenha o HUD em vez de ficar preso',()=>{
   const t=harness();active=t;
   t.run.time=300;populate(t.swarm,8);t.swarm.kills=41;t.tick(0);

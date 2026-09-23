@@ -32,4 +32,7 @@ export const FARM_MAP: MapDefinition = {
   id: FARM_MAP_ID,
   displayName: FARM_MAP_NAME,
   playerSpawns: [posicao(0), posicao(1), posicao(2), posicao(3)],
+  horde: true,
+  chests: true,
+  ferry: true,
 };

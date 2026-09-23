@@ -22,20 +22,47 @@ import type { TrainingTarget } from '../src/world/TrainingYard';
  * local não roda "também" — ela não roda. Cada `expect` abaixo é uma decisão que o `EnemySwarm`
  * tomava sozinho e que agora tem de ser recusada.
  */
-async function setup() {
+/** `models` é o elenco a baixar; ausente é o elenco inteiro, como no jogo. */
+async function setup(models?: string[]) {
   const engine = new NullEngine(), scene = new Scene(engine), events = new EventBus<GameEvents>(), collision = new CollisionWorld();
   collision.surfaces.push({ id: 'field', x: 0, z: 0, width: 200, depth: 200, height: 0 });
   const player = new PlayerMotor(collision, events, { x: 0, y: 0, z: 0 });
   const run = new RunProgression(events), world = { targets: [] as TrainingTarget[], collision };
   const light = new DirectionalLight('sun', new Vector3(0, -1, 0), scene), shadows = new ShadowGenerator(128, light);
   const swarm = new EnemySwarm(scene, world, events, shadows, player, run, new RunRNG('replica-test'));
+  let downloads = 0;
   await swarm.load(async model => {
+    downloads++;
     const c = new AssetContainer(scene), mesh = CreateBox(model, { size: 1 }, scene);
     c.meshes.push(mesh); c.populateRootNodes(); c.removeAllFromScene(); return c;
-  });
+  }, models);
   swarm.initialize(); swarm.benchmark = true; swarm.director.stopped = true;
-  return { engine, scene, events, player, run, swarm, close: () => { swarm.dispose(); scene.dispose(); engine.dispose(); } };
+  return { engine, scene, events, player, run, swarm, downloads, close: () => { swarm.dispose(); scene.dispose(); engine.dispose(); } };
 }
+
+/**
+ * MAPA SEM HORDA — o Test Map V1.0. O elenco inteiro custava 17 s de carga no laboratório, o maior
+ * item da barra, para inimigos que nunca entram em campo lá. Sem elenco a horda tem de ficar pronta
+ * na hora, e uma linha replicada cujo modelo não veio não pode derrubar o quadro.
+ */
+describe('horda sem elenco (o laboratório)', () => {
+  it('fica pronta sem baixar modelo nenhum', async () => {
+    const t = await setup([]);
+    try {
+      expect(t.downloads).toBe(0);
+      expect(t.swarm.ready).toBe(true);
+      expect(t.swarm.error).toBe('');
+    } finally { t.close(); }
+  });
+
+  it('uma linha replicada de modelo ausente não nasce e não lança', async () => {
+    const t = await setup([]);
+    try {
+      expect(() => { for (let i = 0; i < 3; i++) t.swarm.replicate([row()], DT); }).not.toThrow();
+      expect(t.swarm.actors.some(a => a.serverId === 7 && a.active)).toBe(false);
+    } finally { t.close(); }
+  });
+});
 
 /** Uma linha autoritativa, como a sala a entrega depois de decodificar o schema. */
 function row(over: Partial<ReplicatedEnemy> = {}): ReplicatedEnemy {

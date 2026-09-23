@@ -16,7 +16,7 @@ import '@babylonjs/core/Materials/Textures/Loaders/envTextureLoader';
 import type { Scene } from '@babylonjs/core/scene';
 import type { Camera } from '@babylonjs/core/Cameras/camera';
 import {SceneLoader} from '@babylonjs/core/Loading/sceneLoader';
-import type {GLTFFileLoader} from '@babylonjs/loaders/glTF';
+import {GLTFLoaderState, type GLTFFileLoader} from '@babylonjs/loaders/glTF';
 
 export const TRAINING_LIGHTING = { sun:4.2, fill:.5, exposure:1.4, contrast:1.08, bloom:.12, shadowSize:2048, msaa:4 } as const;
 const qualitySettings=new WeakMap<Scene,(balanced:boolean)=>void>();
@@ -28,8 +28,23 @@ export function trainingLighting(scene: Scene,camera: Camera): ShadowGenerator {
   scene.onBeforeRenderObservable.add(clampLights);
   // Imports finish between frames. Clamp before executeWhenReady can compile the inflated
   // shader variant; waiting for a render is too late when readiness itself blocks the render.
+  //
+  // O CORTE TEM DE ACONTECER NO `READY`, e não no `COMPLETE`. O carregador sobe as luzes de todos
+  // os materiais DENTRO da passagem para READY (`glTFLoader._loadAsync`: o laço "Making sure we
+  // enable enough lights" roda e em seguida `_setState(READY)` e `resultFunc()`), e é o `resultFunc`
+  // que devolve o controle a quem importou. O COMPLETE só vem depois, quando as promessas finais
+  // assentam. Cortando só no COMPLETE, sobrava uma janela entre a subida e o corte em que quem
+  // importou já seguia a vida — e se algo compilasse ali, o programa saía com onze vagas de luz,
+  // catorze blocos de uniforme, e falhava contra o limite de doze da placa. O programa falho ficava
+  // no registro do motor e a cena nunca mais ficava pronta: o travamento no fim da barra, medido
+  // no Test Map V1.0 e na fazenda. `onLoaderStateChangedObservable` notifica de forma SÍNCRONA
+  // dentro de `_setState`, então o corte no READY roda antes de o controle voltar.
+  // O COMPLETE continua cortando também: é barato e cobre o que chegar depois.
   const loaderObserver=SceneLoader.OnPluginActivatedObservable.add(plugin=>{
-    if(plugin.name==='gltf')(plugin as GLTFFileLoader).onCompleteObservable.addOnce(clampLights);
+    if(plugin.name!=='gltf')return;
+    const loader=plugin as GLTFFileLoader;
+    const noReady=loader.onLoaderStateChangedObservable.add(state=>{if(state===GLTFLoaderState.READY)clampLights();});
+    loader.onCompleteObservable.addOnce(()=>{clampLights();loader.onLoaderStateChangedObservable.remove(noReady);});
   });
   scene.onDisposeObservable.addOnce(()=>SceneLoader.OnPluginActivatedObservable.remove(loaderObserver));
   scene.clearColor=new Color4(.16,.25,.38,1);

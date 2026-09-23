@@ -3,7 +3,7 @@ import {usePlanetWorld} from '../world/WorldSelection';
 import {spawnFor} from '../world/MapDefinition';
 import {FARM_MAP} from '../world/FarmMap';
 import {TestMapWorld} from '../world/TestMapWorld';
-import {isTestMap} from '../world/TestMap';
+import {TEST_MAP,isTestMap} from '../world/TestMap';
 import {currentRoomClient} from '../net/RoomSession';
 import {track,beginTask,endTask,describePending,resetLoadTrace,registerTask,loadProgress,hangReport,pendingTasks} from '../core/LoadTrace';
 import {reloadMovement} from '../player/ReloadMovement';
@@ -532,6 +532,25 @@ export class PlayerScene implements SceneModule {
     // de 40 ms movem a barra a mesma coisa.
     for(const [name,weight] of LOAD_WEIGHTS(this.radial,training,this.laboratorio))registerTask(name,weight);
     /**
+     * O DIAGNÓSTICO DE CARGA, consultável a qualquer momento — só com `?debug=1`.
+     *
+     * O `[LOAD HANG]` sai uma vez por tarefa, no log, e numa carga barulhenta o console do navegador
+     * descarta mensagens antigas: a linha que dizia O QUE segurava a cena foi perdida entre sete mil
+     * outras. E o F1 não abre durante a carga, que é exatamente quando se precisa dele. Com isto, a
+     * pergunta "o que está pendurado AGORA?" tem resposta sem depender de log nenhum:
+     * `__rdfLoad.readiness()` e `__rdfLoad.report()` no console.
+     */
+    if(new URL(location.href).searchParams.get('debug')==='1'){
+      (window as unknown as {__rdfLoad?:unknown}).__rdfLoad={readiness:()=>this.sceneReadinessReport(),report:()=>hangReport(),
+        // O estado da ENTRADA e da carga. Nasceu para o travamento do laboratório — jogador congelado
+        // no ar, Enter sem efeito —, que acabou sendo o laço de desenho morto por um `TypeError` num
+        // quadro (ver `core/FrameGuard`). `pronto` é o fim do aquecimento: o quadro jogável de fato,
+        // e não `comecou`, que liga antes de a carga terminar.
+        intro:()=>({fase:this.intro.phase,controle:this.intro.holdsControl,espera:this.intro.standby,chegou:this.hasArrived,
+          comecou:this.started,pronto:this.warmed,pausado:this.paused,nave:this.dropship?this.dropship.ready:'sem nave',laboratorio:this.laboratorio,
+          posicao:{x:+this.player.position.x.toFixed(2),y:+this.player.position.y.toFixed(2),z:+this.player.position.z.toFixed(2)}})};
+    }
+    /**
      * O MUNDO DO LABORATÓRIO já está pronto: ele se desenha no construtor, sem arquivo nenhum. A
      * tarefa existe e fecha na hora para o rastro dizer isso com número — e a navegação da horda é
      * preparada sobre a MESMA colisão que o servidor usa, porque `checkReady` a exige de qualquer
@@ -593,11 +612,26 @@ export class PlayerScene implements SceneModule {
     // que a horda usava — cada número tirado aqui movia um corpo lá. Com um jogador só a defasagem
     // era sempre a mesma e ninguém via; no co-op ela variava com a lotação da sala. O single-player
     // é o assento 1 da fazenda, exatamente onde o servidor põe P1. Ver `core/RunRNG` e `world/FarmMap`.
-    if(!training){const assento=spawnFor(FARM_MAP,1);this.spawn.x=assento.x;this.spawn.z=assento.z;}
+    //
+    // Com sala, o assento é o do NÚMERO que a sala deu (`welcome`), no MAPA que a sala escolheu — a
+    // mesma conta que `FarmSimulation.spawnPoint` faz. Nascer no assento 1 da fazenda em qualquer
+    // caso deixava P2 em cima de P1 até o primeiro acerto de contas com o servidor, e no laboratório
+    // o boneco ficava fora da marca do assento, que é justamente o que o Test Map existe para mostrar.
+    let olhar=-.13;
+    if(!training){
+      const sala=currentRoomClient();
+      const assento=spawnFor(this.laboratorio?TEST_MAP:FARM_MAP,sala?.me?.entityId||sala?.entityId||1);
+      this.spawn.x=assento.x;this.spawn.z=assento.z;
+      // No laboratório o assento também diz para onde olhar: de frente para o anel do corpo de teste.
+      if(this.laboratorio){this.spawn.y=assento.y;olhar=assento.yaw??0;}
+    }
 
     this.player=new PlayerMotor(collision,this.events,this.spawn);
 
-    this.enemies=training?new EnemyReview(this.scene,this.world,this.events,shadows):new EnemySwarm(this.scene,this.world,this.events,shadows,this.player,this.progression,rng,this.directorMode);if(this.enemies instanceof EnemySwarm)this.enemies.audio=this.audio;void track('enemies',this.enemies.load(),25).then(()=>{if(!this.disposed)this.checkReady();});
+    this.enemies=training?new EnemyReview(this.scene,this.world,this.events,shadows):new EnemySwarm(this.scene,this.world,this.events,shadows,this.player,this.progression,rng,this.directorMode);if(this.enemies instanceof EnemySwarm)this.enemies.audio=this.audio;
+    // O laboratório não tem horda (`TEST_MAP.horde`): nenhum modelo de inimigo a baixar.
+    const enemyLoad=this.enemies instanceof EnemySwarm&&this.laboratorio?this.enemies.load(undefined,[]):this.enemies.load();
+    void track('enemies',enemyLoad,25).then(()=>{if(!this.disposed)this.checkReady();});
 
     // Laboratório: HUD de corrida sim (relógio, estágio, créditos), baús não — são conteúdo, e o baú
     // de teste da fase de economia entra como item próprio do mapa, não pela carga da fazenda.
@@ -611,7 +645,9 @@ export class PlayerScene implements SceneModule {
 
     this.hud=new PlayerHUD(()=>{if(this.progression.time===0)this.events.emit('StageStarted',{stageId:String(this.progression.stage),seed:this.seed});this.started=true;
       // Sem o GLB da nave não existe deck para correr: a entrada cai direto no mergulho original.
-      if(!this.hasArrived){this.hasArrived=true;this.intro.start(Boolean(this.dropship?.ready));}
+      // No laboratório NÃO HÁ ENTRADA: o jogador já está em pé no assento, com controle, no primeiro
+      // quadro. O mergulho de seis segundos é conteúdo, e cada tentativa de validação pagaria por ele.
+      if(!this.hasArrived){this.hasArrived=true;if(!this.laboratorio)this.intro.start(Boolean(this.dropship?.ready));}
       this.audio.unlock();this.audio.setActive(true);void this.input.capture();},!training,{volume:value=>{this.audio.setVolume(value);this.prismRig?.setVolume(value);},quality:balanced=>applyLightingQuality(this.scene,balanced)},this.directorMode,
       // A seleção de classe só existe no jogo de verdade; o pátio de treino não tem expedição.
       {initial:this.classChoice.id,choose:id=>{this.classChoice.choose(id);this.applyPlayerClass();}});
@@ -621,7 +657,7 @@ export class PlayerScene implements SceneModule {
 
     this.input=new GameInput(canvas,active=>{if(this.player.hp<=0){if(this.death.active)this.audio.setActive(!this.paused);return;}this.audio.setActive(active);this.started=active;this.hud.setActive(active);if(!active)this.mp.cancel();});
 
-    if(!training){this.input.yaw=-.13;this.player.yaw=this.input.yaw;}
+    if(!training){this.input.yaw=olhar;this.player.yaw=this.input.yaw;}
 
     beginTask('visual',3);
     this.visual=new CharacterVisual(this.scene,()=>{endTask('visual');this.checkReady();for(const mesh of this.visual.meshes)shadows.addShadowCaster(mesh);});
@@ -994,10 +1030,14 @@ export class PlayerScene implements SceneModule {
       // A recompensa cai onde caiu a praga decisiva; sem abate recente, na âncora do objetivo.
       const recentKill=this.enemies.lastKill&&this.enemies.lastKill.age<12?this.enemies.lastKill.position:undefined;
       const hordeAnchors=[{position:recentKill,source:'kill' as const}];
-      while(this.enemies.director.rewardsPending>0){if(!this.interactables!.deliverWaveReward(this.rewardRng,hordeAnchors))break;this.enemies.director.rewardsPending--;}
+      // SEM BAÚS NÃO HÁ ONDE ENTREGAR, e o laboratório não tem baú nenhum (Test Map V1.0: o baú de
+      // teste entra como item próprio do mapa). As asserções `!` que moravam aqui eram verdade
+      // enquanto todo mundo com horda tinha baús; o laboratório quebrou a premissa, e cada uma delas
+      // virou um `TypeError` por tique — que parava o laço de desenho inteiro. Ver `core/FrameGuard`.
+      while(this.enemies.director.rewardsPending>0){if(!this.interactables?.deliverWaveReward(this.rewardRng,hordeAnchors))break;this.enemies.director.rewardsPending--;}
       while(this.objectives.rewardsPending>0){
         const totem=this.objectives.totems.filter(t=>t.state==='complete').at(-1)?.site.position;
-        if(!this.interactables!.deliverWaveReward(this.rewardRng,[{position:this.objectives.nextRewardPosition,source:'kill' as const},{position:totem,source:'objective' as const}]))break;
+        if(!this.interactables?.deliverWaveReward(this.rewardRng,[{position:this.objectives.nextRewardPosition,source:'kill' as const},{position:totem,source:'objective' as const}]))break;
         this.objectives.takeReward();
       }
       // A fenda fixa do celeiro só continua existindo nos modos legados (`?mode=horde`/`classic`).
@@ -1007,14 +1047,14 @@ export class PlayerScene implements SceneModule {
       // Nenhuma regra abaixo lê estes números — eles vão para a tela e param aí.
       if(this.net){
         this.economy.adopt(this.net.economy());
-        for(const id of this.net.usedChests()){const e=this.interactables!.entries.find(entry=>entry.id===id);if(e&&!e.used&&e.kind!=='altar')e.used=true;}
+        for(const id of this.net.usedChests()){const e=this.interactables?.entries.find(entry=>entry.id===id);if(e&&!e.used&&e.kind!=='altar')e.used=true;}
       }
-      this.interactables!.update(dt,riftReady);
+      this.interactables?.update(dt,riftReady);
       if(input.interact!==undefined){
-        if(riftReady&&this.interactables!.atRift)this.advanceLegacyStage();
+        if(riftReady&&this.interactables?.atRift)this.advanceLegacyStage();
         else if(expedition&&this.beginStageJourney()){/* viagem iniciada no cálice cheio */}
         else if(expedition&&this.objectives.activate(this.player.position))this.audio.charge(1);
-        else this.interactables!.buy(input.interact);
+        else this.interactables?.buy(input.interact);
       }
     }
 
@@ -1075,7 +1115,8 @@ export class PlayerScene implements SceneModule {
     // ---- Entrada pela nave -------------------------------------------------------------------
     // A espera no menu corre no relógio real (o jogador ainda não apertou Jogar); a sequência
     // depois segue o mesmo `animDt` da apresentação, então pausar congela tudo junto.
-    if(!this.hasArrived&&!this.started&&this.death.state==='idle'&&this.visual.ready&&this.weapons.ready)this.intro.beginStandby();
+    // O laboratório não tem nave: nem a espera no deck, nem a corrida, nem o mergulho (ver o Jogar).
+    if(!this.laboratorio&&!this.hasArrived&&!this.started&&this.death.state==='idle'&&this.visual.ready&&this.weapons.ready)this.intro.beginStandby();
     const heldBefore=this.intro.holdsControl;
     this.intro.update(this.death.active?0:this.intro.standby?(this.paused?0:dt):animDt,cue=>this.introCue(cue));
     // A entrada acabou de devolver o controle: daqui em diante o motor, a horda e o clima andam.
@@ -1237,7 +1278,7 @@ export class PlayerScene implements SceneModule {
       }
 
       // Distâncias e alcance de interação usam o corpo do jogador; a câmera só orienta a seta.
-      this.runHUD!.update(this.progression,this.enemies,this.interactables!,this.camera.camera,{objectives:this.objectives,resonance:this.resonance,mp:this.mp,player:this.player.position,weather:this.weather,journey:this.journey},this.economy);
+      this.runHUD!.update(this.progression,this.enemies,this.interactables,this.camera.camera,{objectives:this.objectives,resonance:this.resonance,mp:this.mp,player:this.player.position,weather:this.weather,journey:this.journey},this.economy);
       if(this.journey.active){
         this.hud.setObjective(`${this.journey.label} · ${this.journey.detail}`);
       } else if(this.objectives.planned){
@@ -2359,7 +2400,7 @@ export class PlayerScene implements SceneModule {
    */
   private advanceLegacyStage():void {
     if(!(this.enemies instanceof EnemySwarm)||this.directorMode==='expedition')return;
-    this.progression.advanceStage();this.enemies.nextStage();this.interactables!.reset();
+    this.progression.advanceStage();this.enemies.nextStage();this.interactables?.reset();
     this.objectives.reset();this.resonance.reset();
     this.player.maxHP=this.progression.stats.maxHP;this.player.resetAt(this.spawn);
     this.mp.cancel();this.cancelCinematic();this.weapons.cancelSkills();this.prism.cancel();
@@ -2540,9 +2581,111 @@ export class PlayerScene implements SceneModule {
   private sceneReadinessReport():string {
     if(this.disposed)return 'cena descartada';
     const waiting=this.scene.getWaitingItemsCount();
-    const meshes=this.scene.meshes.filter(m=>m.isEnabled()&&!m.isReady(true)).slice(0,8)
-      .map(m=>`${m.name}:${m.material?.name??'sem material'}`);
-    return `waiting=${waiting} meshes-não-prontos=${meshes.length?meshes.join(','):'nenhum'}`;
+    // TODAS as malhas com geometria, e não só as habilitadas: `Scene.isReady()` não pula as
+    // desabilitadas, então uma malha-molde escondida e não pronta segura a cena sem aparecer num
+    // relatório que olhasse só o que está visível. As desabilitadas saem marcadas `(off)`.
+    const meshes=this.scene.meshes.filter(m=>m.subMeshes?.length&&!m.isReady(true)).slice(0,8)
+      .map(m=>`${m.name}${m.isEnabled()?'':'(off)'}:${m.material?.name??'sem material'}`);
+    /**
+     * O RESTO do que `Scene.isReady()` exige.
+     *
+     * O relatório só olhava malhas e carga pendente — e no Test Map V1.0 os dois vinham ZERADOS
+     * enquanto a prontidão continuava falsa: `waiting=0 meshes-não-prontos=nenhum`, com a barra
+     * presa no fim. Um diagnóstico que diz "nada pendente" enquanto algo segura é pior que nenhum.
+     * O `isReady()` também exige partículas, a câmera ativa (com o pós-processamento dela) e as
+     * camadas de efeito; agora cada um aparece pelo nome quando é ele que segura.
+     */
+    const particulas=this.scene.particleSystems.filter(p=>!p.isReady()).slice(0,6).map(p=>p.name);
+    const camera=this.scene.activeCamera&&!this.scene.activeCamera.isReady(true)?this.scene.activeCamera.name:'';
+    const efeitos=(this.scene.effectLayers??[]).filter(l=>!l.isLayerReady()).map(l=>l.name);
+    const camadas=(this.scene.layers??[]).filter(l=>!l.isReady()).map(l=>l.name);
+    // Um shader que nunca termina de compilar segura TUDO e não pertence a malha nenhuma. Quando é
+    // ele, o relatório diz QUAL — nome do programa e o erro de compilação, se houve —, porque
+    // "shaders não prontos" sozinho aponta o problema sem dizer onde mexer.
+    const shaders=this.scene.getEngine().areAllEffectsReady();
+    const pendentes=shaders?[]:this.pendingEffects();
+    return `waiting=${waiting} meshes-não-prontos=${meshes.length?meshes.join(','):'nenhum'}`
+      +` partículas-não-prontas=${particulas.length?particulas.join(','):'nenhuma'}`
+      +` câmera=${camera||'pronta'} efeitos-não-prontos=${efeitos.length?efeitos.join(','):'nenhum'}`
+      +` camadas-não-prontas=${camadas.length?camadas.join(','):'nenhuma'} shaders-prontos=${shaders}`
+      +(pendentes.length?` shaders-pendentes=[${pendentes.join(' ; ')}]`:'')
+      +` isReady=${this.scene.isReady()}`;
+  }
+
+  /**
+   * UM SHADER QUE FALHOU NÃO PODE SEGURAR A CARGA PARA SEMPRE.
+   *
+   * ## O que acontecia
+   *
+   * `Scene.isReady()` exige `engine.areAllEffectsReady()`, e essa verificação percorre TODOS os
+   * programas já compilados no motor — inclusive os que FALHARAM. Um programa que falha nunca fica
+   * pronto. Então bastava um shader falhar uma vez para a cena nunca mais ficar pronta: a barra
+   * parava no fim, o console não dizia nada, e o relatório antigo mostrava "nada pendente".
+   *
+   * Medido no Test Map V1.0, pela primeira vez com nome e motivo:
+   *
+   *     default  blocos=14 [Material, Scene, Mesh, Light0 … Light10]
+   *     ERRO: VERTEX shader uniform block count exceeds GL_MAX_VERTEX_UNIFORM_BUFFERS (12)
+   *
+   * Um material pediu vagas de luz demais, o programa passou do limite de blocos da placa e falhou.
+   * O corte de luzes (`clampSceneLights`) consertou o MATERIAL, que recompilou certo — e o relatório
+   * confirmava: nenhuma malha dependia do programa falho. Ele era um ÓRFÃO, e o órfão envenenava a
+   * prontidão da cena inteira.
+   *
+   * ## O que se faz
+   *
+   * Falha de compilação é tratada como ERRO, não como espera: sobe a `aviso` com o programa, os
+   * blocos que ele pediu e a mensagem do driver; entra no rastro de carga como tarefa FALHOU; e é
+   * liberado do registro pelo caminho oficial do motor (`dispose(true)` → `_releaseEffect`). Só os
+   * que FALHARAM — nunca um que ainda está compilando.
+   *
+   * Isto não esconde defeito: se uma malha em uso precisar daquela configuração, ela continua não
+   * pronta e aparece pelo nome em `meshes-não-prontos`. O que deixa de existir é a espera eterna
+   * por um programa que ninguém usa e que nunca vai compilar.
+   */
+  private readonly failedEffectsSeen=new Set<string>();
+  private releaseFailedEffects():number {
+    type Efeito={isReady():boolean;_key?:string;name?:unknown;getCompilationError?():string;dispose(force?:boolean):void;_uniformBuffersNames?:Record<string,number>};
+    const registro=(this.scene.getEngine() as unknown as {_compiledEffects?:Record<string,Efeito>})._compiledEffects;
+    if(!registro)return 0;
+    let liberados=0;
+    for(const efeito of Object.values(registro)){
+      const erro=efeito.getCompilationError?.()??'';
+      if(!erro||efeito.isReady())continue;
+      const nome=typeof efeito.name==='string'?efeito.name:JSON.stringify(efeito.name??'').slice(0,60);
+      const chave=efeito._key??nome;
+      if(!this.failedEffectsSeen.has(chave)){
+        this.failedEffectsSeen.add(chave);
+        const blocos=Object.keys(efeito._uniformBuffersNames??{});
+        const tarefa=`shader:${nome}#${this.failedEffectsSeen.size}`;
+        // No rastro de carga, com o motivo: erro de shader nunca mais é espera silenciosa.
+        beginTask(tarefa,.01);endTask(tarefa,false,`${blocos.length} blocos [${blocos.join(',')}] · ${erro.replace(/\s+/g,' ').slice(0,200)}`);
+      }
+      efeito.dispose(true);
+      liberados++;
+    }
+    return liberados;
+  }
+
+  /**
+   * Os programas de shader que ainda não compilaram — e o motivo, quando falharam.
+   *
+   * Lê `_compiledEffects`, o registro interno do motor: não há API pública que liste efeitos
+   * pendentes, e sem isto o diagnóstico pararia em "algum shader". É leitura de diagnóstico e só
+   * roda quando a prontidão já está falsa; nada no jogo depende dela.
+   */
+  private pendingEffects():string[] {
+    type Efeito={isReady():boolean;name?:unknown;defines?:string;getCompilationError?():string;_uniformBuffersNames?:Record<string,number>};
+    const registro=(this.scene.getEngine() as unknown as {_compiledEffects?:Record<string,Efeito>})._compiledEffects;
+    if(!registro)return ['registro de efeitos indisponível'];
+    return Object.values(registro).filter(e=>!e.isReady()).slice(0,4).map(e=>{
+      const nome=typeof e.name==='string'?e.name:JSON.stringify(e.name??'').slice(0,80);
+      const erro=e.getCompilationError?.()??'';
+      // QUAIS blocos o programa pediu, e quantas luzes: é isso que responde "por que passou de 12".
+      const luzes=(e.defines?.match(/#define LIGHT\d+\b/g)??[]).length;
+      const blocos=Object.keys(e._uniformBuffersNames??{});
+      return `${nome} luzes=${luzes} blocos=${blocos.length}[${blocos.join(',')}]${erro?` ERRO:${erro.replace(/\s+/g,' ').slice(0,120)}`:' (compilando)'}`;
+    });
   }
 
   /**
@@ -2592,6 +2735,7 @@ export class PlayerScene implements SceneModule {
       this.warmupTimer=undefined;
       if(this.disposed||this.warmed)return;
       this.clampSceneLights();
+      this.releaseFailedEffects();
       if(this.scene.isReady()){finish();return;}
       this.warmupTimer=setTimeout(examine,120);
     };

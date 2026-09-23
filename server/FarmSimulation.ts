@@ -22,6 +22,7 @@ import {applyInitialRockFix,type InitialRockFix} from '../src/world/terrain/Init
 import { EMPTY_INPUT, type InputFrame } from '../src/input/InputFrame';
 import { EnemySimulation, type EnemyRow, type SimulatedPlayer } from './EnemySimulation';
 import { ChestEconomy, type PurchaseResult } from './ChestEconomy';
+import { chestCatalog } from '../src/run/ChestCatalog';
 import { MELEE_TUNING } from '../src/player/PlayerTuning';
 import { meleeReaches } from '../src/combat/UnarmedCombat';
 import { ENEMIES } from '../src/run/MonsterDirector';
@@ -143,7 +144,8 @@ export class FarmSimulation {
   readonly rng: RunRNG;
   readonly collision = new CollisionWorld();
   readonly progression = new RunProgression(this.events);
-  readonly ferry: IslandFerry;
+  /** A balsa entre ilhas é da FAZENDA (`MapDefinition.ferry`). Mapa sem balsa não tem plataforma andando. */
+  readonly ferry: IslandFerry | undefined;
   readonly loop: FixedLoop;
   readonly players = new Map<string, Player>();
   /**
@@ -157,7 +159,7 @@ export class FarmSimulation {
    * Ela é DAQUI porque `credits`, `xp`, `level` e `stage` são um agregado só (§21.4): decidir a
    * compra no cliente deixaria a carteira e a progressão derivadas de um espelho.
    */
-  readonly chests = new ChestEconomy();
+  readonly chests: ChestEconomy;
   /** Golpes de melee já resolvidos, contados para o diagnóstico. Nenhuma regra lê este número. */
   melees = 0;
   /** Eventos cosméticos de um frame acumulados desde o último `drain()`; a sala reencaminha como mensagens. */
@@ -178,20 +180,28 @@ export class FarmSimulation {
     this.rng = new RunRNG(seed);
     const merged = mergeCollision(data.mesh, data.solid, data.city, data.regions, data.boxes, data.outcrops, data.initialRocks);
     this.collision.boxes.push(...data.boxes, ...merged.mesh.boxes);
-    this.collision.movingBoxes.push(...barnChestColliders());
-    if(data.city)this.collision.movingBoxes.push(...cityChestColliders());
-    if(data.regions?.length)this.collision.movingBoxes.push(...frontierChestColliders());
-    if(data.regions?.some(r=>r.id==='rootwood'))this.collision.movingBoxes.push(...rootwoodChestColliders());
-    if(data.regions?.some(r=>r.id==='highland-farms'))this.collision.movingBoxes.push(...highlandChestColliders());
+    // Os baús são do MAPA. O do celeiro entrava em qualquer um, e no laboratório isso era uma caixa
+    // invisível flutuando dentro do cercado — no servidor, e só nele: o cliente nunca a desenhou.
+    this.chests = new ChestEconomy(map.chests ? chestCatalog() : []);
+    if (map.chests) {
+      this.collision.movingBoxes.push(...barnChestColliders());
+      if(data.city)this.collision.movingBoxes.push(...cityChestColliders());
+      if(data.regions?.length)this.collision.movingBoxes.push(...frontierChestColliders());
+      if(data.regions?.some(r=>r.id==='rootwood'))this.collision.movingBoxes.push(...rootwoodChestColliders());
+      if(data.regions?.some(r=>r.id==='highland-farms'))this.collision.movingBoxes.push(...highlandChestColliders());
+    }
     this.collision.surfaces.push(...data.surfaces, ...merged.surfaces);
     this.collision.setGeometry(merged.mesh.positions, merged.mesh.indices);
     this.collision.setRecoveryVolumes(merged.solid.positions, merged.solid.indices);
-    this.ferry = new IslandFerry(this.collision);
+    // Ela anda entre x = -26 e -34 em z = -8: dentro do cercado do laboratório. Lá seria uma plataforma
+    // carregando o jogador no servidor e em nenhuma tela.
+    this.ferry = map.ferry ? new IslandFerry(this.collision) : undefined;
     this.enemies = new EnemySimulation({
       collision: this.collision, events: this.events, rng: this.rng, progression: this.progression,
       // Uma FUNÇÃO e não uma lista: a corrida ganha e perde jogadores, e a IA tem de enxergar
       // exatamente quem está vivo NESTE passo (contrato §9 e §18.6).
       players: () => this.livingPlayerViews(),
+      horde: map.horde,
     });
     this.loop = new FixedLoop(dt => this.step(dt), () => {});
     // `EnemyHit` entra na lista com o bloco E: o número de dano é feedback EFÊMERO (§18.10) e o
@@ -281,7 +291,7 @@ export class FarmSimulation {
   step(dt: number): void {
     this.steps++;
     const first = [...this.players.values()][0];
-    if (first) { this.ferry.update(dt, first.motor); this.carryOtherRiders(first); }
+    if (first && this.ferry) { this.ferry.update(dt, first.motor); this.carryOtherRiders(first, this.ferry); }
     for (const player of this.players.values()) {
       // Nível é da SALA, itens são do jogador: os atributos saem do loadout dele, nunca de um
       // `stats` único — senão o item que um pegou buffaria os quatro.
@@ -481,7 +491,7 @@ export class FarmSimulation {
 
   snapshot(): Snapshot {
     return {
-      seed: this.seed, tick: this.steps, time: this.time, stage: this.progression.stage, ferryTime: this.ferry.time,
+      seed: this.seed, tick: this.steps, time: this.time, stage: this.progression.stage, ferryTime: this.ferry?.time ?? 0,
       credits: this.progression.credits, xp: this.progression.xp, level: this.progression.level, totalKills: this.progression.totalKills,
       purchases: this.chests.purchases, usedChests: this.chests.usedIds(),
       players: [...this.players.values()].map(p => this.snapshotPlayer(p)),
@@ -556,8 +566,8 @@ export class FarmSimulation {
   }
 
   /** `IslandFerry.update` transporta um passageiro; os demais recebem o mesmo deslocamento com o mesmo teste de bordo. */
-  private carryOtherRiders(first: Player): void {
-    const f = this.ferry, dx = f.position.x - f.previous.x, dz = f.position.z - f.previous.z, dy = f.position.y - f.previous.y;
+  private carryOtherRiders(first: Player, f: IslandFerry): void {
+    const dx = f.position.x - f.previous.x, dz = f.position.z - f.previous.z, dy = f.position.y - f.previous.y;
     if (!dx && !dz && !dy) return;
     for (const player of this.players.values()) {
       if (player === first) continue;

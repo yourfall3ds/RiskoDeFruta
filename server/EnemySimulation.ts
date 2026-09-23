@@ -126,6 +126,12 @@ export interface EnemySimulationOptions {
   surface?:EnemySurface;
   /** Teto de população. No servidor não há malha, então ele é regra de jogo, não orçamento de GPU. */
   populationCap?:number;
+  /**
+   * O diretor nasce inimigos sozinho. `false` num mapa sem horda (`MapDefinition.horde`, o
+   * laboratório): o passo continua andando — um corpo posto à mão ainda vive, sofre e morre —, só
+   * ninguém nasce por conta própria. Ausente é `true`: todo chamador antigo segue igual.
+   */
+  horde?:boolean;
 }
 
 export class EnemySimulation {
@@ -601,7 +607,7 @@ export class EnemySimulation {
     }
 
     this.scheduler.update(dt);
-    this.director.update(dt,this.kills,this.count,kind=>this.spawn(kind),this.populationCap);
+    if(this.options.horde!==false)this.director.update(dt,this.kills,this.count,kind=>this.spawn(kind),this.populationCap);
     if(this.bossDeadTime>=0)this.bossDeadTime+=dt;
 
     for(const a of this.actors){
